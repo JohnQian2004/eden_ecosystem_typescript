@@ -1,0 +1,21 @@
+<div class="p-3">
+  <h4 class="mb-3">📊 Component Status</h4>
+  
+  <div *ngFor="let component of componentList" [ngClass]="getStatusClass(component.status)">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <span class="me-2">{{ getStatusIcon(component.status) }}</span>
+        <strong>{{ component.name }}</strong>
+      </div>
+      <span class="badge bg-secondary">{{ component.count }}</span>
+    </div>
+    <small class="text-muted">
+      {{ component.lastUpdate | date:'HH:mm:ss' }}
+    </small>
+  </div>
+  
+  <div *ngIf="componentList.length === 0" class="text-center text-muted py-5">
+    No components active
+  </div>
+</div>
+

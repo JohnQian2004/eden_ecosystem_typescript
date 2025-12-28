@@ -1,0 +1,71 @@
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3 sidebar">
+      <app-sidebar></app-sidebar>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-md-9">
+      <div class="container-fluid py-3">
+        <h1 class="mb-4">🌳 Eden Simulator Dashboard</h1>
+        
+        <!-- iGas Display -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <app-igas-display></app-igas-display>
+          </div>
+        </div>
+        
+        <!-- User Input Form -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">💬 Chat Input</h5>
+              </div>
+              <div class="card-body">
+                <form (ngSubmit)="onSubmit()" #chatForm="ngForm">
+                  <div class="input-group mb-3">
+                    <input 
+                      type="text" 
+                      class="form-control" 
+                      placeholder="Enter your query (e.g., 'I want a sci-fi movie to watch tonight at the best price')"
+                      [(ngModel)]="userInput"
+                      name="userInput"
+                      required
+                      [disabled]="isProcessing">
+                    <button 
+                      class="btn btn-primary" 
+                      type="submit"
+                      [disabled]="isProcessing || !userInput">
+                      <span *ngIf="!isProcessing">Send</span>
+                      <span *ngIf="isProcessing">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Ledger Display -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <app-ledger-display></app-ledger-display>
+          </div>
+        </div>
+        
+        <!-- Chat Box -->
+        <div class="row">
+          <div class="col-12">
+            <app-chat-box></app-chat-box>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

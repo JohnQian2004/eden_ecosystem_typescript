@@ -1,0 +1,23 @@
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">💬 Simulator Chat</h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="chat-box">
+      <div *ngFor="let msg of messages" class="mb-2">
+        <small class="text-muted">{{ formatTimestamp(msg.timestamp) }}</small>
+        <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
+        <div [ngClass]="getMessageClass(msg)">
+          {{ msg.message }}
+        </div>
+        <div *ngIf="msg.data" class="mt-1 ms-4">
+          <pre class="small bg-light p-2 rounded">{{ msg.data | json }}</pre>
+        </div>
+      </div>
+      <div *ngIf="messages.length === 0" class="text-center text-muted py-5">
+        Waiting for simulator events...
+      </div>
+    </div>
+  </div>
+</div>
+

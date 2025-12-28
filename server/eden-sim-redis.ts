@@ -15,13 +15,199 @@ import * as http from "http";
 import * as https from "https";
 import * as crypto from "crypto";
 import * as process from "process";
+import * as fs from "fs";
+import * as path from "path";
+import * as url from "url";
 import { EventEmitter } from "events";
+import { WebSocketServer, WebSocket } from "ws";
 
 // CLI Flags
 const args = process.argv.slice(2);
 const MOCKED_LLM = args.some(arg => arg.includes("--mocked-llm") && (arg.includes("=true") || !arg.includes("=false")));
 const SKIP_REDIS = args.some(arg => arg.includes("--skip-redis") && (arg.includes("=true") || !arg.includes("=false")));
 const ENABLE_OPENAI = args.some(arg => arg.includes("--enable-openai") && (arg.includes("=true") || !arg.includes("=false")));
+const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
+const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
+
+// HTTP Server for serving Angular and API
+const httpServer = http.createServer();
+
+// WebSocket Server for Frontend (upgrade from HTTP server)
+const wss = new WebSocketServer({ 
+  server: httpServer,
+  path: "/ws" // Optional: specific WebSocket path
+});
+const wsClients = new Set<WebSocket>();
+
+wss.on("connection", (ws: WebSocket, req) => {
+  console.log(`🔌 WebSocket client connected from ${req.socket.remoteAddress} (${wsClients.size + 1} total)`);
+  wsClients.add(ws);
+  
+  ws.on("close", () => {
+    wsClients.delete(ws);
+    console.log(`🔌 WebSocket client disconnected (${wsClients.size} remaining)`);
+  });
+  
+  ws.on("error", (error: Error) => {
+    console.error("❌ WebSocket error:", error.message);
+  });
+  
+  // Send welcome message
+  ws.send(JSON.stringify({
+    type: "connection",
+    component: "websocket",
+    message: "Connected to Eden Simulator",
+    timestamp: Date.now(),
+  }));
+});
+
+wss.on("error", (error: Error) => {
+  console.error("❌ WebSocketServer error:", error.message);
+});
+
+// Broadcast events to all connected clients
+function broadcastEvent(event: any) {
+  const message = JSON.stringify(event);
+  wsClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// HTTP Server Routes
+httpServer.on("request", async (req, res) => {
+  const parsedUrl = url.parse(req.url || "/", true);
+  const pathname = parsedUrl.pathname || "/";
+
+  // WebSocket upgrade requests are handled automatically by WebSocketServer
+  // No need to intercept them here
+
+  // CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  // API Routes
+  if (pathname === "/api/chat" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { input, email } = JSON.parse(body);
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+          return;
+        }
+        await processChatInput(input, email);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, message: "Chat processed" }));
+      } catch (error: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/status" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "online",
+      websocketClients: wsClients.size,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  if (pathname === "/api/ledger" && req.method === "GET") {
+    const parsedUrl = url.parse(req.url || "/", true);
+    const payerEmail = parsedUrl.query.email as string | undefined;
+    const entries = getLedgerEntries(payerEmail);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      entries: entries,
+      total: entries.length
+    }));
+    return;
+  }
+
+  if (pathname === "/api/cashier" && req.method === "GET") {
+    const cashierStatus = getCashierStatus();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      cashier: cashierStatus
+    }));
+    return;
+  }
+
+  // Serve static files (Angular app)
+  let filePath = pathname === "/" ? "/index.html" : pathname;
+  const fullPath = path.join(FRONTEND_PATH, filePath);
+
+  // Security: prevent directory traversal
+  const resolvedPath = path.resolve(fullPath);
+  const resolvedFrontend = path.resolve(FRONTEND_PATH);
+  if (!resolvedPath.startsWith(resolvedFrontend)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+
+  fs.access(fullPath, fs.constants.F_OK, (err) => {
+    if (err) {
+      // If file not found, serve index.html for Angular routing
+      const indexPath = path.join(FRONTEND_PATH, "index.html");
+      fs.readFile(indexPath, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end("Not Found");
+        } else {
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(data);
+        }
+      });
+    } else {
+      fs.readFile(fullPath, (err, data) => {
+        if (err) {
+          res.writeHead(500);
+          res.end("Internal Server Error");
+        } else {
+          const ext = path.extname(fullPath);
+          const contentType = getContentType(ext);
+          res.writeHead(200, { "Content-Type": contentType });
+          res.end(data);
+        }
+      });
+    }
+  });
+});
+
+function getContentType(ext: string): string {
+  const types: Record<string, string> = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon"
+  };
+  return types[ext] || "application/octet-stream";
+}
 
 // Embedded In-Memory Redis Server
 
@@ -205,6 +391,34 @@ type TransactionSnapshot = {
   feeSplit: Record<string, number>;
 };
 
+type LedgerEntry = {
+  entryId: string;
+  txId: string;
+  timestamp: number;
+  payer: string; // Email address
+  payerId: string; // User ID for internal tracking
+  merchant: string;
+  serviceType: string;
+  amount: number;
+  iGasCost: number;
+  fees: Record<string, number>;
+  status: 'pending' | 'processed' | 'completed' | 'failed';
+  cashierId: string;
+  bookingDetails?: {
+    movieTitle?: string;
+    showtime?: string;
+    location?: string;
+  };
+};
+
+type Cashier = {
+  id: string;
+  name: string;
+  processedCount: number;
+  totalProcessed: number;
+  status: 'active' | 'idle';
+};
+
 type Review = {
   userId: string;
   movieId: string;
@@ -239,7 +453,7 @@ type ServiceRegistryQuery = {
   serviceType: string;
   filters?: {
     location?: string;
-    maxPrice?: number;
+    maxPrice?: number | string; // Can be a number or 'best'/'lowest'
     minReputation?: number;
     genre?: string;
     time?: string;
@@ -280,6 +494,18 @@ const USERS: User[] = [
   { id: "u1", email: "alice@gmail.com", balance: 50 },
   { id: "u2", email: "bob@gmail.com", balance: 50 },
 ];
+
+// Ledger Component - Tracks all Eden bookings
+const LEDGER: LedgerEntry[] = [];
+
+// Dedicated Cashier for processing payments
+const CASHIER: Cashier = {
+  id: "cashier-eden-001",
+  name: "Eden Cashier",
+  processedCount: 0,
+  totalProcessed: 0,
+  status: 'active',
+};
 
 // Service Registry (Routing only - no price data)
 const SERVICE_REGISTRY: ServiceProvider[] = [
@@ -416,8 +642,17 @@ Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore",
 const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
 Format service provider listings into user-friendly chat response.
-Include: provider name, movie title, price, showtime, location, review count, rating.
-Return JSON with: message (string), listings (array), selectedListing (best option or null).
+
+Your responsibilities:
+1. Filter listings based on user query filters (e.g., maxPrice, genre, time, location)
+2. If maxPrice is "best" or "lowest", select listings with the lowest price
+3. If maxPrice is a number, only include listings with price <= maxPrice
+4. Apply other filters (genre, time, location) as specified
+5. Format the filtered results into a user-friendly message
+6. Select the best option based on user criteria (best price, best rating, etc.)
+
+Include in response: provider name, movie title, price, showtime, location, review count, rating.
+Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option or null).
 `;
 
 // Service Registry Functions
@@ -529,13 +764,14 @@ async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult
 }
 
 // OpenAI LLM Response Formatting
-async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: string): Promise<LLMResponse> {
+async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
+  const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
   const payload = JSON.stringify({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-      { role: "user", content: `User query: ${userQuery}\n\nAvailable listings:\n${listingsJson}\n\nFormat the best option as a user-friendly message.` },
+      { role: "user", content: `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.` },
     ],
     response_format: { type: "json_object" },
     temperature: 0.7,
@@ -627,13 +863,14 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
 }
 
 // DeepSeek LLM Response Formatting (Legacy)
-async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: string): Promise<LLMResponse> {
+async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
+  const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
   const payload = JSON.stringify({
     model: "deepseek-r1",
     messages: [
       { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-      { role: "user", content: `User query: ${userQuery}\n\nAvailable listings:\n${listingsJson}\n\nFormat the best option as a user-friendly message.` },
+      { role: "user", content: `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.` },
     ],
     stream: false,
   });
@@ -691,7 +928,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 
   let llmCalls = 0;
   let extractQueryFn: (input: string) => Promise<LLMQueryResult>;
-  let formatResponseFn: (listings: MovieListing[], query: string) => Promise<LLMResponse>;
+  let formatResponseFn: (listings: MovieListing[], query: string, filters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }) => Promise<LLMResponse>;
 
   // Choose LLM provider
   if (ENABLE_OPENAI) {
@@ -711,34 +948,63 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     console.log(`📋 Extracted query:`, queryResult);
 
     // Step 2: Query ServiceRegistry
+    broadcastEvent({
+      type: "service_registry_query",
+      component: "service-registry",
+      message: "Querying ServiceRegistry...",
+      timestamp: Date.now()
+    });
+    
     const providers = queryServiceRegistry(queryResult.query);
     console.log(`🔍 Found ${providers.length} service providers`);
+    
+    broadcastEvent({
+      type: "service_registry_result",
+      component: "service-registry",
+      message: `Found ${providers.length} service providers`,
+      timestamp: Date.now(),
+      data: { providers: providers.map(p => ({ id: p.id, name: p.name })) }
+    });
 
     if (providers.length === 0) {
       throw new Error("No service providers found matching query");
     }
 
     // Step 3: Query service providers' external APIs for actual data (prices, showtimes)
+    providers.forEach(provider => {
+      broadcastEvent({
+        type: "provider_api_query",
+        component: provider.id,
+        message: `Querying ${provider.name} API...`,
+        timestamp: Date.now()
+      });
+    });
+    
     const listings = await queryServiceProviders(providers, {
       genre: queryResult.query.filters?.genre,
       time: queryResult.query.filters?.time,
     });
     console.log(`🎬 Found ${listings.length} movie listings from provider APIs`);
+    
+    providers.forEach(provider => {
+      const providerListings = listings.filter(l => l.providerId === provider.id);
+      broadcastEvent({
+        type: "provider_api_result",
+        component: provider.id,
+        message: `${provider.name} returned ${providerListings.length} listings`,
+        timestamp: Date.now(),
+        data: { listings: providerListings }
+      });
+    });
 
-    // Apply maxPrice filter if specified (prices come from APIs, not registry)
-    let filteredListings = listings;
-    if (queryResult.query.filters?.maxPrice) {
-      filteredListings = listings.filter(listing => listing.price <= queryResult.query.filters!.maxPrice!);
-      console.log(`💰 Filtered to ${filteredListings.length} listings within price limit`);
+    if (listings.length === 0) {
+      throw new Error("No movie listings found from service providers");
     }
 
-    if (filteredListings.length === 0) {
-      throw new Error("No movie listings found matching criteria");
-    }
-
-    // Step 4: Format response using LLM
+    // Step 4: Format response using LLM (LLM will handle filtering based on query filters)
     llmCalls++;
-    const formattedResponse = await formatResponseFn(filteredListings, userInput);
+    console.log(`🤖 LLM will filter ${listings.length} listings based on query filters`);
+    const formattedResponse = await formatResponseFn(listings, userInput, queryResult.query.filters);
 
     // Step 5: Calculate iGas
     const iGas = calculateIGas(llmCalls, providers.length, queryResult.confidence);
@@ -765,9 +1031,104 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
   }
 }
 
+// Ledger Component - Tracks all Eden bookings
+
+function addLedgerEntry(
+  snapshot: TransactionSnapshot,
+  serviceType: string,
+  iGasCost: number,
+  payerId: string,
+  bookingDetails?: { movieTitle?: string; showtime?: string; location?: string }
+): LedgerEntry {
+  // payerId should be the email address (same as payer)
+  const entry: LedgerEntry = {
+    entryId: crypto.randomUUID(),
+    txId: snapshot.txId,
+    timestamp: snapshot.blockTime,
+    payer: snapshot.payer, // Email address
+    payerId: snapshot.payer, // Email address (same as payer)
+    merchant: snapshot.merchant,
+    serviceType: serviceType,
+    amount: snapshot.amount,
+    iGasCost: iGasCost,
+    fees: snapshot.feeSplit,
+    status: 'pending',
+    cashierId: CASHIER.id,
+    bookingDetails: bookingDetails,
+  };
+
+  LEDGER.push(entry);
+  
+  broadcastEvent({
+    type: "ledger_entry_added",
+    component: "ledger",
+    message: `Ledger entry created: ${entry.entryId}`,
+    timestamp: Date.now(),
+    data: { entry }
+  });
+
+  return entry;
+}
+
+function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): boolean {
+  // Cashier processes the payment
+  if (user.balance < entry.amount) {
+    entry.status = 'failed';
+    broadcastEvent({
+      type: "cashier_payment_failed",
+      component: "cashier",
+      message: `Payment failed: Insufficient balance`,
+      timestamp: Date.now(),
+      data: { entry, cashier }
+    });
+    return false;
+  }
+
+  // Deduct amount from user balance
+  user.balance -= entry.amount;
+  
+  // Update cashier stats
+  cashier.processedCount++;
+  cashier.totalProcessed += entry.amount;
+  entry.status = 'processed';
+
+  broadcastEvent({
+    type: "cashier_payment_processed",
+    component: "cashier",
+    message: `${cashier.name} processed payment: ${entry.amount} USDC`,
+    timestamp: Date.now(),
+    data: { entry, cashier, userBalance: user.balance }
+  });
+
+  return true;
+}
+
+function completeBooking(entry: LedgerEntry) {
+  entry.status = 'completed';
+  
+  broadcastEvent({
+    type: "ledger_booking_completed",
+    component: "ledger",
+    message: `Booking completed: ${entry.entryId}`,
+    timestamp: Date.now(),
+    data: { entry }
+  });
+}
+
+function getLedgerEntries(payerEmail?: string): LedgerEntry[] {
+  if (payerEmail) {
+    return LEDGER.filter(entry => entry.payer === payerEmail);
+  }
+  return [...LEDGER];
+}
+
+function getCashierStatus(): Cashier {
+  return { ...CASHIER };
+}
+
 // Snapshot Engine
 
-function createSnapshot(user: User, amount: number, providerId: string): TransactionSnapshot {
+function createSnapshot(userEmail: string, amount: number, providerId: string): TransactionSnapshot {
   const txId = crypto.randomUUID();
   const rootFee = amount * ROOT_CA_FEE;
   const indexerFee = amount * INDEXER_FEE;
@@ -777,7 +1138,7 @@ function createSnapshot(user: User, amount: number, providerId: string): Transac
     txId,
     slot: Math.floor(Math.random() * 1_000_000),
     blockTime: Date.now(),
-    payer: user.id,
+    payer: userEmail, // Use email address directly as payer
     merchant: providerId,
     amount: amount,
     feeSplit: {
@@ -880,6 +1241,13 @@ async function indexerConsumer(name: string, stream: string) {
             const txId = msg.message?.txId;
             if (txId) {
               console.log(`📡 ${name} indexed tx`, txId);
+              broadcastEvent({
+                type: "indexer_indexed",
+                component: name.toLowerCase().replace(/\s+/g, '-'),
+                message: `${name} indexed transaction ${txId}`,
+                timestamp: Date.now(),
+                data: { txId, indexer: name }
+              });
             }
             // Update position to this message ID for next read
             lastReadId = msg.id;
@@ -910,8 +1278,192 @@ function applyReview(user: User, review: Review, moviePrice: number) {
   return 0;
 }
 
-// Main Flow
+// Chat API Processor Service - Processes user input through all components
+async function processChatInput(input: string, email: string) {
+  // Find or create user by email (no user management needed)
+  let user = USERS.find(u => u.email === email);
+  if (!user) {
+    // Create new user on-the-fly with sequential ID matching USERS array format (u1, u2, u3...)
+    const nextId = `u${USERS.length + 1}`;
+    user = {
+      id: nextId, // Sequential ID matching existing format (u1, u2, u3...)
+      email: email,
+      balance: 50, // Default balance
+    };
+    USERS.push(user);
+    console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+  }
 
+  console.log("1️⃣ User Input");
+  broadcastEvent({
+    type: "user_input",
+    component: "user",
+    message: `User query: "${input}"`,
+    timestamp: Date.now(),
+    data: { input, email: user.email }
+  });
+
+  console.log("2️⃣ LLM Resolution (Query → ServiceRegistry → Providers → Format)");
+  broadcastEvent({
+    type: "llm_start",
+    component: "llm",
+    message: "Starting LLM query extraction...",
+    timestamp: Date.now()
+  });
+  
+  const llmResponse: LLMResponse = await resolveLLM(input);
+  console.log("📨 LLM Response:", llmResponse.message);
+  console.log("⛽ iGas Cost:", llmResponse.iGasCost.toFixed(6));
+  
+  broadcastEvent({
+    type: "llm_response",
+    component: "llm",
+    message: llmResponse.message,
+    timestamp: Date.now(),
+    data: { response: llmResponse }
+  });
+  
+  broadcastEvent({
+    type: "igas",
+    component: "igas",
+    message: `iGas Cost: ${llmResponse.iGasCost.toFixed(6)}`,
+    timestamp: Date.now(),
+    data: { igas: llmResponse.iGasCost }
+  });
+  
+  if (!llmResponse.selectedListing) {
+    console.error("❌ No listing selected");
+    broadcastEvent({
+      type: "error",
+      component: "llm",
+      message: "No listing selected from LLM response",
+      timestamp: Date.now()
+    });
+    return;
+  }
+
+  const selectedListing = llmResponse.selectedListing;
+  console.log("✅ Selected:", `${selectedListing.providerName} - ${selectedListing.movieTitle} at ${selectedListing.showtime} for ${selectedListing.price} USDC`);
+
+  console.log("3️⃣ Ledger: Create Booking Entry");
+  const moviePrice = selectedListing.price;
+  
+  // Create snapshot first (needed for ledger entry)
+  const snapshot = createSnapshot(user.email, moviePrice, selectedListing.providerId);
+  
+  // Add ledger entry for this booking
+  const ledgerEntry = addLedgerEntry(
+    snapshot,
+    llmResponse.listings[0]?.providerName ? 'movie' : 'service',
+    llmResponse.iGasCost,
+    user.email, // Pass email address (payerId will be set to email)
+    {
+      movieTitle: selectedListing.movieTitle,
+      showtime: selectedListing.showtime,
+      location: selectedListing.location,
+    }
+  );
+
+  broadcastEvent({
+    type: "ledger_entry_created",
+    component: "ledger",
+    message: `Ledger entry created for booking: ${ledgerEntry.entryId}`,
+    timestamp: Date.now(),
+    data: { entry: ledgerEntry }
+  });
+
+  console.log("4️⃣ Cashier: Process Payment");
+  broadcastEvent({
+    type: "cashier_start",
+    component: "cashier",
+    message: `${CASHIER.name} processing payment...`,
+    timestamp: Date.now(),
+    data: { cashier: CASHIER }
+  });
+
+  const paymentSuccess = processPayment(CASHIER, ledgerEntry, user);
+  if (!paymentSuccess) {
+    console.error(`❌ Payment failed. Balance: ${user.balance}, Required: ${moviePrice}`);
+    return;
+  }
+
+  broadcastEvent({
+    type: "purchase",
+    component: "transaction",
+    message: `Purchased ${selectedListing.movieTitle} for ${moviePrice} USDC`,
+    timestamp: Date.now(),
+    data: { listing: selectedListing, price: moviePrice, ledgerEntry: ledgerEntry.entryId }
+  });
+
+  console.log("5️⃣ Snapshot + Persist");
+  broadcastEvent({
+    type: "snapshot_start",
+    component: "snapshot",
+    message: "Creating transaction snapshot...",
+    timestamp: Date.now()
+  });
+  
+  await persistSnapshot(snapshot);
+  
+  broadcastEvent({
+    type: "snapshot_success",
+    component: "snapshot",
+    message: `Snapshot created: ${snapshot.txId}`,
+    timestamp: Date.now(),
+    data: { snapshot }
+  });
+
+  console.log("6️⃣ Stream to Indexers");
+  broadcastEvent({
+    type: "indexer_stream",
+    component: "redis",
+    message: "Streaming to indexers...",
+    timestamp: Date.now()
+  });
+  
+  await streamToIndexers(snapshot);
+
+  console.log("7️⃣ Watch Movie 🎬");
+  broadcastEvent({
+    type: "movie_watch",
+    component: "user",
+    message: `Watching ${selectedListing.movieTitle}...`,
+    timestamp: Date.now()
+  });
+
+  // Complete the booking in ledger
+  completeBooking(ledgerEntry);
+
+  console.log("8️⃣ Review");
+  const rebate = applyReview(user, {
+    userId: user.id,
+    movieId: selectedListing.movieId,
+    rating: 5,
+  }, moviePrice);
+
+  console.log("8️⃣ Summary");
+  const summary = {
+    balance: user.balance,
+    rebate,
+    fees: snapshot.feeSplit,
+    iGasCost: llmResponse.iGasCost,
+    selectedProvider: selectedListing.providerName,
+    movie: selectedListing.movieTitle,
+  };
+  console.log(summary);
+  
+  broadcastEvent({
+    type: "summary",
+    component: "transaction",
+    message: "Transaction completed successfully",
+    timestamp: Date.now(),
+    data: summary
+  });
+
+  console.log("9️⃣ Done\n");
+}
+
+// Main Server Initialization
 async function main() {
   console.log("🌱 Eden Core Starting...\n");
   console.log("📋 CLI Flags:", {
@@ -935,67 +1487,15 @@ async function main() {
     indexerConsumer("Indexer-B", STREAM_INDEXER_B).catch(console.error);
   }
 
-  console.log("🌱 Eden Core Online\n");
-
-  const user = USERS[0];
-
-  console.log("1️⃣ User Input");
-  const input = "I want a sci-fi movie to watch tonight at the best price";
-
-  console.log("2️⃣ LLM Resolution (Query → ServiceRegistry → Providers → Format)");
-  const llmResponse: LLMResponse = await resolveLLM(input);
-  console.log("📨 LLM Response:", llmResponse.message);
-  console.log("⛽ iGas Cost:", llmResponse.iGasCost.toFixed(6));
-  
-  if (!llmResponse.selectedListing) {
-    console.error("❌ No listing selected");
-    return;
-  }
-
-  const selectedListing = llmResponse.selectedListing;
-  console.log("✅ Selected:", `${selectedListing.providerName} - ${selectedListing.movieTitle} at ${selectedListing.showtime} for ${selectedListing.price} USDC`);
-
-  console.log("3️⃣ Purchase");
-  const moviePrice = selectedListing.price;
-  if (user.balance < moviePrice) {
-    console.error(`❌ Insufficient funds. Balance: ${user.balance}, Required: ${moviePrice}`);
-    return;
-  }
-  user.balance -= moviePrice;
-
-  console.log("4️⃣ Snapshot + Persist");
-  const snapshot = createSnapshot(user, moviePrice, selectedListing.providerId);
-  await persistSnapshot(snapshot);
-
-  console.log("5️⃣ Stream to Indexers");
-  await streamToIndexers(snapshot);
-
-  console.log("6️⃣ Watch Movie 🎬");
-
-  console.log("7️⃣ Review");
-  const rebate = applyReview(user, {
-    userId: user.id,
-    movieId: selectedListing.movieId,
-    rating: 5,
-  }, moviePrice);
-
-  console.log("8️⃣ Summary");
-  console.log({
-    balance: user.balance,
-    rebate,
-    fees: snapshot.feeSplit,
-    iGasCost: llmResponse.iGasCost,
-    selectedProvider: selectedListing.providerName,
-    movie: selectedListing.movieTitle,
+  // Start HTTP server (serves Angular + API + WebSocket)
+  httpServer.listen(HTTP_PORT, () => {
+    console.log(`🌐 HTTP server running on port ${HTTP_PORT}`);
+    console.log(`🔌 WebSocket server available at ws://localhost:${HTTP_PORT}/ws`);
+    console.log(`📁 Serving frontend from: ${FRONTEND_PATH}`);
+    console.log(`🌱 Eden Core Online\n`);
+    console.log(`💡 Access the dashboard at: http://localhost:${HTTP_PORT}`);
+    console.log(`💡 API endpoint: http://localhost:${HTTP_PORT}/api/chat\n`);
   });
-
-  console.log("9️⃣ Done\n");
-
-  // Graceful shutdown
-  if (redis.isOpen) {
-    await redis.quit();
-    console.log("👋 Redis: Connection closed gracefully");
-  }
 }
 
 // Handle process termination (wrapped for Node.js v24+ compatibility)
