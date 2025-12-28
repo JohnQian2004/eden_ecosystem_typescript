@@ -1,2 +1,307 @@
-// Styles are in global styles.scss
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0.75rem;
+  overflow: hidden;
+}
+
+.indexer-tabs-container {
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+  
+  .indexer-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    
+    .indexer-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: #6c757d;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      border-radius: 0.25rem 0.25rem 0 0;
+      margin-bottom: -1px;
+      
+      &:hover {
+        color: #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+        border-bottom-color: rgba(40, 167, 69, 0.3);
+      }
+      
+      &.active {
+        color: #28a745;
+        border-bottom-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.1);
+        font-weight: 600;
+        
+        .tab-icon {
+          color: #28a745;
+        }
+      }
+      
+      .tab-icon {
+        font-size: 0.7rem;
+        display: inline-block;
+        line-height: 1;
+      }
+      
+      .tab-label {
+        font-size: 0.75rem;
+        display: inline-block;
+        line-height: 1;
+      }
+    }
+  }
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+  
+  h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  
+  small {
+    font-size: 0.7rem;
+  }
+}
+
+.architecture-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+  
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #ced4da;
+    border-radius: 2px;
+    
+    &:hover {
+      background: #adb5bd;
+    }
+  }
+}
+
+.component-group {
+  margin-bottom: 0.4rem;
+  
+  .group-header {
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.8rem;
+    
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.04) !important;
+    }
+    
+    .group-icon {
+      font-size: 0.85rem;
+      margin-right: 0.35rem;
+    }
+    
+    .group-name {
+      font-weight: 600;
+      font-size: 0.8rem;
+      margin-right: 0.35rem;
+    }
+    
+    .badge-xs {
+      font-size: 0.65rem;
+      padding: 0.15em 0.35em;
+      font-weight: 500;
+    }
+    
+    .toggle-icon {
+      font-size: 0.65rem;
+      color: #6c757d;
+      margin-left: auto;
+    }
+  }
+  
+  .group-components {
+    margin-left: 0.75rem;
+    margin-top: 0.25rem;
+    animation: slideDown 0.15s ease-out;
+  }
+  
+  .component-item {
+    padding: 0.3rem 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.2rem;
+    transition: all 0.15s;
+    background-color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+    
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.02);
+    }
+    
+    .status-icon {
+      font-size: 0.7rem;
+      margin-right: 0.4rem;
+    }
+    
+    .component-name {
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .badge-xs {
+      font-size: 0.65rem;
+      padding: 0.15em 0.35em;
+      font-weight: 500;
+    }
+  }
+  
+  .sub-group {
+    margin-bottom: 0.5rem;
+    
+    .sub-group-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #6c757d;
+      margin-bottom: 0.25rem;
+      margin-left: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  }
+  
+  .indexer-node {
+    margin-bottom: 0.6rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid #28a745;
+    
+    .indexer-header {
+      display: flex;
+      align-items: center;
+      padding: 0.3rem 0.5rem;
+      margin-bottom: 0.3rem;
+      background-color: rgba(40, 167, 69, 0.1);
+      border-radius: 0.2rem;
+      font-weight: 600;
+      font-size: 0.8rem;
+      
+      .indexer-icon {
+        font-size: 0.75rem;
+        margin-right: 0.4rem;
+      }
+      
+      .indexer-name {
+        flex: 1;
+        color: #28a745;
+      }
+      
+      .badge-xs {
+        font-size: 0.65rem;
+        padding: 0.15em 0.35em;
+        font-weight: 500;
+      }
+    }
+    
+    .indexer-components {
+      margin-left: 0.5rem;
+    }
+  }
+}
+
+.component-indicator {
+  &.idle {
+    opacity: 0.65;
+  }
+  
+  &.active {
+    animation: pulse 1.5s infinite;
+  }
+  
+  &.success {
+    animation: successFlash 0.4s;
+  }
+  
+  &.error {
+    animation: errorFlash 0.4s;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 1rem;
+  color: #6c757d;
+  font-size: 0.75rem;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes successFlash {
+  0% {
+    background-color: rgba(40, 167, 69, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes errorFlash {
+  0% {
+    background-color: rgba(220, 53, 69, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
 

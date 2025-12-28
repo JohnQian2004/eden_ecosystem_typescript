@@ -25,7 +25,7 @@
                 <h5 class="mb-0">💬 Chat Input</h5>
               </div>
               <div class="card-body">
-                <form (ngSubmit)="onSubmit()" #chatForm="ngForm">
+                <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm">
                   <div class="input-group mb-3">
                     <input 
                       type="text" 
@@ -34,11 +34,12 @@
                       [(ngModel)]="userInput"
                       name="userInput"
                       required
-                      [disabled]="isProcessing">
+                      [disabled]="isProcessing"
+                      (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()">
                     <button 
                       class="btn btn-primary" 
                       type="submit"
-                      [disabled]="isProcessing || !userInput">
+                      [disabled]="isProcessing || !userInput?.trim()">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...

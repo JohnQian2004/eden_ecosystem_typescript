@@ -10,6 +10,7 @@ interface LedgerEntry {
   payer: string; // Email address
   payerId: string; // User ID for internal tracking
   merchant: string;
+  providerUuid: string; // Service provider UUID for certificate issuance
   serviceType: string;
   amount: number;
   iGasCost: number;

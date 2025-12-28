@@ -21,6 +21,7 @@
             <th>Payer (Email)</th>
             <th>Payer ID</th>
             <th>Merchant</th>
+            <th>Provider UUID</th>
             <th>Service</th>
             <th>Amount</th>
             <th>iGas</th>
@@ -36,6 +37,7 @@
             <td>{{ entry.payer }}</td>
             <td><code>{{ entry.payerId }}</code></td>
             <td>{{ entry.merchant }}</td>
+            <td><small class="text-muted">{{ entry.providerUuid }}</small></td>
             <td>{{ entry.serviceType }}</td>
             <td><strong>{{ entry.amount.toFixed(2) }} USDC</strong></td>
             <td>{{ entry.iGasCost.toFixed(6) }}</td>

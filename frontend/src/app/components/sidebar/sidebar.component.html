@@ -1,21 +1,244 @@
-<div class="p-3">
-  <h4 class="mb-3">📊 Component Status</h4>
-  
-  <div *ngFor="let component of componentList" [ngClass]="getStatusClass(component.status)">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <span class="me-2">{{ getStatusIcon(component.status) }}</span>
-        <strong>{{ component.name }}</strong>
-      </div>
-      <span class="badge bg-secondary">{{ component.count }}</span>
-    </div>
-    <small class="text-muted">
-      {{ component.lastUpdate | date:'HH:mm:ss' }}
-    </small>
+<div class="sidebar-content">
+  <div class="sidebar-header">
+    <h5 class="mb-1">🌳 System Architecture</h5>
+    <small class="text-muted">Eden Hierarchy</small>
   </div>
   
-  <div *ngIf="componentList.length === 0" class="text-center text-muted py-5">
-    No components active
+  <!-- ROOT CA at the top -->
+  <div *ngFor="let group of groups" class="component-group">
+    <ng-container *ngIf="group.category === 'root'">
+      <div 
+        class="group-header d-flex justify-content-between align-items-center cursor-pointer"
+        [class.bg-light]="group.expanded"
+        (click)="toggleGroup(group)"
+        [attr.data-category]="group.category">
+        <div class="d-flex align-items-center">
+          <span class="group-icon">{{ group.icon }}</span>
+          <span class="group-name" [ngClass]="getCategoryColor(group.category)">{{ group.name }}</span>
+          <span class="badge bg-secondary badge-xs">{{ group.components.length }}</span>
+        </div>
+        <span class="toggle-icon">{{ group.expanded ? '▼' : '▶' }}</span>
+      </div>
+      
+      <div *ngIf="group.expanded" class="group-components">
+        <div 
+          *ngFor="let component of group.components" 
+          class="component-item border-start border-2"
+          [ngClass]="getStatusClass(component.status)"
+          [class.border-success]="component.status === 'success'"
+          [class.border-danger]="component.status === 'error'"
+          [class.border-warning]="component.status === 'active'"
+          [class.border-secondary]="component.status === 'idle'">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+              <span class="component-name">{{ component.name }}</span>
+            </div>
+            <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+  
+  <!-- Indexer Tabs -->
+  <div *ngIf="indexers.length > 0" class="indexer-tabs-container">
+    <div class="indexer-tabs">
+      <button 
+        *ngFor="let indexer of indexers" 
+        class="indexer-tab"
+        [class.active]="selectedIndexerTab === indexer.id"
+        type="button"
+        (click)="selectIndexerTab(indexer.id)">
+        <span class="tab-icon">🌳</span>
+        <span class="tab-label">{{ indexer.name }}</span>
+      </button>
+    </div>
+  </div>
+  
+  <div class="architecture-tree">
+    <div *ngFor="let group of groups" class="component-group">
+      <ng-container *ngIf="group.category !== 'root'">
+      <div 
+        class="group-header d-flex justify-content-between align-items-center cursor-pointer"
+        [class.bg-light]="group.expanded"
+        (click)="toggleGroup(group)"
+        [attr.data-category]="group.category">
+        <div class="d-flex align-items-center">
+          <span class="group-icon">{{ group.icon }}</span>
+          <span class="group-name" [ngClass]="getCategoryColor(group.category)">{{ group.name }}</span>
+          <span class="badge bg-secondary badge-xs">{{ group.components.length }}</span>
+        </div>
+        <span class="toggle-icon">{{ group.expanded ? '▼' : '▶' }}</span>
+      </div>
+      
+      <div *ngIf="group.expanded" class="group-components">
+        <!-- Nested structure for Indexers: Show components for selected indexer tab -->
+        <ng-container *ngIf="group.category === 'indexer'">
+          <!-- Selected Indexer Node -->
+          <div *ngIf="selectedIndexerTab" class="indexer-node">
+            <div class="indexer-header">
+              <span class="indexer-icon">🌳</span>
+              <span class="indexer-name">{{ selectedIndexerName }}</span>
+              <span class="badge bg-success badge-xs">{{ selectedIndexerNodeCount }}</span>
+            </div>
+            
+            <div class="indexer-components">
+              <!-- Service Registry -->
+              <div *ngIf="selectedIndexerServiceRegistry.length > 0" class="sub-group">
+                <div class="sub-group-label">Service Registry</div>
+                <div 
+                  *ngFor="let component of selectedIndexerServiceRegistry" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Service Providers -->
+              <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
+                <div class="sub-group-label">Service Providers</div>
+                <div 
+                  *ngFor="let component of selectedIndexerServiceProviders" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- LLM -->
+              <div *ngIf="selectedIndexerLLM.length > 0" class="sub-group">
+                <div class="sub-group-label">LLM Intelligence</div>
+                <div 
+                  *ngFor="let component of selectedIndexerLLM" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- EdenCore -->
+              <div *ngIf="selectedIndexerEdenCore.length > 0" class="sub-group">
+                <div class="sub-group-label">EdenCore</div>
+                <div 
+                  *ngFor="let component of selectedIndexerEdenCore" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Users -->
+              <div *ngIf="selectedIndexerUsers.length > 0" class="sub-group">
+                <div class="sub-group-label">Users</div>
+                <div 
+                  *ngFor="let component of selectedIndexerUsers" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Replication Bus (shared infrastructure) -->
+          <div *ngIf="getReplicationBus().length > 0" class="sub-group">
+            <div class="sub-group-label">Replication Bus</div>
+            <div 
+              *ngFor="let component of getReplicationBus()" 
+              class="component-item border-start border-2"
+              [ngClass]="getStatusClass(component.status)"
+              [class.border-success]="component.status === 'success'"
+              [class.border-danger]="component.status === 'error'"
+              [class.border-warning]="component.status === 'active'"
+              [class.border-secondary]="component.status === 'idle'">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                  <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                  <span class="component-name">{{ component.name }}</span>
+                </div>
+                <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        
+        <!-- Regular flat list for non-Indexer groups (Infrastructure, etc.) -->
+        <ng-container *ngIf="group.category !== 'indexer'">
+          <div 
+            *ngFor="let component of group.components" 
+            class="component-item border-start border-2"
+            [ngClass]="getStatusClass(component.status)"
+            [class.border-success]="component.status === 'success'"
+            [class.border-danger]="component.status === 'error'"
+            [class.border-warning]="component.status === 'active'"
+            [class.border-secondary]="component.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                <span class="component-name">{{ component.name }}</span>
+              </div>
+              <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+      </ng-container>
+    </div>
+  </div>
+  
+  <div *ngIf="groups.length === 0" class="empty-state">
+    <small class="text-muted">Waiting for events...</small>
   </div>
 </div>
 

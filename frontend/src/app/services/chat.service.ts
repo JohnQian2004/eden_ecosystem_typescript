@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, firstValueFrom } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, firstValueFrom, catchError, throwError, timeout } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -14,11 +14,26 @@ export class ChatService {
   constructor(private http: HttpClient) {}
 
   sendMessage(input: string, email: string): Observable<any> {
-    return this.http.post(this.apiUrl, { input, email });
+    console.log(`📤 Sending chat message to ${this.apiUrl}:`, { input: input.substring(0, 50), email });
+    return this.http.post(this.apiUrl, { input, email }).pipe(
+      timeout(120000), // 2 minute timeout
+      catchError((error: HttpErrorResponse | Error) => {
+        console.error('❌ HTTP error:', error);
+        // Re-throw as a regular error so it can be caught in the component
+        return throwError(() => error);
+      })
+    );
   }
 
   async sendMessageAsync(input: string, email: string): Promise<any> {
-    return await firstValueFrom(this.sendMessage(input, email));
+    try {
+      const response = await firstValueFrom(this.sendMessage(input, email));
+      console.log('✅ HTTP response received:', response);
+      return response;
+    } catch (error: any) {
+      console.error('❌ sendMessageAsync error:', error);
+      throw error;
+    }
   }
 }
 

@@ -26,8 +26,32 @@ const args = process.argv.slice(2);
 const MOCKED_LLM = args.some(arg => arg.includes("--mocked-llm") && (arg.includes("=true") || !arg.includes("=false")));
 const SKIP_REDIS = args.some(arg => arg.includes("--skip-redis") && (arg.includes("=true") || !arg.includes("=false")));
 const ENABLE_OPENAI = args.some(arg => arg.includes("--enable-openai") && (arg.includes("=true") || !arg.includes("=false")));
+
+// Parse --indexers flag (default: 2)
+const indexersArg = args.find(arg => arg.startsWith("--indexers"));
+const NUM_INDEXERS = indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2;
+
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
+
+// Dynamic Indexer Configuration
+interface IndexerConfig {
+  id: string;
+  name: string;
+  stream: string;
+  active: boolean;
+}
+
+const INDEXERS: IndexerConfig[] = [];
+for (let i = 0; i < NUM_INDEXERS; i++) {
+  const indexerId = String.fromCharCode(65 + i); // A, B, C, D, E...
+  INDEXERS.push({
+    id: indexerId,
+    name: `Indexer-${indexerId}`,
+    stream: `eden:indexer:${indexerId}`,
+    active: true
+  });
+}
 
 // HTTP Server for serving Angular and API
 const httpServer = http.createServer();
@@ -77,11 +101,19 @@ function broadcastEvent(event: any) {
 
 // HTTP Server Routes
 httpServer.on("request", async (req, res) => {
+  const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  console.log(`\n📥 [${requestId}] Incoming ${req.method} request: ${req.url}`);
+  console.log(`   Headers:`, JSON.stringify(req.headers, null, 2));
+  
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
 
   // WebSocket upgrade requests are handled automatically by WebSocketServer
   // No need to intercept them here
+  if (req.headers.upgrade === "websocket") {
+    console.log(`   ⚡ WebSocket upgrade request, skipping HTTP handler`);
+    return;
+  }
 
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -89,6 +121,7 @@ httpServer.on("request", async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
+    console.log(`   ✅ [${requestId}] OPTIONS request, sending CORS preflight`);
     res.writeHead(200);
     res.end();
     return;
@@ -96,30 +129,163 @@ httpServer.on("request", async (req, res) => {
 
   // API Routes
   if (pathname === "/api/chat" && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
     let body = "";
+    let bodyReceived = false;
+    
     req.on("data", (chunk) => {
       body += chunk.toString();
     });
+    
     req.on("end", async () => {
+      if (bodyReceived) {
+        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
+        return;
+      }
+      bodyReceived = true;
+      // Ensure response is sent even if there's an unhandled error
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send:`, data);
+        }
+      };
+
+      let email = 'unknown';
+      
       try {
-        const { input, email } = JSON.parse(body);
-        if (!email || typeof email !== 'string' || !email.includes('@')) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+        // Parse and validate request body
+        if (!body || body.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Request body is required" });
           return;
         }
-        await processChatInput(input, email);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, message: "Chat processed" }));
+        
+        let parsedBody;
+        try {
+          parsedBody = JSON.parse(body);
+        } catch (parseError: any) {
+          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
+          return;
+        }
+        
+        const { input, email: requestEmail } = parsedBody;
+        email = requestEmail || 'unknown';
+        
+        // Validate input
+        if (!input || typeof input !== 'string' || input.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Valid input message required" });
+          return;
+        }
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          sendResponse(400, { success: false, error: "Valid email address required" });
+          return;
+        }
+        
+        console.log(`📨 Processing chat request from ${email}: "${input.trim()}"`);
+        
+        // Process chat input (this is async and may throw errors)
+        // Use Promise.race to ensure we don't hang forever
+        const processPromise = processChatInput(input.trim(), email);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Processing timeout after 3 minutes")), 180000);
+        });
+        
+        try {
+          await Promise.race([processPromise, timeoutPromise]);
+          
+          // Success response - ensure it's sent
+          if (!res.headersSent) {
+            sendResponse(200, { success: true, message: "Chat processed successfully" });
+            console.log(`✅ Chat request processed successfully for ${email}`);
+          } else {
+            console.warn(`⚠️  Response already sent, skipping success response`);
+          }
+        } catch (processError: any) {
+          // If processChatInput throws, it will be caught by outer catch
+          throw processError;
+        }
       } catch (error: any) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message }));
+        // Log error for debugging
+        console.error(`❌ Error processing chat input:`, error);
+        console.error(`   Error stack:`, error.stack);
+        
+        // Send appropriate error response - ensure it's sent
+        if (!res.headersSent) {
+          const statusCode = error.message?.includes('Payment failed') ? 402 : 
+                            error.message?.includes('No listing') ? 404 : 
+                            error.message?.includes('timeout') ? 408 : 500;
+          sendResponse(statusCode, { 
+            success: false, 
+            error: error.message || "Internal server error",
+            timestamp: Date.now()
+          });
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send error response`);
+        }
+      } finally {
+        // Ensure response is always sent
+        if (!res.headersSent) {
+          console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
+          sendResponse(500, { 
+            success: false, 
+            error: "Unexpected server error - no response was sent",
+            timestamp: Date.now()
+          });
+        } else {
+          console.log(`✅ Response sent for request from ${email}`);
+        }
       }
+    });
+    
+    // Handle request errors
+    req.on("error", (error: Error) => {
+      console.error(`❌ Request error:`, error);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request processing error" }));
+      }
+    });
+    
+    // Handle request timeout
+    req.setTimeout(60000, () => {
+      console.error(`❌ Request timeout`);
+      if (!res.headersSent) {
+        res.writeHead(408, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request timeout" }));
+      }
+      req.destroy();
     });
     return;
   }
 
+  if (pathname === "/api/test" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/test - Test endpoint`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "Server is responding", timestamp: Date.now() }));
+    return;
+  }
+
+  if (pathname === "/api/indexers" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      indexers: INDEXERS.map(i => ({
+        id: i.id,
+        name: i.name,
+        stream: i.stream,
+        active: i.active
+      })),
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
   if (pathname === "/api/status" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/status - Sending status`);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       status: "online",
@@ -127,6 +293,13 @@ httpServer.on("request", async (req, res) => {
       timestamp: Date.now()
     }));
     return;
+  }
+  
+  // Log unhandled routes for debugging
+  if (!pathname.startsWith("/api/")) {
+    console.log(`   📁 [${requestId}] Serving static file: ${pathname}`);
+  } else {
+    console.log(`   ⚠️  [${requestId}] Unhandled API route: ${req.method} ${pathname}`);
   }
 
   if (pathname === "/api/ledger" && req.method === "GET") {
@@ -398,6 +571,7 @@ type LedgerEntry = {
   payer: string; // Email address
   payerId: string; // User ID for internal tracking
   merchant: string;
+  providerUuid: string; // Service provider UUID for certificate issuance
   serviceType: string;
   amount: number;
   iGasCost: number;
@@ -427,6 +601,7 @@ type Review = {
 
 type ServiceProvider = {
   id: string;
+  uuid: string; // UUID for certificate issuance
   name: string;
   serviceType: string;
   location: string;
@@ -480,8 +655,7 @@ const CHAIN_ID = "eden-core";
 const ROOT_CA_FEE = 0.02;
 const INDEXER_FEE = 0.005;
 
-const STREAM_INDEXER_A = "eden:indexer:A";
-const STREAM_INDEXER_B = "eden:indexer:B";
+// Stream names are now dynamically generated from INDEXERS array
 
 // iGas Calculation Constants
 const LLM_BASE_COST = 0.001; // Base cost per LLM call
@@ -511,6 +685,7 @@ const CASHIER: Cashier = {
 const SERVICE_REGISTRY: ServiceProvider[] = [
   {
     id: "amc-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
     name: "AMC Theatres",
     serviceType: "movie",
     location: "Baltimore, Maryland",
@@ -521,6 +696,7 @@ const SERVICE_REGISTRY: ServiceProvider[] = [
   },
   {
     id: "moviecom-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440002", // UUID for certificate issuance
     name: "MovieCom",
     serviceType: "movie",
     location: "Baltimore, Maryland",
@@ -531,6 +707,7 @@ const SERVICE_REGISTRY: ServiceProvider[] = [
   },
   {
     id: "cinemark-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440003", // UUID for certificate issuance
     name: "Cinemark",
     serviceType: "movie",
     location: "Baltimore, Maryland",
@@ -651,8 +828,10 @@ Your responsibilities:
 5. Format the filtered results into a user-friendly message
 6. Select the best option based on user criteria (best price, best rating, etc.)
 
+IMPORTANT: When returning selectedListing, you MUST include ALL fields from the original listing, especially providerId (e.g., "amc-001", "moviecom-001", "cinemark-001").
+
 Include in response: provider name, movie title, price, showtime, location, review count, rating.
-Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option or null).
+Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option with ALL original fields including providerId, or null).
 `;
 
 // Service Registry Functions
@@ -802,10 +981,27 @@ async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: str
             }
             if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
               const content = JSON.parse(parsed.choices[0].message.content);
+              
+              // Ensure selectedListing has providerId by matching it back to original listings
+              let selectedListing = content.selectedListing || (listings.length > 0 ? listings[0] : null);
+              if (selectedListing && !selectedListing.providerId) {
+                // Try to find matching listing by movie title and provider name
+                const matchedListing = listings.find(l => 
+                  l.movieTitle === selectedListing.movieTitle && 
+                  l.providerName === selectedListing.providerName
+                );
+                if (matchedListing) {
+                  selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+                } else if (listings.length > 0) {
+                  // Fallback to first listing
+                  selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+                }
+              }
+              
               resolve({
                 message: content.message || "Service found",
                 listings: content.listings || listings,
-                selectedListing: content.selectedListing || (listings.length > 0 ? listings[0] : null),
+                selectedListing: selectedListing,
                 iGasCost: 0, // Will be calculated separately
               });
             } else {
@@ -884,10 +1080,27 @@ async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: s
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
+            
+            // Ensure selectedListing has providerId by matching it back to original listings
+            let selectedListing = parsed.selectedListing || (listings.length > 0 ? listings[0] : null);
+            if (selectedListing && !selectedListing.providerId) {
+              // Try to find matching listing by movie title and provider name
+              const matchedListing = listings.find(l => 
+                l.movieTitle === selectedListing.movieTitle && 
+                l.providerName === selectedListing.providerName
+              );
+              if (matchedListing) {
+                selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+              } else if (listings.length > 0) {
+                // Fallback to first listing
+                selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+              }
+            }
+            
             resolve({
               message: parsed.message || "Service found",
               listings: parsed.listings || listings,
-              selectedListing: parsed.selectedListing || (listings.length > 0 ? listings[0] : null),
+              selectedListing: selectedListing,
               iGasCost: 0,
             });
           } catch (err) {
@@ -1038,16 +1251,23 @@ function addLedgerEntry(
   serviceType: string,
   iGasCost: number,
   payerId: string,
+  merchantName: string, // Provider name (e.g., "AMC Theatres")
+  providerUuid: string, // Service provider UUID for certificate issuance
   bookingDetails?: { movieTitle?: string; showtime?: string; location?: string }
 ): LedgerEntry {
   // payerId should be the email address (same as payer)
+  if (!providerUuid) {
+    console.error(`❌ Provider UUID is missing for merchant: ${merchantName}`);
+  }
+  
   const entry: LedgerEntry = {
     entryId: crypto.randomUUID(),
     txId: snapshot.txId,
     timestamp: snapshot.blockTime,
     payer: snapshot.payer, // Email address
     payerId: snapshot.payer, // Email address (same as payer)
-    merchant: snapshot.merchant,
+    merchant: merchantName, // Provider name (e.g., "AMC Theatres", "MovieCom", "Cinemark")
+    providerUuid: providerUuid || 'MISSING-UUID', // Service provider UUID for certificate issuance
     serviceType: serviceType,
     amount: snapshot.amount,
     iGasCost: iGasCost,
@@ -1056,6 +1276,8 @@ function addLedgerEntry(
     cashierId: CASHIER.id,
     bookingDetails: bookingDetails,
   };
+  
+  console.log(`📝 Ledger entry created with providerUuid: ${entry.providerUuid}`);
 
   LEDGER.push(entry);
   
@@ -1170,7 +1392,8 @@ async function persistSnapshot(snapshot: TransactionSnapshot) {
 
 async function streamToIndexers(snapshot: TransactionSnapshot) {
   if (SKIP_REDIS || !redis.isOpen) {
-    console.log(`📡 Stream (mock): ${snapshot.txId} → Indexer-A, Indexer-B`);
+    const indexerNames = INDEXERS.filter(i => i.active).map(i => i.name).join(", ");
+    console.log(`📡 Stream (mock): ${snapshot.txId} → ${indexerNames}`);
     return;
   }
 
@@ -1184,9 +1407,14 @@ async function streamToIndexers(snapshot: TransactionSnapshot) {
       amount: snapshot.amount.toString(),
     };
 
-    await redis.xAdd(STREAM_INDEXER_A, "*", payload);
-    await redis.xAdd(STREAM_INDEXER_B, "*", payload);
-    console.log(`📡 Streamed to indexers: ${snapshot.txId}`);
+    // Stream to all active indexers
+    const activeIndexers = INDEXERS.filter(i => i.active);
+    for (const indexer of activeIndexers) {
+      await redis.xAdd(indexer.stream, "*", payload);
+    }
+    
+    const indexerNames = activeIndexers.map(i => i.name).join(", ");
+    console.log(`📡 Streamed to indexers: ${snapshot.txId} → ${indexerNames}`);
   } catch (err: any) {
     console.error(`⚠️  Failed to stream to indexers:`, err.message);
   }
@@ -1226,7 +1454,8 @@ async function indexerConsumer(name: string, stream: string) {
       );
 
       if (!res) {
-        // No new messages, continue waiting
+        // No new messages, yield to event loop before continuing
+        await new Promise(resolve => setImmediate(resolve));
         continue;
       }
 
@@ -1262,8 +1491,13 @@ async function indexerConsumer(name: string, stream: string) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
       } else {
         console.error(`⚠️  ${name}: Error reading stream:`, err.message);
+        // Yield to event loop before retrying
+        await new Promise(resolve => setImmediate(resolve));
       }
     }
+    
+    // Always yield to event loop after each iteration to prevent blocking
+    await new Promise(resolve => setImmediate(resolve));
   }
 }
 
@@ -1280,8 +1514,12 @@ function applyReview(user: User, review: Review, moviePrice: number) {
 
 // Chat API Processor Service - Processes user input through all components
 async function processChatInput(input: string, email: string) {
-  // Find or create user by email (no user management needed)
-  let user = USERS.find(u => u.email === email);
+  const startTime = Date.now();
+  console.log(`🚀 Starting processChatInput for ${email}: "${input.substring(0, 50)}${input.length > 50 ? '...' : ''}"`);
+  
+  try {
+    // Find or create user by email (no user management needed)
+    let user = USERS.find(u => u.email === email);
   if (!user) {
     // Create new user on-the-fly with sequential ID matching USERS array format (u1, u2, u3...)
     const nextId = `u${USERS.length + 1}`;
@@ -1332,18 +1570,24 @@ async function processChatInput(input: string, email: string) {
   });
   
   if (!llmResponse.selectedListing) {
-    console.error("❌ No listing selected");
+    const errorMsg = "No listing selected from LLM response";
+    console.error(`❌ ${errorMsg}`);
     broadcastEvent({
       type: "error",
       component: "llm",
-      message: "No listing selected from LLM response",
+      message: errorMsg,
       timestamp: Date.now()
     });
-    return;
+    throw new Error(errorMsg);
   }
 
   const selectedListing = llmResponse.selectedListing;
   console.log("✅ Selected:", `${selectedListing.providerName} - ${selectedListing.movieTitle} at ${selectedListing.showtime} for ${selectedListing.price} USDC`);
+  console.log("📋 Selected listing details:", {
+    providerId: selectedListing.providerId,
+    providerName: selectedListing.providerName,
+    movieTitle: selectedListing.movieTitle
+  });
 
   console.log("3️⃣ Ledger: Create Booking Entry");
   const moviePrice = selectedListing.price;
@@ -1351,12 +1595,35 @@ async function processChatInput(input: string, email: string) {
   // Create snapshot first (needed for ledger entry)
   const snapshot = createSnapshot(user.email, moviePrice, selectedListing.providerId);
   
+  // Find provider UUID from SERVICE_REGISTRY
+  console.log(`🔍 Looking up provider UUID for providerId: "${selectedListing.providerId}"`);
+  console.log(`📋 Available provider IDs in SERVICE_REGISTRY:`, SERVICE_REGISTRY.map(p => `${p.id} (${p.name})`));
+  
+  const provider = SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
+  const providerUuid = provider?.uuid || '';
+  
+  if (!providerUuid) {
+    const errorMsg = `Provider UUID not found for providerId: "${selectedListing.providerId}"`;
+    console.error(`❌ ${errorMsg}`);
+    console.error(`   Provider found:`, provider ? 'YES' : 'NO');
+    if (provider) {
+      console.error(`   Provider object:`, JSON.stringify(provider, null, 2));
+    }
+    console.error(`   Selected listing providerId:`, selectedListing.providerId);
+    console.error(`   Selected listing providerName:`, selectedListing.providerName);
+    throw new Error(errorMsg);
+  } else {
+    console.log(`✅ Found provider UUID: ${providerUuid} for provider: ${selectedListing.providerName} (${selectedListing.providerId})`);
+  }
+
   // Add ledger entry for this booking
   const ledgerEntry = addLedgerEntry(
     snapshot,
     llmResponse.listings[0]?.providerName ? 'movie' : 'service',
     llmResponse.iGasCost,
     user.email, // Pass email address (payerId will be set to email)
+    selectedListing.providerName, // Provider name (e.g., "AMC Theatres", "MovieCom", "Cinemark")
+    providerUuid, // Service provider UUID for certificate issuance
     {
       movieTitle: selectedListing.movieTitle,
       showtime: selectedListing.showtime,
@@ -1383,8 +1650,9 @@ async function processChatInput(input: string, email: string) {
 
   const paymentSuccess = processPayment(CASHIER, ledgerEntry, user);
   if (!paymentSuccess) {
-    console.error(`❌ Payment failed. Balance: ${user.balance}, Required: ${moviePrice}`);
-    return;
+    const errorMsg = `Payment failed. Balance: ${user.balance}, Required: ${moviePrice}`;
+    console.error(`❌ ${errorMsg}`);
+    throw new Error(errorMsg);
   }
 
   broadcastEvent({
@@ -1461,6 +1729,14 @@ async function processChatInput(input: string, email: string) {
   });
 
   console.log("9️⃣ Done\n");
+  
+  const duration = Date.now() - startTime;
+  console.log(`✅ processChatInput completed in ${duration}ms for ${email}`);
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ processChatInput failed after ${duration}ms for ${email}:`, error);
+    throw error; // Re-throw to be handled by HTTP handler
+  }
 }
 
 // Main Server Initialization
@@ -1470,7 +1746,10 @@ async function main() {
     mockedLLM: MOCKED_LLM,
     skipRedis: SKIP_REDIS,
     enableOpenAI: ENABLE_OPENAI,
+    numIndexers: NUM_INDEXERS,
   }, "\n");
+  
+  console.log(`🌳 Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}\n`);
 
   // Connect to Redis
   const redisConnected = await connectRedis();
@@ -1481,10 +1760,14 @@ async function main() {
     process.exit(1);
   }
 
-  // Start indexer consumers (non-blocking)
+  // Start indexer consumers (non-blocking) for all active indexers
   if (redisConnected) {
-    indexerConsumer("Indexer-A", STREAM_INDEXER_A).catch(console.error);
-    indexerConsumer("Indexer-B", STREAM_INDEXER_B).catch(console.error);
+    for (const indexer of INDEXERS) {
+      if (indexer.active) {
+        indexerConsumer(indexer.name, indexer.stream).catch(console.error);
+      }
+    }
+    console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
   }
 
   // Start HTTP server (serves Angular + API + WebSocket)
@@ -1495,6 +1778,16 @@ async function main() {
     console.log(`🌱 Eden Core Online\n`);
     console.log(`💡 Access the dashboard at: http://localhost:${HTTP_PORT}`);
     console.log(`💡 API endpoint: http://localhost:${HTTP_PORT}/api/chat\n`);
+  });
+  
+  // Monitor server health
+  httpServer.on("error", (err: Error) => {
+    console.error(`❌ HTTP Server Error:`, err);
+  });
+  
+  httpServer.on("clientError", (err: Error, socket: any) => {
+    console.error(`❌ HTTP Client Error:`, err.message);
+    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
   });
 }
 
