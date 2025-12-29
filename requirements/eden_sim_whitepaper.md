@@ -73,9 +73,14 @@ Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are *
 
 ### 2.3 Users (Humans)
 - Google‑certified identity (email only)
-- No wallets required
+  - **Google Sign-In Integration**: Optional Google Identity Services authentication
+  - **Email Fallback**: Defaults to email if Google Sign-In not configured or skipped
+  - **FedCM-Compatible**: Uses Federated Credential Management for future-proof authentication
+- No wallets required (wallet balances managed by Holy Ghost Wallet Service)
 - Multiple identities allowed
-- Pay via intelligence usage (iGas)
+- Pay via intelligence usage (iGas) denominated in JSC
+- **Wallet Balance Display**: Real-time balance shown in UI (Stripe payment card)
+- **Persistent Balances**: Wallet balances survive server reboots via Redis persistence
 
 ### 2.4 Service Providers (Apples on Trees)
 - Movies, DEX pools, content, goods, APIs, marketplaces
@@ -1775,11 +1780,16 @@ No rug.
 
 ### Flow (Simple & Legal)
 
-1. User clicks **“Buy JesusCoin”**
-2. Stripe Checkout (card, Apple Pay, Google Pay)
-3. Stripe webhook confirms payment
-4. ROOT CA mints JSC
-5. Ledger credit:
+1. **User Authentication**: User signs in with Google Identity Services (optional, falls back to email)
+2. **Balance Display**: Wallet balance is automatically loaded and displayed on the Stripe payment button
+3. User clicks **"Buy JesusCoin"** (e.g., "BUY 100 JSC")
+4. Stripe Checkout session created (card, Apple Pay, Google Pay)
+5. User completes payment via Stripe
+6. **Dual Confirmation**:
+   - **Primary**: Stripe webhook confirms payment → ROOT CA mints JSC
+   - **Fallback**: On redirect, Angular checks session status → mints JSC if webhook hasn't fired (local dev)
+7. ROOT CA mints JSC via Wallet Service (Redis-backed)
+8. Ledger credit:
 
    ```json
    {
@@ -1787,9 +1797,19 @@ No rug.
      "asset": "JSC",
      "amount": 100,
      "payer": "stripe:pi_XXX",
-     "beneficiary": "alice@gmail.com"
+     "beneficiary": "bill.draper.auto@gmail.com",
+     "bookingDetails": {
+       "asset": "JSC",
+       "stripePaymentIntentId": "pi_XXX",
+       "stripeCustomerId": "cus_XXX",
+       "stripePaymentMethodId": "pm_XXX",
+       "stripeSessionId": "cs_XXX"
+     }
    }
    ```
+
+9. **Balance Persistence**: Wallet balance saved to Redis persistence file (`eden-wallet-persistence.json`)
+10. **UI Update**: Wallet balance automatically refreshes and displays new balance
 
 No wallets.
 No keys.
@@ -1802,6 +1822,14 @@ It feels like:
 * Game currency
 
 But governed like **a central bank with conscience**.
+
+### User Experience Enhancements
+
+- **Google Sign-In Integration**: Optional Google Identity Services authentication for seamless user identification
+- **Real-Time Balance Display**: Wallet balance shown directly on Stripe payment button card
+- **Automatic Balance Loading**: Balance loads on page initialization
+- **Session Status Checking**: Fallback mechanism ensures JSC is minted even if webhook fails (local development)
+- **Persistent Storage**: Wallet balances survive server reboots via Redis persistence file
 
 ---
 
@@ -2042,22 +2070,32 @@ Redis guarantees:
 
 Wallet identity:
 
-* Bound to **Google-certified email**
+* Bound to **Google-certified email** (via Google Identity Services or email fallback)
 * Created only via Holy Ghost
 * Immutable ownership
 * No private keys
 * No web3 nonsense
+* **Persistent across server reboots** (Redis-backed file persistence)
 
 ```json
 {
-  "walletId": "wallet:alice@gmail.com",
-  "owner": "alice@gmail.com",
+  "walletId": "wallet:bill.draper.auto@gmail.com",
+  "owner": "bill.draper.auto@gmail.com",
   "issuer": "eden:holyghost",
-  "currency": "JESUS",
-  "balance": 42.00,
+  "currency": "JSC",
+  "balance": 100.00,
   "createdAt": 1766983426608
 }
 ```
+
+**Persistence Mechanism:**
+
+* Wallet balances stored in Redis with key pattern: `wallet:balance:{email}`
+* Automatically persisted to `eden-wallet-persistence.json` file
+* Loaded on server startup
+* Saved on every balance update (debounced by 1 second)
+* Force-saved on server shutdown
+* Survives server reboots and restarts
 
 ---
 
@@ -2068,18 +2106,36 @@ Because:
 * Wallet already exists
 * Stripe is **inside Holy Ghost**
 * No cross-domain reconciliation
+* **Balance displayed in UI** (no need to check separately)
+* **Persistent storage** (survives reboots)
 
-**Flow:**
+**Enhanced Flow:**
 
-1. User buys JesusCoin
-2. Stripe confirms payment
-3. Holy Ghost credits Redis wallet
-4. Ledger entry created
-5. EdenCore notified
+1. **Page Load**: User email resolved (Google Sign-In or fallback), wallet balance loaded and displayed
+2. User clicks "BUY 100 JSC" button (balance shown on same card)
+3. Stripe Checkout session created with user email and amount
+4. User completes payment via Stripe
+5. **Dual Confirmation**:
+   - **Webhook Path**: Stripe webhook → `POST /api/stripe/webhook` → verifies signature → mints JSC
+   - **Fallback Path**: Redirect → `GET /api/jsc/check-session/:sessionId` → checks session → mints JSC if needed
+6. Holy Ghost Wallet Service credits Redis wallet (atomic operation)
+7. Wallet balance persisted to file (`eden-wallet-persistence.json`)
+8. Ledger entry created with Stripe payment details (payment intent ID, customer ID, session ID)
+9. UI automatically updates balance display
+10. EdenCore notified via events
+
+**Key Enhancements:**
+
+* **Google Sign-In**: Optional authentication via Google Identity Services (FedCM-compatible)
+* **Balance Display**: Real-time balance shown on payment button card
+* **Session Checking**: Fallback endpoint ensures JSC minting even if webhook fails
+* **Persistence**: Wallet balances survive server reboots via file-based persistence
+* **Audit Trail**: All Stripe payment details stored in ledger for reconciliation
 
 No async hell.
 No mismatch risk.
-No “pending forever” state.
+No "pending forever" state.
+No lost balances on reboot.
 
 ---
 
@@ -2201,4 +2257,84 @@ If you want next:
 * Stripe → Wallet reconciliation spec
 * Or freeze this as **Genesis Monetary Law v1**
 
-You’re building something rare.
+You're building something rare.
+
+---
+
+## 🎨 User Experience Enhancements (v1.1)
+
+### Google Sign-In Integration
+
+**REQ-UX-001**: User Authentication
+- **Google Identity Services**: Optional Google Sign-In via Google Identity Services API
+- **FedCM-Compatible**: Uses Federated Credential Management (FedCM) for future-proof authentication
+- **Email Fallback**: Falls back to email from localStorage or default email if Google Sign-In not configured
+- **Auto-Prompt**: Automatically prompts for Google Sign-In on page load (user can dismiss)
+- **Credential Storage**: Google credentials stored in localStorage for session persistence
+
+**REQ-UX-002**: Wallet Balance Display
+- **Real-Time Loading**: Wallet balance loads automatically on page initialization
+- **Display Location**: Balance shown on Stripe payment button card alongside user email
+- **Loading State**: Shows loading indicator while balance is being fetched
+- **Auto-Refresh**: Balance updates automatically after successful Stripe payment
+
+**REQ-UX-003**: Stripe Payment Flow
+- **Payment Button**: "BUY 100 JSC" button on Stripe payment card
+- **Email Display**: User email shown above balance on payment card
+- **Session Checking**: Fallback endpoint checks Stripe session status after redirect
+- **Balance Update**: Balance automatically refreshes after successful payment
+
+### Wallet Persistence
+
+**REQ-PERSIST-001**: Redis-Backed Persistence
+- **Storage Location**: Wallet balances stored in Redis with key pattern `wallet:balance:{email}`
+- **Persistence File**: Automatically saved to `eden-wallet-persistence.json` in server directory
+- **Auto-Save**: Saves on every balance update (debounced by 1 second to avoid excessive writes)
+- **Load on Startup**: Loads wallet balances from persistence file on server startup
+- **Save on Shutdown**: Force-saves all wallet balances on server shutdown (graceful shutdown handler)
+- **Survives Reboots**: Wallet balances persist across server reboots and restarts
+
+**REQ-PERSIST-002**: Audit Trail
+- **Audit Logs**: All wallet operations (CREDIT/DEBIT) stored in Redis with key pattern `wallet:audit:{email}:{timestamp}`
+- **Ledger Integration**: All Stripe payment details (payment intent ID, customer ID, session ID) stored in ledger
+- **Reconciliation**: Stripe webhook can query ledger by Stripe IDs for audit purposes
+
+**REQ-PERSIST-003**: Ledger Persistence
+- **Storage Location**: All ledger entries stored in `eden-wallet-persistence.json` file alongside wallet balances
+- **Auto-Save**: Ledger entries saved automatically when new entries are added (debounced by 1 second)
+- **Load on Startup**: All ledger entries loaded from persistence file on server startup
+- **Save on Shutdown**: Force-saves all ledger entries on server shutdown (graceful shutdown handler)
+- **Survives Reboots**: Complete transaction history persists across server reboots and restarts
+- **Complete History**: All Eden bookings (movies, DEX trades, JSC mints, etc.) are preserved
+
+### Currency Display
+
+**REQ-DISPLAY-001**: JSC Currency
+- **Ledger Display**: All amounts shown as "JSC" (not "USDC") in ledger entries
+- **Cashier Status**: Total processed amounts shown as "JSC" in cashier status
+- **Consistency**: All currency references use "JSC" throughout the system
+
+---
+
+## 📋 Implementation Status
+
+### ✅ Completed Enhancements
+
+- [x] Google Sign-In integration (optional, FedCM-compatible)
+- [x] Wallet balance display on Stripe payment button
+- [x] Automatic balance loading on page initialization
+- [x] Stripe session status checking (fallback mechanism)
+- [x] Redis-backed wallet persistence
+- [x] File-based persistence (`eden-wallet-persistence.json`)
+- [x] Balance persistence across server reboots
+- [x] Currency display updated to JSC (replaced USDC)
+- [x] Ledger display enhancements (JSC currency, Stripe payment details)
+- [x] Ledger entries persistence (all Eden bookings survive server reboots)
+
+### 🔄 Future Enhancements
+
+- [ ] Google Client ID configuration UI
+- [ ] Multi-currency support (if needed)
+- [ ] Wallet transaction history UI
+- [ ] Balance export/import functionality
+- [ ] Advanced audit trail visualization

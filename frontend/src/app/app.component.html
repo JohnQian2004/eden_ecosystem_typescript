@@ -95,14 +95,25 @@
                       </div>
                     </div>
                     <button 
-                      class="btn btn-light btn-sm w-100" 
+                      class="btn btn-light btn-sm w-100 mb-2" 
                       (click)="buyJesusCoin(100); $event.stopPropagation()"
-                      [disabled]="isProcessingStripe || !userEmail">
+                      [disabled]="isProcessingStripe || isProcessingIndexer || !userEmail">
                       <span *ngIf="!isProcessingStripe">BUY 100 JSC</span>
                       <span *ngIf="isProcessingStripe">
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                         Processing...
                       </span>
+                    </button>
+                    <button 
+                      class="btn btn-warning btn-sm w-100" 
+                      (click)="buyMovieIndexer(110); $event.stopPropagation()"
+                      [disabled]="isProcessingStripe || isProcessingIndexer || !userEmail">
+                      <span *ngIf="!isProcessingIndexer">Install Movie Indexer</span>
+                      <span *ngIf="isProcessingIndexer">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Installing...
+                      </span>
+                      <div class="small mt-1">110 JSC</div>
                     </button>
                   </div>
                 </div>

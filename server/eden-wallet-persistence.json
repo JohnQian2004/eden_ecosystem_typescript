@@ -1,11 +1,107 @@
 {
   "walletBalances": {
-    "wallet:balance:bill.draper.auto@gmail.com": "97.30000000000001",
+    "wallet:balance:bill.draper.auto@gmail.com": "87.30000000000001",
     "wallet:audit:bill.draper.auto@gmail.com:1767044776781": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":100,\"previousBalance\":0,\"newBalance\":100,\"txId\":\"ec351e07-1b4e-4b14-af52-c393c7d95b3f\",\"reason\":\"Stripe payment confirmed: pi_3SjoGVP4h6MOSVxD0TuAtV8H\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SjoGVP4h6MOSVxD0TuAtV8H\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767044776781}",
     "wallet:audit:bill.draper.auto@gmail.com:1767044799326": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":1.5,\"previousBalance\":100,\"newBalance\":98.5,\"txId\":\"a7abb0bf-9151-4bf2-af33-69744f7e0328\",\"reason\":\"Payment to MovieCom (movie)\",\"metadata\":{\"merchant\":\"MovieCom\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767044799326}",
     "wallet:audit:bill.draper.auto@gmail.com:1767044799344": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.15000000000000002,\"previousBalance\":98.5,\"newBalance\":98.65,\"txId\":\"50873b93-f139-453a-838b-b12f917e1673\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":1.5,\"rebateType\":\"review\"},\"timestamp\":1767044799345}",
     "wallet:audit:bill.draper.auto@gmail.com:1767044895820": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":1.5,\"previousBalance\":98.65,\"newBalance\":97.15,\"txId\":\"23150d77-bcdc-4594-8ec5-82b81c570b36\",\"reason\":\"Payment to MovieCom (movie)\",\"metadata\":{\"merchant\":\"MovieCom\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767044895820}",
-    "wallet:audit:bill.draper.auto@gmail.com:1767044895831": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.15000000000000002,\"previousBalance\":97.15,\"newBalance\":97.30000000000001,\"txId\":\"945f6624-ef78-441c-bbd4-dd4c33473c8f\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":1.5,\"rebateType\":\"review\"},\"timestamp\":1767044895831}"
+    "wallet:audit:bill.draper.auto@gmail.com:1767044895831": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.15000000000000002,\"previousBalance\":97.15,\"newBalance\":97.30000000000001,\"txId\":\"945f6624-ef78-441c-bbd4-dd4c33473c8f\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":1.5,\"rebateType\":\"review\"},\"timestamp\":1767044895831}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767045092163": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":100,\"previousBalance\":97.30000000000001,\"newBalance\":197.3,\"txId\":\"dfca71e9-052e-46b1-b947-211a1b9e825e\",\"reason\":\"Stripe payment confirmed: pi_3SjoLaP4h6MOSVxD1y75EbWl\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SjoLaP4h6MOSVxD1y75EbWl\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767045092163}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767049546038": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":197.3,\"newBalance\":87.30000000000001,\"txId\":\"9fc06244-8371-438d-957b-2e0435dce41c\",\"reason\":\"indexer_purchase\",\"metadata\":{\"indexerType\":\"movie\"},\"timestamp\":1767049546038}"
   },
-  "lastSaved": "2025-12-29T21:48:53.004Z"
+  "ledgerEntries": [
+    {
+      "entryId": "795997f0-9d8d-4fe5-8dcd-8195564361b7",
+      "txId": "10b2e042-799c-4d17-977e-98e446d2be39",
+      "timestamp": 1767048953733,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "indexer_purchase",
+      "amount": 110,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "indexerId": "indexer-d",
+        "indexerName": "Indexer-D",
+        "stripePaymentIntentId": "pi_3SjpLrP4h6MOSVxD0ktaItPR",
+        "stripePaymentMethodId": "pm_1SjpLrP4h6MOSVxDEV7K7ZIm",
+        "stripeSessionId": "cs_test_a1PMml8MIRPRb5rpxfd5sH4UKbPoMdKoSnJy54zW3bZKxuQ9wKYqdDSWbG",
+        "asset": "JSC"
+      }
+    },
+    {
+      "entryId": "f5c0ecfb-e286-4ca2-94d0-22aeeb9a1578",
+      "txId": "4440c2c1-a25d-449e-841a-7c84a2228717",
+      "timestamp": 1767049546056,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "indexer_purchase",
+      "amount": 110,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "indexerId": "indexer-d",
+        "indexerName": "Indexer-D",
+        "stripePaymentIntentId": "wallet:9fc06244-8371-438d-957b-2e0435dce41c",
+        "asset": "JSC"
+      }
+    },
+    {
+      "entryId": "bc2e694b-89fb-4cf3-bb9b-223f17b54558",
+      "txId": "ce6cd9be-e244-4a30-b83a-444a3d2b74ef",
+      "timestamp": 1767049858620,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "indexer_purchase",
+      "amount": 110,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "indexerId": "indexer-d",
+        "indexerName": "Indexer-D",
+        "stripePaymentIntentId": "pi_3SjpaTP4h6MOSVxD0RS6Ank0",
+        "stripePaymentMethodId": "pm_1SjpaSP4h6MOSVxD87dnP5He",
+        "stripeSessionId": "cs_test_a1bzDNhB0A9dmYVMkpiZLBNT2T86BalD9tbPX32RfMbEtJcTeXS02qHyMg",
+        "asset": "JSC"
+      }
+    }
+  ],
+  "indexers": [
+    {
+      "id": "indexer-d",
+      "name": "Indexer-D",
+      "stream": "eden:indexer:D",
+      "active": true,
+      "uuid": "eden:indexer:02999d43-1484-4535-9bd2-7c52d0fa6e26",
+      "certificate": {
+        "subject": "eden:indexer:02999d43-1484-4535-9bd2-7c52d0fa6e26",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "indexerId": "indexer-d",
+          "indexerName": "Indexer-D",
+          "stream": "eden:indexer:D"
+        },
+        "issuedAt": 1767049858606,
+        "expiresAt": 1798585858606,
+        "signature": "or/J58zMoXFIcZp4RQeF171IN9+EcqhhzJwz2PB61POFDPXDqEpVtZe0gEefJIB8m452tqQlQKoC16jH+E/tCg=="
+      }
+    }
+  ],
+  "lastSaved": "2025-12-29T23:10:59.622Z"
 }

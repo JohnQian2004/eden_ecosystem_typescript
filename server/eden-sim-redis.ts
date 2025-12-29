@@ -712,6 +712,169 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // POST /api/indexer/buy - Create Stripe Checkout session for indexer purchase
+  if (pathname === "/api/indexer/buy" && req.method === "POST") {
+    console.log(`   🎬 [${requestId}] POST /api/indexer/buy - Creating Stripe Checkout session for indexer purchase`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { email, amount, indexerType } = JSON.parse(body);
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+          return;
+        }
+        
+        if (!amount || typeof amount !== 'number' || amount <= 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid amount required (must be > 0)" }));
+          return;
+        }
+        
+        if (!indexerType || indexerType !== 'movie') {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Only 'movie' indexer type is supported" }));
+          return;
+        }
+        
+        // Create Stripe Checkout session for indexer purchase
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: 'Movie Service Indexer',
+                  description: `Install a new movie service indexer (${amount} JSC)`,
+                },
+                unit_amount: Math.round(amount * 100), // Convert to cents
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${req.headers.origin || 'http://localhost:4200'}/?indexer_success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${req.headers.origin || 'http://localhost:4200'}/?indexer_canceled=true`,
+          customer_email: email,
+          metadata: {
+            user_email: email,
+            jsc_amount: amount.toString(),
+            indexer_type: indexerType,
+            purchase_type: 'indexer',
+          },
+        });
+        
+        console.log(`   ✅ Stripe Checkout session created for indexer purchase: ${session.id} for ${email} (${amount} JSC)`);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          sessionId: session.id,
+          url: session.url,
+          publishableKey: STRIPE_PUBLISHABLE_KEY,
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ Error creating Stripe Checkout session for indexer:`, err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/indexer/purchase - Purchase indexer directly from wallet balance
+  if (pathname === "/api/indexer/purchase" && req.method === "POST") {
+    console.log(`   🎬 [${requestId}] POST /api/indexer/purchase - Purchasing indexer from wallet`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { email, amount, indexerType } = JSON.parse(body);
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+          return;
+        }
+        
+        if (!amount || typeof amount !== 'number' || amount <= 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid amount required (must be > 0)" }));
+          return;
+        }
+        
+        if (!indexerType || indexerType !== 'movie') {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Only 'movie' indexer type is supported" }));
+          return;
+        }
+        
+        // Check wallet balance
+        const balance = await getWalletBalance(email);
+        if (balance < amount) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Insufficient balance. Required: ${amount} JSC, Available: ${balance} JSC` 
+          }));
+          return;
+        }
+        
+        // Debit wallet balance
+        const txId = crypto.randomUUID();
+        const debitResult = await debitWallet(
+          email,
+          amount,
+          txId,
+          'indexer_purchase',
+          { indexerType: indexerType }
+        );
+        
+        if (!debitResult.success) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: debitResult.error || "Failed to debit wallet" }));
+          return;
+        }
+        
+        // Register new movie indexer
+        console.log(`   🎬 Registering new movie indexer for ${email} (wallet purchase)...`);
+        const newIndexer = await registerNewMovieIndexer(
+          email,
+          `wallet:${txId}`, // Use wallet transaction ID instead of Stripe payment intent
+          undefined, // No Stripe customer ID
+          undefined, // No Stripe payment method ID
+          undefined  // No Stripe session ID
+        );
+        
+        const newBalance = await getWalletBalance(email);
+        
+        console.log(`   ✅ Indexer purchased from wallet: ${newIndexer.name} (${newIndexer.id})`);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          indexerId: newIndexer.id,
+          indexerName: newIndexer.name,
+          indexerUuid: newIndexer.uuid,
+          balance: newBalance,
+          amount: amount
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ Error purchasing indexer from wallet:`, err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // POST /api/stripe/webhook - Handle Stripe webhooks
   if (pathname === "/api/stripe/webhook" && req.method === "POST") {
     console.log(`   🔔 [${requestId}] POST /api/stripe/webhook - Processing Stripe webhook`);
@@ -780,6 +943,8 @@ httpServer.on("request", async (req, res) => {
             const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
             const paymentIntentId = session.payment_intent as string;
             const customerId = session.customer as string;
+            const purchaseType = session.metadata?.purchase_type; // 'indexer' or undefined (JSC purchase)
+            const indexerType = session.metadata?.indexer_type; // 'movie' or undefined
             
             if (!email) {
               console.error(`   ❌ Missing email in Stripe session: ${session.id}`);
@@ -809,15 +974,27 @@ httpServer.on("request", async (req, res) => {
               }
             }
             
-            // Mint JSC (ROOT CA authority) with Stripe payment details stored in ledger
-            console.log(`   🪙 Minting ${jscAmount} JSC for ${email}...`);
-            await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
-            
-            console.log(`   ✅ JSC minted successfully: ${jscAmount} JSC for ${email}`);
-            console.log(`      Stripe Customer ID: ${customerId}`);
-            console.log(`      Payment Intent ID: ${paymentIntentId}`);
-            console.log(`      Payment Method ID: ${paymentMethodId || 'N/A'}`);
-            console.log(`      Session ID: ${session.id}`);
+            // Check if this is an indexer purchase
+            if (purchaseType === 'indexer' && indexerType === 'movie') {
+              // Register new movie indexer after payment
+              console.log(`   🎬 Registering new movie indexer for ${email}...`);
+              const newIndexer = await registerNewMovieIndexer(email, paymentIntentId, customerId, paymentMethodId, session.id);
+              
+              console.log(`   ✅ Movie indexer registered successfully: ${newIndexer.id} (${newIndexer.name})`);
+              console.log(`      Stripe Customer ID: ${customerId}`);
+              console.log(`      Payment Intent ID: ${paymentIntentId}`);
+              console.log(`      Session ID: ${session.id}`);
+            } else {
+              // Regular JSC purchase - mint JSC
+              console.log(`   🪙 Minting ${jscAmount} JSC for ${email}...`);
+              await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
+              
+              console.log(`   ✅ JSC minted successfully: ${jscAmount} JSC for ${email}`);
+              console.log(`      Stripe Customer ID: ${customerId}`);
+              console.log(`      Payment Intent ID: ${paymentIntentId}`);
+              console.log(`      Payment Method ID: ${paymentMethodId || 'N/A'}`);
+              console.log(`      Session ID: ${session.id}`);
+            }
           } else {
             console.log(`   ⚠️  Payment status is not 'paid': ${session.payment_status}`);
           }
@@ -876,12 +1053,14 @@ httpServer.on("request", async (req, res) => {
         return;
       }
       
-      // If payment is successful but not minted yet, mint it now
+      // If payment is successful but not processed yet, process it now
       if (session.payment_status === 'paid' && session.status === 'complete') {
         const email = session.customer_email || session.metadata?.user_email;
         const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
         const paymentIntentId = session.payment_intent as string;
         const customerId = session.customer as string;
+        const purchaseType = session.metadata?.purchase_type;
+        const indexerType = session.metadata?.indexer_type;
         
         if (!email) {
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -908,23 +1087,68 @@ httpServer.on("request", async (req, res) => {
           }
         }
         
-        // Mint JSC (fallback for local dev when webhook doesn't fire)
-        console.log(`   🪙 Minting ${jscAmount} JSC for ${email} (fallback mechanism)...`);
-        await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
-        
-        const balance = await getWalletBalance(email);
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          success: true, 
-          minted: true,
-          sessionId: session.id,
-          paymentStatus: session.payment_status,
-          email: email,
-          amount: jscAmount,
-          balance: balance
-        }));
-        return;
+        // Check if this is an indexer purchase
+        if (purchaseType === 'indexer' && indexerType === 'movie') {
+          // Check if indexer already registered
+          const existingIndexer = LEDGER.find(entry => 
+            entry.serviceType === 'indexer_purchase' &&
+            entry.bookingDetails?.stripeSessionId === sessionId
+          );
+          
+          if (existingIndexer) {
+            console.log(`   ✅ Indexer already registered for this session`);
+            const balance = await getWalletBalance(email);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ 
+              success: true, 
+              alreadyRegistered: true,
+              sessionId: session.id,
+              paymentStatus: session.payment_status,
+              email: email,
+              balance: balance,
+              indexerId: (existingIndexer.bookingDetails as any)?.indexerId,
+              indexerName: (existingIndexer.bookingDetails as any)?.indexerName
+            }));
+            return;
+          }
+          
+          // Register new movie indexer
+          console.log(`   🎬 Registering new movie indexer for ${email} (fallback mechanism)...`);
+          const newIndexer = await registerNewMovieIndexer(email, paymentIntentId, customerId, paymentMethodId, session.id);
+          const balance = await getWalletBalance(email);
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: true, 
+            registered: true,
+            sessionId: session.id,
+            paymentStatus: session.payment_status,
+            email: email,
+            amount: jscAmount,
+            balance: balance,
+            indexerId: newIndexer.id,
+            indexerName: newIndexer.name
+          }));
+          return;
+        } else {
+          // Regular JSC purchase - mint JSC (fallback for local dev when webhook doesn't fire)
+          console.log(`   🪙 Minting ${jscAmount} JSC for ${email} (fallback mechanism)...`);
+          await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
+          
+          const balance = await getWalletBalance(email);
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: true, 
+            minted: true,
+            sessionId: session.id,
+            paymentStatus: session.payment_status,
+            email: email,
+            amount: jscAmount,
+            balance: balance
+          }));
+          return;
+        }
       } else {
         // Payment not completed yet
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -1513,8 +1737,9 @@ class InMemoryRedisServer extends EventEmitter {
     this.loadPersistence();
   }
 
-  // Load wallet data from persistence file
-  private loadPersistence(): void {
+  // Load wallet data, ledger entries, and indexers from persistence file
+  private loadPersistence(): { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } {
+    const result = { walletBalances: {}, ledgerEntries: [], indexers: [] };
     try {
       if (fs.existsSync(this.persistenceFile)) {
         const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
@@ -1525,7 +1750,20 @@ class InMemoryRedisServer extends EventEmitter {
           for (const [key, value] of Object.entries(persisted.walletBalances)) {
             this.data.set(key, value);
           }
+          result.walletBalances = persisted.walletBalances;
           console.log(`📂 [Redis Persistence] Loaded ${Object.keys(persisted.walletBalances).length} wallet balances from ${this.persistenceFile}`);
+        }
+        
+        // Restore ledger entries
+        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
+          result.ledgerEntries = persisted.ledgerEntries;
+          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.persistenceFile}`);
+        }
+        
+        // Restore dynamically created indexers
+        if (persisted.indexers && Array.isArray(persisted.indexers)) {
+          result.indexers = persisted.indexers;
+          console.log(`📂 [Redis Persistence] Loaded ${persisted.indexers.length} persisted indexers from ${this.persistenceFile}`);
         }
       } else {
         console.log(`📂 [Redis Persistence] No persistence file found, starting fresh: ${this.persistenceFile}`);
@@ -1533,10 +1771,11 @@ class InMemoryRedisServer extends EventEmitter {
     } catch (err: any) {
       console.warn(`⚠️  [Redis Persistence] Failed to load persistence file: ${err.message}`);
     }
+    return result;
   }
 
-  // Save wallet data to persistence file (debounced)
-  private savePersistence(): void {
+  // Save wallet data, ledger entries, and indexers to persistence file (debounced)
+  private savePersistence(ledgerEntries?: any[], indexers?: any[]): void {
     // Clear existing timeout
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
@@ -1554,17 +1793,52 @@ class InMemoryRedisServer extends EventEmitter {
           }
         }
 
+        // Load existing data to merge (don't overwrite)
+        let existingLedgerEntries: any[] = [];
+        let existingIndexers: any[] = [];
+        
+        if (fs.existsSync(this.persistenceFile)) {
+          try {
+            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+            const existing = JSON.parse(fileContent);
+            if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
+              existingLedgerEntries = existing.ledgerEntries;
+            }
+            if (existing.indexers && Array.isArray(existing.indexers)) {
+              existingIndexers = existing.indexers;
+            }
+          } catch (err: any) {
+            console.warn(`⚠️  [Redis Persistence] Failed to load existing data for merge: ${err.message}`);
+          }
+        }
+
+        // Merge: use new data if provided, otherwise keep existing
+        const finalLedgerEntries = ledgerEntries !== undefined ? ledgerEntries : existingLedgerEntries;
+        const finalIndexers = indexers !== undefined ? indexers : existingIndexers;
+
         const persisted = {
           walletBalances,
+          ledgerEntries: finalLedgerEntries,
+          indexers: finalIndexers,
           lastSaved: new Date().toISOString()
         };
 
         fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
-        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
+        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries, ${finalLedgerEntries.length} ledger entries, and ${finalIndexers.length} indexers to ${this.persistenceFile}`);
       } catch (err: any) {
         console.error(`❌ [Redis Persistence] Failed to save persistence file: ${err.message}`);
       }
     }, this.SAVE_DELAY_MS);
+  }
+  
+  // Public method to save ledger entries
+  saveLedgerEntries(ledgerEntries: any[]): void {
+    this.savePersistence(ledgerEntries);
+  }
+  
+  // Public method to save indexers
+  saveIndexers(indexers: any[]): void {
+    this.savePersistence(undefined, indexers);
   }
 
   async connect(): Promise<void> {
@@ -1808,7 +2082,7 @@ class InMemoryRedisServer extends EventEmitter {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
-    // Force immediate save on quit
+    // Force immediate save on quit (ledger entries passed separately)
     try {
       const walletBalances: Record<string, string> = {};
       for (const [key, value] of this.data.entries()) {
@@ -1816,12 +2090,14 @@ class InMemoryRedisServer extends EventEmitter {
           walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
         }
       }
+      // Note: Ledger entries will be saved separately via saveLedgerEntries()
       const persisted = {
         walletBalances,
+        ledgerEntries: [], // Will be populated by saveLedgerEntries()
         lastSaved: new Date().toISOString()
       };
       fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
-      console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries on quit`);
+      console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries on quit (ledger entries saved separately)`);
     } catch (err: any) {
       console.error(`❌ [Redis Persistence] Failed to save on quit: ${err.message}`);
     }
@@ -3985,6 +4261,175 @@ async function processWalletIntent(intent: WalletIntent): Promise<WalletResult> 
 // This is called when Stripe payment is confirmed via webhook
 // Stripe is registered as a payment-rail service provider under Holy Ghost
 // Stores Stripe customer ID, payment method ID, and payment intent ID in ledger for webhook querying
+// Register a new movie indexer after Stripe payment
+async function registerNewMovieIndexer(
+  email: string,
+  stripePaymentIntentId: string,
+  stripeCustomerId?: string | null,
+  stripePaymentMethodId?: string | null,
+  stripeSessionId?: string
+): Promise<IndexerConfig> {
+  console.log(`🎬 [Indexer Registration] Starting registration for ${email}...`);
+  
+  // Generate unique indexer ID (next available letter after existing indexers)
+  const existingIds = INDEXERS.map(i => i.id).sort();
+  let nextId = 'A';
+  if (existingIds.length > 0) {
+    const lastId = existingIds[existingIds.length - 1];
+    const lastCharCode = lastId.charCodeAt(0);
+    if (lastCharCode < 90) { // Z is 90
+      nextId = String.fromCharCode(lastCharCode + 1);
+    } else {
+      // If we've exceeded Z, use numbers
+      nextId = `INDEXER-${INDEXERS.length + 1}`;
+    }
+  }
+  
+  const indexerId = `indexer-${nextId.toLowerCase()}`;
+  const indexerName = `Indexer-${nextId}`;
+  const streamName = `eden:indexer:${nextId}`;
+  const indexerUuid = `eden:indexer:${crypto.randomUUID()}`;
+  
+  // Create new indexer config
+  const newIndexer: IndexerConfig = {
+    id: indexerId,
+    name: indexerName,
+    stream: streamName,
+    active: true,
+    uuid: indexerUuid
+  };
+  
+  // Add to INDEXERS array
+  INDEXERS.push(newIndexer);
+  console.log(`✅ [Indexer Registration] Created indexer: ${newIndexer.name} (${newIndexer.id})`);
+  
+  // Persist indexers to survive server reboot (save immediately, don't wait for debounce)
+  const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
+  console.log(`💾 [Indexer Persistence] Saving ${dynamicIndexers.length} dynamic indexer(s) to persistence file...`);
+  redis.saveIndexers(dynamicIndexers);
+  
+  // Also force immediate save (bypass debounce for critical data)
+  setTimeout(() => {
+    try {
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(persistenceFile)) {
+        const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+        const existing = JSON.parse(fileContent);
+        existing.indexers = dynamicIndexers;
+        existing.lastSaved = new Date().toISOString();
+        fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
+        console.log(`💾 [Indexer Persistence] Force-saved ${dynamicIndexers.length} indexer(s) immediately`);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  [Indexer Persistence] Failed to force-save: ${err.message}`);
+    }
+  }, 100);
+  
+  // Issue certificate to the new indexer
+  try {
+    issueIndexerCertificate(newIndexer);
+  } catch (err: any) {
+    console.error(`❌ [Indexer Registration] Failed to issue certificate:`, err.message);
+    throw err;
+  }
+  
+  // Create default movie service providers for this indexer
+  const providerNames = ['Regal Cinemas', 'Cineplex', 'MovieMax'];
+  const providerIds = ['regal-001', 'cineplex-001', 'moviemax-001'];
+  const locations = ['Baltimore, Maryland', 'New York, New York', 'Los Angeles, California'];
+  const reputations = [4.6, 4.4, 4.5];
+  const bonds = [1100, 900, 1000];
+  
+  for (let i = 0; i < providerNames.length; i++) {
+    const providerId = `${providerIds[i]}-${nextId.toLowerCase()}`;
+    const providerUuid = `550e8400-e29b-41d4-a716-${crypto.randomUUID().substring(0, 12)}`;
+    
+    const provider: ServiceProviderWithCert = {
+      id: providerId,
+      uuid: providerUuid,
+      name: providerNames[i],
+      serviceType: 'movie',
+      location: locations[i],
+      bond: bonds[i],
+      reputation: reputations[i],
+      indexerId: indexerId,
+      apiEndpoint: `https://api.${providerIds[i]}.com/v1/listings`,
+      status: 'active'
+    };
+    
+    // Register provider with ROOT CA
+    registerServiceProviderWithROOTCA(provider);
+    
+    // Issue certificate to provider
+    try {
+      issueServiceProviderCertificate(provider);
+    } catch (err: any) {
+      console.warn(`⚠️  [Indexer Registration] Failed to issue certificate to ${provider.name}:`, err.message);
+    }
+    
+    console.log(`✅ [Indexer Registration] Registered provider: ${provider.name} (${provider.id})`);
+  }
+  
+  // Create ledger entry for indexer purchase
+  const snapshot: TransactionSnapshot = {
+    chainId: CHAIN_ID,
+    txId: crypto.randomUUID(),
+    slot: Date.now(),
+    blockTime: Date.now(),
+    payer: email,
+    merchant: 'ROOT CA',
+    amount: 110, // 110 JSC for indexer purchase
+    feeSplit: {},
+  };
+  
+  const entry: LedgerEntry = {
+    entryId: crypto.randomUUID(),
+    txId: snapshot.txId,
+    timestamp: snapshot.blockTime,
+    payer: email,
+    payerId: email,
+    merchant: 'ROOT CA',
+    providerUuid: ROOT_CA_UUID,
+    serviceType: 'indexer_purchase',
+    amount: 110,
+    iGasCost: 0, // No iGas for indexer purchase
+    fees: {},
+    status: 'completed',
+    cashierId: 'stripe-payment-rail-001',
+    bookingDetails: {
+      indexerId: indexerId,
+      indexerName: indexerName,
+      stripePaymentIntentId: stripePaymentIntentId,
+      stripeCustomerId: stripeCustomerId || undefined,
+      stripePaymentMethodId: stripePaymentMethodId || undefined,
+      stripeSessionId: stripeSessionId || undefined,
+      asset: 'JSC'
+    } as any, // Type assertion for indexer-specific fields
+  };
+  
+  LEDGER.push(entry);
+  redis.saveLedgerEntries(LEDGER);
+  
+  // Broadcast events
+  broadcastEvent({
+    type: "indexer_registered",
+    component: "root-ca",
+    message: `New movie indexer registered: ${indexerName}`,
+    timestamp: Date.now(),
+    data: {
+      indexerId: indexerId,
+      indexerName: indexerName,
+      indexerUuid: indexerUuid,
+      email: email,
+      providersRegistered: providerNames.length
+    }
+  });
+  
+  console.log(`✅ [Indexer Registration] Registration complete: ${indexerName} with ${providerNames.length} providers`);
+  
+  return newIndexer;
+}
+
 async function mintJSC(
   email: string, 
   amount: number, 
@@ -4085,6 +4530,9 @@ async function mintJSC(
   // Add to ledger
   LEDGER.push(entry);
   
+  // Persist ledger entry
+  redis.saveLedgerEntries(LEDGER);
+  
   console.log(`   ✅ JSC minted: ${amount} JSC added to ${email} balance (new balance: ${walletResult.balance} JSC)`);
   
   // Broadcast events
@@ -4163,6 +4611,9 @@ function addLedgerEntry(
 
   // Push ledger entry to local ledger (for immediate access)
   LEDGER.push(entry);
+  
+  // Persist ledger entry
+  redis.saveLedgerEntries(LEDGER);
   
   // ARCHITECTURAL PATTERN: Ledger Push + Settlement Pull
   // Indexers EXECUTE transactions but never SETTLE them
@@ -6015,7 +6466,28 @@ async function main() {
   // Initialize ROOT CA
   initializeRootCA();
   
-  // Issue certificates to all token indexers first (needed for pool initialization)
+  // Issue certificates to all regular indexers (including restored ones)
+  console.log("\n🌳 Issuing certificates to Regular Indexers...");
+  for (const indexer of INDEXERS) {
+    if (indexer.active) {
+      // Check if certificate exists in registry (not just in indexer object)
+      const existingCert = CERTIFICATE_REGISTRY.get(indexer.uuid);
+      if (!existingCert) {
+        try {
+          issueIndexerCertificate(indexer);
+          console.log(`   ✅ Certificate issued to ${indexer.name} (${indexer.id})`);
+        } catch (err: any) {
+          console.error(`   ❌ Failed to issue certificate to ${indexer.name}:`, err.message);
+        }
+      } else {
+        // Certificate already exists, restore it to indexer object
+        indexer.certificate = existingCert;
+        console.log(`   ✅ Certificate already exists for ${indexer.name} (${indexer.id})`);
+      }
+    }
+  }
+  
+  // Issue certificates to all token indexers (needed for pool initialization)
   console.log("\n🔷 Issuing certificates to Token Indexers...");
   for (const tokenIndexer of TOKEN_INDEXERS) {
     if (tokenIndexer.active) {
@@ -6162,7 +6634,54 @@ async function main() {
     console.error("❌ Unexpected Redis connection failure\n");
     process.exit(1);
   }
-
+  
+  // Load ledger entries and persisted indexers from persistence file
+  if (redisConnected && !SKIP_REDIS) {
+    try {
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(persistenceFile)) {
+        const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        
+        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
+          // Restore ledger entries
+          LEDGER.push(...persisted.ledgerEntries);
+          console.log(`📂 [Ledger Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${persistenceFile}`);
+        }
+        
+        if (persisted.indexers && Array.isArray(persisted.indexers)) {
+          // Restore dynamically created indexers
+          // Only restore indexers that don't already exist (by ID)
+          const existingIds = new Set(INDEXERS.map(i => i.id));
+          let restoredCount = 0;
+          const restoredIndexers: IndexerConfig[] = [];
+          
+          for (const persistedIndexer of persisted.indexers) {
+            if (!existingIds.has(persistedIndexer.id)) {
+              // Clear certificate property - it will be reissued
+              const restoredIndexer: IndexerConfig = {
+                ...persistedIndexer,
+                certificate: undefined // Certificates will be reissued on startup
+              };
+              INDEXERS.push(restoredIndexer);
+              restoredIndexers.push(restoredIndexer);
+              existingIds.add(restoredIndexer.id);
+              restoredCount++;
+              console.log(`📂 [Indexer Persistence] Restored indexer: ${restoredIndexer.name} (${restoredIndexer.id})`);
+            }
+          }
+          
+          if (restoredCount > 0) {
+            console.log(`📂 [Indexer Persistence] Restored ${restoredCount} persisted indexers from ${persistenceFile}`);
+            console.log(`📜 [Indexer Persistence] Certificates will be reissued for restored indexers during startup`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  [Persistence] Failed to load persisted data: ${err.message}`);
+    }
+  }
+  
   // Start indexer consumers (non-blocking) for all active indexers
   if (redisConnected) {
     // Initialize revocation stream consumer groups
@@ -6221,7 +6740,18 @@ function setupGracefulShutdown() {
   const shutdown = async (signal: string) => {
     console.log(`\n\n🛑 Received ${signal}, shutting down gracefully...`);
     try {
+      // Save ledger entries and indexers before shutdown
       if (redis.isOpen) {
+        if (LEDGER.length > 0) {
+          redis.saveLedgerEntries(LEDGER);
+        }
+        // Save dynamically created indexers (those with IDs starting with 'indexer-')
+        const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
+        if (dynamicIndexers.length > 0) {
+          redis.saveIndexers(dynamicIndexers);
+        }
+        // Wait a bit for the save to complete
+        await new Promise(resolve => setTimeout(resolve, 200));
         await redis.quit();
       }
     } catch (err: any) {

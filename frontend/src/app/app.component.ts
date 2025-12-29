@@ -95,6 +95,7 @@ export class AppComponent implements OnInit, OnDestroy {
   
   // Stripe payment processing
   isProcessingStripe: boolean = false;
+  isProcessingIndexer: boolean = false;
   
   // Wallet balance
   walletBalance: number = 0;
@@ -128,7 +129,10 @@ export class AppComponent implements OnInit, OnDestroy {
     const sessionId = urlParams.get('session_id');
     const jscCanceled = urlParams.get('jsc_canceled');
     
-    if (jscSuccess === 'true' && sessionId) {
+    const indexerSuccess = urlParams.get('indexer_success');
+    const indexerCanceled = urlParams.get('indexer_canceled');
+    
+    if ((jscSuccess === 'true' || indexerSuccess === 'true') && sessionId) {
       console.log(`✅ Stripe payment successful! Session ID: ${sessionId}`);
       // Clear URL parameters to prevent re-triggering
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -137,9 +141,9 @@ export class AppComponent implements OnInit, OnDestroy {
       this.selectedServiceType = null;
       this.inputPlaceholder = 'Select a service type above or type your query...';
       
-      // Check session status and mint JSC if needed (fallback for local dev)
-      this.checkStripeSession(sessionId);
-    } else if (jscCanceled === 'true') {
+      // Check session status and process payment/indexer registration (fallback for local dev)
+      this.checkStripeSession(sessionId, indexerSuccess === 'true');
+    } else if (jscCanceled === 'true' || indexerCanceled === 'true') {
       console.log(`❌ Stripe payment canceled`);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -349,9 +353,9 @@ export class AppComponent implements OnInit, OnDestroy {
       });
   }
   
-  checkStripeSession(sessionId: string) {
-    console.log(`🔍 Checking Stripe session status: ${sessionId}`);
-    this.http.get<{success: boolean, minted?: boolean, alreadyMinted?: boolean, amount?: number, balance?: number, paymentStatus?: string, error?: string}>(
+  checkStripeSession(sessionId: string, isIndexerPurchase: boolean = false) {
+    console.log(`🔍 Checking Stripe session status: ${sessionId} (indexer purchase: ${isIndexerPurchase})`);
+    this.http.get<{success: boolean, minted?: boolean, alreadyMinted?: boolean, registered?: boolean, alreadyRegistered?: boolean, amount?: number, balance?: number, paymentStatus?: string, indexerId?: string, indexerName?: string, error?: string}>(
       `${this.apiUrl}/api/jsc/check-session/${sessionId}`
     ).subscribe({
       next: (response) => {
@@ -364,10 +368,17 @@ export class AppComponent implements OnInit, OnDestroy {
             console.log(`✅ JSC minted successfully! Amount: ${response.amount} JSC, Balance: ${response.balance} JSC`);
             this.walletBalance = response.balance || 0;
             alert(`✅ ${response.amount} JSC deposited successfully! Your balance: ${response.balance} JSC`);
+          } else if (response.registered || response.alreadyRegistered) {
+            console.log(`✅ Indexer registered: ${response.indexerId || response.indexerName}`);
+            this.walletBalance = response.balance || 0;
+            this.isProcessingIndexer = false;
+            alert(`✅ Movie indexer installed successfully!\nIndexer: ${response.indexerId || response.indexerName}\nBalance: ${response.balance} JSC`);
+            // Refresh indexer list (sidebar will auto-update via WebSocket)
           } else {
             console.log(`⏳ Payment not completed yet. Status: ${response.paymentStatus}`);
             alert(`⏳ Payment processing... Please wait a moment and refresh.`);
           }
+          this.isProcessingStripe = false;
           this.cdr.detectChanges();
         } else {
           console.error(`❌ Failed to check session:`, response.error);
@@ -409,6 +420,65 @@ export class AppComponent implements OnInit, OnDestroy {
         this.isProcessingStripe = false;
       }
     });
+  }
+  
+  buyMovieIndexer(amount: number) {
+    if (!this.userEmail || !this.userEmail.includes('@')) {
+      alert('Please set a valid email address first');
+      return;
+    }
+    
+    this.isProcessingIndexer = true;
+    
+    // First check wallet balance
+    if (this.walletBalance >= amount) {
+      // User has enough balance - purchase directly from wallet
+      console.log(`💰 Purchasing indexer from wallet balance: ${this.walletBalance} JSC`);
+      this.http.post<{success: boolean, indexerId?: string, indexerName?: string, balance?: number, error?: string}>(
+        `${this.apiUrl}/api/indexer/purchase`,
+        { email: this.userEmail, amount: amount, indexerType: 'movie' }
+      ).subscribe({
+        next: (response) => {
+          if (response.success) {
+            console.log(`✅ Indexer purchased from wallet: ${response.indexerId || response.indexerName}`);
+            this.walletBalance = response.balance || this.walletBalance - amount;
+            this.isProcessingIndexer = false;
+            alert(`✅ Movie indexer installed successfully!\nIndexer: ${response.indexerId || response.indexerName}\nRemaining balance: ${response.balance} JSC`);
+            this.cdr.detectChanges();
+          } else {
+            alert(`Failed to purchase indexer: ${response.error || 'Unknown error'}`);
+            this.isProcessingIndexer = false;
+          }
+        },
+        error: (err) => {
+          console.error('Error purchasing indexer from wallet:', err);
+          alert(`Error: ${err.error?.error || err.message || 'Failed to purchase indexer'}`);
+          this.isProcessingIndexer = false;
+        }
+      });
+    } else {
+      // Insufficient balance - redirect to Stripe Checkout
+      console.log(`💳 Insufficient balance (${this.walletBalance} JSC). Redirecting to Stripe...`);
+      this.http.post<{success: boolean, sessionId?: string, url?: string, error?: string}>(
+        `${this.apiUrl}/api/indexer/buy`,
+        { email: this.userEmail, amount: amount, indexerType: 'movie' }
+      ).subscribe({
+        next: (response) => {
+          if (response.success && response.url) {
+            // Redirect to Stripe Checkout
+            window.location.href = response.url;
+          } else {
+            alert(`Failed to create Stripe checkout: ${response.error || 'Unknown error'}`);
+            this.isProcessingIndexer = false;
+          }
+        },
+        error: (err) => {
+          console.error('Error creating Stripe checkout for indexer:', err);
+          alert(`Error: ${err.error?.error || err.message || 'Failed to create Stripe checkout'}`);
+          this.isProcessingIndexer = false;
+        }
+      });
+    }
   }
   
   selectServiceType(serviceType: {type: string, icon: string, adText: string, sampleQuery: string}) {
