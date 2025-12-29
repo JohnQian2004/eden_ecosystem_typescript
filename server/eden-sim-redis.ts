@@ -93,6 +93,16 @@ for (let i = 0; i < NUM_TOKEN_INDEXERS; i++) {
 
 // ROOT CA Identity and PKI
 const ROOT_CA_UUID = "eden:root:ca:00000000-0000-0000-0000-000000000001";
+
+// Holy Ghost - ROOT CA's dedicated indexer for infrastructure services
+// Must be defined AFTER ROOT_CA_UUID
+const HOLY_GHOST_INDEXER: IndexerConfig = {
+  id: "HG",
+  name: "Holy Ghost",
+  stream: "eden:holy-ghost",
+  active: true,
+  uuid: ROOT_CA_UUID, // Uses ROOT CA UUID since it's ROOT CA's indexer
+};
 let ROOT_CA: EdenPKI | null = null;
 let ROOT_CA_IDENTITY: EdenIdentity | null = null;
 
@@ -442,8 +452,18 @@ httpServer.on("request", async (req, res) => {
     console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
     res.writeHead(200, { "Content-Type": "application/json" });
     
-    // Combine regular indexers and token indexers
+    // Combine all indexers: Holy Ghost (ROOT CA's indexer), regular indexers, and token indexers
     const allIndexers = [
+      // Holy Ghost (ROOT CA's infrastructure indexer) - listed first
+      {
+        id: HOLY_GHOST_INDEXER.id,
+        name: HOLY_GHOST_INDEXER.name,
+        stream: HOLY_GHOST_INDEXER.stream,
+        active: HOLY_GHOST_INDEXER.active,
+        uuid: HOLY_GHOST_INDEXER.uuid,
+        hasCertificate: !!HOLY_GHOST_INDEXER.certificate,
+        type: 'root' as const
+      },
       ...INDEXERS.map(i => ({
         id: i.id,
         name: i.name,
@@ -1786,6 +1806,68 @@ interface ServiceProviderWithCert extends ServiceProvider {
 
 // ROOT CA Service Registry (centralized, in-memory)
 const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
+  // Holy Ghost Infrastructure Services (ROOT CA's indexer)
+  {
+    id: "stripe-payment-rail-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440100",
+    name: "Stripe Payment Rail",
+    serviceType: "payment-rail",
+    location: "Global",
+    bond: 50000, // High bond for payment infrastructure
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: "https://api.stripe.com/v1",
+    status: 'active'
+  },
+  {
+    id: "settlement-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440101",
+    name: "Settlement Service",
+    serviceType: "settlement",
+    location: "ROOT CA",
+    bond: 100000, // Very high bond for settlement authority
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: "internal://settlement",
+    status: 'active'
+  },
+  {
+    id: "service-registry-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440102",
+    name: "Service Registry",
+    serviceType: "registry",
+    location: "ROOT CA",
+    bond: 50000, // High bond for registry authority
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: "internal://service-registry",
+    status: 'active'
+  },
+  {
+    id: "webserver-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440103",
+    name: "Web Server",
+    serviceType: "webserver",
+    location: "ROOT CA",
+    bond: 10000,
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: `http://localhost:${HTTP_PORT}`,
+    status: 'active'
+  },
+  {
+    id: "websocket-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440104",
+    name: "WebSocket Service",
+    serviceType: "websocket",
+    location: "ROOT CA",
+    bond: 10000,
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: `ws://localhost:${HTTP_PORT}`,
+    status: 'active'
+  },
+  // Regular Service Providers
   {
     id: "amc-001",
     uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
@@ -3173,10 +3255,15 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 
 // Ledger Component - Tracks all Eden bookings
 
-// Mint JesusCoin (JSC) - ROOT CA authority only
+// Mint JesusCoin (JSC) - Via Stripe Payment Rail Service Provider (Holy Ghost indexer)
 // This is called when Stripe payment is confirmed via webhook
+// Stripe is registered as a payment-rail service provider under Holy Ghost
 async function mintJSC(email: string, amount: number, stripePaymentIntentId: string): Promise<void> {
-  console.log(`💰 [ROOT CA] Minting ${amount} JSC for ${email} (Stripe: ${stripePaymentIntentId})`);
+  // Find Stripe payment rail service provider
+  const stripeProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "stripe-payment-rail-001");
+  const providerUuid = stripeProvider?.uuid || ROOT_CA_UUID;
+  
+  console.log(`💰 [Stripe Payment Rail] Minting ${amount} JSC for ${email} (Stripe: ${stripePaymentIntentId})`);
   
   // Find or create user
   let user = USERS.find(u => u.email === email);
@@ -3213,13 +3300,13 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
     payer: `stripe:${stripePaymentIntentId}`,
     payerId: stripePaymentIntentId,
     merchant: email,
-    providerUuid: ROOT_CA_UUID, // ROOT CA mints JSC
+    providerUuid: providerUuid, // Stripe Payment Rail Service Provider UUID
     serviceType: 'mint',
     amount: amount,
     iGasCost: 0, // No iGas for minting (it's a deposit)
     fees: {},
     status: 'completed', // Mints are immediately completed
-    cashierId: 'root-ca',
+    cashierId: 'stripe-payment-rail-001', // Stripe Payment Rail Service Provider
     bookingDetails: {
       asset: 'JSC',
       stripePaymentIntentId: stripePaymentIntentId,
@@ -3234,8 +3321,8 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
   // Broadcast events
   broadcastEvent({
     type: "jsc_minted",
-    component: "root-ca",
-    message: `JSC minted: ${amount} JSC for ${email}`,
+    component: "stripe-payment-rail-001",
+    message: `JSC minted via Stripe Payment Rail: ${amount} JSC for ${email}`,
     timestamp: Date.now(),
     data: {
       email,
@@ -3243,6 +3330,8 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
       balance: user.balance,
       stripePaymentIntentId,
       entryId: entry.entryId,
+      providerId: "stripe-payment-rail-001",
+      indexerId: "HG", // Holy Ghost indexer
     }
   });
   
@@ -4538,8 +4627,9 @@ async function rootCASettlementConsumer() {
   }
 }
 
-// Process a settlement entry (ROOT CA authority)
+// Process a settlement entry (Settlement Service Provider via Holy Ghost indexer)
 // This is the ONLY place where balances are updated
+// Settlement Service Provider is registered under Holy Ghost indexer
 async function processSettlementEntry(msg: Record<string, string>): Promise<void> {
   const entryId = msg.entryId;
   const iGas = parseFloat(msg.iGas || "0");
@@ -5071,6 +5161,7 @@ async function main() {
     numTokenIndexers: NUM_TOKEN_INDEXERS,
   }, "\n");
   
+  console.log(`✨ Holy Ghost (ROOT CA Indexer) configured: ${HOLY_GHOST_INDEXER.name}`);
   console.log(`🌳 Regular Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}`);
   console.log(`🔷 Token Indexers configured: ${TOKEN_INDEXERS.map(i => i.name).join(", ")}\n`);
 

@@ -95,9 +95,14 @@
         class="indexer-tab"
         [class.active]="selectedIndexerTab === indexer.id"
         [class.token-indexer]="indexer.type === 'token'"
+        [class.root-indexer]="indexer.type === 'root'"
         type="button"
         (click)="selectIndexerTab(indexer.id)">
-        <span class="tab-icon">{{ indexer.type === 'token' ? '🔷' : '🌳' }}</span>
+        <span class="tab-icon">
+          <span *ngIf="indexer.type === 'root'">✨</span>
+          <span *ngIf="indexer.type === 'token'">🔷</span>
+          <span *ngIf="indexer.type !== 'root' && indexer.type !== 'token'">🌳</span>
+        </span>
         <span class="tab-label">{{ indexer.name }}</span>
       </button>
     </div>
@@ -125,36 +130,64 @@
           <!-- Selected Indexer Node -->
           <div *ngIf="selectedIndexerTab" class="indexer-node">
             <div class="indexer-header">
-              <span class="indexer-icon">🌳</span>
+              <span class="indexer-icon">
+                <span *ngIf="selectedIndexerTab === 'HG'">✨</span>
+                <span *ngIf="selectedIndexerTab !== 'HG'">🌳</span>
+              </span>
               <span class="indexer-name">{{ selectedIndexerName }}</span>
               <span class="badge bg-success badge-xs">{{ selectedIndexerNodeCount }}</span>
             </div>
             
             <div class="indexer-components">
-              <!-- NOTE: Service Registry belongs to ROOT CA, not indexers -->
-              
-              <!-- Service Providers -->
-              <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
-                <div class="sub-group-label">Service Providers</div>
-                <div 
-                  *ngFor="let component of selectedIndexerServiceProviders" 
-                  class="component-item border-start border-2"
-                  [ngClass]="getStatusClass(component.status)"
-                  [class.border-success]="component.status === 'success'"
-                  [class.border-danger]="component.status === 'error'"
-                  [class.border-warning]="component.status === 'active'"
-                  [class.border-secondary]="component.status === 'idle'">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
-                      <span class="component-name">{{ component.name }}</span>
+              <!-- Holy Ghost (ROOT CA Indexer) shows Infrastructure Services -->
+              <ng-container *ngIf="selectedIndexerTab === 'HG'">
+                <!-- Infrastructure Services -->
+                <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
+                  <div class="sub-group-label">Infrastructure Services</div>
+                  <div 
+                    *ngFor="let component of selectedIndexerServiceProviders" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
                     </div>
-                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
                   </div>
                 </div>
-              </div>
+              </ng-container>
               
-              <!-- LLM -->
+              <!-- Regular/Token Indexers show Service Providers -->
+              <ng-container *ngIf="selectedIndexerTab !== 'HG'">
+                <!-- Service Providers -->
+                <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
+                  <div class="sub-group-label">Service Providers</div>
+                  <div 
+                    *ngFor="let component of selectedIndexerServiceProviders" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                    </div>
+                  </div>
+                </div>
+              </ng-container>
+              
+              <!-- LLM (shown for all indexers) -->
               <div *ngIf="selectedIndexerLLM.length > 0" class="sub-group">
                 <div class="sub-group-label">LLM Intelligence</div>
                 <div 

@@ -24,7 +24,7 @@ interface IndexerInfo {
   name: string;
   stream: string;
   active: boolean;
-  type?: 'regular' | 'token';
+  type?: 'root' | 'regular' | 'token'; // 'root' = Holy Ghost (ROOT CA's indexer)
 }
 
 @Component({
@@ -105,6 +105,23 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // e.g., "snake-premium-cinema-001" -> "snake-premium-cinema-api"
     // e.g., "amc-001" -> "amc-api"
     const normalized = providerId.toLowerCase();
+    
+    // Infrastructure services (Holy Ghost)
+    if (normalized === 'stripe-payment-rail-001' || normalized.startsWith('stripe-payment-rail')) {
+      return 'stripe-payment-rail';
+    }
+    if (normalized === 'settlement-service-001' || normalized.startsWith('settlement-service')) {
+      return 'settlement-service';
+    }
+    if (normalized === 'service-registry-001' || normalized.startsWith('service-registry')) {
+      return 'service-registry';
+    }
+    if (normalized === 'webserver-service-001' || normalized.startsWith('webserver-service')) {
+      return 'webserver-service';
+    }
+    if (normalized === 'websocket-service-001' || normalized.startsWith('websocket-service')) {
+      return 'websocket-service';
+    }
     
     if (normalized.startsWith('snake-')) {
       // Snake services: "snake-premium-cinema-001" -> "snake-premium-cinema-api"
@@ -273,6 +290,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
       'indexer-a': 'indexer-a',
       'indexer-b': 'indexer-b',
       'indexer': 'indexer-a', // default to A if generic
+      'holy-ghost': 'holy-ghost',
+      'hg': 'holy-ghost',
       'redis': 'redis',
       'amc': 'amc-api',
       'amc-api': 'amc-api',
@@ -284,13 +303,24 @@ export class SidebarComponent implements OnInit, OnDestroy {
       'cinemark-api': 'cinemark-api',
       'cinemark-003': 'cinemark-api', // Provider ID format
       'service-registry': 'service-registry',
+      'service-registry-001': 'service-registry',
+      'stripe-payment-rail-001': 'stripe-payment-rail',
+      'stripe-payment-rail': 'stripe-payment-rail',
+      'settlement-service-001': 'settlement-service',
+      'settlement-service': 'settlement-service',
+      'settlement': 'settlement-service',
+      'webserver-service-001': 'webserver-service',
+      'webserver-service': 'webserver-service',
+      'webserver': 'webserver-service',
+      'websocket-service-001': 'websocket-service',
+      'websocket-service': 'websocket-service',
+      'websocket': 'websocket-service',
       'llm': 'llm',
       'ledger': 'ledger',
       'cashier': 'cashier',
       'snapshot': 'snapshot',
       'transaction': 'transaction',
       'user': 'user',
-      'websocket': 'websocket',
       'igas': 'llm' // iGas is part of LLM
     };
     
@@ -499,14 +529,66 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   getComponentsForIndexer(indexerId: string): ComponentStatus[] {
-    // Check if this is a token indexer
+    // Check indexer type
     const indexer = this.indexers.find(i => i.id === indexerId);
+    const isRootIndexer = indexer?.type === 'root'; // Holy Ghost
     const isTokenIndexer = indexer?.type === 'token';
     
-    // NOTE: ServiceRegistry is NOT shown under indexers - it belongs to ROOT CA
-    // Service providers are still shown under each indexer (they belong to indexers)
+    // Holy Ghost (ROOT CA's indexer) shows infrastructure services
+    if (isRootIndexer) {
+      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket)
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket'];
+      let providerComponents = Array.from(this.components.values())
+        .filter(c => {
+          if (c.category !== 'service-provider') return false;
+          
+          // Find the service provider in our ServiceRegistry map
+          for (const [providerId, provider] of this.serviceProviders.entries()) {
+            const componentNameLower = c.name.toLowerCase();
+            const providerNameLower = provider.name.toLowerCase();
+            const providerIdLower = providerId.toLowerCase();
+            
+            // Match if component name contains provider name or ID
+            if (componentNameLower.includes(providerNameLower) || 
+                componentNameLower.includes(providerIdLower.replace(/-\d+$/, '')) ||
+                providerNameLower.includes(componentNameLower.replace(/\s+/g, '-'))) {
+              // Check if this provider belongs to Holy Ghost (indexerId: "HG")
+              const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
+              
+              if (mappedIndexerId === indexerId && infrastructureServiceTypes.includes(provider.serviceType)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+      
+      // Sort infrastructure services
+      providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
+      
+      const llmComponents = Array.from(this.components.values())
+        .filter(c => c.category === 'llm');
+      
+      const edencoreComponents = Array.from(this.components.values())
+        .filter(c => c.category === 'edencore')
+        .sort((a, b) => {
+          const order = ['Ledger', 'Cashier', 'Snapshots', 'Transactions'];
+          return (order.indexOf(a.name) === -1 ? 999 : order.indexOf(a.name)) - 
+                 (order.indexOf(b.name) === -1 ? 999 : order.indexOf(b.name));
+        });
+      
+      const userComponents = Array.from(this.components.values())
+        .filter(c => c.category === 'user');
+      
+      return [
+        ...providerComponents,
+        ...llmComponents,
+        ...edencoreComponents,
+        ...userComponents
+      ];
+    }
     
-    // Filter service providers based on indexerId from ServiceRegistry
+    // Regular and Token Indexers - filter service providers based on indexerId from ServiceRegistry
     // Only show services that belong to this indexer
     let providerComponents = Array.from(this.components.values())
       .filter(c => {
@@ -552,11 +634,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
                    c.name.toLowerCase().includes('dex') ||
                    c.name.toLowerCase().includes('token');
           } else {
-            // Regular indexer: exclude DEX/token services
+            // Regular indexer: exclude DEX/token services and infrastructure services
             const isDEXProvider = c.name.toLowerCase().includes('pool') || 
                                   c.name.toLowerCase().includes('dex') ||
                                   (c.name.toLowerCase().includes('token') && !c.name.toLowerCase().includes('snake'));
-            if (isDEXProvider) return false;
+            const isInfrastructureProvider = c.name.toLowerCase().includes('stripe') ||
+                                           c.name.toLowerCase().includes('settlement') ||
+                                           c.name.toLowerCase().includes('registry') ||
+                                           c.name.toLowerCase().includes('webserver') ||
+                                           c.name.toLowerCase().includes('websocket');
+            if (isDEXProvider || isInfrastructureProvider) return false;
             // Show movie providers and Snake services
             return true;
           }
@@ -567,9 +654,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
           // Token indexers: only show DEX services (serviceType: "dex")
           return serviceType === 'dex';
         } else {
-          // Regular indexers: show movie services and Snake services, but NOT DEX/token services
-          // Explicitly exclude DEX services from regular indexers
-          if (serviceType === 'dex') {
+          // Regular indexers: show movie services and Snake services, but NOT DEX/token services or infrastructure
+          // Explicitly exclude DEX services and infrastructure services from regular indexers
+          if (serviceType === 'dex' || 
+              serviceType === 'payment-rail' || 
+              serviceType === 'settlement' || 
+              serviceType === 'registry' || 
+              serviceType === 'webserver' || 
+              serviceType === 'websocket') {
             return false;
           }
           return serviceType === 'movie' || serviceType === 'snake';
@@ -693,7 +785,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   mapIndexerIdToTabId(indexerId: string): string {
     // Map ServiceRegistry indexerId to sidebar tab ID
+    // "HG" -> "HG" (Holy Ghost)
     // "indexer-alpha" -> "A", "indexer-beta" -> "B", "TokenIndexer-T1" -> "TokenIndexer-T1", etc.
+    if (indexerId === 'HG') {
+      return 'HG'; // Holy Ghost indexer
+    }
     if (indexerId.startsWith('indexer-')) {
       // Extract letter from "indexer-alpha" -> "A", "indexer-beta" -> "B"
       const parts = indexerId.split('-');
