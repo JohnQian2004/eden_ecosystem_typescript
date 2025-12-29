@@ -17,27 +17,129 @@
           </div>
         </div>
         
-        <!-- User Input Forms -->
+        <!-- Garden of Eden Main Street - Service Type Cards -->
+        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0">
+          <div class="col-12">
+            <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
+            <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
+                <div 
+                  class="card service-card-compact h-100" 
+                  [ngClass]="{
+                    'movie-service': serviceType.type === 'movie', 
+                    'dex-service': serviceType.type === 'dex',
+                    'airline-service': serviceType.type === 'airline',
+                    'autoparts-service': serviceType.type === 'autoparts',
+                    'hotel-service': serviceType.type === 'hotel',
+                    'restaurant-service': serviceType.type === 'restaurant'
+                  }"
+                  (click)="selectServiceType(serviceType)" 
+                  style="cursor: pointer;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
+                    <h6 class="card-title mb-0 small">{{ serviceType.adText }}</h6>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Snake Services (serviceType: "snake", belongs to indexers) -->
+        <div class="row mb-3" *ngIf="!isLoadingSnakeProviders && snakeProviders.length > 0">
+          <div class="col-12">
+            <h5 class="mb-2">🐍 Snake Services</h5>
+            <p class="text-muted small mb-3">Snake is a service type (serviceType: "snake") - Each service belongs to an indexer. Higher fees, transparent pricing.</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-3" *ngFor="let snakeProvider of snakeProviders">
+                <div 
+                  class="card service-card-compact h-100 snake-provider-card" 
+                  (click)="selectServiceType({type: snakeProvider.serviceType, icon: '🐍', adText: snakeProvider.name, sampleQuery: 'Show me ' + snakeProvider.name + ' options'})"
+                  style="cursor: pointer; border: 2px solid #ff6b9d;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">🐍</div>
+                    <h6 class="card-title mb-1 small fw-bold">{{ snakeProvider.name }}</h6>
+                    <div class="small text-muted mb-1">
+                      <div><strong>Service Type:</strong> {{ snakeProvider.serviceType }}</div>
+                      <div><strong>Indexer:</strong> {{ snakeProvider.indexerId }}</div>
+                      <div>iGas: {{ (snakeProvider.iGasMultiplier || 1.0) }}x</div>
+                      <div>iTax: {{ (snakeProvider.iTaxMultiplier || 1.0) }}x</div>
+                      <div>Insurance: {{ snakeProvider.insuranceFee || snakeProvider.bond }}</div>
+                    </div>
+                    <div class="small">
+                      <span class="badge bg-info" *ngFor="let context of snakeProvider.contextsAllowed">{{ context }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Loading Snake Services -->
+        <div class="row mb-3" *ngIf="isLoadingSnakeProviders">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-danger" role="status" style="width: 1.5rem; height: 1.5rem;">
+              <span class="visually-hidden">Loading Snake services...</span>
+            </div>
+            <p class="mt-2 text-muted small">Loading Snake services...</p>
+          </div>
+        </div>
+        
+        <!-- Loading Services -->
+        <div class="row mb-4" *ngIf="isLoadingServices">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading services...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading Garden of Eden Main Street...</p>
+          </div>
+        </div>
+        
+        <!-- Unified Chat Input with Context Sensing -->
         <div class="row mb-4">
-          <div class="col-md-6 mb-3 mb-md-0">
+          <div class="col-12">
             <div class="card">
-              <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">💬 Movie Chat Input</h5>
+              <div class="card-header" [ngClass]="{'bg-primary': selectedServiceType === 'movie', 'bg-info': selectedServiceType === 'dex', 'bg-secondary': !selectedServiceType}">
+                <h5 class="mb-0">
+                  <span *ngIf="selectedServiceType === 'movie'">🎬 Movie Query</span>
+                  <span *ngIf="selectedServiceType === 'dex'">💰 DEX Query</span>
+                  <span *ngIf="!selectedServiceType">💬 Eden Chat</span>
+                  <span *ngIf="selectedServiceType" class="badge bg-light text-dark ms-2">{{ selectedServiceType.toUpperCase() }}</span>
+                </h5>
               </div>
               <div class="card-body">
                 <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm">
-                  <div class="input-group">
+                  <div class="input-group input-group-lg">
+                    <span class="input-group-text" *ngIf="selectedServiceType">
+                      <span *ngIf="selectedServiceType === 'movie'">🎬</span>
+                      <span *ngIf="selectedServiceType === 'dex'">💰</span>
+                      <span *ngIf="selectedServiceType === 'airline'">✈️</span>
+                      <span *ngIf="selectedServiceType === 'autoparts'">🔧</span>
+                      <span *ngIf="selectedServiceType === 'hotel'">🏨</span>
+                      <span *ngIf="selectedServiceType === 'restaurant'">🍽️</span>
+                    </span>
                     <input 
                       type="text" 
                       class="form-control" 
-                      placeholder="Enter your query (e.g., 'I want a sci-fi movie to watch tonight at the best price')"
+                      [placeholder]="inputPlaceholder"
                       [(ngModel)]="userInput"
                       name="userInput"
                       required
                       [disabled]="isProcessing"
-                      (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()">
+                      (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()"
+                      (input)="selectedServiceType = detectServiceType(userInput) || selectedServiceType">
                     <button 
-                      class="btn btn-primary" 
+                      class="btn" 
+                      [ngClass]="{
+                        'btn-primary': selectedServiceType === 'movie', 
+                        'btn-info': selectedServiceType === 'dex',
+                        'btn-success': selectedServiceType === 'airline',
+                        'btn-warning': selectedServiceType === 'autoparts',
+                        'btn-danger': selectedServiceType === 'hotel',
+                        'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
+                      }"
                       type="submit"
                       [disabled]="isProcessing || !userInput?.trim()">
                       <span *ngIf="!isProcessing">Send</span>
@@ -46,37 +148,14 @@
                       </span>
                     </button>
                   </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header bg-info text-white">
-                <h5 class="mb-0">🔷 Token Indexer Chat Input</h5>
-              </div>
-              <div class="card-body">
-                <form (ngSubmit)="onTokenSubmit(); $event.preventDefault()" #tokenForm="ngForm">
-                  <div class="input-group">
-                    <input 
-                      type="text" 
-                      class="form-control" 
-                      placeholder="Enter your DEX query (e.g., 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price')"
-                      [(ngModel)]="tokenInput"
-                      name="tokenInput"
-                      required
-                      [disabled]="isProcessingToken"
-                      (keydown.enter)="!isProcessingToken && tokenInput.trim() && onTokenSubmit(); $event.preventDefault()">
-                    <button 
-                      class="btn btn-info" 
-                      type="submit"
-                      [disabled]="isProcessingToken || !tokenInput?.trim()">
-                      <span *ngIf="!isProcessingToken">Send</span>
-                      <span *ngIf="isProcessingToken">
-                        <span class="spinner-border spinner-border-sm me-2"></span>Processing...
-                      </span>
-                    </button>
-                  </div>
+                  <small class="text-muted mt-2 d-block" *ngIf="selectedServiceType">
+                    <span *ngIf="selectedServiceType === 'movie'">🎬 Context: Movie service - ROOT CA ServiceRegistry will find the best movie providers</span>
+                    <span *ngIf="selectedServiceType === 'dex'">💰 Context: DEX service - ROOT CA ServiceRegistry will find the best token pools</span>
+                    <span *ngIf="selectedServiceType === 'airline'">✈️ Context: Airline service - ROOT CA ServiceRegistry will find the best flight providers</span>
+                    <span *ngIf="selectedServiceType === 'autoparts'">🔧 Context: Auto parts service - ROOT CA ServiceRegistry will find the best parts providers</span>
+                    <span *ngIf="selectedServiceType === 'hotel'">🏨 Context: Hotel service - ROOT CA ServiceRegistry will find the best hotel providers</span>
+                    <span *ngIf="selectedServiceType === 'restaurant'">🍽️ Context: Restaurant service - ROOT CA ServiceRegistry will find the best restaurant providers</span>
+                  </small>
                 </form>
               </div>
             </div>

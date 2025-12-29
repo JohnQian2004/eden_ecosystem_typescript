@@ -310,21 +310,39 @@ httpServer.on("request", async (req, res) => {
   // ROOT CA Service Registry API Endpoints
   if (pathname === "/api/root-ca/service-registry" && req.method === "GET") {
     console.log(`   ✅ [${requestId}] GET /api/root-ca/service-registry - Listing all service providers`);
-    res.writeHead(200, { "Content-Type": "application/json" });
     
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
+    
+    let providers = ROOT_CA_SERVICE_REGISTRY.map(p => ({
+      id: p.id,
+      name: p.name,
+      serviceType: p.serviceType, // Snake is a service type (serviceType: "snake")
+      location: p.location,
+      bond: p.bond,
+      reputation: p.reputation,
+      indexerId: p.indexerId, // Each service belongs to an indexer
+      status: p.status || 'active',
+      // Snake service fields (transparent in ServiceRegistry)
+      insuranceFee: p.insuranceFee,
+      iGasMultiplier: p.iGasMultiplier || 1.0,
+      iTaxMultiplier: p.iTaxMultiplier || 1.0,
+      maxInfluence: p.maxInfluence,
+      contextsAllowed: p.contextsAllowed,
+      contextsForbidden: p.contextsForbidden,
+      adCapabilities: p.adCapabilities
+    }));
+    
+    // Filter by service type if provided (e.g., "snake" for Snake services)
+    if (serviceType) {
+      providers = providers.filter(p => p.serviceType === serviceType);
+    }
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       success: true,
-      providers: ROOT_CA_SERVICE_REGISTRY.map(p => ({
-        id: p.id,
-        name: p.name,
-        serviceType: p.serviceType,
-        location: p.location,
-        bond: p.bond,
-        reputation: p.reputation,
-        indexerId: p.indexerId,
-        status: p.status || 'active'
-      })),
-      count: ROOT_CA_SERVICE_REGISTRY.length,
+      providers,
+      count: providers.length,
       timestamp: Date.now()
     }));
     return;
@@ -358,6 +376,14 @@ httpServer.on("request", async (req, res) => {
           indexerId: providerData.indexerId || "unknown",
           apiEndpoint: providerData.apiEndpoint || "",
           status: providerData.status || 'active',
+          // Snake service fields (if serviceType is "snake")
+          insuranceFee: providerData.insuranceFee !== undefined ? providerData.insuranceFee : (providerData.serviceType === 'snake' ? Math.max(providerData.bond || 0, 10000) : providerData.bond || 0),
+          iGasMultiplier: providerData.iGasMultiplier !== undefined ? providerData.iGasMultiplier : (providerData.serviceType === 'snake' ? 2.0 : 1.0),
+          iTaxMultiplier: providerData.iTaxMultiplier !== undefined ? providerData.iTaxMultiplier : (providerData.serviceType === 'snake' ? 2.0 : 1.0),
+          maxInfluence: providerData.maxInfluence !== undefined ? providerData.maxInfluence : (providerData.serviceType === 'snake' ? 0.15 : undefined),
+          contextsAllowed: providerData.contextsAllowed,
+          contextsForbidden: providerData.contextsForbidden,
+          adCapabilities: providerData.adCapabilities,
         };
         
         // Register with ROOT CA
@@ -1395,6 +1421,16 @@ type ServiceProvider = {
   indexerId: string;
   apiEndpoint?: string; // Optional API endpoint for the provider
   status?: 'active' | 'revoked' | 'suspended'; // Provider status
+  // Snake Service Fields (serviceType: "snake")
+  // Note: Snake is a SERVICE TYPE (like "movie", "dex"), not a provider type
+  // Each Snake service belongs to an indexer (indexerId)
+  insuranceFee?: number; // Higher insurance fee for Snake services (default: same as bond)
+  iGasMultiplier?: number; // iGas multiplier (default: 1.0, Snake: 2.0)
+  iTaxMultiplier?: number; // iTax multiplier (default: 1.0, Snake: 2.0)
+  maxInfluence?: number; // Maximum influence score (0.0-1.0, default: 0.15 for Snake)
+  contextsAllowed?: string[]; // Contexts where Snake service can operate
+  contextsForbidden?: string[]; // Contexts where Snake service is banned
+  adCapabilities?: string[]; // Advertising capabilities (e.g., ["product_promotion", "service_highlighting"])
 };
 
 type MovieListing = {
@@ -1455,7 +1491,8 @@ type DEXTrade = {
 };
 
 type ServiceRegistryQuery = {
-  serviceType: string;
+  serviceType?: string; // Optional: filter by service type
+  providerType?: 'REGULAR' | 'SNAKE'; // Optional: filter by provider type (for Snake providers)
   filters?: {
     location?: string;
     maxPrice?: number | string; // Can be a number or 'best'/'lowest'
@@ -1604,6 +1641,45 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     reputation: 4.7,
     indexerId: "indexer-alpha",
     apiEndpoint: "https://api.cinemark.com/movies",
+  },
+  // Snake Service Providers (serviceType: "snake", belongs to indexers)
+  {
+    id: "snake-premium-cinema-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440010",
+    name: "Premium Cinema Ads",
+    serviceType: "snake", // Snake is a service type, not a provider type
+    location: "Global",
+    bond: 10000,
+    insuranceFee: 10000, // Higher insurance fee for Snake
+    reputation: 4.5,
+    indexerId: "indexer-alpha", // Belongs to indexer-alpha
+    apiEndpoint: "https://ads.premiumcinema.com/api",
+    iGasMultiplier: 2.0, // Double iGas
+    iTaxMultiplier: 2.0, // Double iTax
+    maxInfluence: 0.15, // 15% max influence
+    contextsAllowed: ["movies", "entertainment", "shopping"],
+    contextsForbidden: ["health", "legal", "finance", "education"],
+    adCapabilities: ["product_promotion", "service_highlighting"],
+    status: 'active'
+  },
+  {
+    id: "snake-shopping-deals-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440011",
+    name: "Shopping Deals Ads",
+    serviceType: "snake", // Snake is a service type, not a provider type
+    location: "Global",
+    bond: 10000,
+    insuranceFee: 10000,
+    reputation: 4.3,
+    indexerId: "indexer-beta", // Belongs to indexer-beta
+    apiEndpoint: "https://ads.shoppingdeals.com/api",
+    iGasMultiplier: 2.0,
+    iTaxMultiplier: 2.0,
+    maxInfluence: 0.12, // 12% max influence
+    contextsAllowed: ["shopping", "restaurants"],
+    contextsForbidden: ["health", "legal", "finance", "education"],
+    adCapabilities: ["product_promotion"],
+    status: 'active'
   },
   // DEX Pool Service Providers will be dynamically created from token indexers during initialization
 ];
@@ -1826,11 +1902,57 @@ async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbo
 }
 
 // Provider API router
+// Mock Snake (Advertising) Provider API
+async function querySnakeAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Snake providers return enhanced/advertised listings
+  // For testing: Return movie listings with Snake provider metadata
+  const baseListings: MovieListing[] = [
+    {
+      providerId: provider.id,
+      providerName: provider.name,
+      movieTitle: "Premium Cinema Experience",
+      movieId: "premium-cinema-001",
+      price: 18.99, // Slightly higher price (premium)
+      showtime: filters?.time || "8:00 PM",
+      location: "Premium Theater District",
+      reviewCount: 1250,
+      rating: 4.7,
+      indexerId: provider.indexerId,
+    },
+    {
+      providerId: provider.id,
+      providerName: provider.name,
+      movieTitle: "VIP Movie Night",
+      movieId: "vip-movie-001",
+      price: 22.50, // Premium pricing
+      showtime: filters?.time || "9:30 PM",
+      location: "Luxury Cinema Complex",
+      reviewCount: 890,
+      rating: 4.8,
+      indexerId: provider.indexerId,
+    }
+  ];
+  
+  console.log(`🐍 [Snake Provider] ${provider.name} returned ${baseListings.length} advertised listings`);
+  return baseListings;
+}
+
 async function queryProviderAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
+  // Handle Snake services (serviceType: "snake")
+  // Snake is a service type, each Snake service belongs to an indexer
+  if (provider.serviceType === "snake") {
+    return await querySnakeAPI(provider, filters);
+  }
+  
+  // Handle DEX providers
   if (provider.serviceType === "dex") {
     return await queryDEXPoolAPI(provider, filters);
   }
   
+  // Handle regular movie providers
   switch (provider.id) {
     case "amc-001":
       return await queryAMCAPI(provider.location, filters);
@@ -1944,8 +2066,9 @@ function queryROOTCAServiceRegistry(query: ServiceRegistryQuery): ServiceProvide
       return false;
     }
     
-    // Filter by service type
-    if (provider.serviceType !== query.serviceType) return false;
+    // Filter by service type (if specified)
+    // Snake is a service type (serviceType: "snake"), not a provider type
+    if (query.serviceType && provider.serviceType !== query.serviceType) return false;
     
     // Filter by location if provided
     if (query.filters?.location && !provider.location.toLowerCase().includes(query.filters.location.toLowerCase())) {
@@ -2043,7 +2166,17 @@ function executeDEXTrade(
   
   // Step 2: Calculate iTax (0.0005% commission)
   const tradeValue = baseAmount; // Trade value in baseToken
-  const iTax = tradeValue * ITAX_RATE;
+  let iTax = tradeValue * ITAX_RATE;
+  
+  // Apply Snake provider multiplier if pool provider is Snake
+  // DEX pool providers are registered with id like "dex-pool-{tokenSymbol}"
+  const poolProviderId = `dex-pool-${pool.tokenSymbol.toLowerCase()}`;
+  const poolProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === poolProviderId);
+  if (poolProvider?.providerType === 'SNAKE') {
+    const snakeITaxMultiplier = poolProvider.iTaxMultiplier || 2.0;
+    iTax = iTax * snakeITaxMultiplier;
+    console.log(`🐍 [Snake Provider] Applied iTax multiplier: ${snakeITaxMultiplier}x for pool ${poolId}`);
+  }
   
   // Step 3: Distribute iTax (WIN-WIN-WIN)
   const iTaxRootCA = iTax * ITAX_DISTRIBUTION.rootCA; // 40% to ROOT CA
@@ -2725,34 +2858,61 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     
     const providers = queryROOTCAServiceRegistry(queryResult.query);
     console.log(`🔍 [ROOT CA] Found ${providers.length} service providers`);
+    
+    // Also query Snake services if serviceType is "movie" (for advertising context)
+    // Snake is a service type (serviceType: "snake"), each Snake service belongs to an indexer
+    let snakeProviders: ServiceProvider[] = [];
+    if (queryResult.serviceType === "movie") {
+      snakeProviders = queryROOTCAServiceRegistry({
+        serviceType: "snake", // Query Snake services (serviceType: "snake")
+        filters: queryResult.query.filters
+      });
+      // Filter Snake services by allowed contexts
+      snakeProviders = snakeProviders.filter(sp => 
+        sp.contextsAllowed?.includes("movies") || sp.contextsAllowed?.includes("entertainment")
+      );
+      console.log(`🐍 [ROOT CA] Found ${snakeProviders.length} Snake services for movie context`);
+    }
+    
     if (queryResult.serviceType === "dex") {
       console.log(`   DEX Providers: ${providers.map(p => `${p.id} (indexer: ${p.indexerId})`).join(", ")}`);
       console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
     }
     
+    const allProviders = [...providers, ...snakeProviders];
+    
     broadcastEvent({
       type: "service_registry_result",
       component: "root-ca",
-      message: `Found ${providers.length} service providers`,
+      message: `Found ${allProviders.length} service providers (${providers.length} regular, ${snakeProviders.length} Snake)`,
       timestamp: Date.now(),
-      data: { providers: providers.map(p => ({ id: p.id, name: p.name })) }
+      data: { 
+        providers: allProviders.map(p => ({ 
+          id: p.id, 
+          name: p.name,
+          serviceType: p.serviceType,
+          isSnake: p.serviceType === 'snake',
+          indexerId: p.indexerId // Each service belongs to an indexer
+        })) 
+      }
     });
 
-    if (providers.length === 0) {
+    if (allProviders.length === 0) {
       throw new Error("No service providers found matching query");
     }
 
     // Step 3: Query service providers' external APIs for actual data (prices, showtimes)
-    providers.forEach(provider => {
+    allProviders.forEach(provider => {
+      const serviceTypeLabel = provider.serviceType === 'snake' ? '🐍 Snake' : 'Regular';
       broadcastEvent({
         type: "provider_api_query",
         component: provider.id,
-        message: `Querying ${provider.name} API...`,
+        message: `${serviceTypeLabel} Querying ${provider.name} API...`,
         timestamp: Date.now()
       });
     });
     
-    const listings = await queryServiceProviders(providers, {
+    const listings = await queryServiceProviders(allProviders, {
       genre: queryResult.query.filters?.genre,
       time: queryResult.query.filters?.time,
       tokenSymbol: queryResult.query.filters?.tokenSymbol,
@@ -2766,14 +2926,20 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
       console.log(`🎬 Found ${listings.length} movie listings from provider APIs`);
     }
     
-    providers.forEach(provider => {
+    allProviders.forEach(provider => {
       const providerListings = listings.filter((l: any) => l.providerId === provider.id);
+      const serviceTypeLabel = provider.serviceType === 'snake' ? '🐍 Snake' : 'Regular';
       broadcastEvent({
         type: "provider_api_result",
         component: provider.id,
-        message: `${provider.name} returned ${providerListings.length} listings`,
+        message: `${serviceTypeLabel} ${provider.name} returned ${providerListings.length} listings`,
         timestamp: Date.now(),
-        data: { listings: providerListings }
+        data: { 
+          listings: providerListings,
+          serviceType: provider.serviceType,
+          isSnake: provider.serviceType === 'snake',
+          indexerId: provider.indexerId // Each service belongs to an indexer
+        }
       });
     });
 
@@ -2791,7 +2957,20 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     console.log(`✅ [LLM] Response formatted: ${formattedResponse.message.substring(0, 100)}${formattedResponse.message.length > 100 ? '...' : ''}`);
 
     // Step 5: Calculate iGas
-    const iGas = calculateIGas(llmCalls, providers.length, queryResult.confidence);
+    let iGas = calculateIGas(llmCalls, allProviders.length, queryResult.confidence);
+    
+    // Apply Snake service multipliers if any provider is a Snake service
+    // Snake is a service type (serviceType: "snake"), each belongs to an indexer
+    const hasSnakeService = allProviders.some(p => p.serviceType === 'snake');
+    if (hasSnakeService) {
+      // Find the highest multiplier among Snake services (use max multiplier)
+      const maxIGasMultiplier = Math.max(...allProviders
+        .filter(p => p.serviceType === 'snake')
+        .map(p => p.iGasMultiplier || 1.0), 1.0);
+      iGas = iGas * maxIGasMultiplier;
+      console.log(`🐍 [Snake Service] Applied iGas multiplier: ${maxIGasMultiplier}x`);
+    }
+    
     formattedResponse.iGasCost = iGas;
 
     console.log(`⛽ iGas calculated: ${iGas.toFixed(6)}`);

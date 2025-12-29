@@ -38,6 +38,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   indexers: IndexerInfo[] = [];
   selectedIndexerTab: string = '';
   selectedIndexerComponents: ComponentStatus[] = [];
+  serviceProviders: Map<string, {id: string, name: string, serviceType: string, indexerId: string}> = new Map(); // Store service providers from ServiceRegistry
   private subscription: any;
   private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -52,6 +53,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // Fetch indexers from server
     this.fetchIndexers();
     
+    // Fetch service providers from ServiceRegistry
+    this.fetchServiceProviders();
+    
     // Initialize hierarchical component structure based on whitepaper architecture
     this.initializeHierarchy();
     
@@ -59,6 +63,70 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.updateComponentStatus(event);
       this.updateSelectedIndexerComponents();
     });
+  }
+  
+  fetchServiceProviders() {
+    // Query all service providers from ServiceRegistry
+    this.http.get<{success: boolean, providers: Array<{id: string, name: string, serviceType: string, indexerId: string, status: string}>}>(`${this.apiUrl}/api/root-ca/service-registry`)
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.providers) {
+            // Store all service providers (including Snake services)
+            response.providers.forEach(provider => {
+              if (provider.status === 'active') {
+                this.serviceProviders.set(provider.id, {
+                  id: provider.id,
+                  name: provider.name,
+                  serviceType: provider.serviceType,
+                  indexerId: provider.indexerId
+                });
+                
+                // Add component for this service provider if it doesn't exist
+                const componentKey = this.mapProviderIdToComponentKey(provider.id);
+                if (!this.components.has(componentKey)) {
+                  this.addComponent(componentKey, provider.name, 'service-provider');
+                }
+              }
+            });
+            
+            // Update groups to reflect new service providers
+            this.updateGroups();
+            this.updateSelectedIndexerComponents();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch service providers:', err);
+        }
+      });
+  }
+  
+  mapProviderIdToComponentKey(providerId: string): string {
+    // Map provider IDs to component keys
+    // e.g., "snake-premium-cinema-001" -> "snake-premium-cinema-api"
+    // e.g., "amc-001" -> "amc-api"
+    const normalized = providerId.toLowerCase();
+    
+    if (normalized.startsWith('snake-')) {
+      // Snake services: "snake-premium-cinema-001" -> "snake-premium-cinema-api"
+      return normalized.replace(/-\d+$/, '-api');
+    }
+    
+    if (normalized.startsWith('amc-')) {
+      return 'amc-api';
+    }
+    if (normalized.startsWith('moviecom-')) {
+      return 'moviecom-api';
+    }
+    if (normalized.startsWith('cinemark-')) {
+      return 'cinemark-api';
+    }
+    if (normalized.startsWith('dex-pool-')) {
+      // DEX pools: "dex-pool-tokena" -> "dex-pool-tokena-api"
+      return normalized + '-api';
+    }
+    
+    // Default: convert provider ID to component key
+    return normalized.replace(/-\d+$/, '-api');
   }
   
   fetchIndexers() {
@@ -229,6 +297,31 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // Check exact match first
     if (mapping[normalized]) {
       return mapping[normalized];
+    }
+    
+    // Check if it's a Snake service provider (format: snake-*)
+    if (normalized.startsWith('snake-')) {
+      // Check if we have this provider in ServiceRegistry
+      for (const [providerId, provider] of this.serviceProviders.entries()) {
+        if (providerId.toLowerCase() === normalized || 
+            normalized.includes(providerId.toLowerCase().replace(/-\d+$/, ''))) {
+          const componentKey = this.mapProviderIdToComponentKey(providerId);
+          // Dynamically add Snake service provider component if it doesn't exist
+          if (!this.components.has(componentKey)) {
+            this.addComponent(componentKey, provider.name, 'service-provider');
+            this.updateGroups(); // Update groups after adding new component
+          }
+          return componentKey;
+        }
+      }
+      // Fallback: create component key from normalized name
+      const componentKey = normalized.replace(/-\d+$/, '-api');
+      if (!this.components.has(componentKey)) {
+        const displayName = normalized.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        this.addComponent(componentKey, displayName, 'service-provider');
+        this.updateGroups();
+      }
+      return componentKey;
     }
     
     // Check if it's a provider ID (format: providername-###)
@@ -410,40 +503,81 @@ export class SidebarComponent implements OnInit, OnDestroy {
     const indexer = this.indexers.find(i => i.id === indexerId);
     const isTokenIndexer = indexer?.type === 'token';
     
-    // Get all components that belong to a specific indexer
-    const serviceRegistryComponents = Array.from(this.components.values())
-      .filter(c => c.category === 'service-registry');
+    // NOTE: ServiceRegistry is NOT shown under indexers - it belongs to ROOT CA
+    // Service providers are still shown under each indexer (they belong to indexers)
     
-    // Filter service providers based on indexer type
+    // Filter service providers based on indexerId from ServiceRegistry
+    // Only show services that belong to this indexer
     let providerComponents = Array.from(this.components.values())
-      .filter(c => c.category === 'service-provider');
-    
-    if (isTokenIndexer) {
-      // Token indexers should only show DEX-related service providers
-      // Filter out movie service providers (AMC, Cinemark, MovieCom)
-      const movieProviderNames = ['AMC Theatres', 'Cinemark', 'MovieCom', 'AMC', 'Moviecom'];
-      
-      providerComponents = providerComponents.filter(p => {
-        // Filter out movie providers by name
-        const isMovieProvider = movieProviderNames.some(movie => 
-          p.name.toLowerCase().includes(movie.toLowerCase())
-        );
+      .filter(c => {
+        if (c.category !== 'service-provider') return false;
         
-        if (isMovieProvider) return false;
+        // Find the service provider in our ServiceRegistry map by matching component name
+        let belongsToIndexer = false;
+        let serviceType = '';
         
-        // Only include DEX pool providers (those with "Pool", "DEX", or "Token" in name)
-        // DEX pool providers are named like "TOKENA Pool (TokenIndexer-T1)" or "dex-pool-tokena"
-        return p.name.toLowerCase().includes('pool') || 
-               p.name.toLowerCase().includes('dex') ||
-               p.name.toLowerCase().includes('token');
+        for (const [providerId, provider] of this.serviceProviders.entries()) {
+          // Try to match component name with provider name or ID
+          const componentNameLower = c.name.toLowerCase();
+          const providerNameLower = provider.name.toLowerCase();
+          const providerIdLower = providerId.toLowerCase();
+          
+          // Match if component name contains provider name or ID
+          if (componentNameLower.includes(providerNameLower) || 
+              componentNameLower.includes(providerIdLower.replace(/-\d+$/, '')) ||
+              providerNameLower.includes(componentNameLower.replace(/\s+/g, '-'))) {
+            // Map provider's indexerId to sidebar tab ID
+            const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
+            
+            if (mappedIndexerId === indexerId) {
+              belongsToIndexer = true;
+              serviceType = provider.serviceType;
+              break;
+            }
+          }
+        }
+        
+        if (!belongsToIndexer) {
+          // Fallback: if not found in ServiceRegistry, use old logic
+          // For regular indexers: exclude DEX/token services
+          // For token indexers: filter out movie providers
+          if (isTokenIndexer) {
+            const movieProviderNames = ['AMC Theatres', 'Cinemark', 'MovieCom', 'AMC', 'Moviecom'];
+            const isMovieProvider = movieProviderNames.some(movie => 
+              c.name.toLowerCase().includes(movie.toLowerCase())
+            );
+            if (isMovieProvider) return false;
+            // Only include DEX-related providers
+            return c.name.toLowerCase().includes('pool') || 
+                   c.name.toLowerCase().includes('dex') ||
+                   c.name.toLowerCase().includes('token');
+          } else {
+            // Regular indexer: exclude DEX/token services
+            const isDEXProvider = c.name.toLowerCase().includes('pool') || 
+                                  c.name.toLowerCase().includes('dex') ||
+                                  (c.name.toLowerCase().includes('token') && !c.name.toLowerCase().includes('snake'));
+            if (isDEXProvider) return false;
+            // Show movie providers and Snake services
+            return true;
+          }
+        }
+        
+        // Additional filtering by service type
+        if (isTokenIndexer) {
+          // Token indexers: only show DEX services (serviceType: "dex")
+          return serviceType === 'dex';
+        } else {
+          // Regular indexers: show movie services and Snake services, but NOT DEX/token services
+          // Explicitly exclude DEX services from regular indexers
+          if (serviceType === 'dex') {
+            return false;
+          }
+          return serviceType === 'movie' || serviceType === 'snake';
+        }
       });
-      
-      // Sort DEX providers
-      providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
-    } else {
-      // Regular indexers show all service providers (including movies)
-      providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
-    }
+    
+    // Sort providers
+    providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
     
     const llmComponents = Array.from(this.components.values())
       .filter(c => c.category === 'llm');
@@ -459,8 +593,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     const userComponents = Array.from(this.components.values())
       .filter(c => c.category === 'user');
     
+    // NOTE: ServiceRegistry is NOT included here - it's displayed under ROOT CA
     return [
-      ...serviceRegistryComponents,
       ...providerComponents,
       ...llmComponents,
       ...edencoreComponents,
@@ -526,7 +660,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedIndexerServiceRegistry(): ComponentStatus[] {
-    return this.selectedIndexerComponents.filter(c => c.category === 'service-registry');
+    // ServiceRegistry belongs to ROOT CA, not indexers
+    return [];
+  }
+  
+  get rootCAServiceRegistry(): ComponentStatus[] {
+    // ServiceRegistry belongs to ROOT CA
+    return Array.from(this.components.values())
+      .filter(c => c.category === 'service-registry');
   }
   
   get selectedIndexerServiceProviders(): ComponentStatus[] {
@@ -548,6 +689,25 @@ export class SidebarComponent implements OnInit, OnDestroy {
   get selectedIndexerNodeCount(): number {
     const nodes = this.getIndexerNodes();
     return nodes.length > 0 ? nodes[0].count : 0;
+  }
+  
+  mapIndexerIdToTabId(indexerId: string): string {
+    // Map ServiceRegistry indexerId to sidebar tab ID
+    // "indexer-alpha" -> "A", "indexer-beta" -> "B", "TokenIndexer-T1" -> "TokenIndexer-T1", etc.
+    if (indexerId.startsWith('indexer-')) {
+      // Extract letter from "indexer-alpha" -> "A", "indexer-beta" -> "B"
+      const parts = indexerId.split('-');
+      if (parts.length >= 2) {
+        const letter = parts[1].charAt(0).toUpperCase();
+        return letter;
+      }
+    }
+    // For token indexers, return as-is
+    if (indexerId.startsWith('TokenIndexer-')) {
+      return indexerId;
+    }
+    // Default: return first character uppercase
+    return indexerId.charAt(0).toUpperCase();
   }
 }
 
