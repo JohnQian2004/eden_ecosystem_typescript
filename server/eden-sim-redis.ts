@@ -21,6 +21,7 @@ import * as url from "url";
 import { EventEmitter } from "events";
 import { WebSocketServer, WebSocket } from "ws";
 import { EdenPKI, type EdenCertificate, type EdenIdentity, type RevocationEvent, type Capability } from "./EdenPKI";
+import Stripe from "stripe";
 
 // CLI Flags
 const args = process.argv.slice(2);
@@ -38,6 +39,16 @@ const NUM_TOKEN_INDEXERS = tokenIndexersArg ? parseInt(tokenIndexersArg.split("=
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
+
+// Stripe Configuration (hardcoded as requested)
+const STRIPE_SECRET_KEY = "sk_test_51RrflYP4h6MOSVxDAFUAr0i7mmsQ8MSGi9Y0atxTsVaeVZsokRn09C9AEc0TWHidYdicNnGBTRpgJsoGz2CsZ0HC009CA5NFCn";
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51RrflYP4h6MOSVxDENdMiwOSbNudvzG8PlrrhslZjfbg9qPvb8YkzVR42ro5bQ8nXUnnbuPQpSlI43SHBuKhiCS000VgCDGNrC";
+const STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"; // Update with actual webhook secret from Stripe dashboard
+
+// Initialize Stripe
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: "2024-11-20.acacia", // Use latest API version
+});
 
 // Dynamic Indexer Configuration
 interface IndexerConfig {
@@ -606,6 +617,169 @@ httpServer.on("request", async (req, res) => {
       status: "online",
       websocketClients: wsClients.size,
       timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // ============================================
+  // JESUSCOIN (JSC) STRIPE INTEGRATION
+  // ============================================
+
+  // POST /api/jsc/buy - Create Stripe Checkout session
+  if (pathname === "/api/jsc/buy" && req.method === "POST") {
+    console.log(`   💰 [${requestId}] POST /api/jsc/buy - Creating Stripe Checkout session`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { email, amount } = JSON.parse(body);
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+          return;
+        }
+        
+        if (!amount || typeof amount !== 'number' || amount <= 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid amount required (must be > 0)" }));
+          return;
+        }
+        
+        // Create Stripe Checkout session
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: 'JesusCoin (JSC)',
+                  description: `Purchase ${amount} JSC (1 JSC = 1 USD)`,
+                },
+                unit_amount: Math.round(amount * 100), // Convert to cents
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${req.headers.origin || 'http://localhost:4200'}/?jsc_success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${req.headers.origin || 'http://localhost:4200'}/?jsc_canceled=true`,
+          customer_email: email,
+          metadata: {
+            user_email: email,
+            jsc_amount: amount.toString(),
+          },
+        });
+        
+        console.log(`   ✅ Stripe Checkout session created: ${session.id} for ${email} (${amount} JSC)`);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          sessionId: session.id,
+          url: session.url,
+          publishableKey: STRIPE_PUBLISHABLE_KEY,
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ Error creating Stripe Checkout session:`, err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/stripe/webhook - Handle Stripe webhooks
+  if (pathname === "/api/stripe/webhook" && req.method === "POST") {
+    console.log(`   🔔 [${requestId}] POST /api/stripe/webhook - Processing Stripe webhook`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      const sig = req.headers['stripe-signature'];
+      
+      if (!sig) {
+        console.error(`   ❌ Missing Stripe signature header`);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Missing stripe-signature header" }));
+        return;
+      }
+      
+      try {
+        // Verify webhook signature
+        const event = stripe.webhooks.constructEvent(body, sig, STRIPE_WEBHOOK_SECRET);
+        
+        console.log(`   ✅ Stripe webhook verified: ${event.type} (${event.id})`);
+        
+        // Handle payment_intent.succeeded event
+        if (event.type === 'checkout.session.completed') {
+          const session = event.data.object as Stripe.Checkout.Session;
+          
+          if (session.payment_status === 'paid') {
+            const email = session.customer_email || session.metadata?.user_email;
+            const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
+            const paymentIntentId = session.payment_intent as string;
+            
+            if (!email) {
+              console.error(`   ❌ Missing email in Stripe session: ${session.id}`);
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ success: false, error: "Missing email in session" }));
+              return;
+            }
+            
+            // Mint JSC (ROOT CA authority)
+            await mintJSC(email, jscAmount, paymentIntentId);
+            
+            console.log(`   ✅ JSC minted: ${jscAmount} JSC for ${email} (Stripe: ${paymentIntentId})`);
+          }
+        }
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ received: true }));
+      } catch (err: any) {
+        console.error(`   ❌ Stripe webhook error:`, err);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: `Webhook Error: ${err.message}` }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/jsc/balance/:email - Get user JSC balance
+  if (pathname.startsWith("/api/jsc/balance/") && req.method === "GET") {
+    const email = decodeURIComponent(pathname.split("/api/jsc/balance/")[1]);
+    console.log(`   💰 [${requestId}] GET /api/jsc/balance/${email} - Getting JSC balance`);
+    
+    const user = USERS.find(u => u.email === email);
+    const balance = user ? user.balance : 0;
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      email,
+      balance,
+      currency: "JSC",
+    }));
+    return;
+  }
+
+  // GET /api/jsc/transactions/:email - Get user transaction history
+  if (pathname.startsWith("/api/jsc/transactions/") && req.method === "GET") {
+    const email = decodeURIComponent(pathname.split("/api/jsc/transactions/")[1]);
+    console.log(`   📜 [${requestId}] GET /api/jsc/transactions/${email} - Getting transaction history`);
+    
+    const userTransactions = LEDGER.filter(entry => entry.payer === email);
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      email,
+      transactions: userTransactions,
+      count: userTransactions.length,
     }));
     return;
   }
@@ -1375,7 +1549,7 @@ type LedgerEntry = {
   payerId: string; // User ID for internal tracking
   merchant: string;
   providerUuid: string; // Service provider UUID for certificate issuance
-  serviceType: string;
+  serviceType: string; // 'movie', 'dex', 'mint', 'transaction', etc.
   amount: number;
   iGasCost: number;
   fees: Record<string, number>;
@@ -1393,6 +1567,9 @@ type LedgerEntry = {
     baseAmount?: number;
     price?: number;
     iTax?: number;
+    // JSC Mint details
+    stripePaymentIntentId?: string;
+    asset?: string; // 'JSC' for JesusCoin
   };
 };
 
@@ -2995,6 +3172,88 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 }
 
 // Ledger Component - Tracks all Eden bookings
+
+// Mint JesusCoin (JSC) - ROOT CA authority only
+// This is called when Stripe payment is confirmed via webhook
+async function mintJSC(email: string, amount: number, stripePaymentIntentId: string): Promise<void> {
+  console.log(`💰 [ROOT CA] Minting ${amount} JSC for ${email} (Stripe: ${stripePaymentIntentId})`);
+  
+  // Find or create user
+  let user = USERS.find(u => u.email === email);
+  if (!user) {
+    // Create new user
+    user = {
+      id: `u${USERS.length + 1}`,
+      email: email,
+      balance: 0,
+    };
+    USERS.push(user);
+    console.log(`   ✅ Created new user: ${email}`);
+  }
+  
+  // Mint JSC (add to balance)
+  user.balance += amount;
+  
+  // Create MINT ledger entry
+  const snapshot: TransactionSnapshot = {
+    chainId: CHAIN_ID,
+    txId: crypto.randomUUID(),
+    slot: Date.now(),
+    blockTime: Date.now(),
+    payer: `stripe:${stripePaymentIntentId}`,
+    merchant: email,
+    amount: amount,
+    feeSplit: {},
+  };
+  
+  const entry: LedgerEntry = {
+    entryId: crypto.randomUUID(),
+    txId: snapshot.txId,
+    timestamp: snapshot.blockTime,
+    payer: `stripe:${stripePaymentIntentId}`,
+    payerId: stripePaymentIntentId,
+    merchant: email,
+    providerUuid: ROOT_CA_UUID, // ROOT CA mints JSC
+    serviceType: 'mint',
+    amount: amount,
+    iGasCost: 0, // No iGas for minting (it's a deposit)
+    fees: {},
+    status: 'completed', // Mints are immediately completed
+    cashierId: 'root-ca',
+    bookingDetails: {
+      asset: 'JSC',
+      stripePaymentIntentId: stripePaymentIntentId,
+    },
+  };
+  
+  // Add to ledger
+  LEDGER.push(entry);
+  
+  console.log(`   ✅ JSC minted: ${amount} JSC added to ${email} balance (new balance: ${user.balance} JSC)`);
+  
+  // Broadcast events
+  broadcastEvent({
+    type: "jsc_minted",
+    component: "root-ca",
+    message: `JSC minted: ${amount} JSC for ${email}`,
+    timestamp: Date.now(),
+    data: {
+      email,
+      amount,
+      balance: user.balance,
+      stripePaymentIntentId,
+      entryId: entry.entryId,
+    }
+  });
+  
+  broadcastEvent({
+    type: "ledger_entry_added",
+    component: "ledger",
+    message: `MINT ledger entry created: ${entry.entryId}`,
+    timestamp: Date.now(),
+    data: { entry }
+  });
+}
 
 function addLedgerEntry(
   snapshot: TransactionSnapshot,
