@@ -47,7 +47,7 @@ const STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"; // Update with a
 
 // Initialize Stripe
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20.acacia", // Use latest API version
+  apiVersion: "2023-10-16", // Use compatible API version
 });
 
 // Dynamic Indexer Configuration
@@ -722,27 +722,64 @@ httpServer.on("request", async (req, res) => {
     req.on("end", async () => {
       const sig = req.headers['stripe-signature'];
       
-      if (!sig) {
-        console.error(`   ❌ Missing Stripe signature header`);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Missing stripe-signature header" }));
-        return;
+      // For local development: if webhook secret is placeholder, skip signature verification
+      const isTestMode = STRIPE_WEBHOOK_SECRET === "whsec_your_webhook_secret_here";
+      
+      let event: Stripe.Event;
+      
+      if (isTestMode) {
+        console.log(`   ⚠️  Test mode: Skipping webhook signature verification`);
+        // Parse JSON directly for test mode
+        try {
+          const jsonBody = JSON.parse(body);
+          event = jsonBody as Stripe.Event;
+          console.log(`   ✅ Test mode: Parsed webhook event: ${event.type} (${event.id || 'no-id'})`);
+        } catch (err: any) {
+          console.error(`   ❌ Failed to parse webhook body:`, err.message);
+          console.log(`   📄 Raw body:`, body.substring(0, 500));
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Failed to parse webhook body: ${err.message}` }));
+          return;
+        }
+      } else {
+        // Production mode: verify signature
+        if (!sig) {
+          console.error(`   ❌ Missing Stripe signature header`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing stripe-signature header" }));
+          return;
+        }
+        
+        try {
+          // Verify webhook signature
+          event = stripe.webhooks.constructEvent(body, sig, STRIPE_WEBHOOK_SECRET);
+          console.log(`   ✅ Stripe webhook verified: ${event.type} (${event.id})`);
+        } catch (err: any) {
+          console.error(`   ❌ Stripe webhook signature verification failed:`, err.message);
+          const sigStr = Array.isArray(sig) ? sig[0] : sig;
+          console.log(`   📄 Body length: ${body.length}, Signature: ${sigStr ? sigStr.substring(0, 50) : 'N/A'}...`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Webhook signature verification failed: ${err.message}` }));
+          return;
+        }
       }
       
       try {
-        // Verify webhook signature
-        const event = stripe.webhooks.constructEvent(body, sig, STRIPE_WEBHOOK_SECRET);
-        
-        console.log(`   ✅ Stripe webhook verified: ${event.type} (${event.id})`);
-        
-        // Handle payment_intent.succeeded event
+        // Handle checkout.session.completed event
         if (event.type === 'checkout.session.completed') {
           const session = event.data.object as Stripe.Checkout.Session;
+          
+          console.log(`   📋 Processing checkout.session.completed:`);
+          console.log(`      Session ID: ${session.id}`);
+          console.log(`      Payment Status: ${session.payment_status}`);
+          console.log(`      Customer Email: ${session.customer_email || session.metadata?.user_email || 'N/A'}`);
+          console.log(`      Metadata:`, JSON.stringify(session.metadata || {}, null, 2));
           
           if (session.payment_status === 'paid') {
             const email = session.customer_email || session.metadata?.user_email;
             const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
             const paymentIntentId = session.payment_intent as string;
+            const customerId = session.customer as string;
             
             if (!email) {
               console.error(`   ❌ Missing email in Stripe session: ${session.id}`);
@@ -751,31 +788,171 @@ httpServer.on("request", async (req, res) => {
               return;
             }
             
-            // Mint JSC (ROOT CA authority)
-            await mintJSC(email, jscAmount, paymentIntentId);
+            if (jscAmount <= 0) {
+              console.error(`   ❌ Invalid JSC amount in session metadata: ${session.metadata?.jsc_amount}`);
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ success: false, error: "Invalid JSC amount" }));
+              return;
+            }
             
-            console.log(`   ✅ JSC minted: ${jscAmount} JSC for ${email} (Stripe: ${paymentIntentId})`);
+            // Retrieve payment intent to get payment method ID
+            let paymentMethodId: string | null = null;
+            if (paymentIntentId) {
+              try {
+                const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+                paymentMethodId = typeof paymentIntent.payment_method === 'string' 
+                  ? paymentIntent.payment_method 
+                  : paymentIntent.payment_method?.id || null;
+                console.log(`   💳 Retrieved payment intent: ${paymentIntentId}, Payment Method: ${paymentMethodId || 'N/A'}`);
+              } catch (err: any) {
+                console.warn(`   ⚠️  Could not retrieve payment intent ${paymentIntentId}:`, err.message);
+              }
+            }
+            
+            // Mint JSC (ROOT CA authority) with Stripe payment details stored in ledger
+            console.log(`   🪙 Minting ${jscAmount} JSC for ${email}...`);
+            await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
+            
+            console.log(`   ✅ JSC minted successfully: ${jscAmount} JSC for ${email}`);
+            console.log(`      Stripe Customer ID: ${customerId}`);
+            console.log(`      Payment Intent ID: ${paymentIntentId}`);
+            console.log(`      Payment Method ID: ${paymentMethodId || 'N/A'}`);
+            console.log(`      Session ID: ${session.id}`);
+          } else {
+            console.log(`   ⚠️  Payment status is not 'paid': ${session.payment_status}`);
           }
+        } else {
+          console.log(`   ℹ️  Unhandled webhook event type: ${event.type}`);
         }
         
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ received: true }));
       } catch (err: any) {
-        console.error(`   ❌ Stripe webhook error:`, err);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: `Webhook Error: ${err.message}` }));
+        console.error(`   ❌ Error processing webhook:`, err);
+        console.error(`   📄 Stack:`, err.stack);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: `Webhook processing error: ${err.message}` }));
       }
     });
     return;
   }
 
-  // GET /api/jsc/balance/:email - Get user JSC balance
+  // GET /api/jsc/check-session/:sessionId - Check Stripe session status and mint JSC if needed (fallback for local dev)
+  if (pathname.startsWith("/api/jsc/check-session/") && req.method === "GET") {
+    const sessionId = pathname.split("/").pop();
+    console.log(`   🔍 [${requestId}] GET /api/jsc/check-session/${sessionId} - Checking Stripe session status`);
+    
+    if (!sessionId || !sessionId.startsWith("cs_")) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Invalid session ID" }));
+      return;
+    }
+    
+    try {
+      // Retrieve session from Stripe
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      
+      console.log(`   📋 Session status: ${session.payment_status} (${session.status})`);
+      
+      // Check if already minted by looking for ledger entry
+      const existingMint = LEDGER.find(entry => 
+        entry.serviceType === 'mint' &&
+        entry.bookingDetails?.stripeSessionId === sessionId
+      );
+      
+      if (existingMint) {
+        console.log(`   ✅ JSC already minted for this session (entry: ${existingMint.entryId})`);
+        const email = session.customer_email || session.metadata?.user_email;
+        const balance = email ? await getWalletBalance(email) : 0;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          alreadyMinted: true,
+          sessionId: session.id,
+          paymentStatus: session.payment_status,
+          email: email || null,
+          balance: balance
+        }));
+        return;
+      }
+      
+      // If payment is successful but not minted yet, mint it now
+      if (session.payment_status === 'paid' && session.status === 'complete') {
+        const email = session.customer_email || session.metadata?.user_email;
+        const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
+        const paymentIntentId = session.payment_intent as string;
+        const customerId = session.customer as string;
+        
+        if (!email) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing email in session" }));
+          return;
+        }
+        
+        if (jscAmount <= 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Invalid JSC amount in session metadata" }));
+          return;
+        }
+        
+        // Retrieve payment intent to get payment method ID
+        let paymentMethodId: string | null = null;
+        if (paymentIntentId) {
+          try {
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+            paymentMethodId = typeof paymentIntent.payment_method === 'string' 
+              ? paymentIntent.payment_method 
+              : paymentIntent.payment_method?.id || null;
+          } catch (err: any) {
+            console.warn(`   ⚠️  Could not retrieve payment intent ${paymentIntentId}:`, err.message);
+          }
+        }
+        
+        // Mint JSC (fallback for local dev when webhook doesn't fire)
+        console.log(`   🪙 Minting ${jscAmount} JSC for ${email} (fallback mechanism)...`);
+        await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
+        
+        const balance = await getWalletBalance(email);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          minted: true,
+          sessionId: session.id,
+          paymentStatus: session.payment_status,
+          email: email,
+          amount: jscAmount,
+          balance: balance
+        }));
+        return;
+      } else {
+        // Payment not completed yet
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          minted: false,
+          sessionId: session.id,
+          paymentStatus: session.payment_status,
+          status: session.status,
+          message: "Payment not completed yet"
+        }));
+        return;
+      }
+    } catch (err: any) {
+      console.error(`   ❌ Error checking Stripe session:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // GET /api/jsc/balance/:email - Get user JSC balance (from Wallet Service - authoritative source)
   if (pathname.startsWith("/api/jsc/balance/") && req.method === "GET") {
     const email = decodeURIComponent(pathname.split("/api/jsc/balance/")[1]);
-    console.log(`   💰 [${requestId}] GET /api/jsc/balance/${email} - Getting JSC balance`);
+    console.log(`   💰 [${requestId}] GET /api/jsc/balance/${email} - Getting JSC balance from Wallet Service`);
     
-    const user = USERS.find(u => u.email === email);
-    const balance = user ? user.balance : 0;
+    // Get balance from Wallet Service (authoritative source)
+    const balance = await getWalletBalance(email);
     
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
@@ -783,6 +960,8 @@ httpServer.on("request", async (req, res) => {
       email,
       balance,
       currency: "JSC",
+      walletService: "wallet-service-001",
+      indexerId: "HG", // Holy Ghost indexer
     }));
     return;
   }
@@ -800,6 +979,45 @@ httpServer.on("request", async (req, res) => {
       email,
       transactions: userTransactions,
       count: userTransactions.length,
+    }));
+    return;
+  }
+
+  // GET /api/stripe/ledger/query - Query ledger by Stripe IDs (for webhook verification)
+  if (pathname === "/api/stripe/ledger/query" && req.method === "GET") {
+    const query = parsedUrl.query;
+    const paymentIntentId = query.payment_intent_id as string;
+    const customerId = query.customer_id as string;
+    const sessionId = query.session_id as string;
+    
+    console.log(`   🔍 [${requestId}] GET /api/stripe/ledger/query - Querying ledger by Stripe IDs`);
+    
+    let matchingEntries = LEDGER.filter(entry => {
+      if (entry.serviceType !== 'mint') return false;
+      
+      const details = entry.bookingDetails as any;
+      if (!details) return false;
+      
+      let matches = true;
+      if (paymentIntentId && details.stripePaymentIntentId !== paymentIntentId) {
+        matches = false;
+      }
+      if (customerId && details.stripeCustomerId !== customerId) {
+        matches = false;
+      }
+      if (sessionId && details.stripeSessionId !== sessionId) {
+        matches = false;
+      }
+      
+      return matches;
+    });
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      query: { paymentIntentId, customerId, sessionId },
+      entries: matchingEntries,
+      count: matchingEntries.length,
     }));
     return;
   }
@@ -1284,6 +1502,70 @@ class InMemoryRedisServer extends EventEmitter {
   private consumerGroups: Map<string, Map<string, string>> = new Map(); // stream -> group -> lastId
   private pendingMessages: Map<string, Map<string, Array<{ id: string; fields: Record<string, string> }>>> = new Map(); // stream -> group -> messages
   private isConnected = false;
+  private persistenceFile: string;
+  private saveTimeout: NodeJS.Timeout | null = null;
+  private readonly SAVE_DELAY_MS = 1000; // Debounce saves by 1 second
+
+  constructor() {
+    super();
+    // Persistence file in the same directory as the script
+    this.persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+    this.loadPersistence();
+  }
+
+  // Load wallet data from persistence file
+  private loadPersistence(): void {
+    try {
+      if (fs.existsSync(this.persistenceFile)) {
+        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        
+        // Restore wallet balances and audit logs
+        if (persisted.walletBalances) {
+          for (const [key, value] of Object.entries(persisted.walletBalances)) {
+            this.data.set(key, value);
+          }
+          console.log(`📂 [Redis Persistence] Loaded ${Object.keys(persisted.walletBalances).length} wallet balances from ${this.persistenceFile}`);
+        }
+      } else {
+        console.log(`📂 [Redis Persistence] No persistence file found, starting fresh: ${this.persistenceFile}`);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  [Redis Persistence] Failed to load persistence file: ${err.message}`);
+    }
+  }
+
+  // Save wallet data to persistence file (debounced)
+  private savePersistence(): void {
+    // Clear existing timeout
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+
+    // Debounce saves to avoid too many file writes
+    this.saveTimeout = setTimeout(() => {
+      try {
+        const walletBalances: Record<string, string> = {};
+        
+        // Only persist wallet-related keys
+        for (const [key, value] of this.data.entries()) {
+          if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
+            walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
+          }
+        }
+
+        const persisted = {
+          walletBalances,
+          lastSaved: new Date().toISOString()
+        };
+
+        fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
+        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
+      } catch (err: any) {
+        console.error(`❌ [Redis Persistence] Failed to save persistence file: ${err.message}`);
+      }
+    }, this.SAVE_DELAY_MS);
+  }
 
   async connect(): Promise<void> {
     if (this.isConnected) return;
@@ -1299,6 +1581,28 @@ class InMemoryRedisServer extends EventEmitter {
 
   get isOpen(): boolean {
     return this.isConnected;
+  }
+
+  // Simple key-value operations (for wallet balances)
+  async get(key: string): Promise<string | null> {
+    const value = this.data.get(key);
+    if (value === undefined) {
+      return null;
+    }
+    // If it's a string, return it directly
+    if (typeof value === 'string') {
+      return value;
+    }
+    // If it's an object (hash), return null (use hGet for hashes)
+    return null;
+  }
+
+  async set(key: string, value: string): Promise<void> {
+    this.data.set(key, value);
+    // Persist wallet-related keys immediately
+    if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
+      this.savePersistence();
+    }
   }
 
   async hSet(key: string, value: any): Promise<number> {
@@ -1500,6 +1804,27 @@ class InMemoryRedisServer extends EventEmitter {
   }
 
   async quit(): Promise<void> {
+    // Save persistence before quitting
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    // Force immediate save on quit
+    try {
+      const walletBalances: Record<string, string> = {};
+      for (const [key, value] of this.data.entries()) {
+        if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
+          walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
+        }
+      }
+      const persisted = {
+        walletBalances,
+        lastSaved: new Date().toISOString()
+      };
+      fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
+      console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries on quit`);
+    } catch (err: any) {
+      console.error(`❌ [Redis Persistence] Failed to save on quit: ${err.message}`);
+    }
     this.isConnected = false;
     this.emit("end");
   }
@@ -1587,8 +1912,11 @@ type LedgerEntry = {
     baseAmount?: number;
     price?: number;
     iTax?: number;
-    // JSC Mint details
+    // JSC Mint details (Stripe payment rail)
     stripePaymentIntentId?: string;
+    stripeCustomerId?: string;
+    stripePaymentMethodId?: string;
+    stripeSessionId?: string;
     asset?: string; // 'JSC' for JesusCoin
   };
 };
@@ -1769,8 +2097,8 @@ const LEDGER_SETTLEMENT_STREAM = "eden:ledger:pending";
 // Users
 
 const USERS: User[] = [
-  { id: "u1", email: "alice@gmail.com", balance: 50 },
-  { id: "u2", email: "bob@gmail.com", balance: 50 },
+  { id: "u1", email: "bill.draper.auto@gmail.com", balance: 0 },
+  { id: "u2", email: "bob@gmail.com", balance: 0 },
 ];
 
 // Ledger Component - Tracks all Eden bookings
@@ -1865,6 +2193,18 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     reputation: 5.0,
     indexerId: "HG", // Holy Ghost indexer
     apiEndpoint: `ws://localhost:${HTTP_PORT}`,
+    status: 'active'
+  },
+  {
+    id: "wallet-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440105",
+    name: "JesusCoin Wallet Service",
+    serviceType: "wallet",
+    location: "ROOT CA",
+    bond: 200000, // Very high bond for wallet authority (single source of truth)
+    reputation: 5.0,
+    indexerId: "HG", // Holy Ghost indexer
+    apiEndpoint: "internal://wallet",
     status: 'active'
   },
   // Regular Service Providers
@@ -3255,20 +3595,413 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 
 // Ledger Component - Tracks all Eden bookings
 
+// ============================================================================
+// JesusCoin Wallet Service (Holy Ghost - Single Source of Truth)
+// ============================================================================
+// Wallet is Redis-backed, authoritative, event-sourced
+// EdenCore submits intents, Wallet decides and updates balances
+// Ledger records outcomes but does not define truth
+
+const WALLET_BALANCE_PREFIX = "wallet:balance:";
+const WALLET_HOLD_PREFIX = "wallet:hold:";
+const WALLET_AUDIT_PREFIX = "wallet:audit:";
+
+interface WalletIntent {
+  intent: "CREDIT" | "DEBIT" | "HOLD" | "RELEASE";
+  email: string;
+  amount: number;
+  txId: string;
+  entryId?: string;
+  reason: string;
+  metadata?: Record<string, any>;
+}
+
+interface WalletResult {
+  success: boolean;
+  balance: number;
+  previousBalance?: number;
+  error?: string;
+}
+
+// Sync wallet balance from USERS array to Redis (one-time initialization)
+async function syncWalletBalanceFromUser(email: string): Promise<void> {
+  if (SKIP_REDIS || !redis.isOpen) {
+    return; // No sync needed if Redis unavailable
+  }
+
+  try {
+    await ensureRedisConnection();
+    const user = USERS.find(u => u.email === email);
+    if (!user) {
+      return; // User doesn't exist
+    }
+
+    const key = `${WALLET_BALANCE_PREFIX}${email}`;
+    const existingBalanceStr = await redis.get(key);
+    
+    // Only sync if wallet doesn't exist in Redis (first-time initialization)
+    if (!existingBalanceStr) {
+      await redis.set(key, user.balance.toString());
+      console.log(`🔄 [Wallet Service] Synced balance from USERS array: ${email} = ${user.balance} JSC`);
+    }
+  } catch (err: any) {
+    console.error(`⚠️  [Wallet] Error syncing balance for ${email}:`, err.message);
+    // Non-fatal error, continue
+  }
+}
+
+// Get wallet balance (authoritative source)
+// NO SYNC - Wallet is the single source of truth, never syncs from USERS array
+async function getWalletBalance(email: string): Promise<number> {
+  if (SKIP_REDIS || !redis.isOpen) {
+    // Fallback to in-memory USERS array if Redis unavailable
+    const user = USERS.find(u => u.email === email);
+    return user ? user.balance : 0;
+  }
+
+  try {
+    await ensureRedisConnection();
+    
+    // Read directly from Redis - NO SYNC from USERS array
+    const balanceStr = await redis.get(`${WALLET_BALANCE_PREFIX}${email}`);
+    return balanceStr ? parseFloat(balanceStr) : 0;
+  } catch (err: any) {
+    console.error(`⚠️  [Wallet] Error getting balance for ${email}:`, err.message);
+    // Fallback to in-memory
+    const user = USERS.find(u => u.email === email);
+    return user ? user.balance : 0;
+  }
+}
+
+// Credit wallet (mint JSC, rebates, etc.)
+async function creditWallet(email: string, amount: number, txId: string, reason: string, metadata?: Record<string, any>): Promise<WalletResult> {
+  if (SKIP_REDIS || !redis.isOpen) {
+    // Fallback to in-memory
+    let user = USERS.find(u => u.email === email);
+    if (!user) {
+      user = { id: `u${USERS.length + 1}`, email, balance: 0 };
+      USERS.push(user);
+    }
+    const previousBalance = user.balance;
+    user.balance += amount;
+    
+    console.log(`💰 [Wallet] Credited ${amount} JSC to ${email} (${reason})`);
+    console.log(`   Previous balance: ${previousBalance}, New balance: ${user.balance}`);
+    
+    // Broadcast wallet credit event (fallback mode)
+    broadcastEvent({
+      type: "wallet_credited",
+      component: "wallet-service-001",
+      message: `Wallet credited (fallback): ${amount} JSC to ${email}`,
+      timestamp: Date.now(),
+      data: {
+        email,
+        amount,
+        previousBalance,
+        newBalance: user.balance,
+        txId,
+        reason,
+        metadata,
+        mode: "fallback",
+        indexerId: "HG",
+      }
+    });
+    
+    return { success: true, balance: user.balance, previousBalance };
+  }
+
+  try {
+    await ensureRedisConnection();
+    
+    const key = `${WALLET_BALANCE_PREFIX}${email}`;
+    // Get current balance directly from Redis (don't use getWalletBalance which might sync)
+    const balanceStr = await redis.get(key);
+    const previousBalance = balanceStr ? parseFloat(balanceStr) : 0;
+    const newBalance = previousBalance + amount;
+    
+    // Atomic increment
+    await redis.set(key, newBalance.toString());
+    
+    console.log(`💰 [Wallet Service] Redis balance update: ${email}`);
+    console.log(`   Redis key: ${key}`);
+    console.log(`   Previous balance (from Redis): ${previousBalance}`);
+    console.log(`   Credit amount: ${amount}`);
+    console.log(`   New balance (to Redis): ${newBalance}`);
+    
+    // Audit log
+    const auditKey = `${WALLET_AUDIT_PREFIX}${email}:${Date.now()}`;
+    await redis.set(auditKey, JSON.stringify({
+      intent: "CREDIT",
+      email,
+      amount,
+      previousBalance,
+      newBalance,
+      txId,
+      reason,
+      metadata,
+      timestamp: Date.now(),
+    }));
+    
+    console.log(`💰 [Wallet Service] Credited ${amount} JSC to ${email} (${reason})`);
+    console.log(`   Previous balance: ${previousBalance}, New balance: ${newBalance}`);
+    
+    // Sync to in-memory USERS array for backward compatibility
+    let user = USERS.find(u => u.email === email);
+    if (!user) {
+      user = { id: `u${USERS.length + 1}`, email, balance: 0 };
+      USERS.push(user);
+    }
+    user.balance = newBalance;
+    
+    // Broadcast wallet credit event
+    broadcastEvent({
+      type: "wallet_credited",
+      component: "wallet-service-001",
+      message: `Wallet credited: ${amount} JSC to ${email}`,
+      timestamp: Date.now(),
+      data: {
+        email,
+        amount,
+        previousBalance,
+        newBalance,
+        txId,
+        reason,
+        metadata,
+        indexerId: "HG", // Holy Ghost indexer
+      }
+    });
+    
+    return { success: true, balance: newBalance, previousBalance };
+  } catch (err: any) {
+    console.error(`❌ [Wallet] Error crediting ${amount} JSC to ${email}:`, err.message);
+    return { success: false, balance: 0, error: err.message };
+  }
+}
+
+// Debit wallet (payments, fees, etc.)
+async function debitWallet(email: string, amount: number, txId: string, reason: string, metadata?: Record<string, any>): Promise<WalletResult> {
+  if (SKIP_REDIS || !redis.isOpen) {
+    // Fallback to in-memory
+    const user = USERS.find(u => u.email === email);
+    if (!user) {
+      return { success: false, balance: 0, error: "User not found" };
+    }
+    
+    if (user.balance < amount) {
+      return { success: false, balance: user.balance, error: "Insufficient balance" };
+    }
+    
+    const previousBalance = user.balance;
+    user.balance -= amount;
+    
+    console.log(`💸 [Wallet] Debited ${amount} JSC from ${email} (${reason})`);
+    console.log(`   Previous balance: ${previousBalance}, New balance: ${user.balance}`);
+    
+    // Broadcast wallet debit event (fallback mode)
+    broadcastEvent({
+      type: "wallet_debited",
+      component: "wallet-service-001",
+      message: `Wallet debited (fallback): ${amount} JSC from ${email}`,
+      timestamp: Date.now(),
+      data: {
+        email,
+        amount,
+        previousBalance,
+        newBalance: user.balance,
+        txId,
+        reason,
+        metadata,
+        mode: "fallback",
+        indexerId: "HG",
+      }
+    });
+    
+    return { success: true, balance: user.balance, previousBalance };
+  }
+
+  try {
+    await ensureRedisConnection();
+    
+    const key = `${WALLET_BALANCE_PREFIX}${email}`;
+    const currentBalance = await getWalletBalance(email);
+    
+    if (currentBalance < amount) {
+      return { success: false, balance: currentBalance, error: "Insufficient balance" };
+    }
+    
+    const newBalance = currentBalance - amount;
+    
+    // Atomic decrement
+    await redis.set(key, newBalance.toString());
+    
+    // Audit log
+    const auditKey = `${WALLET_AUDIT_PREFIX}${email}:${Date.now()}`;
+    await redis.set(auditKey, JSON.stringify({
+      intent: "DEBIT",
+      email,
+      amount,
+      previousBalance: currentBalance,
+      newBalance,
+      txId,
+      reason,
+      metadata,
+      timestamp: Date.now(),
+    }));
+    
+    console.log(`💸 [Wallet Service] Debited ${amount} JSC from ${email} (${reason})`);
+    console.log(`   Previous balance: ${currentBalance}, New balance: ${newBalance}`);
+    
+    // Sync to in-memory USERS array for backward compatibility
+    const user = USERS.find(u => u.email === email);
+    if (user) {
+      user.balance = newBalance;
+    }
+    
+    // Broadcast wallet debit event
+    broadcastEvent({
+      type: "wallet_debited",
+      component: "wallet-service-001",
+      message: `Wallet debited: ${amount} JSC from ${email}`,
+      timestamp: Date.now(),
+      data: {
+        email,
+        amount,
+        previousBalance: currentBalance,
+        newBalance,
+        txId,
+        reason,
+        metadata,
+        indexerId: "HG", // Holy Ghost indexer
+      }
+    });
+    
+    return { success: true, balance: newBalance, previousBalance: currentBalance };
+  } catch (err: any) {
+    console.error(`❌ [Wallet] Error debiting ${amount} JSC from ${email}:`, err.message);
+    return { success: false, balance: 0, error: err.message };
+  }
+}
+
+// Process wallet intent (EdenCore submits, Wallet decides)
+async function processWalletIntent(intent: WalletIntent): Promise<WalletResult> {
+  console.log(`🔐 [Wallet Service] Processing intent: ${intent.intent} for ${intent.email}`);
+  
+  // Broadcast intent processing start
+  broadcastEvent({
+    type: "wallet_intent_processing",
+    component: "wallet-service-001",
+    message: `Processing wallet intent: ${intent.intent} for ${intent.email}`,
+    timestamp: Date.now(),
+    data: {
+      intent: intent.intent,
+      email: intent.email,
+      amount: intent.amount,
+      txId: intent.txId,
+      reason: intent.reason,
+      indexerId: "HG", // Holy Ghost indexer
+    }
+  });
+  
+  switch (intent.intent) {
+    case "CREDIT":
+      return await creditWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
+    
+    case "DEBIT":
+      // Verify balance before debiting
+      const balance = await getWalletBalance(intent.email);
+      if (balance < intent.amount) {
+        // Broadcast insufficient balance event
+        broadcastEvent({
+          type: "wallet_insufficient_balance",
+          component: "wallet-service-001",
+          message: `Insufficient balance: ${balance} JSC < ${intent.amount} JSC required`,
+          timestamp: Date.now(),
+          data: {
+            email: intent.email,
+            balance,
+            required: intent.amount,
+            txId: intent.txId,
+            indexerId: "HG",
+          }
+        });
+        return { success: false, balance, error: "Insufficient balance" };
+      }
+      return await debitWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
+    
+    case "HOLD":
+      // Place hold on balance (for pending transactions)
+      // Implementation can be added later if needed
+      const holdBalance = await getWalletBalance(intent.email);
+      broadcastEvent({
+        type: "wallet_hold",
+        component: "wallet-service-001",
+        message: `Hold placed on balance for ${intent.email}`,
+        timestamp: Date.now(),
+        data: {
+          email: intent.email,
+          balance: holdBalance,
+          txId: intent.txId,
+          indexerId: "HG",
+        }
+      });
+      return { success: true, balance: holdBalance };
+    
+    case "RELEASE":
+      // Release hold on balance
+      // Implementation can be added later if needed
+      const releaseBalance = await getWalletBalance(intent.email);
+      broadcastEvent({
+        type: "wallet_release",
+        component: "wallet-service-001",
+        message: `Hold released for ${intent.email}`,
+        timestamp: Date.now(),
+        data: {
+          email: intent.email,
+          balance: releaseBalance,
+          txId: intent.txId,
+          indexerId: "HG",
+        }
+      });
+      return { success: true, balance: releaseBalance };
+    
+    default:
+      broadcastEvent({
+        type: "wallet_error",
+        component: "wallet-service-001",
+        message: `Unknown wallet intent: ${intent.intent}`,
+        timestamp: Date.now(),
+        data: {
+          intent: intent.intent,
+          email: intent.email,
+          error: `Unknown intent: ${intent.intent}`,
+          indexerId: "HG",
+        }
+      });
+      return { success: false, balance: 0, error: `Unknown intent: ${intent.intent}` };
+  }
+}
+
 // Mint JesusCoin (JSC) - Via Stripe Payment Rail Service Provider (Holy Ghost indexer)
 // This is called when Stripe payment is confirmed via webhook
 // Stripe is registered as a payment-rail service provider under Holy Ghost
-async function mintJSC(email: string, amount: number, stripePaymentIntentId: string): Promise<void> {
+// Stores Stripe customer ID, payment method ID, and payment intent ID in ledger for webhook querying
+async function mintJSC(
+  email: string, 
+  amount: number, 
+  stripePaymentIntentId: string,
+  stripeCustomerId?: string | null,
+  stripePaymentMethodId?: string | null,
+  stripeSessionId?: string
+): Promise<void> {
   // Find Stripe payment rail service provider
   const stripeProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "stripe-payment-rail-001");
   const providerUuid = stripeProvider?.uuid || ROOT_CA_UUID;
   
   console.log(`💰 [Stripe Payment Rail] Minting ${amount} JSC for ${email} (Stripe: ${stripePaymentIntentId})`);
   
-  // Find or create user
+  // Find or create user (for backward compatibility)
   let user = USERS.find(u => u.email === email);
   if (!user) {
-    // Create new user
     user = {
       id: `u${USERS.length + 1}`,
       email: email,
@@ -3278,8 +4011,41 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
     console.log(`   ✅ Created new user: ${email}`);
   }
   
-  // Mint JSC (add to balance)
-  user.balance += amount;
+  // Mint JSC via Wallet Service (authoritative source)
+  const walletResult = await creditWallet(
+    email,
+    amount,
+    crypto.randomUUID(),
+    `Stripe payment confirmed: ${stripePaymentIntentId}`,
+    { stripePaymentIntentId, serviceProvider: "stripe-payment-rail-001" }
+  );
+  
+  if (!walletResult.success) {
+    throw new Error(`Failed to mint JSC: ${walletResult.error}`);
+  }
+  
+  // Update user balance for backward compatibility (wallet is source of truth)
+  user.balance = walletResult.balance;
+  
+  console.log(`✅ [Stripe Payment Rail] Wallet updated successfully`);
+  console.log(`   Email: ${email}`);
+  console.log(`   Amount credited: ${amount} JSC`);
+  console.log(`   Final wallet balance: ${walletResult.balance} JSC`);
+  console.log(`   User.balance synced: ${user.balance} JSC`);
+  
+  // Verify balance was actually updated in Redis
+  if (!SKIP_REDIS && redis.isOpen) {
+    try {
+      await ensureRedisConnection();
+      const verifyBalance = await redis.get(`${WALLET_BALANCE_PREFIX}${email}`);
+      console.log(`   ✅ Verification: Redis wallet balance = ${verifyBalance || 'NOT FOUND'} JSC`);
+      if (verifyBalance && parseFloat(verifyBalance) !== walletResult.balance) {
+        console.error(`   ❌ MISMATCH: Redis balance (${verifyBalance}) != walletResult.balance (${walletResult.balance})`);
+      }
+    } catch (err: any) {
+      console.warn(`   ⚠️  Could not verify Redis balance:`, err.message);
+    }
+  }
   
   // Create MINT ledger entry
   const snapshot: TransactionSnapshot = {
@@ -3310,13 +4076,16 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
     bookingDetails: {
       asset: 'JSC',
       stripePaymentIntentId: stripePaymentIntentId,
+      stripeCustomerId: stripeCustomerId || undefined,
+      stripePaymentMethodId: stripePaymentMethodId || undefined,
+      stripeSessionId: stripeSessionId || undefined,
     },
   };
   
   // Add to ledger
   LEDGER.push(entry);
   
-  console.log(`   ✅ JSC minted: ${amount} JSC added to ${email} balance (new balance: ${user.balance} JSC)`);
+  console.log(`   ✅ JSC minted: ${amount} JSC added to ${email} balance (new balance: ${walletResult.balance} JSC)`);
   
   // Broadcast events
   broadcastEvent({
@@ -3327,8 +4096,11 @@ async function mintJSC(email: string, amount: number, stripePaymentIntentId: str
     data: {
       email,
       amount,
-      balance: user.balance,
+      balance: walletResult.balance,
       stripePaymentIntentId,
+      stripeCustomerId: stripeCustomerId || null,
+      stripePaymentMethodId: stripePaymentMethodId || null,
+      stripeSessionId: stripeSessionId || null,
       entryId: entry.entryId,
       providerId: "stripe-payment-rail-001",
       indexerId: "HG", // Holy Ghost indexer
@@ -3484,22 +4256,47 @@ async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<vo
   }
 }
 
-function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): boolean {
-  // Cashier processes the payment
-  if (user.balance < entry.amount) {
+async function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): Promise<boolean> {
+  // NO AUTO-GRANT - User must have balance from Stripe or other credits
+  
+  // EdenCore submits intent to Wallet Service
+  // Wallet Service decides and updates balance (single source of truth)
+  const walletResult = await processWalletIntent({
+    intent: "DEBIT",
+    email: user.email,
+    amount: entry.amount,
+    txId: entry.txId,
+    entryId: entry.entryId,
+    reason: `Payment to ${entry.merchant} (${entry.serviceType})`,
+    metadata: {
+      merchant: entry.merchant,
+      serviceType: entry.serviceType,
+      cashierId: cashier.id,
+    }
+  });
+  
+  if (!walletResult.success) {
     entry.status = 'failed';
+    const walletBalance = await getWalletBalance(user.email);
     broadcastEvent({
       type: "cashier_payment_failed",
       component: "cashier",
-      message: `Payment failed: Insufficient balance`,
+      message: `Payment failed: ${walletResult.error}`,
       timestamp: Date.now(),
-      data: { entry, cashier }
+      data: { 
+        entry, 
+        cashier, 
+        error: walletResult.error,
+        walletBalance,
+        userBalance: user.balance,
+        requiredAmount: entry.amount
+      }
     });
     return false;
   }
 
-  // Deduct amount from user balance
-  user.balance -= entry.amount;
+  // Update user balance for backward compatibility (wallet is source of truth)
+  user.balance = walletResult.balance;
   
   // Update cashier stats
   cashier.processedCount++;
@@ -3509,9 +4306,9 @@ function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): boole
   broadcastEvent({
     type: "cashier_payment_processed",
     component: "cashier",
-    message: `${cashier.name} processed payment: ${entry.amount} USDC`,
+    message: `${cashier.name} processed payment: ${entry.amount} JSC`,
     timestamp: Date.now(),
-    data: { entry, cashier, userBalance: user.balance }
+    data: { entry, cashier, userBalance: walletResult.balance, walletService: "wallet-service-001" }
   });
 
   return true;
@@ -4748,10 +5545,28 @@ async function processSettlementEntry(msg: Record<string, string>): Promise<void
 
 // Review + Discount
 
-function applyReview(user: User, review: Review, moviePrice: number) {
+async function applyReview(user: User, review: Review, moviePrice: number): Promise<number> {
   if (review.rating >= 4) {
     const rebate = moviePrice * 0.1;
-    user.balance += rebate;
+    
+    // Credit rebate via Wallet Service
+    const rebateResult = await creditWallet(
+      user.email,
+      rebate,
+      crypto.randomUUID(),
+      `Review rebate: ${review.rating}/5 rating`,
+      {
+        reviewRating: review.rating,
+        moviePrice,
+        rebateType: "review",
+      }
+    );
+    
+    // Update user balance for backward compatibility (wallet is source of truth)
+    if (rebateResult.success) {
+      user.balance = rebateResult.balance;
+    }
+    
     return rebate;
   }
   return 0;
@@ -4768,13 +5583,45 @@ async function processChatInput(input: string, email: string) {
   if (!user) {
     // Create new user on-the-fly with sequential ID matching USERS array format (u1, u2, u3...)
     const nextId = `u${USERS.length + 1}`;
+    
     user = {
       id: nextId, // Sequential ID matching existing format (u1, u2, u3...)
       email: email,
-      balance: 50, // Default balance
+      balance: 0, // NO PRE-LOAD - Wallet is source of truth, starts at 0
     };
     USERS.push(user);
     console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+  }
+  
+  // NO AUTO-GRANT - Wallet balance starts at 0, only increases via Stripe or other credits
+  // Sync user.balance with wallet balance (wallet is source of truth)
+  const currentWalletBalance = await getWalletBalance(email);
+  user.balance = currentWalletBalance;
+  
+  // Clear any existing Redis balance for bill.draper.auto@gmail.com if it's not from Stripe
+  // This ensures we start fresh without pre-loaded balance
+  if (email === "bill.draper.auto@gmail.com" && !SKIP_REDIS && redis.isOpen) {
+    try {
+      await ensureRedisConnection();
+      const walletKey = `${WALLET_BALANCE_PREFIX}${email}`;
+      const existingBalance = await redis.get(walletKey);
+      
+      // Check if there's a Stripe mint transaction in ledger
+      const hasStripeMint = LEDGER.some(entry => 
+        entry.serviceType === 'mint' && 
+        entry.merchant === email &&
+        entry.bookingDetails?.stripePaymentIntentId
+      );
+      
+      // Only clear if no Stripe transaction exists (means it's old pre-loaded balance)
+      if (existingBalance && parseFloat(existingBalance) > 0 && !hasStripeMint) {
+        console.log(`🔄 Clearing pre-loaded balance for ${email}: ${existingBalance} JSC → 0 JSC`);
+        await redis.set(walletKey, "0");
+        user.balance = 0;
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  Could not clear pre-loaded balance:`, err.message);
+    }
   }
 
   console.log("1️⃣ User Input");
@@ -5051,7 +5898,7 @@ async function processChatInput(input: string, email: string) {
     data: { cashier: CASHIER }
   });
 
-  const paymentSuccess = processPayment(CASHIER, ledgerEntry, user);
+  const paymentSuccess = await processPayment(CASHIER, ledgerEntry, user);
   if (!paymentSuccess) {
     const errorMsg = `Payment failed. Balance: ${user.balance}, Required: ${moviePrice}`;
     console.error(`❌ ${errorMsg}`);
@@ -5114,7 +5961,7 @@ async function processChatInput(input: string, email: string) {
   }
 
   console.log("8️⃣ Review");
-  const rebate = applyReview(user, {
+  const rebate = await applyReview(user, {
     userId: user.id,
     movieId: selectedListing.movieId,
     rating: 5,
@@ -5297,14 +6144,14 @@ async function main() {
   console.log("    → No inbound firewall rules required\n");
   
   console.log("=".repeat(70));
-  console.log(`💡 Example: Query transactions for alice@gmail.com`);
-  console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/getTransactionByPayer?payer=alice@gmail.com"`);
+    console.log(`💡 Example: Query transactions for bill.draper.auto@gmail.com`);
+    console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/getTransactionByPayer?payer=bill.draper.auto@gmail.com"`);
   console.log(`\n💡 Example: Register webhook for AMC`);
   console.log(`   curl -X POST http://localhost:${HTTP_PORT}/rpc/webhook/register \\`);
   console.log(`     -H "Content-Type: application/json" \\`);
   console.log(`     -d '{"providerId":"amc-001","webhookUrl":"http://localhost:${HTTP_PORT}/mock/webhook/amc-001"}'`);
   console.log(`\n💡 Example: Poll transaction status`);
-  console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/tx/status?payer=alice@gmail.com"`);
+    console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/tx/status?payer=bill.draper.auto@gmail.com"`);
   console.log("=".repeat(70) + "\n");
 
   // Connect to Redis

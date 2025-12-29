@@ -122,6 +122,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (normalized === 'websocket-service-001' || normalized.startsWith('websocket-service')) {
       return 'websocket-service';
     }
+    if (normalized === 'wallet-service-001' || normalized.startsWith('wallet-service')) {
+      return 'wallet-service';
+    }
     
     if (normalized.startsWith('snake-')) {
       // Snake services: "snake-premium-cinema-001" -> "snake-premium-cinema-api"
@@ -315,6 +318,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       'websocket-service-001': 'websocket-service',
       'websocket-service': 'websocket-service',
       'websocket': 'websocket-service',
+      'wallet-service-001': 'wallet-service',
+      'wallet-service': 'wallet-service',
+      'wallet': 'wallet-service',
+      'jsc': 'wallet-service',
+      'jesuscoin': 'wallet-service',
       'llm': 'llm',
       'ledger': 'ledger',
       'cashier': 'cashier',
@@ -536,22 +544,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // Holy Ghost (ROOT CA's indexer) shows infrastructure services
     if (isRootIndexer) {
-      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket)
-      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket'];
-      let providerComponents = Array.from(this.components.values())
-        .filter(c => {
+      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+      // Match components by their key (which is derived from provider ID)
+      let providerComponents = Array.from(this.components.entries())
+        .filter(([componentKey, c]) => {
           if (c.category !== 'service-provider') return false;
           
-          // Find the service provider in our ServiceRegistry map
+          // Find the service provider in our ServiceRegistry map by matching component key
           for (const [providerId, provider] of this.serviceProviders.entries()) {
-            const componentNameLower = c.name.toLowerCase();
-            const providerNameLower = provider.name.toLowerCase();
-            const providerIdLower = providerId.toLowerCase();
+            // Get the expected component key for this provider
+            const expectedComponentKey = this.mapProviderIdToComponentKey(providerId);
             
-            // Match if component name contains provider name or ID
-            if (componentNameLower.includes(providerNameLower) || 
-                componentNameLower.includes(providerIdLower.replace(/-\d+$/, '')) ||
-                providerNameLower.includes(componentNameLower.replace(/\s+/g, '-'))) {
+            // Match if component key matches expected key
+            if (componentKey === expectedComponentKey) {
               // Check if this provider belongs to Holy Ghost (indexerId: "HG")
               const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
               
@@ -561,7 +567,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
             }
           }
           return false;
-        });
+        })
+        .map(([_, c]) => c); // Extract component values
       
       // Sort infrastructure services
       providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));

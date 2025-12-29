@@ -93,6 +93,14 @@ export class AppComponent implements OnInit, OnDestroy {
   snakeProviders: ServiceProvider[] = [];
   isLoadingSnakeProviders: boolean = false;
   
+  // Stripe payment processing
+  isProcessingStripe: boolean = false;
+  
+  // Wallet balance
+  walletBalance: number = 0;
+  isLoadingBalance: boolean = false;
+  isGoogleSignedIn: boolean = false;
+  
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
     : '';
@@ -114,14 +122,174 @@ export class AppComponent implements OnInit, OnDestroy {
       originalError.apply(console, args);
     };
 
-    // Get email from localStorage or use default (alice@gmail.com from USERS array)
-    this.userEmail = localStorage.getItem('userEmail') || 'alice@gmail.com';
+    // Check for Stripe success redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const jscSuccess = urlParams.get('jsc_success');
+    const sessionId = urlParams.get('session_id');
+    const jscCanceled = urlParams.get('jsc_canceled');
+    
+    if (jscSuccess === 'true' && sessionId) {
+      console.log(`✅ Stripe payment successful! Session ID: ${sessionId}`);
+      // Clear URL parameters to prevent re-triggering
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clear any input that might trigger auto-submit
+      this.userInput = '';
+      this.selectedServiceType = null;
+      this.inputPlaceholder = 'Select a service type above or type your query...';
+      
+      // Check session status and mint JSC if needed (fallback for local dev)
+      this.checkStripeSession(sessionId);
+    } else if (jscCanceled === 'true') {
+      console.log(`❌ Stripe payment canceled`);
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clear any input
+      this.userInput = '';
+      this.selectedServiceType = null;
+    }
+
+    // Set default email first (before any async operations)
+    this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    console.log(`📧 Initial email set: ${this.userEmail}`);
+    
+    // Load wallet balance immediately with default email
+    // It will be refreshed if Google Sign-In updates the email
+    this.loadWalletBalance();
+    
+    // Initialize Google Sign-In and get user email (may update email if Google Sign-In succeeds)
+    // This is async and won't block balance loading
+    this.initializeGoogleSignIn();
+    
     this.wsService.connect();
     
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
     // Load Snake providers separately
     this.loadSnakeProviders();
+  }
+  
+  initializeGoogleSignIn() {
+    // Wait for Google Identity Services to load
+    const checkGoogleAPI = () => {
+      if (typeof (window as any).google !== 'undefined' && (window as any).google.accounts) {
+        this.setupGoogleSignIn();
+      } else {
+        setTimeout(checkGoogleAPI, 100);
+      }
+    };
+    
+    // Check if already signed in from localStorage
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedCredential = localStorage.getItem('googleCredential');
+    
+    if (savedEmail && savedCredential) {
+      // Update email if different from default (set in ngOnInit)
+      if (this.userEmail !== savedEmail) {
+        this.userEmail = savedEmail;
+        this.loadWalletBalance(); // Reload balance with Google email
+      }
+      this.isGoogleSignedIn = true;
+    } else {
+      // Email already set in ngOnInit, balance already loaded
+      // Just wait for Google API to load for future sign-in
+      checkGoogleAPI();
+    }
+  }
+  
+  setupGoogleSignIn() {
+    try {
+      // Only initialize if we have a valid client ID (not placeholder)
+      const clientId = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+      if (clientId.includes('YOUR_GOOGLE_CLIENT_ID')) {
+        console.log('⚠️ Google Client ID not configured, skipping Google Sign-In initialization');
+        console.log('   To enable Google Sign-In, replace YOUR_GOOGLE_CLIENT_ID in app.component.ts with your actual Client ID');
+        return;
+      }
+      
+      (window as any).google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (response: any) => {
+          this.handleGoogleSignIn(response);
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        // Opt-in to FedCM to avoid deprecation warnings
+        use_fedcm_for_prompt: true
+      });
+      
+      // Try to prompt sign-in automatically (FedCM-compatible)
+      (window as any).google.accounts.id.prompt((notification: any) => {
+        // FedCM-compatible: Check for new status types
+        if (notification.isNotDisplayed()) {
+          console.log('Google Sign-In prompt not displayed');
+        } else if (notification.isSkippedMoment()) {
+          console.log('Google Sign-In prompt skipped');
+        } else if (notification.isDismissedMoment()) {
+          console.log('Google Sign-In prompt dismissed');
+        }
+        // If prompt was shown but user didn't sign in, continue with default email
+      });
+    } catch (err) {
+      console.warn('Google Sign-In not available, using default email:', err);
+    }
+  }
+  
+  handleGoogleSignIn(response: any) {
+    try {
+      // Decode the credential (JWT)
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      const email = payload.email;
+      
+      if (email) {
+        this.userEmail = email;
+        this.isGoogleSignedIn = true;
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('googleCredential', response.credential);
+        console.log(`✅ Google Sign-In successful: ${email}`);
+        this.loadWalletBalance();
+      }
+    } catch (err) {
+      console.error('Error processing Google Sign-In:', err);
+    }
+  }
+  
+  loadWalletBalance() {
+    // Ensure email is set before loading balance
+    if (!this.userEmail) {
+      this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+      console.log(`📧 Email was empty, set to: ${this.userEmail}`);
+    }
+    
+    if (!this.userEmail || !this.userEmail.includes('@')) {
+      console.warn('No valid email, skipping balance load. Current email:', this.userEmail);
+      return;
+    }
+    
+    this.isLoadingBalance = true;
+    console.log(`💰 Loading wallet balance for: ${this.userEmail}`);
+    
+    this.http.get<{success: boolean, balance: number, error?: string}>(
+      `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
+    ).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.walletBalance = response.balance || 0;
+          console.log(`✅ Wallet balance loaded: ${this.walletBalance} JSC for ${this.userEmail}`);
+        } else {
+          console.error('❌ Failed to load balance:', response.error);
+          this.walletBalance = 0;
+        }
+        this.isLoadingBalance = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading wallet balance:', err);
+        console.error('   URL:', `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`);
+        this.walletBalance = 0;
+        this.isLoadingBalance = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
   
   loadServices() {
@@ -179,6 +347,68 @@ export class AppComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         }
       });
+  }
+  
+  checkStripeSession(sessionId: string) {
+    console.log(`🔍 Checking Stripe session status: ${sessionId}`);
+    this.http.get<{success: boolean, minted?: boolean, alreadyMinted?: boolean, amount?: number, balance?: number, paymentStatus?: string, error?: string}>(
+      `${this.apiUrl}/api/jsc/check-session/${sessionId}`
+    ).subscribe({
+      next: (response) => {
+        if (response.success) {
+          if (response.alreadyMinted) {
+            console.log(`✅ JSC already minted for this session. Balance: ${response.balance} JSC`);
+            this.walletBalance = response.balance || 0;
+            alert(`✅ Payment confirmed! Your balance: ${response.balance} JSC`);
+          } else if (response.minted) {
+            console.log(`✅ JSC minted successfully! Amount: ${response.amount} JSC, Balance: ${response.balance} JSC`);
+            this.walletBalance = response.balance || 0;
+            alert(`✅ ${response.amount} JSC deposited successfully! Your balance: ${response.balance} JSC`);
+          } else {
+            console.log(`⏳ Payment not completed yet. Status: ${response.paymentStatus}`);
+            alert(`⏳ Payment processing... Please wait a moment and refresh.`);
+          }
+          this.cdr.detectChanges();
+        } else {
+          console.error(`❌ Failed to check session:`, response.error);
+          alert(`⚠️ Could not verify payment status: ${response.error || 'Unknown error'}`);
+        }
+      },
+      error: (err) => {
+        console.error('❌ Error checking Stripe session:', err);
+        alert(`⚠️ Error checking payment status: ${err.error?.error || err.message || 'Unknown error'}`);
+      }
+    });
+  }
+  
+  buyJesusCoin(amount: number) {
+    if (!this.userEmail || !this.userEmail.includes('@')) {
+      alert('Please set a valid email address first');
+      return;
+    }
+    
+    this.isProcessingStripe = true;
+    
+    // Create Stripe Checkout session
+    this.http.post<{success: boolean, sessionId?: string, url?: string, error?: string}>(
+      `${this.apiUrl}/api/jsc/buy`,
+      { email: this.userEmail, amount: amount }
+    ).subscribe({
+      next: (response) => {
+        if (response.success && response.url) {
+          // Redirect to Stripe Checkout
+          window.location.href = response.url;
+        } else {
+          alert(`Failed to create Stripe checkout: ${response.error || 'Unknown error'}`);
+          this.isProcessingStripe = false;
+        }
+      },
+      error: (err) => {
+        console.error('Error creating Stripe checkout:', err);
+        alert(`Error: ${err.error?.error || err.message || 'Failed to create Stripe checkout'}`);
+        this.isProcessingStripe = false;
+      }
+    });
   }
   
   selectServiceType(serviceType: {type: string, icon: string, adText: string, sampleQuery: string}) {

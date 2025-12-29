@@ -73,6 +73,40 @@
                   </div>
                 </div>
               </div>
+              
+              <!-- Stripe Payment Rail - Buy JesusCoin -->
+              <div class="col-6 col-md-4 col-lg-3">
+                <div class="card service-card-compact h-100" style="border: 2px solid #635bff; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">💳</div>
+                    <h6 class="card-title mb-1 small fw-bold">Stripe Payment Rail</h6>
+                    <div class="small mb-2">
+                      <div><strong>Buy JesusCoin</strong></div>
+                      <div>100 JSC = $100 USD</div>
+                    </div>
+                    <div class="mb-2 small" *ngIf="userEmail">
+                      <div><strong>Email:</strong> {{ userEmail }}</div>
+                      <div *ngIf="isLoadingBalance" class="text-light">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Loading balance...
+                      </div>
+                      <div *ngIf="!isLoadingBalance" class="text-light">
+                        <strong>Balance:</strong> {{ walletBalance.toFixed(2) }} JSC
+                      </div>
+                    </div>
+                    <button 
+                      class="btn btn-light btn-sm w-100" 
+                      (click)="buyJesusCoin(100); $event.stopPropagation()"
+                      [disabled]="isProcessingStripe || !userEmail">
+                      <span *ngIf="!isProcessingStripe">BUY 100 JSC</span>
+                      <span *ngIf="isProcessingStripe">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Processing...
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -110,7 +144,7 @@
                 </h5>
               </div>
               <div class="card-body">
-                <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm">
+                <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm" autocomplete="off">
                   <div class="input-group input-group-lg">
                     <span class="input-group-text" *ngIf="selectedServiceType">
                       <span *ngIf="selectedServiceType === 'movie'">🎬</span>
@@ -127,6 +161,7 @@
                       [(ngModel)]="userInput"
                       name="userInput"
                       required
+                      autocomplete="off"
                       [disabled]="isProcessing"
                       (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()"
                       (input)="selectedServiceType = detectServiceType(userInput) || selectedServiceType">

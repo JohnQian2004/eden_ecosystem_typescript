@@ -3,7 +3,7 @@
     <h5 class="mb-0">📖 Ledger - All Eden Bookings</h5>
     <div *ngIf="cashier" class="cashier-status">
       <span class="badge bg-light text-dark">
-        💰 {{ cashier.name }}: {{ cashier.processedCount }} processed | Total: {{ cashier.totalProcessed.toFixed(2) }} USDC
+        💰 {{ cashier.name }}: {{ cashier.processedCount }} processed | Total: {{ cashier.totalProcessed.toFixed(2) }} JSC
       </span>
     </div>
   </div>
@@ -40,7 +40,7 @@
             <td>{{ entry.merchant }}</td>
             <td><small class="text-muted">{{ entry.providerUuid }}</small></td>
             <td>{{ entry.serviceType }}</td>
-            <td><strong>{{ entry.amount.toFixed(2) }} USDC</strong></td>
+            <td><strong>{{ entry.amount.toFixed(2) }} JSC</strong></td>
             <td>{{ entry.iGasCost.toFixed(6) }}</td>
             <td>
               <span *ngIf="entry.bookingDetails?.iTax" class="text-info fw-bold">

@@ -1,0 +1,11 @@
+{
+  "walletBalances": {
+    "wallet:balance:bill.draper.auto@gmail.com": "97.30000000000001",
+    "wallet:audit:bill.draper.auto@gmail.com:1767044776781": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":100,\"previousBalance\":0,\"newBalance\":100,\"txId\":\"ec351e07-1b4e-4b14-af52-c393c7d95b3f\",\"reason\":\"Stripe payment confirmed: pi_3SjoGVP4h6MOSVxD0TuAtV8H\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SjoGVP4h6MOSVxD0TuAtV8H\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767044776781}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767044799326": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":1.5,\"previousBalance\":100,\"newBalance\":98.5,\"txId\":\"a7abb0bf-9151-4bf2-af33-69744f7e0328\",\"reason\":\"Payment to MovieCom (movie)\",\"metadata\":{\"merchant\":\"MovieCom\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767044799326}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767044799344": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.15000000000000002,\"previousBalance\":98.5,\"newBalance\":98.65,\"txId\":\"50873b93-f139-453a-838b-b12f917e1673\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":1.5,\"rebateType\":\"review\"},\"timestamp\":1767044799345}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767044895820": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":1.5,\"previousBalance\":98.65,\"newBalance\":97.15,\"txId\":\"23150d77-bcdc-4594-8ec5-82b81c570b36\",\"reason\":\"Payment to MovieCom (movie)\",\"metadata\":{\"merchant\":\"MovieCom\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767044895820}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767044895831": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.15000000000000002,\"previousBalance\":97.15,\"newBalance\":97.30000000000001,\"txId\":\"945f6624-ef78-441c-bbd4-dd4c33473c8f\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":1.5,\"rebateType\":\"review\"},\"timestamp\":1767044895831}"
+  },
+  "lastSaved": "2025-12-29T21:48:53.004Z"
+}
