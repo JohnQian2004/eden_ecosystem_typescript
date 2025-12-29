@@ -1740,11 +1740,18 @@ For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
 
 For DEX token trading queries (BUY/SELL tokens):
-- Extract tokenSymbol (e.g., "TOKENA", "TOKENB")
-- Extract baseToken (e.g., "SOL", "USDC")
+- tokenSymbol: The token being bought/sold (e.g., "TOKENA", "TOKENB", "Token A")
+  * If user says "BUY token A" or "token A", tokenSymbol = "TOKENA"
+  * If user says "SOLANA token A", tokenSymbol = "TOKENA" (token A is what's being traded)
+- baseToken: The currency used to buy/sell (e.g., "SOL", "USDC", "SOLANA")
+  * If user says "BUY with SOL" or "SOLANA token A", baseToken = "SOL" (SOL is the payment currency)
 - Extract action: "BUY" or "SELL"
 - Extract tokenAmount if specified
 - Extract maxPrice if specified (e.g., "1 Token/SOL" means price <= 1)
+
+IMPORTANT: In phrases like "BUY 2 SOLANA token A":
+- tokenSymbol = "TOKENA" (the token being bought)
+- baseToken = "SOL" (SOLANA/SOL is the currency used to buy)
 
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
 `;
@@ -2453,6 +2460,14 @@ async function formatResponseWithDeepSeek(listings: MovieListing[] | TokenListin
 }
 
 // Main LLM Resolution with ServiceRegistry architecture
+// 
+// OPTIMIZATION NOTE (v2): Currently extracts query intent twice:
+//   1. Here in resolveLLM() - extracts serviceType, filters, etc.
+//   2. Later in processChatInput() for DEX trades - re-extracts to get action/tokenAmount
+// Future optimization: Cache intent hash (e.g., hash(userInput + timestamp)) and skip 
+// re-extraction unless user confirms/modifies query. This would reduce LLM calls by ~50% 
+// for DEX trades and improve latency.
+//
 async function resolveLLM(userInput: string): Promise<LLMResponse> {
   if (MOCKED_LLM) {
     // Mock response for testing
@@ -2495,8 +2510,63 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     // Step 1: Extract query from user input using LLM
     llmCalls++;
     console.log(`🤖 [LLM] Starting query extraction for: "${userInput.substring(0, 50)}${userInput.length > 50 ? '...' : ''}"`);
-    const queryResult = await extractQueryFn(userInput);
+    let queryResult = await extractQueryFn(userInput);
     console.log(`📋 [LLM] Extracted query:`, queryResult);
+    
+    // Normalize DEX query extraction (fix common LLM mistakes)
+    if (queryResult.serviceType === "dex" && queryResult.query.filters) {
+      const filters = queryResult.query.filters;
+      const userInputLower = userInput.toLowerCase();
+      
+      // Common mistake: LLM extracts "SOLANA" as tokenSymbol when user says "SOLANA token A"
+      // Fix: If tokenSymbol looks like a base currency (SOL, SOLANA, USDC) and baseToken looks like a token (TOKENA, TOKENB),
+      //      swap them and normalize tokenSymbol to match pool format (TOKENA, TOKENB, etc.)
+      if (filters.tokenSymbol && filters.baseToken) {
+        const tokenSymbolUpper = filters.tokenSymbol.toUpperCase();
+        const baseTokenUpper = filters.baseToken.toUpperCase();
+        
+        // Check if tokenSymbol is actually a base currency
+        const baseCurrencies = ['SOL', 'SOLANA', 'USDC', 'USD', 'ETH', 'BTC'];
+        const tokenPatterns = ['TOKENA', 'TOKENB', 'TOKENC', 'TOKEND', 'TOKEN'];
+        
+        const tokenSymbolIsBaseCurrency = baseCurrencies.some(bc => tokenSymbolUpper.includes(bc));
+        const baseTokenIsToken = tokenPatterns.some(tp => baseTokenUpper.includes(tp));
+        
+        if (tokenSymbolIsBaseCurrency && baseTokenIsToken) {
+          console.log(`⚠️  [LLM] Detected swapped extraction: tokenSymbol="${filters.tokenSymbol}", baseToken="${filters.baseToken}"`);
+          console.log(`   Correcting: tokenSymbol="${filters.baseToken}", baseToken="${filters.tokenSymbol}"`);
+          
+          // Swap them
+          const temp = filters.tokenSymbol;
+          filters.tokenSymbol = filters.baseToken;
+          filters.baseToken = temp;
+        }
+        
+        // Normalize tokenSymbol to match pool format (TOKENA, TOKENB, etc.)
+        if (filters.tokenSymbol) {
+          const tokenSymbolLower = filters.tokenSymbol.toLowerCase();
+          if (tokenSymbolLower.includes('token a') || tokenSymbolLower.includes('tokena')) {
+            filters.tokenSymbol = 'TOKENA';
+          } else if (tokenSymbolLower.includes('token b') || tokenSymbolLower.includes('tokenb')) {
+            filters.tokenSymbol = 'TOKENB';
+          } else if (tokenSymbolLower.includes('token c') || tokenSymbolLower.includes('tokenc')) {
+            filters.tokenSymbol = 'TOKENC';
+          } else if (tokenSymbolLower.includes('token d') || tokenSymbolLower.includes('tokend')) {
+            filters.tokenSymbol = 'TOKEND';
+          }
+        }
+        
+        // Normalize baseToken (SOLANA -> SOL)
+        if (filters.baseToken) {
+          const baseTokenLower = filters.baseToken.toLowerCase();
+          if (baseTokenLower.includes('solana') || baseTokenLower.includes('sol')) {
+            filters.baseToken = 'SOL';
+          }
+        }
+      }
+      
+      console.log(`📋 [LLM] Normalized query:`, queryResult);
+    }
 
     // Step 2: Query ServiceRegistry
     broadcastEvent({
@@ -2607,7 +2677,19 @@ function addLedgerEntry(
   payerId: string,
   merchantName: string, // Provider name (e.g., "AMC Theatres")
   providerUuid: string, // Service provider UUID for certificate issuance
-  bookingDetails?: { movieTitle?: string; showtime?: string; location?: string }
+  bookingDetails?: { 
+    movieTitle?: string; 
+    showtime?: string; 
+    location?: string;
+    // DEX trade details
+    tokenSymbol?: string;
+    baseToken?: string;
+    action?: 'BUY' | 'SELL';
+    tokenAmount?: number;
+    baseAmount?: number;
+    price?: number;
+    iTax?: number;
+  }
 ): LedgerEntry {
   // payerId should be the email address (same as payer)
   if (!providerUuid) {
@@ -3741,6 +3823,9 @@ async function processChatInput(input: string, email: string) {
     console.log("🌊 DEX Trade Selected:", `${tokenListing.providerName} - ${tokenListing.tokenSymbol}/${tokenListing.baseToken} at ${tokenListing.price} ${tokenListing.baseToken}/${tokenListing.tokenSymbol}`);
     
     // Extract trade details from query (re-extract to get action and tokenAmount)
+    // TODO (v2 Optimization): Cache intent hash from first extraction in resolveLLM()
+    // and reuse here instead of re-extracting. Only re-extract if user confirms/modifies query.
+    // This would reduce LLM calls and improve performance.
     let extractQueryFn: (input: string) => Promise<LLMQueryResult>;
     if (ENABLE_OPENAI) {
       extractQueryFn = extractQueryWithOpenAI;

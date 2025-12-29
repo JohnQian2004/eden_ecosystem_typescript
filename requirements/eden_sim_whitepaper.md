@@ -49,6 +49,18 @@ Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are *
 - Hold certificates + private keys
 - Provide intelligence, routing, pricing, and policing
 
+#### 2.2.1 Regular Indexers
+- General-purpose indexers for all service types
+- Handle movie bookings, content, APIs, marketplaces
+- Process transactions and maintain service registry
+
+#### 2.2.2 Token Indexers (Specialized)
+- Specialized indexers dedicated to DEX token/pool services
+- Manage token pools, liquidity, and trading operations
+- Provide DEX-specific routing and pricing intelligence
+- Each token indexer can manage multiple token pools
+- Identified by `TokenIndexer-T1`, `TokenIndexer-T2`, etc.
+
 ### 2.3 Users (Humans)
 - Google‑certified identity (email only)
 - No wallets required
@@ -73,6 +85,10 @@ Service Router (Federated)
 Indexer A —— Indexer B —— Indexer C
   |          |           |
  LocalStore  LocalStore   LocalStore
+     ↓           ↓            ↓
+TokenIndexer-T1 —— TokenIndexer-T2
+  |                    |
+DEX Pools          DEX Pools
      ↓           ↓            ↓
    Replication Bus (Redis‑style)
      ↓
@@ -109,16 +125,28 @@ Indexers replicate state, not blocks.
 - No native token
 - iGas = LLM + routing + reasoning cost
 
+### iGas Calculation
+
+iGas is calculated based on:
+- **LLM calls**: Number of LLM interactions (query extraction, response formatting)
+- **Providers queried**: Number of service providers consulted
+- **Complexity**: Confidence score and query complexity
+
+Formula:
+```
+iGas = (LLM_CALL_COST × llmCalls) + (ROUTING_COST × providersQueried) + (REASONING_COST × complexity)
+```
+
 ### iGas Redistribution
 
-| Recipient | Share |
-|---------|------|
-| ROOT CA | Governance & insurance |
-| Indexers | Compute & routing |
-| Service Providers | Quality incentive |
-| Users | Usage credit |
+| Recipient | Share | Purpose |
+|---------|------|---------|
+| ROOT CA | Governance & insurance | System maintenance, dispute resolution |
+| Indexers | Compute & routing | Infrastructure costs, replication |
+| Service Providers | Quality incentive | Reward for good service |
+| Users | Usage credit | Rebates and loyalty rewards |
 
-This creates a **positive‑sum economy**.
+This creates a **positive‑sum economy** where all participants benefit from system growth.
 
 ---
 
@@ -165,6 +193,70 @@ This replaces ratings with **economic truth**.
 - High‑frequency traders rewarded, not penalized
 
 Eden supports DEX/CEX without native tokens.
+
+### 8.1 Token Indexers & DEX Pools
+
+DEX token/pool services are provided by **specialized token indexers**:
+
+- Each token indexer manages one or more token pools
+- Pools are assigned to token indexers at initialization
+- Token indexers provide DEX-specific routing and intelligence
+- LLM routes DEX queries to appropriate token indexers
+- Example: "I want to BUY 2 SOLANA token A" → routed to TokenIndexer-T1 managing TOKENA pool
+
+### 8.2 Price Impact & Pool Growth
+
+- Each trade increases pool value by **0.001%** (price impact)
+- Pool liquidity grows organically through trading activity
+- Constant product formula (x × y = k) ensures price discovery
+- No external liquidity providers required beyond initial ROOT CA liquidity
+
+### 8.3 iTax: DEX Trading Commission
+
+iTax is a **0.0005% commission** on all DEX trades, serving as a second liquidity source.
+
+#### iTax Distribution (WIN-WIN-WIN Model)
+
+| Recipient | Share | Purpose |
+|---------|------|---------|
+| ROOT CA | 40% | Governance & liquidity growth |
+| Token Indexer | 30% | Reward for providing token pool services |
+| Trader | 30% | Rebate back to buyer/seller |
+
+This creates a **WIN-WIN-WIN** economy where:
+- ROOT CA liquidity pool grows over time
+- Token indexers are rewarded for service provision
+- Traders receive rebates, incentivizing participation
+
+#### iTax Flow Example
+
+```
+Trade Value: 1.0 SOL
+iTax (0.0005%): 0.000005 SOL
+
+Distribution:
+├─ ROOT CA: 0.000002 SOL (40%) → Added to ROOT CA liquidity pool
+├─ Indexer: 0.0000015 SOL (30%) → Reward to token indexer
+└─ Trader: 0.0000015 SOL (30%) → Rebate added to user balance
+```
+
+### 8.4 ROOT CA Liquidity Pool
+
+- Initial ROOT CA liquidity provides first liquidity source for DEX operations
+- iTax contributions continuously grow ROOT CA liquidity
+- ROOT CA liquidity acts as system-wide insurance and stability fund
+- Enables new token pools to bootstrap without external capital
+
+### 8.5 DEX Query Flow
+
+1. User query: "I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price"
+2. LLM extracts: `serviceType: "dex"`, `tokenSymbol: "TOKENA"`, `baseToken: "SOL"`, `action: "BUY"`, `tokenAmount: 2`
+3. Service Registry routes to DEX pool service providers
+4. Token indexer provides pool listings with real-time prices
+5. LLM selects best pool based on price and liquidity
+6. Trade executes with price impact and iTax calculation
+7. iTax distributed: ROOT CA (40%), Indexer (30%), Trader (30%)
+8. Pool state updated, snapshot created, streamed to indexers
 
 ---
 
@@ -460,3 +552,228 @@ It is **PKI built for intelligence systems**, not browsers.
 ---
 
 **END OF DOCUMENT**
+
+CTP-to-CTO take — you’re thinking in **systems**, not “APIs”, and that’s exactly right.
+What you described maps cleanly to **three notification semantics** that already exist in large-scale systems (payments, cloud infra, mainnet RPC). Here’s a clean, opinionated breakdown and a **final recommended architecture**.
+
+---
+
+# Eden Transaction → Service Provider Notification
+
+### (CTO-to-CTO, no fluff)
+
+## The Core Question
+
+> *Once an Eden transaction completes, how does the movie provider learn — reliably, scalably, bot-friendly, zero Web3 baggage?*
+
+You proposed **three paths**. All are valid. The key is **who owns the clock**.
+
+---
+
+## Option 1 — Indexer PUSHES snapshot (Webhook-style)
+
+**Flow**
+
+```
+User → Eden → Indexer
+Indexer → POST /provider/eden/tx
+```
+
+**Pros**
+
+* Near-real-time
+* Simple mental model
+* Easy for small providers
+
+**Cons**
+
+* Providers must expose public endpoints
+* Retry logic is painful
+* DDoS / backpressure issues
+* Doesn’t scale cleanly to bots
+
+**Verdict**
+✅ Useful
+❌ Not sufficient alone
+
+---
+
+## Option 2 — Service Provider PULLS (Polling w/ timeout)
+
+**Flow**
+
+```
+Provider → GET /eden/tx?payer=google_id
+(repeat until timeout)
+```
+
+**Pros**
+
+* Provider controls reliability
+* No inbound firewall rules
+* Very familiar to enterprise teams
+
+**Cons**
+
+* Inefficient polling
+* Latency ambiguity
+* Wasteful at scale
+
+**Verdict**
+✅ Necessary fallback
+❌ Not the backbone
+
+---
+
+## Option 3 — Indexer exposes RPC (Mainnet-style, but Web2)
+
+This is the **money idea**.
+
+**Flow**
+
+```
+Provider / Bot / Backend
+   ↓
+Indexer RPC
+   ↓
+queryTxByPayer(google_id)
+queryTxBySnapshot(snapshot_id)
+streamTxUpdates()
+```
+
+**Key Insight**
+
+> Google ID = payer address
+> Indexer = full node
+> Eden snapshot = block
+
+No chain. No tokens. No wallets.
+Just **deterministic, replayable infrastructure**.
+
+---
+
+## Why RPC Wins (CTO Reality Check)
+
+### ✅ Scales to bots
+
+* CI systems
+* Crawlers
+* Reconciliation jobs
+* Analytics engines
+
+### ✅ No trust coupling
+
+* Provider does not trust Eden
+* Provider trusts **Indexer they certified**
+* Same model as Ethereum / Solana RPC
+
+### ✅ Zero identity friction
+
+* Payer = Google-verified email hash
+* No KYC re-validation
+* No account linking
+
+### ✅ Stateless & cacheable
+
+* RPC responses can be cached
+* Snapshots are immutable
+* Perfect CDN fit
+
+---
+
+## The Correct Eden Architecture (Opinionated)
+
+**You do not choose ONE.
+You offer ALL THREE — layered.**
+
+### 1️⃣ Canonical Source
+
+> **Indexer RPC is the source of truth**
+
+```ts
+getTransactionByPayer(google_id)
+getTransactionBySnapshot(snapshot_id)
+getLatestSnapshot(provider_id)
+```
+
+---
+
+### 2️⃣ Optional Push (Optimization)
+
+> Providers *may* register a webhook
+
+```ts
+POST /eden/webhook/tx-finalized
+```
+
+Best effort only. No guarantees.
+
+---
+
+### 3️⃣ Pull / Poll (Safety Net)
+
+> Providers can always poll until timeout
+
+```ts
+GET /eden/tx/status?payer=google_id
+```
+
+---
+
+## How This Looks to a Movie Provider (Realistic)
+
+```mermaid
+sequenceDiagram
+    User->>Eden: Buy Movie
+    Eden->>Indexer: Finalize Tx
+    Indexer-->>Indexer: Snapshot Created
+
+    alt Webhook Enabled
+        Indexer->>Provider: POST Snapshot
+    end
+
+    Provider->>Indexer: RPC queryTxByPayer()
+    Indexer-->>Provider: Tx Confirmed
+
+    Provider->>Provider: Grant Access
+```
+
+---
+
+## Why This Beats Web3 (Bluntly)
+
+| Web3             | Eden                |
+| ---------------- | ------------------- |
+| Wallet UX hell   | Google ID           |
+| Chain congestion | Local RPC           |
+| Token gas        | LLM token fee       |
+| Global consensus | Certified indexers  |
+| Hard forks       | Versioned snapshots |
+
+---
+
+## Final CTO Verdict
+
+> **Indexer RPC is the backbone**
+> Push and Pull are conveniences
+> Google ID as payer is the killer simplification
+
+This design:
+
+* Scales like mainnet
+* Feels like cloud
+* Avoids Web3 nonsense
+* Is bot-native
+* Is certifiable via ENCERT
+
+You’re not building “payments”.
+You’re building **transaction truth as a service**.
+
+If you want next:
+
+* RPC method spec (OpenAPI)
+* Snapshot schema
+* Bot rate-limit model
+* Provider onboarding flow
+
+Just say it.

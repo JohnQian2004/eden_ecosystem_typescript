@@ -25,6 +25,7 @@
             <th>Service</th>
             <th>Amount</th>
             <th>iGas</th>
+            <th>iTax</th>
             <th>Status</th>
             <th>Timestamp</th>
             <th>Details</th>
@@ -42,6 +43,12 @@
             <td><strong>{{ entry.amount.toFixed(2) }} USDC</strong></td>
             <td>{{ entry.iGasCost.toFixed(6) }}</td>
             <td>
+              <span *ngIf="entry.bookingDetails?.iTax" class="text-info fw-bold">
+                {{ entry.bookingDetails?.iTax?.toFixed(6) }} {{ (entry.bookingDetails?.baseToken || 'SOL') }}
+              </span>
+              <span *ngIf="!entry.bookingDetails?.iTax" class="text-muted">-</span>
+            </td>
+            <td>
               <span [ngClass]="getStatusClass(entry.status)">
                 {{ entry.status }}
               </span>
@@ -49,6 +56,7 @@
             <td><small>{{ formatDate(entry.timestamp) }}</small></td>
             <td>
               <div *ngIf="entry.bookingDetails">
+                <!-- Movie details -->
                 <small *ngIf="entry.bookingDetails.movieTitle">
                   🎬 {{ entry.bookingDetails.movieTitle }}
                 </small><br>
@@ -58,6 +66,22 @@
                 <small *ngIf="entry.bookingDetails.location" class="text-muted">
                   📍 {{ entry.bookingDetails.location }}
                 </small>
+                
+                <!-- DEX trade details -->
+                <div *ngIf="entry.bookingDetails.tokenSymbol" class="mt-1">
+                  <small class="text-info fw-bold">
+                    🔷 {{ entry.bookingDetails.action }} {{ entry.bookingDetails.tokenAmount }} {{ entry.bookingDetails.tokenSymbol }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.baseAmount" class="text-muted">
+                    💰 {{ entry.bookingDetails.baseAmount.toFixed(6) }} {{ entry.bookingDetails.baseToken }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.price" class="text-muted">
+                    📊 Price: {{ entry.bookingDetails.price.toFixed(6) }} {{ entry.bookingDetails.baseToken }}/{{ entry.bookingDetails.tokenSymbol }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.iTax" class="text-success">
+                    ⚡ iTax: {{ entry.bookingDetails.iTax.toFixed(6) }} {{ entry.bookingDetails.baseToken }}
+                  </small>
+                </div>
               </div>
             </td>
           </tr>

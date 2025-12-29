@@ -21,6 +21,14 @@ interface LedgerEntry {
     movieTitle?: string;
     showtime?: string;
     location?: string;
+    // DEX trade details
+    tokenSymbol?: string;
+    baseToken?: string;
+    action?: 'BUY' | 'SELL';
+    tokenAmount?: number;
+    baseAmount?: number;
+    price?: number;
+    iTax?: number;
   };
 }
 
