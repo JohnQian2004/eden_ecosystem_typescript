@@ -20,6 +20,7 @@ import * as path from "path";
 import * as url from "url";
 import { EventEmitter } from "events";
 import { WebSocketServer, WebSocket } from "ws";
+import { EdenPKI, type EdenCertificate, type EdenIdentity, type RevocationEvent, type Capability } from "./EdenPKI";
 
 // CLI Flags
 const args = process.argv.slice(2);
@@ -40,6 +41,9 @@ interface IndexerConfig {
   name: string;
   stream: string;
   active: boolean;
+  uuid: string;
+  certificate?: EdenCertificate;
+  pki?: EdenPKI; // Store PKI instance for signing revocations
 }
 
 const INDEXERS: IndexerConfig[] = [];
@@ -49,9 +53,22 @@ for (let i = 0; i < NUM_INDEXERS; i++) {
     id: indexerId,
     name: `Indexer-${indexerId}`,
     stream: `eden:indexer:${indexerId}`,
-    active: true
+    active: true,
+    uuid: `eden:indexer:${crypto.randomUUID()}`
   });
 }
+
+// ROOT CA Identity and PKI
+const ROOT_CA_UUID = "eden:root:ca:00000000-0000-0000-0000-000000000001";
+let ROOT_CA: EdenPKI | null = null;
+let ROOT_CA_IDENTITY: EdenIdentity | null = null;
+
+// Certificate Registry
+const CERTIFICATE_REGISTRY = new Map<string, EdenCertificate>(); // UUID -> Certificate
+const REVOCATION_REGISTRY = new Map<string, RevocationEvent>(); // UUID -> Revocation Event
+
+// ENCERT v1 Redis Revocation Stream
+const REVOCATION_STREAM = "eden:encert:revocations";
 
 // HTTP Server for serving Angular and API
 const httpServer = http.createServer();
@@ -277,10 +294,150 @@ httpServer.on("request", async (req, res) => {
         id: i.id,
         name: i.name,
         stream: i.stream,
-        active: i.active
+        active: i.active,
+        uuid: i.uuid,
+        hasCertificate: !!i.certificate
       })),
       timestamp: Date.now()
     }));
+    return;
+  }
+
+  if (pathname === "/api/certificates" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/certificates - Sending certificate list`);
+    const parsedUrl = url.parse(req.url || "/", true);
+    const uuid = parsedUrl.query.uuid as string | undefined;
+    
+    if (uuid) {
+      const cert = getCertificate(uuid);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        certificate: cert || null,
+        isValid: cert ? validateCertificate(uuid) : false,
+        timestamp: Date.now()
+      }));
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        certificates: getAllCertificates(),
+        revoked: getRevokedCertificates(),
+        total: CERTIFICATE_REGISTRY.size,
+        timestamp: Date.now()
+      }));
+    }
+    return;
+  }
+
+  if (pathname === "/api/revoke" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /api/revoke - Revoking certificate`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { uuid, reason, revoked_type, severity } = JSON.parse(body);
+        if (!uuid || !reason) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "uuid and reason required" }));
+          return;
+        }
+        
+        // Determine revoked_type if not provided
+        let revokedType: "indexer" | "service" | "provider" = revoked_type || "provider";
+        if (!revokedType) {
+          // Auto-detect based on UUID pattern
+          if (uuid.includes("indexer")) {
+            revokedType = "indexer";
+          } else if (uuid.includes("service")) {
+            revokedType = "service";
+          } else {
+            revokedType = "provider";
+          }
+        }
+        
+        const revocation = revokeCertificate(
+          uuid, 
+          reason, 
+          revokedType,
+          severity || "hard"
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          revocation,
+          timestamp: Date.now()
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/reinstate" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /api/reinstate - Reinstating certificate`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { uuid } = JSON.parse(body);
+        if (!uuid) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "uuid required" }));
+          return;
+        }
+        
+        // Remove from revocation registry (reinstatement)
+        const wasRevoked = REVOCATION_REGISTRY.has(uuid);
+        if (wasRevoked) {
+          REVOCATION_REGISTRY.delete(uuid);
+          
+          // Reactivate entity
+          const indexer = INDEXERS.find(i => i.uuid === uuid);
+          if (indexer) {
+            indexer.active = true;
+            // Note: Certificate would need to be re-issued in a real system
+          }
+          
+          const provider = SERVICE_REGISTRY.find(p => p.uuid === uuid);
+          if (provider) {
+            provider.status = 'active'; // Reactivate provider in SERVICE_REGISTRY
+            // Note: Certificate would need to be re-issued in a real system
+            console.log(`   Service provider ${provider.name} (${provider.id}) reactivated in SERVICE_REGISTRY`);
+          }
+          
+          console.log(`✅ Certificate reinstated: ${uuid}`);
+          
+          broadcastEvent({
+            type: "certificate_reinstated",
+            component: "root-ca",
+            message: `Certificate reinstated: ${uuid}`,
+            timestamp: Date.now(),
+            data: { uuid }
+          });
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: true,
+            message: "Certificate reinstated",
+            uuid,
+            timestamp: Date.now()
+          }));
+        } else {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Certificate not found in revocation registry" }));
+        }
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
     return;
   }
 
@@ -388,6 +545,8 @@ class InMemoryRedisServer extends EventEmitter {
   private data: Map<string, any> = new Map();
   private streams: Map<string, Array<{ id: string; fields: Record<string, string> }>> = new Map();
   private streamCounters: Map<string, number> = new Map();
+  private consumerGroups: Map<string, Map<string, string>> = new Map(); // stream -> group -> lastId
+  private pendingMessages: Map<string, Map<string, Array<{ id: string; fields: Record<string, string> }>>> = new Map(); // stream -> group -> messages
   private isConnected = false;
 
   async connect(): Promise<void> {
@@ -502,6 +661,108 @@ class InMemoryRedisServer extends EventEmitter {
     return results.length > 0 ? results : null;
   }
 
+  async xGroupCreate(
+    streamKey: string,
+    groupName: string,
+    id: string,
+    options?: { MKSTREAM?: boolean }
+  ): Promise<void> {
+    if (!this.streams.has(streamKey)) {
+      if (options?.MKSTREAM) {
+        this.streams.set(streamKey, []);
+        this.streamCounters.set(streamKey, 0);
+      } else {
+        throw new Error("NOGROUP");
+      }
+    }
+    
+    if (!this.consumerGroups.has(streamKey)) {
+      this.consumerGroups.set(streamKey, new Map());
+    }
+    
+    const groups = this.consumerGroups.get(streamKey)!;
+    if (groups.has(groupName)) {
+      throw new Error("BUSYGROUP");
+    }
+    
+    groups.set(groupName, id);
+    this.pendingMessages.set(`${streamKey}:${groupName}`, new Map());
+  }
+
+  async xReadGroup(
+    groupName: string,
+    consumerName: string,
+    streams: Array<{ key: string; id: string }>,
+    options?: { COUNT?: number; BLOCK?: number }
+  ): Promise<Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> | null> {
+    const results: Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> = [];
+    
+    for (const streamReq of streams) {
+      const stream = this.streams.get(streamReq.key);
+      if (!stream || stream.length === 0) {
+        if (options?.BLOCK) {
+          await new Promise(resolve => setTimeout(resolve, Math.min(options.BLOCK || 0, 1000)));
+          return null;
+        }
+        continue;
+      }
+      
+      // Get consumer group last ID
+      const groups = this.consumerGroups.get(streamReq.key);
+      if (!groups || !groups.has(groupName)) {
+        throw new Error("NOGROUP");
+      }
+      
+      const lastId = groups.get(groupName) || "0";
+      const messages: Array<{ id: string; message: Record<string, string> }> = [];
+      
+      let startIndex = 0;
+      if (streamReq.id === ">") {
+        // Read new messages only
+        const lastIdIndex = stream.findIndex(msg => msg.id === lastId);
+        startIndex = lastIdIndex === -1 ? stream.length : lastIdIndex + 1;
+      } else {
+        startIndex = stream.findIndex(msg => msg.id === streamReq.id);
+        if (startIndex === -1) startIndex = 0;
+        else startIndex += 1;
+      }
+      
+      const count = options?.COUNT || stream.length;
+      const endIndex = Math.min(startIndex + count, stream.length);
+      
+      for (let i = startIndex; i < endIndex; i++) {
+        messages.push({
+          id: stream[i].id,
+          message: { ...stream[i].fields }
+        });
+      }
+      
+      if (messages.length > 0) {
+        results.push({
+          name: streamReq.key,
+          messages
+        });
+      }
+    }
+    
+    return results.length > 0 ? results : null;
+  }
+
+  async xAck(streamKey: string, groupName: string, ...ids: string[]): Promise<number> {
+    const groups = this.consumerGroups.get(streamKey);
+    if (!groups || !groups.has(groupName)) {
+      return 0;
+    }
+    
+    // Update last processed ID
+    if (ids.length > 0) {
+      const lastId = ids[ids.length - 1];
+      groups.set(groupName, lastId);
+    }
+    
+    return ids.length;
+  }
+
   async quit(): Promise<void> {
     this.isConnected = false;
     this.emit("end");
@@ -609,6 +870,7 @@ type ServiceProvider = {
   reputation: number;
   indexerId: string;
   apiEndpoint?: string; // Optional API endpoint for the provider
+  status?: 'active' | 'revoked' | 'suspended'; // Provider status
 };
 
 type MovieListing = {
@@ -682,7 +944,11 @@ const CASHIER: Cashier = {
 };
 
 // Service Registry (Routing only - no price data)
-const SERVICE_REGISTRY: ServiceProvider[] = [
+interface ServiceProviderWithCert extends ServiceProvider {
+  certificate?: EdenCertificate;
+}
+
+const SERVICE_REGISTRY: ServiceProviderWithCert[] = [
   {
     id: "amc-001",
     uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
@@ -838,12 +1104,27 @@ Return JSON with: message (string), listings (array of filtered listings), selec
 
 function queryServiceRegistry(query: ServiceRegistryQuery): ServiceProvider[] {
   return SERVICE_REGISTRY.filter((provider) => {
+    // Filter out revoked providers
+    if (REVOCATION_REGISTRY.has(provider.uuid)) {
+      return false;
+    }
+    
+    // Filter by status if set
+    if (provider.status === 'revoked' || provider.status === 'suspended') {
+      return false;
+    }
+    
+    // Filter by service type
     if (provider.serviceType !== query.serviceType) return false;
+    
+    // Filter by location if provided
     if (query.filters?.location && !provider.location.toLowerCase().includes(query.filters.location.toLowerCase())) {
       return false;
     }
+    
     // Note: maxPrice filter is applied after querying provider APIs (prices come from APIs, not registry)
     if (query.filters?.minReputation && provider.reputation < query.filters.minReputation) return false;
+    
     return true;
   });
 }
@@ -1348,6 +1629,562 @@ function getCashierStatus(): Cashier {
   return { ...CASHIER };
 }
 
+// ROOT CA Certificate Management Functions
+
+function initializeRootCA(): void {
+  if (!ROOT_CA) {
+    ROOT_CA = new EdenPKI(ROOT_CA_UUID);
+    ROOT_CA_IDENTITY = ROOT_CA.identity;
+    console.log(`⚖️  ROOT CA initialized: ${ROOT_CA_UUID}`);
+    console.log(`   Public Key: ${ROOT_CA_IDENTITY.publicKey.substring(0, 50)}...`);
+    
+    broadcastEvent({
+      type: "root_ca_initialized",
+      component: "root-ca",
+      message: "ROOT CA initialized and ready",
+      timestamp: Date.now(),
+      data: {
+        uuid: ROOT_CA_UUID,
+        publicKey: ROOT_CA_IDENTITY.publicKey
+      }
+    });
+  }
+}
+
+function issueIndexerCertificate(indexer: IndexerConfig): EdenCertificate {
+  if (!ROOT_CA) {
+    throw new Error("ROOT CA not initialized");
+  }
+  
+  const cert = ROOT_CA.issueCertificate({
+    subject: indexer.uuid,
+    capabilities: ["INDEXER", "ISSUE_CERT"],
+    constraints: {
+      indexerId: indexer.id,
+      indexerName: indexer.name,
+      stream: indexer.stream
+    },
+    ttlSeconds: 365 * 24 * 60 * 60 // 1 year
+  });
+  
+  CERTIFICATE_REGISTRY.set(indexer.uuid, cert);
+  indexer.certificate = cert;
+  
+  console.log(`📜 Certificate issued to ${indexer.name}: ${indexer.uuid}`);
+  console.log(`   Capabilities: ${cert.capabilities.join(", ")}`);
+  console.log(`   Expires: ${new Date(cert.expiresAt).toISOString()}`);
+  
+  broadcastEvent({
+    type: "certificate_issued",
+    component: "root-ca",
+    message: `Certificate issued to ${indexer.name}`,
+    timestamp: Date.now(),
+    data: {
+      subject: cert.subject,
+      issuer: cert.issuer,
+      capabilities: cert.capabilities,
+      expiresAt: cert.expiresAt
+    }
+  });
+  
+  return cert;
+}
+
+function issueServiceProviderCertificate(provider: ServiceProviderWithCert): EdenCertificate {
+  if (!ROOT_CA) {
+    throw new Error("ROOT CA not initialized");
+  }
+  
+  const cert = ROOT_CA.issueCertificate({
+    subject: provider.uuid,
+    capabilities: ["SERVICE_PROVIDER", "PRICE_QUOTE", "RECEIVE_PAYMENT"],
+    constraints: {
+      providerId: provider.id,
+      providerName: provider.name,
+      serviceType: provider.serviceType,
+      location: provider.location,
+      bond: provider.bond,
+      reputation: provider.reputation
+    },
+    ttlSeconds: 90 * 24 * 60 * 60 // 90 days
+  });
+  
+  CERTIFICATE_REGISTRY.set(provider.uuid, cert);
+  provider.certificate = cert;
+  
+  console.log(`📜 Certificate issued to ${provider.name}: ${provider.uuid}`);
+  console.log(`   Capabilities: ${cert.capabilities.join(", ")}`);
+  
+  broadcastEvent({
+    type: "certificate_issued",
+    component: "root-ca",
+    message: `Certificate issued to ${provider.name}`,
+    timestamp: Date.now(),
+    data: {
+      subject: cert.subject,
+      issuer: cert.issuer,
+      capabilities: cert.capabilities,
+      expiresAt: cert.expiresAt
+    }
+  });
+  
+  return cert;
+}
+
+function revokeCertificate(
+  uuid: string, 
+  reason: string, 
+  revokedType: "indexer" | "service" | "provider" = "provider",
+  severity: "soft" | "hard" = "hard",
+  metadata?: Record<string, any>
+): RevocationEvent {
+  if (!ROOT_CA) {
+    throw new Error("ROOT CA not initialized");
+  }
+  
+  // Get certificate hash if available
+  const cert = CERTIFICATE_REGISTRY.get(uuid);
+  const certHash = cert ? `sha256:${crypto.createHash('sha256').update(JSON.stringify(cert)).digest('hex')}` : undefined;
+  
+  // Create revocation event according to ENCERT v1 spec
+  const revocation = ROOT_CA.revokeIdentity(
+    uuid,
+    revokedType,
+    reason,
+    Date.now(), // effective_at (immediate)
+    certHash,
+    severity,
+    metadata
+  );
+  
+  // Store in local registry
+  REVOCATION_REGISTRY.set(uuid, revocation);
+  
+  // Publish to Redis Stream (ENCERT v1 spec)
+  publishRevocationToStream(revocation).catch(err => {
+    console.error(`❌ Failed to publish revocation to stream:`, err);
+  });
+  
+  // Remove certificate from registry
+  CERTIFICATE_REGISTRY.delete(uuid);
+  
+  // Mark indexer or provider as inactive/revoked
+  const indexer = INDEXERS.find(i => i.uuid === uuid);
+  if (indexer) {
+    indexer.active = false;
+    indexer.certificate = undefined;
+    console.log(`   Indexer ${indexer.name} marked as inactive`);
+  }
+  
+  const provider = SERVICE_REGISTRY.find(p => p.uuid === uuid);
+  if (provider) {
+    provider.certificate = undefined;
+    provider.status = 'revoked'; // Mark provider as revoked in SERVICE_REGISTRY
+    console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked`);
+    console.log(`   Provider will be filtered out from service queries`);
+  }
+  
+  console.log(`🚫 Certificate revoked: ${uuid}`);
+  console.log(`   Type: ${revokedType}`);
+  console.log(`   Reason: ${reason}`);
+  console.log(`   Severity: ${severity}`);
+  
+  broadcastEvent({
+    type: "certificate_revoked",
+    component: "root-ca",
+    message: `Certificate revoked: ${uuid}`,
+    timestamp: Date.now(),
+    data: {
+      revoked_uuid: uuid,
+      revoked_type: revokedType,
+      reason: reason,
+      issuer_uuid: ROOT_CA_UUID,
+      severity: severity
+    }
+  });
+  
+  return revocation;
+}
+
+// Allow indexers to revoke certificates they issued
+function revokeCertificateByIndexer(
+  indexerId: string,
+  revokedUuid: string,
+  reason: string,
+  revokedType: "indexer" | "service" | "provider" = "service",
+  severity: "soft" | "hard" = "hard",
+  metadata?: Record<string, any>
+): RevocationEvent {
+  const indexer = INDEXERS.find(i => i.id === indexerId || i.uuid === indexerId);
+  if (!indexer || !indexer.pki) {
+    throw new Error(`Indexer not found or PKI not initialized: ${indexerId}`);
+  }
+  
+  // Verify indexer has INDEXER capability
+  const indexerCert = CERTIFICATE_REGISTRY.get(indexer.uuid);
+  if (!indexerCert || !indexerCert.capabilities.includes("INDEXER")) {
+    throw new Error(`Indexer ${indexerId} does not have INDEXER capability`);
+  }
+  
+  // Verify indexer has authority to revoke this entity
+  const testRevocation: RevocationEvent = {
+    revoked_uuid: revokedUuid,
+    revoked_type: revokedType,
+    issuer_uuid: indexer.uuid,
+    reason: reason,
+    issued_at: Date.now(),
+    effective_at: Date.now(),
+    signature: "", // Will be set below
+  };
+  
+  if (!verifyRevocationAuthority(testRevocation)) {
+    throw new Error(`Indexer ${indexerId} lacks authority to revoke ${revokedUuid}`);
+  }
+  
+  // Get certificate hash if available
+  const cert = CERTIFICATE_REGISTRY.get(revokedUuid);
+  const certHash = cert ? `sha256:${crypto.createHash('sha256').update(JSON.stringify(cert)).digest('hex')}` : undefined;
+  
+  // Create revocation event signed by indexer
+  const revocation = indexer.pki.revokeIdentity(
+    revokedUuid,
+    revokedType,
+    reason,
+    Date.now(), // effective_at (immediate)
+    certHash,
+    severity,
+    metadata
+  );
+  
+  // Store in local registry
+  REVOCATION_REGISTRY.set(revokedUuid, revocation);
+  
+  // Publish to Redis Stream (ENCERT v1 spec)
+  publishRevocationToStream(revocation).catch(err => {
+    console.error(`❌ Failed to publish revocation to stream:`, err);
+  });
+  
+  // Remove certificate from registry
+  CERTIFICATE_REGISTRY.delete(revokedUuid);
+  
+  // Mark provider as revoked in SERVICE_REGISTRY
+  const provider = SERVICE_REGISTRY.find(p => p.uuid === revokedUuid);
+  if (provider) {
+    provider.certificate = undefined;
+    provider.status = 'revoked';
+    console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in SERVICE_REGISTRY`);
+  }
+  
+  console.log(`🚫 [${indexer.name}] Certificate revoked: ${revokedUuid}`);
+  console.log(`   Type: ${revokedType}`);
+  console.log(`   Reason: ${reason}`);
+  console.log(`   Severity: ${severity}`);
+  
+  broadcastEvent({
+    type: "certificate_revoked",
+    component: indexer.name.toLowerCase().replace(/\s+/g, '-'),
+    message: `Certificate revoked by ${indexer.name}: ${revokedUuid}`,
+    timestamp: Date.now(),
+    data: {
+      revoked_uuid: revokedUuid,
+      revoked_type: revokedType,
+      reason: reason,
+      issuer_uuid: indexer.uuid,
+      severity: severity
+    }
+  });
+  
+  return revocation;
+}
+
+// Publish revocation event to Redis Stream (ENCERT v1 spec)
+async function publishRevocationToStream(revocation: RevocationEvent): Promise<void> {
+  try {
+    const streamFields: Record<string, string> = {
+      revoked_uuid: revocation.revoked_uuid,
+      revoked_type: revocation.revoked_type,
+      issuer_uuid: revocation.issuer_uuid,
+      reason: revocation.reason,
+      issued_at: revocation.issued_at.toString(),
+      effective_at: revocation.effective_at.toString(),
+      signature: revocation.signature,
+    };
+    
+    if (revocation.cert_hash) {
+      streamFields.cert_hash = revocation.cert_hash;
+    }
+    
+    if (revocation.severity) {
+      streamFields.severity = revocation.severity;
+    }
+    
+    if (revocation.metadata) {
+      streamFields.metadata = JSON.stringify(revocation.metadata);
+    }
+    
+    // Add to Redis Stream
+    const streamId = await redis.xAdd(REVOCATION_STREAM, "*", streamFields);
+    console.log(`📤 Published revocation to stream: ${streamId}`);
+    
+    broadcastEvent({
+      type: "revocation_published",
+      component: "root-ca",
+      message: `Revocation published to stream`,
+      timestamp: Date.now(),
+      data: { streamId, revocation }
+    });
+  } catch (err: any) {
+    console.error(`❌ Failed to publish revocation to Redis stream:`, err);
+    throw err;
+  }
+}
+
+function validateCertificate(uuid: string): boolean {
+  const cert = CERTIFICATE_REGISTRY.get(uuid);
+  if (!cert) {
+    return false;
+  }
+  
+  // Check if revoked
+  if (REVOCATION_REGISTRY.has(uuid)) {
+    return false;
+  }
+  
+  // Validate certificate signature
+  if (!ROOT_CA_IDENTITY) {
+    return false;
+  }
+  
+  return EdenPKI.validateCertificate(cert, ROOT_CA_IDENTITY.publicKey);
+}
+
+function getCertificate(uuid: string): EdenCertificate | undefined {
+  return CERTIFICATE_REGISTRY.get(uuid);
+}
+
+function getAllCertificates(): EdenCertificate[] {
+  return Array.from(CERTIFICATE_REGISTRY.values());
+}
+
+function getRevokedCertificates(): RevocationEvent[] {
+  return Array.from(REVOCATION_REGISTRY.values());
+}
+
+// ENCERT v1 Redis Revocation Stream Functions
+
+// Initialize revocation stream consumer groups for each indexer
+async function initializeRevocationConsumers(): Promise<void> {
+  try {
+    for (const indexer of INDEXERS) {
+      if (indexer.active) {
+        const consumerGroup = `indexer-${indexer.id}`;
+        try {
+          // Create consumer group (MKSTREAM creates stream if it doesn't exist)
+          await redis.xGroupCreate(REVOCATION_STREAM, consumerGroup, "0", { MKSTREAM: true });
+          console.log(`✅ Created revocation consumer group: ${consumerGroup}`);
+        } catch (err: any) {
+          // Group might already exist, which is fine
+          if (!err.message?.includes("BUSYGROUP")) {
+            console.warn(`⚠️  Failed to create consumer group ${consumerGroup}:`, err.message);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error(`❌ Failed to initialize revocation consumers:`, err);
+  }
+}
+
+// Process revocation events from Redis Stream (ENCERT v1 spec)
+async function processRevocationStream(indexerName: string, indexerId: string): Promise<void> {
+  const consumerGroup = `indexer-${indexerId}`;
+  const consumerName = `${indexerName}-consumer`;
+  
+  try {
+    while (true) {
+      try {
+        // Read from stream with consumer group
+        const messages = await redis.xReadGroup(
+          consumerGroup,
+          consumerName,
+          [
+            {
+              key: REVOCATION_STREAM,
+              id: ">", // Read new messages
+            },
+          ],
+          {
+            COUNT: 10,
+            BLOCK: 1000, // Block for 1 second
+          }
+        );
+        
+        if (messages && messages.length > 0) {
+          for (const stream of messages) {
+            for (const message of stream.messages) {
+              await processRevocationMessage(message, indexerName);
+              
+              // Acknowledge message
+              await redis.xAck(REVOCATION_STREAM, consumerGroup, message.id);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.message?.includes("NOGROUP")) {
+          // Consumer group doesn't exist, try to create it
+          try {
+            await redis.xGroupCreate(REVOCATION_STREAM, consumerGroup, "0", { MKSTREAM: true });
+            console.log(`✅ Created consumer group ${consumerGroup} for ${indexerName}`);
+          } catch (createErr: any) {
+            console.error(`❌ Failed to create consumer group:`, createErr);
+          }
+        } else {
+          console.error(`❌ Error reading revocation stream:`, err);
+        }
+      }
+      
+      // Yield to event loop
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  } catch (err: any) {
+    console.error(`❌ Revocation stream processor error for ${indexerName}:`, err);
+  }
+}
+
+// Process a single revocation message
+async function processRevocationMessage(message: any, indexerName: string): Promise<void> {
+  try {
+    const fields = message.message;
+    
+    // Parse revocation event from stream fields
+    const revocation: RevocationEvent = {
+      revoked_uuid: fields.revoked_uuid,
+      revoked_type: fields.revoked_type as "indexer" | "service" | "provider",
+      issuer_uuid: fields.issuer_uuid,
+      reason: fields.reason,
+      issued_at: parseInt(fields.issued_at),
+      effective_at: parseInt(fields.effective_at),
+      signature: fields.signature,
+      cert_hash: fields.cert_hash,
+      severity: fields.severity as "soft" | "hard" | undefined,
+      metadata: fields.metadata ? JSON.parse(fields.metadata) : undefined,
+    };
+    
+    // Verify issuer certificate exists
+    const issuerCert = CERTIFICATE_REGISTRY.get(revocation.issuer_uuid);
+    if (!issuerCert) {
+      console.warn(`⚠️  Cannot verify revocation: issuer certificate not found for ${revocation.issuer_uuid}`);
+      return;
+    }
+    
+    // Verify issuer has authority (ROOT CA can revoke anything, Indexers can revoke services they certified)
+    const hasAuthority = verifyRevocationAuthority(revocation);
+    if (!hasAuthority) {
+      console.warn(`⚠️  Revocation rejected: issuer ${revocation.issuer_uuid} lacks authority to revoke ${revocation.revoked_uuid}`);
+      return;
+    }
+    
+    // Get issuer's public key for signature verification
+    let issuerPublicKey: string;
+    if (revocation.issuer_uuid === ROOT_CA_UUID) {
+      if (!ROOT_CA_IDENTITY) {
+        console.warn(`⚠️  ROOT CA identity not initialized`);
+        return;
+      }
+      issuerPublicKey = ROOT_CA_IDENTITY.publicKey;
+    } else {
+      // For indexers, get their public key from their PKI instance
+      const issuerIndexer = INDEXERS.find(i => i.uuid === revocation.issuer_uuid);
+      if (issuerIndexer && issuerIndexer.pki) {
+        issuerPublicKey = issuerIndexer.pki.identity.publicKey;
+      } else {
+        console.warn(`⚠️  Cannot verify indexer revocation: indexer PKI not found for ${revocation.issuer_uuid}`);
+        return;
+      }
+    }
+    
+    // Verify signature
+    const isValid = EdenPKI.validateRevocation(revocation, issuerPublicKey);
+    if (!isValid) {
+      console.warn(`⚠️  Revocation signature invalid for ${revocation.revoked_uuid}`);
+      return;
+    }
+    
+    // Apply revocation idempotently
+    const now = Date.now();
+    if (now >= revocation.effective_at) {
+      REVOCATION_REGISTRY.set(revocation.revoked_uuid, revocation);
+      
+      // Mark entity as inactive
+      const indexer = INDEXERS.find(i => i.uuid === revocation.revoked_uuid);
+      if (indexer) {
+        indexer.active = false;
+        indexer.certificate = undefined;
+      }
+      
+      const provider = SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
+      if (provider) {
+        provider.certificate = undefined;
+        provider.status = 'revoked';
+        console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in SERVICE_REGISTRY`);
+      }
+      
+      console.log(`🚫 [${indexerName}] Applied revocation: ${revocation.revoked_uuid}`);
+      console.log(`   Reason: ${revocation.reason}`);
+      
+      broadcastEvent({
+        type: "revocation_applied",
+        component: indexerName,
+        message: `Revocation applied: ${revocation.revoked_uuid}`,
+        timestamp: Date.now(),
+        data: { revocation }
+      });
+    } else {
+      console.log(`⏳ [${indexerName}] Revocation scheduled for future: ${revocation.revoked_uuid}`);
+    }
+  } catch (err: any) {
+    console.error(`❌ Failed to process revocation message:`, err);
+  }
+}
+
+// Verify revocation authority according to ENCERT v1 spec
+function verifyRevocationAuthority(revocation: RevocationEvent): boolean {
+  // ROOT CA can revoke anything
+  if (revocation.issuer_uuid === ROOT_CA_UUID) {
+    return true;
+  }
+  
+  // Indexers can only revoke services they certified
+  const issuerIndexer = INDEXERS.find(i => i.uuid === revocation.issuer_uuid);
+  if (issuerIndexer && revocation.revoked_type === "service") {
+    // Verify issuer has INDEXER capability
+    const issuerCert = CERTIFICATE_REGISTRY.get(revocation.issuer_uuid);
+    if (!issuerCert || !issuerCert.capabilities.includes("INDEXER")) {
+      return false;
+    }
+    
+    // Check if issuer certified this service provider
+    // This is determined by checking if the service provider's indexerId matches the issuer's indexerId
+    const revokedProvider = SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
+    if (revokedProvider) {
+      // Check if the provider's indexerId matches the issuer's indexerId
+      // This means the indexer certified this provider
+      if (revokedProvider.indexerId === `indexer-${issuerIndexer.id.toLowerCase()}` || 
+          revokedProvider.indexerId === issuerIndexer.id) {
+        return true;
+      }
+      
+      // Also check certificate constraints to see if issuer certified this provider
+      const providerCert = CERTIFICATE_REGISTRY.get(revocation.revoked_uuid);
+      if (providerCert && providerCert.issuer === revocation.issuer_uuid) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 // Snapshot Engine
 
 function createSnapshot(userEmail: string, amount: number, providerId: string): TransactionSnapshot {
@@ -1615,6 +2452,46 @@ async function processChatInput(input: string, email: string) {
   } else {
     console.log(`✅ Found provider UUID: ${providerUuid} for provider: ${selectedListing.providerName} (${selectedListing.providerId})`);
   }
+  
+  // Validate service provider certificate
+  if (!provider) {
+    throw new Error(`Provider not found for providerId: "${selectedListing.providerId}"`);
+  }
+  
+  console.log("🔐 Validating service provider certificate...");
+  const isCertValid = validateCertificate(providerUuid);
+  if (!isCertValid) {
+    const errorMsg = `Service provider certificate invalid or revoked: ${provider.name}`;
+    console.error(`❌ ${errorMsg}`);
+    broadcastEvent({
+      type: "certificate_validation_failed",
+      component: "root-ca",
+      message: errorMsg,
+      timestamp: Date.now(),
+      data: { providerUuid, providerName: provider.name }
+    });
+    throw new Error(errorMsg);
+  }
+  
+  const providerCert = getCertificate(providerUuid);
+  if (providerCert) {
+    console.log(`✅ Certificate validated for ${provider.name}`);
+    console.log(`   Capabilities: ${providerCert.capabilities.join(", ")}`);
+    console.log(`   Expires: ${new Date(providerCert.expiresAt).toISOString()}`);
+    
+    broadcastEvent({
+      type: "certificate_validated",
+      component: "root-ca",
+      message: `Certificate validated for ${provider.name}`,
+      timestamp: Date.now(),
+      data: {
+        providerUuid,
+        providerName: provider.name,
+        capabilities: providerCert.capabilities,
+        expiresAt: providerCert.expiresAt
+      }
+    });
+  }
 
   // Add ledger entry for this booking
   const ledgerEntry = addLedgerEntry(
@@ -1751,6 +2628,33 @@ async function main() {
   
   console.log(`🌳 Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}\n`);
 
+  // Initialize ROOT CA
+  initializeRootCA();
+  
+  // Issue certificates to all indexers
+  console.log("\n📜 Issuing certificates to Indexers...");
+  for (const indexer of INDEXERS) {
+    if (indexer.active) {
+      try {
+        issueIndexerCertificate(indexer);
+      } catch (err: any) {
+        console.error(`❌ Failed to issue certificate to ${indexer.name}:`, err.message);
+      }
+    }
+  }
+  
+  // Issue certificates to all service providers
+  console.log("\n📜 Issuing certificates to Service Providers...");
+  for (const provider of SERVICE_REGISTRY) {
+    try {
+      issueServiceProviderCertificate(provider);
+    } catch (err: any) {
+      console.error(`❌ Failed to issue certificate to ${provider.name}:`, err.message);
+    }
+  }
+  
+  console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}\n`);
+
   // Connect to Redis
   const redisConnected = await connectRedis();
   
@@ -1762,12 +2666,18 @@ async function main() {
 
   // Start indexer consumers (non-blocking) for all active indexers
   if (redisConnected) {
+    // Initialize revocation stream consumer groups
+    await initializeRevocationConsumers();
+    
+    // Start revocation stream processors for each indexer
     for (const indexer of INDEXERS) {
       if (indexer.active) {
         indexerConsumer(indexer.name, indexer.stream).catch(console.error);
+        processRevocationStream(indexer.name, indexer.id).catch(console.error);
       }
     }
     console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
+    console.log(`📜 Started revocation stream processors for all indexers\n`);
   }
 
   // Start HTTP server (serves Angular + API + WebSocket)
