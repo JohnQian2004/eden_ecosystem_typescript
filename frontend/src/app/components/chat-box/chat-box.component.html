@@ -4,14 +4,56 @@
   </div>
   <div class="card-body p-0">
     <div class="chat-box">
-      <div *ngFor="let msg of messages" class="mb-2">
+      <div *ngFor="let msg of messages" class="mb-2 p-2 border-start border-3" 
+           [ngClass]="{
+             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response',
+             'border-danger': msg.type === 'provider_webhook_failed' || msg.type === 'llm_error',
+             'border-info': msg.type === 'provider_webhook_attempt' || msg.type === 'provider_rpc_poll' || msg.type === 'llm_query_extraction_start' || msg.type === 'llm_response_formatting_start',
+             'border-primary': msg.type === 'provider_rpc_query',
+             'border-warning': msg.type === 'provider_webhook_unregistered'
+           }">
         <small class="text-muted">{{ formatTimestamp(msg.timestamp) }}</small>
         <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
-        <div [ngClass]="getMessageClass(msg)">
-          {{ msg.message }}
+        <span *ngIf="getEventIcon(msg)" class="ms-2">{{ getEventIcon(msg) }}</span>
+        <div [ngClass]="getMessageClass(msg)" class="mt-1">
+          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_')">{{ formatProviderEvent(msg) }}</span>
+          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_')">{{ msg.message }}</span>
         </div>
-        <div *ngIf="msg.data" class="mt-1 ms-4">
+        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_')" class="mt-1 ms-4">
           <pre class="small bg-light p-2 rounded">{{ msg.data | json }}</pre>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('provider_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.providerId"><strong>Provider:</strong> {{ msg.data.providerId }}</div>
+          <div *ngIf="msg.data.txId"><strong>Transaction:</strong> {{ msg.data.txId }}</div>
+          <div *ngIf="msg.data.webhookUrl"><strong>Webhook:</strong> {{ msg.data.webhookUrl }}</div>
+          <div *ngIf="msg.data.method"><strong>Method:</strong> {{ msg.data.method }}</div>
+          <div *ngIf="msg.data.status"><strong>Status:</strong> {{ msg.data.status }}</div>
+          <div *ngIf="msg.data.statusCode"><strong>HTTP Status:</strong> {{ msg.data.statusCode }}</div>
+          <div *ngIf="msg.data.error"><strong>Error:</strong> {{ msg.data.error }}</div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('llm_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.provider"><strong>LLM Provider:</strong> {{ msg.data.provider }}</div>
+          <div *ngIf="msg.data.model"><strong>Model:</strong> {{ msg.data.model }}</div>
+          <div *ngIf="msg.data.userInput"><strong>User Input:</strong> {{ msg.data.userInput }}</div>
+          <div *ngIf="msg.data.systemPrompt" class="mt-2">
+            <strong>System Prompt:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.systemPrompt }}</pre>
+          </div>
+          <div *ngIf="msg.data.extractedQuery">
+            <strong>Extracted Query:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.extractedQuery | json }}</pre>
+          </div>
+          <div *ngIf="msg.data.formattedMessage"><strong>Formatted Message:</strong> {{ msg.data.formattedMessage }}</div>
+          <div *ngIf="msg.data.selectedListing">
+            <strong>Selected Listing:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.selectedListing | json }}</pre>
+          </div>
+          <div *ngIf="msg.data.listingsCount !== undefined"><strong>Listings Count:</strong> {{ msg.data.listingsCount }}</div>
+          <div *ngIf="msg.data.error"><strong>Error:</strong> <span class="text-danger">{{ msg.data.error }}</span></div>
+          <div *ngIf="msg.data.response && msg.type.includes('response')" class="mt-2">
+            <strong>LLM Response:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.response | json }}</pre>
+          </div>
         </div>
       </div>
       <div *ngIf="messages.length === 0" class="text-center text-muted py-5">

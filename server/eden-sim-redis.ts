@@ -451,6 +451,390 @@ httpServer.on("request", async (req, res) => {
     }));
     return;
   }
+
+  // ============================================
+  // INDEXER RPC ENDPOINTS (Canonical Source)
+  // ============================================
+
+  // RPC: Get transactions by payer (Google email)
+  if (pathname === "/rpc/getTransactionByPayer" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /rpc/getTransactionByPayer`);
+    const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+    const payer = queryParams.get("payer");
+    
+    if (!payer) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "payer parameter required" }));
+      return;
+    }
+    
+    const transactions = getTransactionByPayer(payer);
+    
+    console.log(`   📡 [Service Provider] RPC Query: getTransactionByPayer(payer=${payer}) → Found ${transactions.length} transaction(s)`);
+    
+    // Broadcast RPC query event
+    broadcastEvent({
+      type: "provider_rpc_query",
+      component: "service_provider",
+      message: `Service Provider RPC Query: getTransactionByPayer`,
+      timestamp: Date.now(),
+      data: {
+        method: "getTransactionByPayer",
+        payer,
+        transactionCount: transactions.length,
+        requestId
+      }
+    });
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      payer,
+      transactions,
+      count: transactions.length,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // RPC: Get transaction by snapshot ID
+  if (pathname === "/rpc/getTransactionBySnapshot" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /rpc/getTransactionBySnapshot`);
+    const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+    const snapshotId = queryParams.get("snapshot_id");
+    
+    if (!snapshotId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "snapshot_id parameter required" }));
+      return;
+    }
+    
+    const transaction = getTransactionBySnapshot(snapshotId);
+    if (!transaction) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Transaction not found" }));
+      return;
+    }
+    
+    console.log(`   📡 [Service Provider] RPC Query: getTransactionBySnapshot(snapshotId=${snapshotId.substring(0, 8)}...) → Found`);
+    
+    // Broadcast RPC query event
+    broadcastEvent({
+      type: "provider_rpc_query",
+      component: "service_provider",
+      message: `Service Provider RPC Query: getTransactionBySnapshot`,
+      timestamp: Date.now(),
+      data: {
+        method: "getTransactionBySnapshot",
+        snapshotId,
+        found: true,
+        requestId
+      }
+    });
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      transaction,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // RPC: Get latest snapshot for provider
+  if (pathname === "/rpc/getLatestSnapshot" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /rpc/getLatestSnapshot`);
+    const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+    const providerId = queryParams.get("provider_id");
+    
+    if (!providerId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "provider_id parameter required" }));
+      return;
+    }
+    
+    const snapshot = getLatestSnapshot(providerId);
+    if (!snapshot) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "No transactions found for provider" }));
+      return;
+    }
+    
+    console.log(`   📡 [Service Provider] RPC Query: getLatestSnapshot(providerId=${providerId}) → Found TX: ${snapshot.txId.substring(0, 8)}...`);
+    
+    // Broadcast RPC query event
+    broadcastEvent({
+      type: "provider_rpc_query",
+      component: "service_provider",
+      message: `Service Provider RPC Query: getLatestSnapshot`,
+      timestamp: Date.now(),
+      data: {
+        method: "getLatestSnapshot",
+        providerId,
+        found: true,
+        txId: snapshot.txId,
+        requestId
+      }
+    });
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      snapshot,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // RPC: Poll transaction status
+  if (pathname === "/rpc/tx/status" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /rpc/tx/status`);
+    const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+    const payer = queryParams.get("payer");
+    const snapshotId = queryParams.get("snapshot_id");
+    
+    if (!payer && !snapshotId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "payer or snapshot_id parameter required" }));
+      return;
+    }
+    
+    let transaction: LedgerEntry | null = null;
+    if (snapshotId) {
+      transaction = getTransactionBySnapshot(snapshotId);
+    } else if (payer) {
+      const transactions = getTransactionByPayer(payer);
+      transaction = transactions.length > 0 ? transactions[transactions.length - 1] : null;
+    }
+    
+    if (!transaction) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        success: false,
+        status: "not_found",
+        message: "Transaction not found"
+      }));
+      return;
+    }
+    
+    console.log(`   🔄 [Service Provider] RPC Poll: tx/status(${payer ? `payer=${payer}` : `snapshotId=${snapshotId?.substring(0, 8)}...`}) → Status: ${transaction.status}`);
+    
+    // Broadcast RPC poll event
+    broadcastEvent({
+      type: "provider_rpc_poll",
+      component: "service_provider",
+      message: `Service Provider Polling: tx/status`,
+      timestamp: Date.now(),
+      data: {
+        method: "tx/status",
+        payer: payer || null,
+        snapshotId: snapshotId || null,
+        status: transaction.status,
+        txId: transaction.txId,
+        requestId
+      }
+    });
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      status: transaction.status,
+      transaction: {
+        txId: transaction.txId,
+        entryId: transaction.entryId,
+        payer: transaction.payer,
+        merchant: transaction.merchant,
+        amount: transaction.amount,
+        status: transaction.status,
+        timestamp: transaction.timestamp,
+      },
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // ============================================
+  // WEBHOOK REGISTRATION (Optional Push)
+  // ============================================
+
+  // Register webhook for provider
+  if (pathname === "/rpc/webhook/register" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /rpc/webhook/register`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { providerId, webhookUrl } = JSON.parse(body);
+        if (!providerId || !webhookUrl) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "providerId and webhookUrl required" }));
+          return;
+        }
+        
+        // Validate URL
+        try {
+          new URL(webhookUrl);
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid webhook URL" }));
+          return;
+        }
+        
+        PROVIDER_WEBHOOKS.set(providerId, {
+          providerId,
+          webhookUrl,
+          registeredAt: Date.now(),
+          failureCount: 0,
+        });
+        
+        console.log(`📡 [Service Provider] Webhook Registered: ${providerId} → ${webhookUrl}`);
+        
+        // Broadcast webhook registration event
+        broadcastEvent({
+          type: "provider_webhook_registered",
+          component: "service_provider",
+          message: `Webhook Registered: ${providerId}`,
+          timestamp: Date.now(),
+          data: {
+            providerId,
+            webhookUrl,
+            requestId
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: "Webhook registered",
+          providerId,
+          webhookUrl,
+          timestamp: Date.now()
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Unregister webhook
+  if (pathname === "/rpc/webhook/unregister" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /rpc/webhook/unregister`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { providerId } = JSON.parse(body);
+        if (!providerId) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "providerId required" }));
+          return;
+        }
+        
+        const removed = PROVIDER_WEBHOOKS.delete(providerId);
+        
+        // Broadcast webhook unregistration event
+        if (removed) {
+          console.log(`🔌 [Service Provider] Webhook Unregistered: ${providerId}`);
+          broadcastEvent({
+            type: "provider_webhook_unregistered",
+            component: "service_provider",
+            message: `Webhook Unregistered: ${providerId}`,
+            timestamp: Date.now(),
+            data: {
+              providerId,
+              requestId
+            }
+          });
+        }
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: removed ? "Webhook unregistered" : "Webhook not found",
+          providerId,
+          timestamp: Date.now()
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // List webhooks (for debugging)
+  if (pathname === "/rpc/webhook/list" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /rpc/webhook/list`);
+    const webhooks = Array.from(PROVIDER_WEBHOOKS.values());
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      webhooks,
+      count: webhooks.length,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // ============================================
+  // MOCK WEBHOOK ENDPOINT (for testing)
+  // ============================================
+  // This endpoint simulates service provider webhook receivers
+  if (pathname.startsWith("/mock/webhook/") && req.method === "POST") {
+    const providerId = pathname.split("/mock/webhook/")[1];
+    console.log(`   📥 [Mock Webhook] Received webhook for provider: ${providerId}`);
+    
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        console.log(`   ✅ [Mock Webhook] Successfully received webhook for ${providerId}:`, {
+          event: payload.event,
+          txId: payload.snapshot?.txId,
+          payer: payload.snapshot?.payer,
+          amount: payload.snapshot?.amount
+        });
+        
+        // Broadcast mock webhook receipt
+        broadcastEvent({
+          type: "provider_webhook_received",
+          component: "service_provider",
+          message: `Mock Webhook Received: ${providerId}`,
+          timestamp: Date.now(),
+          data: {
+            providerId,
+            event: payload.event,
+            txId: payload.snapshot?.txId,
+            payer: payload.snapshot?.payer,
+            amount: payload.snapshot?.amount
+          }
+        });
+        
+        // Return success response
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: "Webhook received",
+          providerId,
+          receivedAt: Date.now()
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [Mock Webhook] Error parsing webhook payload for ${providerId}:`, err.message);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+      }
+    });
+    return;
+  }
   
   // Log unhandled routes for debugging
   if (!pathname.startsWith("/api/")) {
@@ -934,6 +1318,17 @@ const USERS: User[] = [
 // Ledger Component - Tracks all Eden bookings
 const LEDGER: LedgerEntry[] = [];
 
+// Provider Webhook Registry (for optional push notifications)
+interface ProviderWebhook {
+  providerId: string;
+  webhookUrl: string;
+  registeredAt: number;
+  lastDelivery?: number;
+  failureCount: number;
+}
+
+const PROVIDER_WEBHOOKS: Map<string, ProviderWebhook> = new Map();
+
 // Dedicated Cashier for processing payments
 const CASHIER: Cashier = {
   id: "cashier-eden-001",
@@ -1166,14 +1561,31 @@ const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 // OpenAI LLM Query Extraction
 async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult> {
+  const messages = [
+    { role: "system", content: LLM_QUERY_EXTRACTION_PROMPT },
+    { role: "user", content: userInput },
+  ];
+  
   const payload = JSON.stringify({
     model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: LLM_QUERY_EXTRACTION_PROMPT },
-      { role: "user", content: userInput },
-    ],
+    messages,
     response_format: { type: "json_object" },
     temperature: 0.7,
+  });
+
+  // Broadcast LLM interaction start
+  broadcastEvent({
+    type: "llm_query_extraction_start",
+    component: "llm",
+    message: "Starting LLM query extraction...",
+    timestamp: Date.now(),
+    data: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      systemPrompt: LLM_QUERY_EXTRACTION_PROMPT,
+      userInput: userInput,
+      messages: messages
+    }
   });
 
   return new Promise<LLMQueryResult>((resolve, reject) => {
@@ -1196,20 +1608,69 @@ async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
+              broadcastEvent({
+                type: "llm_error",
+                component: "llm",
+                message: "OpenAI API error",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  error: parsed.error.message || JSON.stringify(parsed.error),
+                  rawResponse: data
+                }
+              });
               reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
               return;
             }
             if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
               const content = JSON.parse(parsed.choices[0].message.content);
-              resolve({
+              const result = {
                 query: content.query || { serviceType: "movie", filters: {} },
                 serviceType: content.serviceType || "movie",
                 confidence: content.confidence || 0.9,
+              };
+              
+              // Broadcast LLM response
+              broadcastEvent({
+                type: "llm_query_extraction_response",
+                component: "llm",
+                message: "LLM query extraction completed",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  model: "gpt-4o-mini",
+                  response: parsed,
+                  extractedQuery: result
+                }
               });
+              
+              resolve(result);
             } else {
+              broadcastEvent({
+                type: "llm_error",
+                component: "llm",
+                message: "Invalid OpenAI response format",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  error: "Invalid response format",
+                  rawResponse: data
+                }
+              });
               reject(new Error("Invalid OpenAI response format"));
             }
           } catch (err: any) {
+            broadcastEvent({
+              type: "llm_error",
+              component: "llm",
+              message: "Failed to parse OpenAI response",
+              timestamp: Date.now(),
+              data: {
+                provider: "openai",
+                error: err.message,
+                rawResponse: data
+              }
+            });
             reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
           }
         });
@@ -1227,14 +1688,35 @@ async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult
 async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
+  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  
+  const messages = [
+    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
+    { role: "user", content: userMessage },
+  ];
+  
   const payload = JSON.stringify({
     model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-      { role: "user", content: `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.` },
-    ],
+    messages,
     response_format: { type: "json_object" },
     temperature: 0.7,
+  });
+
+  // Broadcast LLM formatting start
+  broadcastEvent({
+    type: "llm_response_formatting_start",
+    component: "llm",
+    message: "Starting LLM response formatting...",
+    timestamp: Date.now(),
+    data: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      systemPrompt: LLM_RESPONSE_FORMATTING_PROMPT,
+      userQuery: userQuery,
+      queryFilters: queryFilters,
+      listingsCount: listings.length,
+      userMessage: userMessage.substring(0, 500) + (userMessage.length > 500 ? "..." : "") // Truncate for display
+    }
   });
 
   return new Promise<LLMResponse>((resolve, reject) => {
@@ -1257,6 +1739,17 @@ async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: str
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
+              broadcastEvent({
+                type: "llm_error",
+                component: "llm",
+                message: "OpenAI API error",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  error: parsed.error.message || JSON.stringify(parsed.error),
+                  rawResponse: data
+                }
+              });
               reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
               return;
             }
@@ -1279,16 +1772,56 @@ async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: str
                 }
               }
               
-              resolve({
+              const result = {
                 message: content.message || "Service found",
                 listings: content.listings || listings,
                 selectedListing: selectedListing,
                 iGasCost: 0, // Will be calculated separately
+              };
+              
+              // Broadcast LLM formatting response
+              broadcastEvent({
+                type: "llm_response_formatting_response",
+                component: "llm",
+                message: "LLM response formatting completed",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  model: "gpt-4o-mini",
+                  response: parsed,
+                  formattedMessage: result.message,
+                  selectedListing: result.selectedListing,
+                  listingsCount: result.listings.length
+                }
               });
+              
+              resolve(result);
             } else {
+              broadcastEvent({
+                type: "llm_error",
+                component: "llm",
+                message: "Invalid OpenAI formatting response format",
+                timestamp: Date.now(),
+                data: {
+                  provider: "openai",
+                  error: "Invalid response format",
+                  rawResponse: data
+                }
+              });
               reject(new Error("Invalid OpenAI response format"));
             }
           } catch (err: any) {
+            broadcastEvent({
+              type: "llm_error",
+              component: "llm",
+              message: "Failed to parse OpenAI formatting response",
+              timestamp: Date.now(),
+              data: {
+                provider: "openai",
+                error: err.message,
+                rawResponse: data
+              }
+            });
             reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
           }
         });
@@ -1304,13 +1837,30 @@ async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: str
 
 // DeepSeek LLM Query Extraction (Legacy)
 async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResult> {
+  const messages = [
+    { role: "system", content: LLM_QUERY_EXTRACTION_PROMPT },
+    { role: "user", content: userInput },
+  ];
+  
   const payload = JSON.stringify({
     model: "deepseek-r1",
-    messages: [
-      { role: "system", content: LLM_QUERY_EXTRACTION_PROMPT },
-      { role: "user", content: userInput },
-    ],
+    messages,
     stream: false,
+  });
+
+  // Broadcast LLM interaction start
+  broadcastEvent({
+    type: "llm_query_extraction_start",
+    component: "llm",
+    message: "Starting LLM query extraction...",
+    timestamp: Date.now(),
+    data: {
+      provider: "deepseek",
+      model: "deepseek-r1",
+      systemPrompt: LLM_QUERY_EXTRACTION_PROMPT,
+      userInput: userInput,
+      messages: messages
+    }
   });
 
   return new Promise<LLMQueryResult>((resolve, reject) => {
@@ -1322,12 +1872,39 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
-            resolve({
+            const result = {
               query: parsed.query || { serviceType: "movie", filters: {} },
               serviceType: parsed.serviceType || "movie",
               confidence: parsed.confidence || 0.9,
+            };
+            
+            // Broadcast LLM response
+            broadcastEvent({
+              type: "llm_query_extraction_response",
+              component: "llm",
+              message: "LLM query extraction completed",
+              timestamp: Date.now(),
+              data: {
+                provider: "deepseek",
+                model: "deepseek-r1",
+                response: parsed,
+                extractedQuery: result
+              }
             });
+            
+            resolve(result);
           } catch (err) {
+            broadcastEvent({
+              type: "llm_error",
+              component: "llm",
+              message: "Failed to parse DeepSeek response",
+              timestamp: Date.now(),
+              data: {
+                provider: "deepseek",
+                error: err instanceof Error ? err.message : "Unknown error",
+                rawResponse: data
+              }
+            });
             reject(new Error("Failed to parse DeepSeek response"));
           }
         });
@@ -1343,13 +1920,34 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
 async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
+  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  
+  const messages = [
+    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
+    { role: "user", content: userMessage },
+  ];
+  
   const payload = JSON.stringify({
     model: "deepseek-r1",
-    messages: [
-      { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-      { role: "user", content: `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.` },
-    ],
+    messages,
     stream: false,
+  });
+
+  // Broadcast LLM formatting start
+  broadcastEvent({
+    type: "llm_response_formatting_start",
+    component: "llm",
+    message: "Starting LLM response formatting...",
+    timestamp: Date.now(),
+    data: {
+      provider: "deepseek",
+      model: "deepseek-r1",
+      systemPrompt: LLM_RESPONSE_FORMATTING_PROMPT,
+      userQuery: userQuery,
+      queryFilters: queryFilters,
+      listingsCount: listings.length,
+      userMessage: userMessage.substring(0, 500) + (userMessage.length > 500 ? "..." : "") // Truncate for display
+    }
   });
 
   return new Promise<LLMResponse>((resolve, reject) => {
@@ -1378,13 +1976,42 @@ async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: s
               }
             }
             
-            resolve({
+            const result = {
               message: parsed.message || "Service found",
               listings: parsed.listings || listings,
               selectedListing: selectedListing,
               iGasCost: 0,
+            };
+            
+            // Broadcast LLM formatting response
+            broadcastEvent({
+              type: "llm_response_formatting_response",
+              component: "llm",
+              message: "LLM response formatting completed",
+              timestamp: Date.now(),
+              data: {
+                provider: "deepseek",
+                model: "deepseek-r1",
+                response: parsed,
+                formattedMessage: result.message,
+                selectedListing: result.selectedListing,
+                listingsCount: result.listings.length
+              }
             });
+            
+            resolve(result);
           } catch (err) {
+            broadcastEvent({
+              type: "llm_error",
+              component: "llm",
+              message: "Failed to parse DeepSeek formatting response",
+              timestamp: Date.now(),
+              data: {
+                provider: "deepseek",
+                error: err instanceof Error ? err.message : "Unknown error",
+                rawResponse: data
+              }
+            });
             reject(new Error("Failed to parse DeepSeek response"));
           }
         });
@@ -1438,8 +2065,9 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
   try {
     // Step 1: Extract query from user input using LLM
     llmCalls++;
+    console.log(`🤖 [LLM] Starting query extraction for: "${userInput.substring(0, 50)}${userInput.length > 50 ? '...' : ''}"`);
     const queryResult = await extractQueryFn(userInput);
-    console.log(`📋 Extracted query:`, queryResult);
+    console.log(`📋 [LLM] Extracted query:`, queryResult);
 
     // Step 2: Query ServiceRegistry
     broadcastEvent({
@@ -1497,8 +2125,9 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 
     // Step 4: Format response using LLM (LLM will handle filtering based on query filters)
     llmCalls++;
-    console.log(`🤖 LLM will filter ${listings.length} listings based on query filters`);
+    console.log(`🤖 [LLM] Starting response formatting for ${listings.length} listings`);
     const formattedResponse = await formatResponseFn(listings, userInput, queryResult.query.filters);
+    console.log(`✅ [LLM] Response formatted: ${formattedResponse.message.substring(0, 100)}${formattedResponse.message.length > 100 ? '...' : ''}`);
 
     // Step 5: Calculate iGas
     const iGas = calculateIGas(llmCalls, providers.length, queryResult.confidence);
@@ -1623,6 +2252,196 @@ function getLedgerEntries(payerEmail?: string): LedgerEntry[] {
     return LEDGER.filter(entry => entry.payer === payerEmail);
   }
   return [...LEDGER];
+}
+
+// RPC Functions - Canonical source of truth
+function getTransactionByPayer(payerEmail: string): LedgerEntry[] {
+  return LEDGER.filter(entry => entry.payer === payerEmail && entry.status === 'completed');
+}
+
+function getTransactionBySnapshot(snapshotId: string): LedgerEntry | null {
+  return LEDGER.find(entry => entry.txId === snapshotId) || null;
+}
+
+function getLatestSnapshot(providerId: string): LedgerEntry | null {
+  const providerEntries = LEDGER.filter(entry => 
+    entry.merchant === providerId || entry.providerUuid === providerId
+  );
+  if (providerEntries.length === 0) return null;
+  
+  // Return most recent completed transaction
+  return providerEntries
+    .filter(entry => entry.status === 'completed')
+    .sort((a, b) => b.timestamp - a.timestamp)[0] || null;
+}
+
+// Webhook Delivery (Best effort, async)
+async function deliverWebhook(providerId: string, snapshot: TransactionSnapshot, ledgerEntry: LedgerEntry): Promise<void> {
+  const webhook = PROVIDER_WEBHOOKS.get(providerId);
+  if (!webhook) {
+    return; // No webhook registered
+  }
+  
+  console.log(`📤 [Service Provider] Webhook Delivery Attempt: ${providerId} → ${webhook.webhookUrl} (TX: ${snapshot.txId.substring(0, 8)}...)`);
+  
+  // Broadcast webhook delivery attempt
+  broadcastEvent({
+    type: "provider_webhook_attempt",
+    component: "service_provider",
+    message: `Webhook Delivery Attempt: ${providerId}`,
+    timestamp: Date.now(),
+    data: {
+      providerId,
+      txId: snapshot.txId,
+      webhookUrl: webhook.webhookUrl
+    }
+  });
+  
+  const payload = JSON.stringify({
+    event: 'tx-finalized',
+    snapshot: {
+      chainId: snapshot.chainId,
+      txId: snapshot.txId,
+      slot: snapshot.slot,
+      blockTime: snapshot.blockTime,
+      payer: snapshot.payer,
+      merchant: snapshot.merchant,
+      amount: snapshot.amount,
+      feeSplit: snapshot.feeSplit,
+    },
+    ledger: {
+      entryId: ledgerEntry.entryId,
+      status: ledgerEntry.status,
+      serviceType: ledgerEntry.serviceType,
+      bookingDetails: ledgerEntry.bookingDetails,
+    },
+    timestamp: Date.now(),
+  });
+  
+  try {
+    const parsedUrl = new URL(webhook.webhookUrl);
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': payload.length,
+        'X-Eden-Event': 'tx-finalized',
+        'X-Eden-Provider': providerId,
+      },
+      timeout: 5000, // 5 second timeout
+    };
+    
+    const httpModule = parsedUrl.protocol === 'https:' ? https : http;
+    
+    const req = httpModule.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          webhook.lastDelivery = Date.now();
+          webhook.failureCount = 0;
+          console.log(`✅ [Service Provider] Webhook Delivered: ${providerId} → HTTP ${res.statusCode} (TX: ${snapshot.txId.substring(0, 8)}...)`);
+          
+          // Broadcast successful webhook delivery
+          broadcastEvent({
+            type: "provider_webhook_delivered",
+            component: "service_provider",
+            message: `Webhook Delivered: ${providerId}`,
+            timestamp: Date.now(),
+            data: {
+              providerId,
+              txId: snapshot.txId,
+              statusCode: res.statusCode,
+              webhookUrl: webhook.webhookUrl
+            }
+          });
+        } else {
+          webhook.failureCount++;
+          console.warn(`❌ [Service Provider] Webhook Delivery Failed: ${providerId} → HTTP ${res.statusCode} (TX: ${snapshot.txId.substring(0, 8)}..., Failures: ${webhook.failureCount})`);
+          
+          // Broadcast failed webhook delivery
+          broadcastEvent({
+            type: "provider_webhook_failed",
+            component: "service_provider",
+            message: `Webhook Delivery Failed: ${providerId}`,
+            timestamp: Date.now(),
+            data: {
+              providerId,
+              txId: snapshot.txId,
+              statusCode: res.statusCode,
+              failureCount: webhook.failureCount,
+              webhookUrl: webhook.webhookUrl
+            }
+          });
+        }
+      });
+    });
+    
+    req.on('error', (err) => {
+      webhook.failureCount++;
+      console.warn(`❌ [Service Provider] Webhook Delivery Error: ${providerId} → ${err.message} (TX: ${snapshot.txId.substring(0, 8)}..., Failures: ${webhook.failureCount})`);
+      
+      // Broadcast webhook error
+      broadcastEvent({
+        type: "provider_webhook_failed",
+        component: "service_provider",
+        message: `Webhook Delivery Error: ${providerId}`,
+        timestamp: Date.now(),
+        data: {
+          providerId,
+          txId: snapshot.txId,
+          error: err.message,
+          failureCount: webhook.failureCount,
+          webhookUrl: webhook.webhookUrl
+        }
+      });
+    });
+    
+    req.on('timeout', () => {
+      req.destroy();
+      webhook.failureCount++;
+      console.warn(`⏱️  [Service Provider] Webhook Delivery Timeout: ${providerId} (TX: ${snapshot.txId.substring(0, 8)}..., Failures: ${webhook.failureCount})`);
+      
+      // Broadcast webhook timeout
+      broadcastEvent({
+        type: "provider_webhook_failed",
+        component: "service_provider",
+        message: `Webhook Delivery Timeout: ${providerId}`,
+        timestamp: Date.now(),
+        data: {
+          providerId,
+          txId: snapshot.txId,
+          error: "timeout",
+          failureCount: webhook.failureCount,
+          webhookUrl: webhook.webhookUrl
+        }
+      });
+    });
+    
+    req.write(payload);
+    req.end();
+  } catch (err: any) {
+    webhook.failureCount++;
+    console.error(`❌ [Service Provider] Webhook Delivery Exception: ${providerId} → ${err.message} (TX: ${snapshot.txId.substring(0, 8)}..., Failures: ${webhook.failureCount})`);
+    
+    // Broadcast webhook exception
+    broadcastEvent({
+      type: "provider_webhook_failed",
+      component: "service_provider",
+      message: `Webhook Delivery Exception: ${providerId}`,
+      timestamp: Date.now(),
+      data: {
+        providerId,
+        txId: snapshot.txId,
+        error: err.message,
+        failureCount: webhook.failureCount,
+        webhookUrl: webhook.webhookUrl
+      }
+    });
+  }
 }
 
 function getCashierStatus(): Cashier {
@@ -2578,6 +3397,14 @@ async function processChatInput(input: string, email: string) {
 
   // Complete the booking in ledger
   completeBooking(ledgerEntry);
+  
+  // Deliver webhook notification (best effort, async)
+  const webhookProvider = SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
+  if (webhookProvider) {
+    deliverWebhook(webhookProvider.id, snapshot, ledgerEntry).catch(err => {
+      console.warn(`⚠️  Webhook delivery failed:`, err);
+    });
+  }
 
   console.log("8️⃣ Review");
   const rebate = applyReview(user, {
@@ -2654,6 +3481,80 @@ async function main() {
   }
   
   console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}\n`);
+
+  // ============================================
+  // SERVICE PROVIDER NOTIFICATION SETUP
+  // ============================================
+  // Register webhooks for service providers (Optional Push mechanism)
+  console.log("\n📡 Registering Service Provider Webhooks (Optional Push)...");
+  for (const provider of SERVICE_REGISTRY) {
+    // Simulate providers registering webhooks (in production, providers would call /rpc/webhook/register)
+    // For demo purposes, we'll register localhost webhook URLs that point to our mock endpoint
+    const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
+    PROVIDER_WEBHOOKS.set(provider.id, {
+      providerId: provider.id,
+      webhookUrl: mockWebhookUrl,
+      registeredAt: Date.now(),
+      failureCount: 0,
+    });
+    console.log(`   ✅ Registered webhook for ${provider.name} (${provider.id}): ${mockWebhookUrl}`);
+    
+    // Broadcast webhook registration during startup
+    broadcastEvent({
+      type: "provider_webhook_registered",
+      component: "service_provider",
+      message: `Webhook Registered: ${provider.name} (${provider.id})`,
+      timestamp: Date.now(),
+      data: {
+        providerId: provider.id,
+        providerName: provider.name,
+        webhookUrl: mockWebhookUrl,
+        startup: true
+      }
+    });
+  }
+  console.log(`\n✅ Webhook registration complete. ${PROVIDER_WEBHOOKS.size} webhook(s) registered\n`);
+
+  // Display Service Provider Notification Architecture
+  console.log("=".repeat(70));
+  console.log("📋 SERVICE PROVIDER NOTIFICATION ARCHITECTURE");
+  console.log("=".repeat(70));
+  console.log("\nEden provides THREE notification mechanisms for service providers:\n");
+  console.log("1️⃣  INDEXER RPC (Canonical Source of Truth)");
+  console.log("    - GET /rpc/getTransactionByPayer?payer=<google_email>");
+  console.log("    - GET /rpc/getTransactionBySnapshot?snapshot_id=<tx_id>");
+  console.log("    - GET /rpc/getLatestSnapshot?provider_id=<provider_id>");
+  console.log("    - GET /rpc/tx/status?payer=<email> OR ?snapshot_id=<tx_id>");
+  console.log("    → Providers query indexer RPC for transaction status");
+  console.log("    → Bot-friendly, cacheable, stateless");
+  console.log("    → Same model as Ethereum/Solana RPC\n");
+  
+  console.log("2️⃣  OPTIONAL PUSH (Webhook - Best Effort)");
+  console.log("    - POST /rpc/webhook/register");
+  console.log("    - POST /rpc/webhook/unregister");
+  console.log("    - GET /rpc/webhook/list");
+  console.log("    → Providers register webhook URLs");
+  console.log("    → Indexer pushes snapshot on transaction finalization");
+  console.log("    → Best effort delivery, no guarantees");
+  console.log("    → Retry logic handled by indexer\n");
+  
+  console.log("3️⃣  PULL/POLL (Safety Net)");
+  console.log("    - GET /rpc/tx/status?payer=<email>");
+  console.log("    - Providers poll until timeout");
+  console.log("    → Fallback if webhook fails");
+  console.log("    → Provider controls reliability");
+  console.log("    → No inbound firewall rules required\n");
+  
+  console.log("=".repeat(70));
+  console.log(`💡 Example: Query transactions for alice@gmail.com`);
+  console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/getTransactionByPayer?payer=alice@gmail.com"`);
+  console.log(`\n💡 Example: Register webhook for AMC`);
+  console.log(`   curl -X POST http://localhost:${HTTP_PORT}/rpc/webhook/register \\`);
+  console.log(`     -H "Content-Type: application/json" \\`);
+  console.log(`     -d '{"providerId":"amc-001","webhookUrl":"http://localhost:${HTTP_PORT}/mock/webhook/amc-001"}'`);
+  console.log(`\n💡 Example: Poll transaction status`);
+  console.log(`   curl "http://localhost:${HTTP_PORT}/rpc/tx/status?payer=alice@gmail.com"`);
+  console.log("=".repeat(70) + "\n");
 
   // Connect to Redis
   const redisConnected = await connectRedis();
