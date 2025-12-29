@@ -1,2 +1,3 @@
 I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price
 
+npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3 --token-indexers=2

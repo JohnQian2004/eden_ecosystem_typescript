@@ -18,7 +18,9 @@ export interface SimulatorEvent {
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Eden Simulator Dashboard';
   userInput: string = 'I want a sci-fi movie to watch tonight at the best price';
+  tokenInput: string = 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price';
   isProcessing: boolean = false;
+  isProcessingToken: boolean = false;
   userEmail: string = ''; // Will be set from localStorage or default
   
   constructor(
@@ -113,6 +115,78 @@ export class AppComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         } else {
           console.log('✅ Verified: isProcessing is false');
+        }
+      }, 100);
+    }
+  }
+
+  async onTokenSubmit() {
+    if (!this.tokenInput.trim() || this.isProcessingToken) {
+      console.log('⚠️ Token submit blocked:', { 
+        hasInput: !!this.tokenInput.trim(), 
+        isProcessingToken: this.isProcessingToken 
+      });
+      return;
+    }
+
+    console.log('📤 Submitting token chat message:', this.tokenInput);
+    this.isProcessingToken = true;
+    const input = this.tokenInput.trim();
+    this.tokenInput = 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'; // Reset to default
+    
+    // Force change detection to update UI
+    this.cdr.detectChanges();
+
+    // Set a safety timeout to ensure isProcessingToken is always reset
+    const safetyTimeout = setTimeout(() => {
+      if (this.isProcessingToken) {
+        console.warn('⚠️ Safety timeout: Resetting isProcessingToken flag');
+        this.isProcessingToken = false;
+        this.cdr.detectChanges();
+      }
+    }, 180000); // 3 minutes safety timeout
+
+    try {
+      const response = await this.chatService.sendMessageAsync(input, this.userEmail);
+      console.log('✅ Token chat message sent successfully:', response);
+    } catch (error: any) {
+      console.error('❌ Error caught in onTokenSubmit:', error);
+      // Ignore Solana extension errors
+      if (error && !error.message?.includes('solana') && !error.message?.includes('Solana')) {
+        const errorMsg = error.error?.error || error.message || 'Failed to send message. Please try again.';
+        console.error('Error details:', { 
+          error, 
+          errorType: error?.constructor?.name,
+          errorMessage: error?.message,
+          errorStatus: error?.status
+        });
+        alert(`Error: ${errorMsg}`);
+        // Restore input so user can retry
+        this.tokenInput = input;
+      } else {
+        // Even for Solana errors, log and continue
+        console.log('⚠️ Solana extension error ignored');
+      }
+    } finally {
+      // Clear safety timeout
+      clearTimeout(safetyTimeout);
+      
+      // Always reset processing state to allow next request
+      console.log('🔄 Entering finally block, resetting isProcessingToken...');
+      this.isProcessingToken = false;
+      console.log('✅ Reset isProcessingToken flag, ready for next request');
+      
+      // Force change detection to update UI immediately
+      this.cdr.detectChanges();
+      
+      // Double-check that isProcessingToken is false after a brief delay
+      setTimeout(() => {
+        if (this.isProcessingToken) {
+          console.error('❌ CRITICAL: isProcessingToken still true after reset! Forcing reset...');
+          this.isProcessingToken = false;
+          this.cdr.detectChanges();
+        } else {
+          console.log('✅ Verified: isProcessingToken is false');
         }
       }, 100);
     }

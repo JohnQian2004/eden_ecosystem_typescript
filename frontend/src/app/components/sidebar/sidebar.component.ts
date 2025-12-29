@@ -24,6 +24,7 @@ interface IndexerInfo {
   name: string;
   stream: string;
   active: boolean;
+  type?: 'regular' | 'token';
 }
 
 @Component({
@@ -252,6 +253,21 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return normalized;
     }
     
+    // Check if it's a token indexer (format: tokenindexer-* or token-indexer-*)
+    if (normalized.startsWith('tokenindexer-') || normalized.startsWith('token-indexer-')) {
+      // Dynamically add new token indexers
+      if (!this.components.has(normalized)) {
+        // Format: "tokenindexer-t1" -> "TokenIndexer T1"
+        const parts = normalized.split('-');
+        let indexerName = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        // Handle "tokenindexer" -> "TokenIndexer"
+        indexerName = indexerName.replace(/Tokenindexer/g, 'TokenIndexer');
+        this.addComponent(normalized, indexerName, 'indexer');
+        this.updateGroups(); // Update groups after adding new component
+      }
+      return normalized;
+    }
+    
     // Check if it's a new service provider (format: providername-###)
     const providerMatch = normalized.match(/^([a-z]+)-\d+$/);
     if (providerMatch) {
@@ -390,14 +406,44 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   getComponentsForIndexer(indexerId: string): ComponentStatus[] {
+    // Check if this is a token indexer
+    const indexer = this.indexers.find(i => i.id === indexerId);
+    const isTokenIndexer = indexer?.type === 'token';
+    
     // Get all components that belong to a specific indexer
-    // For now, all components are shared across indexers (federated)
     const serviceRegistryComponents = Array.from(this.components.values())
       .filter(c => c.category === 'service-registry');
     
-    const providerComponents = Array.from(this.components.values())
-      .filter(c => c.category === 'service-provider')
-      .sort((a, b) => a.name.localeCompare(b.name));
+    // Filter service providers based on indexer type
+    let providerComponents = Array.from(this.components.values())
+      .filter(c => c.category === 'service-provider');
+    
+    if (isTokenIndexer) {
+      // Token indexers should only show DEX-related service providers
+      // Filter out movie service providers (AMC, Cinemark, MovieCom)
+      const movieProviderNames = ['AMC Theatres', 'Cinemark', 'MovieCom', 'AMC', 'Moviecom'];
+      
+      providerComponents = providerComponents.filter(p => {
+        // Filter out movie providers by name
+        const isMovieProvider = movieProviderNames.some(movie => 
+          p.name.toLowerCase().includes(movie.toLowerCase())
+        );
+        
+        if (isMovieProvider) return false;
+        
+        // Only include DEX pool providers (those with "Pool", "DEX", or "Token" in name)
+        // DEX pool providers are named like "TOKENA Pool (TokenIndexer-T1)" or "dex-pool-tokena"
+        return p.name.toLowerCase().includes('pool') || 
+               p.name.toLowerCase().includes('dex') ||
+               p.name.toLowerCase().includes('token');
+      });
+      
+      // Sort DEX providers
+      providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Regular indexers show all service providers (including movies)
+      providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));
+    }
     
     const llmComponents = Array.from(this.components.values())
       .filter(c => c.category === 'llm');

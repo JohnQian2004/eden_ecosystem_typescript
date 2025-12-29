@@ -17,16 +17,16 @@
           </div>
         </div>
         
-        <!-- User Input Form -->
+        <!-- User Input Forms -->
         <div class="row mb-4">
-          <div class="col-12">
+          <div class="col-md-6 mb-3 mb-md-0">
             <div class="card">
               <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">💬 Chat Input</h5>
+                <h5 class="mb-0">💬 Movie Chat Input</h5>
               </div>
               <div class="card-body">
                 <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm">
-                  <div class="input-group mb-3">
+                  <div class="input-group">
                     <input 
                       type="text" 
                       class="form-control" 
@@ -42,6 +42,37 @@
                       [disabled]="isProcessing || !userInput?.trim()">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header bg-info text-white">
+                <h5 class="mb-0">🔷 Token Indexer Chat Input</h5>
+              </div>
+              <div class="card-body">
+                <form (ngSubmit)="onTokenSubmit(); $event.preventDefault()" #tokenForm="ngForm">
+                  <div class="input-group">
+                    <input 
+                      type="text" 
+                      class="form-control" 
+                      placeholder="Enter your DEX query (e.g., 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price')"
+                      [(ngModel)]="tokenInput"
+                      name="tokenInput"
+                      required
+                      [disabled]="isProcessingToken"
+                      (keydown.enter)="!isProcessingToken && tokenInput.trim() && onTokenSubmit(); $event.preventDefault()">
+                    <button 
+                      class="btn btn-info" 
+                      type="submit"
+                      [disabled]="isProcessingToken || !tokenInput?.trim()">
+                      <span *ngIf="!isProcessingToken">Send</span>
+                      <span *ngIf="isProcessingToken">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...
                       </span>
                     </button>

@@ -310,16 +310,32 @@ httpServer.on("request", async (req, res) => {
   if (pathname === "/api/indexers" && req.method === "GET") {
     console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      success: true,
-      indexers: INDEXERS.map(i => ({
+    
+    // Combine regular indexers and token indexers
+    const allIndexers = [
+      ...INDEXERS.map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
         active: i.active,
         uuid: i.uuid,
-        hasCertificate: !!i.certificate
+        hasCertificate: !!i.certificate,
+        type: 'regular' as const
       })),
+      ...TOKEN_INDEXERS.map(i => ({
+        id: i.id,
+        name: i.name,
+        stream: i.stream,
+        active: i.active,
+        uuid: i.uuid,
+        hasCertificate: !!i.certificate,
+        type: 'token' as const
+      }))
+    ];
+    
+    res.end(JSON.stringify({
+      success: true,
+      indexers: allIndexers,
       timestamp: Date.now()
     }));
     return;
