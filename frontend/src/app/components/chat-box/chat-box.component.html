@@ -6,20 +6,20 @@
     <div class="chat-box">
       <div *ngFor="let msg of messages" class="mb-2 p-2 border-start border-3" 
            [ngClass]="{
-             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response' || msg.type === 'dex_trade_executed' || msg.type === 'dex_trade_complete',
-             'border-danger': msg.type === 'provider_webhook_failed' || msg.type === 'llm_error',
-             'border-info': msg.type === 'provider_webhook_attempt' || msg.type === 'provider_rpc_poll' || msg.type === 'llm_query_extraction_start' || msg.type === 'llm_response_formatting_start',
-             'border-primary': msg.type === 'provider_rpc_query',
+             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response' || msg.type === 'dex_trade_executed' || msg.type === 'dex_trade_complete' || msg.type === 'ledger_entry_settled' || msg.type === 'settlement_consumer_started',
+             'border-danger': msg.type === 'provider_webhook_failed' || msg.type === 'llm_error' || msg.type === 'settlement_processing_error' || msg.type === 'settlement_entry_not_found' || msg.type === 'settlement_certificate_invalid' || msg.type === 'settlement_connection_error' || msg.type === 'settlement_stream_error',
+             'border-info': msg.type === 'provider_webhook_attempt' || msg.type === 'provider_rpc_poll' || msg.type === 'llm_query_extraction_start' || msg.type === 'llm_response_formatting_start' || msg.type === 'settlement_batch_processing' || msg.type === 'settlement_processing_start',
+             'border-primary': msg.type === 'provider_rpc_query' || msg.type === 'ledger_entry_pushed',
              'border-warning': msg.type === 'provider_webhook_unregistered'
            }">
         <small class="text-muted">{{ formatTimestamp(msg.timestamp) }}</small>
         <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
         <span *ngIf="getEventIcon(msg)" class="ms-2">{{ getEventIcon(msg) }}</span>
         <div [ngClass]="getMessageClass(msg)" class="mt-1">
-          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_') || msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_')">{{ formatProviderEvent(msg) }}</span>
-          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_')">{{ msg.message }}</span>
+          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_') || msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_') || msg.type.startsWith('ledger_entry_') || msg.type.startsWith('settlement_')">{{ formatProviderEvent(msg) }}</span>
+          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_') && !msg.type.startsWith('ledger_entry_') && !msg.type.startsWith('settlement_')">{{ msg.message }}</span>
         </div>
-        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_')" class="mt-1 ms-4">
+        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_') && !msg.type.startsWith('ledger_entry_')" class="mt-1 ms-4">
           <pre class="small bg-light p-2 rounded">{{ msg.data | json }}</pre>
         </div>
         <div *ngIf="msg.data && (msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_'))" class="mt-1 ms-4 small text-muted">
@@ -93,6 +93,17 @@
           <div *ngIf="msg.data.rootCALiquidity"><strong>ROOT CA Liquidity:</strong> {{ msg.data.rootCALiquidity.toFixed(2) }} SOL</div>
           <div *ngIf="msg.data.traderRebate"><strong>Trader Rebate:</strong> {{ msg.data.traderRebate.toFixed(6) }}</div>
           <div *ngIf="msg.data.userBalance"><strong>User Balance:</strong> {{ msg.data.userBalance.toFixed(2) }}</div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('ledger_entry_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.entryId"><strong>Entry ID:</strong> {{ msg.data.entryId }}</div>
+          <div *ngIf="msg.data.iGas !== undefined"><strong>iGas:</strong> {{ msg.data.iGas.toFixed(6) }}</div>
+          <div *ngIf="msg.data.iTax !== undefined"><strong>iTax:</strong> {{ msg.data.iTax.toFixed(6) }}</div>
+          <div *ngIf="msg.data.rootCABalance !== undefined"><strong>ROOT CA Balance:</strong> {{ msg.data.rootCABalance.toFixed(6) }}</div>
+          <div *ngIf="msg.data.indexerBalance !== undefined"><strong>Indexer Balance:</strong> {{ msg.data.indexerBalance.toFixed(6) }}</div>
+          <div *ngIf="msg.data.fees" class="mt-2">
+            <strong>Fee Distribution:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.fees | json }}</pre>
+          </div>
         </div>
       </div>
       <div *ngIf="messages.length === 0" class="text-center text-muted py-5">

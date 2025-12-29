@@ -69,6 +69,22 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
       case 'dex_trade_executed':
       case 'dex_trade_complete':
         return 'text-success fw-bold';
+      case 'ledger_entry_pushed':
+        return 'text-primary';
+      case 'ledger_entry_settled':
+        return 'text-success fw-bold';
+      case 'settlement_consumer_started':
+        return 'text-success';
+      case 'settlement_batch_processing':
+        return 'text-info';
+      case 'settlement_processing_start':
+        return 'text-info';
+      case 'settlement_processing_error':
+      case 'settlement_entry_not_found':
+      case 'settlement_certificate_invalid':
+      case 'settlement_connection_error':
+      case 'settlement_stream_error':
+        return 'text-danger';
       default:
         return 'text-dark';
     }
@@ -113,6 +129,22 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
         return '📤';
       case 'token_indexer_stream':
         return '🔷';
+      case 'ledger_entry_pushed':
+        return '📤';
+      case 'ledger_entry_settled':
+        return '⚖️';
+      case 'settlement_consumer_started':
+        return '✅';
+      case 'settlement_batch_processing':
+        return '⚙️';
+      case 'settlement_processing_start':
+        return '🔄';
+      case 'settlement_processing_error':
+      case 'settlement_entry_not_found':
+      case 'settlement_certificate_invalid':
+      case 'settlement_connection_error':
+      case 'settlement_stream_error':
+        return '❌';
       default:
         return '';
     }
@@ -214,6 +246,33 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
         details += ` | Indexers: ${data.indexers.join(", ")}`;
       }
       if (data.count !== undefined) details += ` | Count: ${data.count}`;
+      
+      return details ? `${event.message} (${details})` : event.message;
+    }
+    
+    // Settlement events
+    if (event.type.startsWith('settlement_') || event.type === 'ledger_entry_pushed' || event.type === 'ledger_entry_settled') {
+      const data = event.data || {};
+      let details = '';
+      
+      if (event.type === 'ledger_entry_pushed' || event.type === 'ledger_entry_settled') {
+        if (data.entryId) details += `Entry: ${data.entryId.substring(0, 8)}...`;
+        if (data.iGas !== undefined) details += ` | iGas: ${data.iGas.toFixed(6)}`;
+        if (data.iTax !== undefined) details += ` | iTax: ${data.iTax.toFixed(6)}`;
+        if (data.rootCABalance !== undefined) details += ` | ROOT CA Balance: ${data.rootCABalance.toFixed(6)}`;
+        if (data.indexerBalance !== undefined) details += ` | Indexer Balance: ${data.indexerBalance.toFixed(6)}`;
+      } else if (event.type === 'settlement_batch_processing') {
+        if (data.count !== undefined) details += `Count: ${data.count}`;
+      } else if (event.type === 'settlement_processing_start') {
+        if (data.entryId) details += `Entry: ${data.entryId.substring(0, 8)}...`;
+        if (data.iGas !== undefined) details += ` | iGas: ${data.iGas.toFixed(6)}`;
+        if (data.iTax !== undefined) details += ` | iTax: ${data.iTax.toFixed(6)}`;
+        if (data.indexerId) details += ` | Indexer: ${data.indexerId}`;
+      } else if (event.type.includes('error') || event.type.includes('invalid') || event.type.includes('not_found')) {
+        if (data.entryId) details += `Entry: ${data.entryId}`;
+        if (data.providerUuid) details += ` | Provider: ${data.providerUuid}`;
+        if (data.error) details += ` | Error: ${data.error}`;
+      }
       
       return details ? `${event.message} (${details})` : event.message;
     }

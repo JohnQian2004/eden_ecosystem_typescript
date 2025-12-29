@@ -307,6 +307,100 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // ROOT CA Service Registry API Endpoints
+  if (pathname === "/api/root-ca/service-registry" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/root-ca/service-registry - Listing all service providers`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    
+    res.end(JSON.stringify({
+      success: true,
+      providers: ROOT_CA_SERVICE_REGISTRY.map(p => ({
+        id: p.id,
+        name: p.name,
+        serviceType: p.serviceType,
+        location: p.location,
+        bond: p.bond,
+        reputation: p.reputation,
+        indexerId: p.indexerId,
+        status: p.status || 'active'
+      })),
+      count: ROOT_CA_SERVICE_REGISTRY.length,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  if (pathname === "/api/root-ca/service-registry/register" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /api/root-ca/service-registry/register - Registering service provider`);
+    
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const providerData = JSON.parse(body);
+        
+        // Validate required fields
+        if (!providerData.id || !providerData.name || !providerData.serviceType) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing required fields: id, name, serviceType" }));
+          return;
+        }
+        
+        // Create provider with defaults
+        const provider: ServiceProviderWithCert = {
+          id: providerData.id,
+          uuid: providerData.uuid || crypto.randomUUID(),
+          name: providerData.name,
+          serviceType: providerData.serviceType,
+          location: providerData.location || "Unknown",
+          bond: providerData.bond || 0,
+          reputation: providerData.reputation || 5.0,
+          indexerId: providerData.indexerId || "unknown",
+          apiEndpoint: providerData.apiEndpoint || "",
+          status: providerData.status || 'active',
+        };
+        
+        // Register with ROOT CA
+        registerServiceProviderWithROOTCA(provider);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: `Service provider ${provider.name} registered successfully`,
+          provider: {
+            id: provider.id,
+            uuid: provider.uuid,
+            name: provider.name
+          }
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/root-balances" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/root-balances - Sending ROOT CA balances`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    
+    const balances = {
+      rootCA: ROOT_BALANCES.rootCA,
+      indexers: Object.fromEntries(ROOT_BALANCES.indexers),
+      providers: Object.fromEntries(ROOT_BALANCES.providers),
+      rootCALiquidity: rootCALiquidity,
+      timestamp: Date.now()
+    };
+    
+    res.end(JSON.stringify({
+      success: true,
+      balances,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
   if (pathname === "/api/indexers" && req.method === "GET") {
     console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -443,11 +537,11 @@ httpServer.on("request", async (req, res) => {
             // Note: Certificate would need to be re-issued in a real system
           }
           
-          const provider = SERVICE_REGISTRY.find(p => p.uuid === uuid);
+          const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === uuid);
           if (provider) {
-            provider.status = 'active'; // Reactivate provider in SERVICE_REGISTRY
+            provider.status = 'active'; // Reactivate provider in ROOT_CA_SERVICE_REGISTRY
             // Note: Certificate would need to be re-issued in a real system
-            console.log(`   Service provider ${provider.name} (${provider.id}) reactivated in SERVICE_REGISTRY`);
+            console.log(`   Service provider ${provider.name} (${provider.id}) reactivated in ROOT_CA_SERVICE_REGISTRY`);
           }
           
           console.log(`✅ Certificate reinstated: ${uuid}`);
@@ -1421,6 +1515,23 @@ const DEX_POOLS: Map<string, TokenPool> = new Map();
 // ROOT CA Liquidity Pool (first liquidity source)
 let rootCALiquidity: number = ROOT_CA_LIQUIDITY_POOL;
 
+// ROOT CA Balance Tracking (Settlement Authority)
+// ROOT CA is the ONLY source of truth for balances
+interface ROOTBalance {
+  rootCA: number; // ROOT CA balance (iGas + iTax)
+  indexers: Map<string, number>; // Indexer balances (by indexer ID)
+  providers: Map<string, number>; // Service provider balances (by provider UUID)
+}
+
+const ROOT_BALANCES: ROOTBalance = {
+  rootCA: 0,
+  indexers: new Map(),
+  providers: new Map(),
+};
+
+// Ledger Settlement Stream Name
+const LEDGER_SETTLEMENT_STREAM = "eden:ledger:pending";
+
 // Users
 
 const USERS: User[] = [
@@ -1451,12 +1562,16 @@ const CASHIER: Cashier = {
   status: 'active',
 };
 
-// Service Registry (Routing only - no price data)
+// ROOT CA Service Registry
+// ServiceRegistry is now managed by ROOT CA, not indexers
+// This enables quick post-LLM in-memory lookup
+// Indexers are dedicated intelligent entities (post-LLM regulated)
 interface ServiceProviderWithCert extends ServiceProvider {
   certificate?: EdenCertificate;
 }
 
-const SERVICE_REGISTRY: ServiceProviderWithCert[] = [
+// ROOT CA Service Registry (centralized, in-memory)
+const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
   {
     id: "amc-001",
     uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
@@ -1785,10 +1900,40 @@ IMPORTANT: When returning selectedListing for DEX, you MUST include ALL fields: 
 Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option with ALL original fields including providerId/poolId, or null).
 `;
 
-// Service Registry Functions
+// ROOT CA Service Registry Functions
+// ROOT CA manages the service registry - indexers query ROOT CA
 
-function queryServiceRegistry(query: ServiceRegistryQuery): ServiceProvider[] {
-  return SERVICE_REGISTRY.filter((provider) => {
+// Register a service provider with ROOT CA
+function registerServiceProviderWithROOTCA(provider: ServiceProviderWithCert): void {
+  // Check if provider already exists
+  const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === provider.id || p.uuid === provider.uuid);
+  if (existing) {
+    throw new Error(`Service provider ${provider.id} already registered`);
+  }
+  
+  // Add to ROOT CA registry
+  ROOT_CA_SERVICE_REGISTRY.push(provider);
+  
+  console.log(`✅ [ROOT CA] Registered service provider: ${provider.name} (${provider.id})`);
+  
+  broadcastEvent({
+    type: "service_provider_registered",
+    component: "root-ca",
+    message: `Service provider registered: ${provider.name}`,
+    timestamp: Date.now(),
+    data: {
+      providerId: provider.id,
+      providerName: provider.name,
+      serviceType: provider.serviceType,
+      indexerId: provider.indexerId
+    }
+  });
+}
+
+// Query ROOT CA Service Registry (used by indexers after LLM extraction)
+// This is a quick post-LLM in-memory lookup
+function queryROOTCAServiceRegistry(query: ServiceRegistryQuery): ServiceProvider[] {
+  return ROOT_CA_SERVICE_REGISTRY.filter((provider) => {
     // Filter out revoked providers
     if (REVOCATION_REGISTRY.has(provider.uuid)) {
       return false;
@@ -2569,15 +2714,17 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     }
 
     // Step 2: Query ServiceRegistry
+    // Step 2: Query ROOT CA Service Registry (post-LLM in-memory lookup)
+    // Indexers query ROOT CA for services - ROOT CA is the single source of truth
     broadcastEvent({
       type: "service_registry_query",
-      component: "service-registry",
-      message: "Querying ServiceRegistry...",
+      component: "root-ca",
+      message: "Querying ROOT CA Service Registry...",
       timestamp: Date.now()
     });
     
-    const providers = queryServiceRegistry(queryResult.query);
-    console.log(`🔍 Found ${providers.length} service providers`);
+    const providers = queryROOTCAServiceRegistry(queryResult.query);
+    console.log(`🔍 [ROOT CA] Found ${providers.length} service providers`);
     if (queryResult.serviceType === "dex") {
       console.log(`   DEX Providers: ${providers.map(p => `${p.id} (indexer: ${p.indexerId})`).join(", ")}`);
       console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
@@ -2585,7 +2732,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     
     broadcastEvent({
       type: "service_registry_result",
-      component: "service-registry",
+      component: "root-ca",
       message: `Found ${providers.length} service providers`,
       timestamp: Date.now(),
       data: { providers: providers.map(p => ({ id: p.id, name: p.name })) }
@@ -2715,7 +2862,16 @@ function addLedgerEntry(
   
   console.log(`📝 Ledger entry created with providerUuid: ${entry.providerUuid}`);
 
+  // Push ledger entry to local ledger (for immediate access)
   LEDGER.push(entry);
+  
+  // ARCHITECTURAL PATTERN: Ledger Push + Settlement Pull
+  // Indexers EXECUTE transactions but never SETTLE them
+  // Push ledger entry to ROOT CA Redis Stream for settlement
+  pushLedgerEntryToSettlementStream(entry).catch(err => {
+    console.error(`⚠️  Failed to push ledger entry to settlement stream:`, err.message);
+    // Continue execution - settlement will retry
+  });
   
   broadcastEvent({
     type: "ledger_entry_added",
@@ -2726,6 +2882,79 @@ function addLedgerEntry(
   });
 
   return entry;
+}
+
+// Push ledger entry to ROOT CA settlement stream
+// This is the ONLY way indexers interact with settlement
+// Indexers EXECUTE but never SETTLE
+async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<void> {
+  if (SKIP_REDIS || !redis.isOpen) {
+    console.log(`📤 [Settlement] Ledger entry ${entry.entryId} queued (Redis disabled)`);
+    return;
+  }
+
+  try {
+    await ensureRedisConnection();
+    
+    // Calculate fees breakdown
+    const iGas = entry.iGasCost;
+    const iTax = entry.bookingDetails?.iTax || 0;
+    
+    // Calculate fee distribution (from snapshot.feeSplit or defaults)
+    const rootCAFee = entry.fees?.rootCA || (iGas * ROOT_CA_FEE);
+    const indexerFee = entry.fees?.indexer || (iGas * INDEXER_FEE);
+    
+    // Extract indexer ID from provider (if available)
+    const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === entry.providerUuid);
+    const indexerId = provider?.indexerId || 'unknown';
+    
+    const settlementPayload = {
+      entryId: entry.entryId,
+      txId: entry.txId,
+      timestamp: entry.timestamp.toString(),
+      payer: entry.payer,
+      payerId: entry.payerId,
+      merchant: entry.merchant,
+      providerUuid: entry.providerUuid,
+      indexerId: indexerId,
+      serviceType: entry.serviceType,
+      amount: entry.amount.toString(),
+      iGas: iGas.toString(),
+      iTax: iTax.toString(),
+      fees: JSON.stringify({
+        rootCA: rootCAFee,
+        indexer: indexerFee,
+        ...entry.fees
+      }),
+      status: entry.status,
+      cashierId: entry.cashierId,
+      bookingDetails: entry.bookingDetails ? JSON.stringify(entry.bookingDetails) : '',
+    };
+    
+    await redis.xAdd(LEDGER_SETTLEMENT_STREAM, "*", settlementPayload);
+    
+    console.log(`📤 [Settlement] Pushed ledger entry ${entry.entryId} to ROOT CA settlement stream`);
+    console.log(`   iGas: ${iGas}, iTax: ${iTax}, ROOT CA Fee: ${rootCAFee}, Indexer Fee: ${indexerFee}`);
+    
+    broadcastEvent({
+      type: "ledger_entry_pushed",
+      component: "settlement",
+      message: `Ledger entry pushed to settlement stream: ${entry.entryId}`,
+      timestamp: Date.now(),
+      data: { 
+        entryId: entry.entryId, 
+        iGas, 
+        iTax, 
+        fees: settlementPayload.fees,
+        rootCAFee,
+        indexerFee,
+        indexerId
+      }
+    });
+  } catch (err: any) {
+    console.error(`❌ Failed to push ledger entry to settlement stream:`, err.message);
+    throw err;
+  }
 }
 
 function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): boolean {
@@ -3121,10 +3350,10 @@ function revokeCertificate(
     console.log(`   Indexer ${indexer.name} marked as inactive`);
   }
   
-  const provider = SERVICE_REGISTRY.find(p => p.uuid === uuid);
+  const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === uuid);
   if (provider) {
     provider.certificate = undefined;
-    provider.status = 'revoked'; // Mark provider as revoked in SERVICE_REGISTRY
+    provider.status = 'revoked'; // Mark provider as revoked in ROOT_CA_SERVICE_REGISTRY
     console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked`);
     console.log(`   Provider will be filtered out from service queries`);
   }
@@ -3212,12 +3441,12 @@ function revokeCertificateByIndexer(
   // Remove certificate from registry
   CERTIFICATE_REGISTRY.delete(revokedUuid);
   
-  // Mark provider as revoked in SERVICE_REGISTRY
-  const provider = SERVICE_REGISTRY.find(p => p.uuid === revokedUuid);
+  // Mark provider as revoked in ROOT_CA_SERVICE_REGISTRY
+  const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revokedUuid);
   if (provider) {
     provider.certificate = undefined;
     provider.status = 'revoked';
-    console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in SERVICE_REGISTRY`);
+    console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in ROOT_CA_SERVICE_REGISTRY`);
   }
   
   console.log(`🚫 [${indexer.name}] Certificate revoked: ${revokedUuid}`);
@@ -3467,11 +3696,11 @@ async function processRevocationMessage(message: any, indexerName: string): Prom
         indexer.certificate = undefined;
       }
       
-      const provider = SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
+      const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
       if (provider) {
         provider.certificate = undefined;
         provider.status = 'revoked';
-        console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in SERVICE_REGISTRY`);
+        console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in ROOT_CA_SERVICE_REGISTRY`);
       }
       
       console.log(`🚫 [${indexerName}] Applied revocation: ${revocation.revoked_uuid}`);
@@ -3510,7 +3739,7 @@ function verifyRevocationAuthority(revocation: RevocationEvent): boolean {
     
     // Check if issuer certified this service provider
     // This is determined by checking if the service provider's indexerId matches the issuer's indexerId
-    const revokedProvider = SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
+    const revokedProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
     if (revokedProvider) {
       // Check if the provider's indexerId matches the issuer's indexerId
       // This means the indexer certified this provider
@@ -3732,6 +3961,263 @@ async function indexerConsumer(name: string, stream: string) {
   }
 }
 
+// ROOT CA Settlement Consumer
+// ROOT CA is the ONLY settlement authority
+// Consumes ledger entries from settlement stream and updates balances
+async function rootCASettlementConsumer() {
+  if (SKIP_REDIS) {
+    console.log(`⚠️  ROOT CA Settlement Consumer: Skipped (Redis disabled)`);
+    return;
+  }
+
+  try {
+    await ensureRedisConnection();
+  } catch (err) {
+    console.error(`❌ ROOT CA Settlement Consumer: Cannot start - Redis unavailable`);
+    return;
+  }
+
+  const consumerGroup = "root-ca-settlement";
+  const consumerName = "root-ca-settlement-worker";
+
+  // Create consumer group if it doesn't exist
+  try {
+    await redis.xGroupCreate(LEDGER_SETTLEMENT_STREAM, consumerGroup, "$", { MKSTREAM: true });
+    console.log(`✅ Created ROOT CA settlement consumer group: ${consumerGroup}`);
+  } catch (err: any) {
+    if (!err.message.includes("BUSYGROUP")) {
+      console.error(`⚠️  Failed to create consumer group:`, err.message);
+    }
+  }
+
+  console.log(`⚖️  [ROOT CA Settlement] Starting settlement consumer...`);
+  
+  // Broadcast settlement consumer start
+  broadcastEvent({
+    type: "settlement_consumer_started",
+    component: "root-ca",
+    message: "ROOT CA Settlement Consumer started",
+    timestamp: Date.now(),
+    data: {
+      consumerGroup,
+      consumerName,
+      stream: LEDGER_SETTLEMENT_STREAM
+    }
+  });
+
+  while (true) {
+    try {
+      if (!redis.isOpen) {
+        await ensureRedisConnection();
+      }
+
+      // Read pending ledger entries
+      const res = await redis.xReadGroup(
+        consumerGroup,
+        consumerName,
+        [{ key: LEDGER_SETTLEMENT_STREAM, id: ">" }],
+        { BLOCK: 5000, COUNT: 10 }
+      );
+
+      if (!res) {
+        await new Promise(resolve => setImmediate(resolve));
+        continue;
+      }
+
+      const streamResults = res as Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }>;
+      
+      if (Array.isArray(streamResults) && streamResults.length > 0) {
+        const streamResult = streamResults[0];
+        if (streamResult?.messages && streamResult.messages.length > 0) {
+          const messageCount = streamResults[0].messages.length;
+          console.log(`⚖️  [ROOT CA Settlement] Processing ${messageCount} settlement entry/entries`);
+          
+          // Broadcast batch processing start
+          broadcastEvent({
+            type: "settlement_batch_processing",
+            component: "root-ca",
+            message: `Processing ${messageCount} settlement entry/entries`,
+            timestamp: Date.now(),
+            data: { count: messageCount }
+          });
+          
+          for (const msg of streamResults[0].messages) {
+            try {
+              await processSettlementEntry(msg.message);
+              // Acknowledge message
+              await redis.xAck(LEDGER_SETTLEMENT_STREAM, consumerGroup, msg.id);
+            } catch (err: any) {
+              console.error(`❌ Failed to process settlement entry ${msg.id}:`, err.message);
+              
+              // Broadcast settlement processing error
+              broadcastEvent({
+                type: "settlement_processing_error",
+                component: "root-ca",
+                message: `Failed to process settlement entry: ${msg.id}`,
+                timestamp: Date.now(),
+                data: {
+                  entryId: msg.message.entryId || msg.id,
+                  error: err.message
+                }
+              });
+              
+              // Don't ack on error - will retry
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes("Connection")) {
+        console.error(`❌ ROOT CA Settlement: Connection lost, retrying...`);
+        
+        // Broadcast connection error
+        broadcastEvent({
+          type: "settlement_connection_error",
+          component: "root-ca",
+          message: "ROOT CA Settlement: Connection lost, retrying...",
+          timestamp: Date.now(),
+          data: { error: err.message }
+        });
+        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else {
+        console.error(`⚠️  ROOT CA Settlement: Error reading stream:`, err.message);
+        
+        // Broadcast stream read error
+        broadcastEvent({
+          type: "settlement_stream_error",
+          component: "root-ca",
+          message: `ROOT CA Settlement: Error reading stream`,
+          timestamp: Date.now(),
+          data: { error: err.message }
+        });
+        
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    }
+    
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+// Process a settlement entry (ROOT CA authority)
+// This is the ONLY place where balances are updated
+async function processSettlementEntry(msg: Record<string, string>): Promise<void> {
+  const entryId = msg.entryId;
+  const iGas = parseFloat(msg.iGas || "0");
+  const iTax = parseFloat(msg.iTax || "0");
+  const fees = JSON.parse(msg.fees || "{}");
+  const indexerId = msg.indexerId || "unknown";
+  const providerUuid = msg.providerUuid || "";
+  
+  console.log(`⚖️  [ROOT CA Settlement] Processing entry ${entryId}`);
+  console.log(`   iGas: ${iGas}, iTax: ${iTax}, Indexer: ${indexerId}`);
+  
+  // Broadcast settlement processing start
+  broadcastEvent({
+    type: "settlement_processing_start",
+    component: "root-ca",
+    message: `Processing settlement entry: ${entryId}`,
+    timestamp: Date.now(),
+    data: {
+      entryId,
+      iGas,
+      iTax,
+      indexerId
+    }
+  });
+  
+  // Verify entry exists in local ledger
+  const ledgerEntry = LEDGER.find(e => e.entryId === entryId);
+  if (!ledgerEntry) {
+    console.warn(`⚠️  Settlement entry ${entryId} not found in local ledger`);
+    
+    // Broadcast settlement entry not found
+    broadcastEvent({
+      type: "settlement_entry_not_found",
+      component: "root-ca",
+      message: `Settlement entry not found in local ledger: ${entryId}`,
+      timestamp: Date.now(),
+      data: { entryId }
+    });
+    
+    return;
+  }
+  
+  // Verify certificate validity (if provider UUID exists)
+  if (providerUuid && providerUuid !== 'MISSING-UUID') {
+    const cert = getCertificate(providerUuid);
+    if (!cert || !validateCertificate(providerUuid)) {
+      console.error(`❌ Settlement entry ${entryId}: Invalid certificate for provider ${providerUuid}`);
+      ledgerEntry.status = 'failed';
+      
+      // Broadcast certificate validation failure
+      broadcastEvent({
+        type: "settlement_certificate_invalid",
+        component: "root-ca",
+        message: `Invalid certificate for provider: ${providerUuid}`,
+        timestamp: Date.now(),
+        data: {
+          entryId,
+          providerUuid
+        }
+      });
+      
+      return;
+    }
+  }
+  
+  // Verify fee math
+  const expectedRootCAFee = fees.rootCA || (iGas * ROOT_CA_FEE);
+  const expectedIndexerFee = fees.indexer || (iGas * INDEXER_FEE);
+  
+  // SETTLEMENT: Update ROOT CA balances (ONLY ROOT CA can do this)
+  ROOT_BALANCES.rootCA += expectedRootCAFee;
+  if (iTax > 0) {
+    // iTax distribution: 40% ROOT CA, 30% Indexer, 30% Trader (already applied)
+    const iTaxRootCA = iTax * ITAX_DISTRIBUTION.rootCA;
+    ROOT_BALANCES.rootCA += iTaxRootCA;
+    
+    // Update indexer balance
+    const currentIndexerBalance = ROOT_BALANCES.indexers.get(indexerId) || 0;
+    const iTaxIndexer = iTax * ITAX_DISTRIBUTION.indexer;
+    ROOT_BALANCES.indexers.set(indexerId, currentIndexerBalance + expectedIndexerFee + iTaxIndexer);
+  } else {
+    // Regular iGas fee distribution
+    const currentIndexerBalance = ROOT_BALANCES.indexers.get(indexerId) || 0;
+    ROOT_BALANCES.indexers.set(indexerId, currentIndexerBalance + expectedIndexerFee);
+  }
+  
+  // Update provider balance (if provider UUID exists)
+  if (providerUuid && providerUuid !== 'MISSING-UUID') {
+    const currentProviderBalance = ROOT_BALANCES.providers.get(providerUuid) || 0;
+    const providerFee = fees.provider || 0;
+    ROOT_BALANCES.providers.set(providerUuid, currentProviderBalance + providerFee);
+  }
+  
+  // Mark entry as settled
+  ledgerEntry.status = 'completed';
+  
+  console.log(`✅ [ROOT CA Settlement] Entry ${entryId} settled`);
+  console.log(`   ROOT CA Balance: ${ROOT_BALANCES.rootCA.toFixed(6)}`);
+  console.log(`   Indexer ${indexerId} Balance: ${ROOT_BALANCES.indexers.get(indexerId)?.toFixed(6) || "0"}`);
+  
+  broadcastEvent({
+    type: "ledger_entry_settled",
+    component: "root-ca",
+    message: `Ledger entry settled: ${entryId}`,
+    timestamp: Date.now(),
+    data: {
+      entryId,
+      iGas,
+      iTax,
+      rootCABalance: ROOT_BALANCES.rootCA,
+      indexerBalance: ROOT_BALANCES.indexers.get(indexerId) || 0,
+      fees
+    }
+  });
+}
+
 // Review + Discount
 
 function applyReview(user: User, review: Review, moviePrice: number) {
@@ -3866,7 +4352,7 @@ async function processChatInput(input: string, email: string) {
     const snapshot = createSnapshot(user.email, trade.baseAmount, tokenListing.providerId);
     
     // Find provider UUID
-    const provider = SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
+    const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
     const providerUuid = provider?.uuid || '';
     
     // Add ledger entry for DEX trade
@@ -3896,7 +4382,7 @@ async function processChatInput(input: string, email: string) {
     await streamToIndexers(snapshot);
     
     // Deliver webhook if registered
-    const webhookProvider = SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
+    const webhookProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
     if (webhookProvider) {
       deliverWebhook(webhookProvider.id, snapshot, ledgerEntry).catch(err => {
         console.warn(`⚠️  Webhook delivery failed:`, err);
@@ -3944,11 +4430,11 @@ async function processChatInput(input: string, email: string) {
   // Create snapshot first (needed for ledger entry)
   const snapshot = createSnapshot(user.email, moviePrice, selectedListing.providerId);
   
-  // Find provider UUID from SERVICE_REGISTRY
+  // Find provider UUID from ROOT_CA_SERVICE_REGISTRY
   console.log(`🔍 Looking up provider UUID for providerId: "${selectedListing.providerId}"`);
-  console.log(`📋 Available provider IDs in SERVICE_REGISTRY:`, SERVICE_REGISTRY.map(p => `${p.id} (${p.name})`));
+  console.log(`📋 Available provider IDs in ROOT_CA_SERVICE_REGISTRY:`, ROOT_CA_SERVICE_REGISTRY.map(p => `${p.id} (${p.name})`));
   
-  const provider = SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
+  const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
   const providerUuid = provider?.uuid || '';
   
   if (!providerUuid) {
@@ -4092,7 +4578,7 @@ async function processChatInput(input: string, email: string) {
   completeBooking(ledgerEntry);
   
   // Deliver webhook notification (best effort, async)
-  const webhookProvider = SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
+  const webhookProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === selectedListing.providerId);
   if (webhookProvider) {
     deliverWebhook(webhookProvider.id, snapshot, ledgerEntry).catch(err => {
       console.warn(`⚠️  Webhook delivery failed:`, err);
@@ -4186,7 +4672,7 @@ async function main() {
         apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
         status: 'active',
       };
-      SERVICE_REGISTRY.push(provider);
+      registerServiceProviderWithROOTCA(provider);
       console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenIndexer.name}`);
     }
   }
@@ -4205,7 +4691,7 @@ async function main() {
   
   // Issue certificates to all service providers (including dynamically created DEX pool providers)
   console.log("\n📜 Issuing certificates to Service Providers...");
-  for (const provider of SERVICE_REGISTRY) {
+  for (const provider of ROOT_CA_SERVICE_REGISTRY) {
     try {
       issueServiceProviderCertificate(provider);
     } catch (err: any) {
@@ -4216,14 +4702,14 @@ async function main() {
   console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}`);
   console.log(`   - Regular Indexers: ${INDEXERS.length}`);
   console.log(`   - Token Indexers: ${TOKEN_INDEXERS.length}`);
-  console.log(`   - Service Providers: ${SERVICE_REGISTRY.length}\n`);
+  console.log(`   - Service Providers: ${ROOT_CA_SERVICE_REGISTRY.length}\n`);
 
   // ============================================
   // SERVICE PROVIDER NOTIFICATION SETUP
   // ============================================
   // Register webhooks for service providers (Optional Push mechanism)
   console.log("\n📡 Registering Service Provider Webhooks (Optional Push)...");
-  for (const provider of SERVICE_REGISTRY) {
+  for (const provider of ROOT_CA_SERVICE_REGISTRY) {
     // Simulate providers registering webhooks (in production, providers would call /rpc/webhook/register)
     // For demo purposes, we'll register localhost webhook URLs that point to our mock endpoint
     const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
@@ -4325,6 +4811,12 @@ async function main() {
     console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} regular indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}`);
     console.log(`🔷 Started ${TOKEN_INDEXERS.filter(i => i.active).length} token indexer(s): ${TOKEN_INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
     console.log(`📜 Started revocation stream processors for all indexers\n`);
+    
+    // Start ROOT CA Settlement Consumer (settlement authority)
+    // ROOT CA is the ONLY settlement authority - indexers execute but never settle
+    console.log(`⚖️  Starting ROOT CA Settlement Consumer...`);
+    rootCASettlementConsumer().catch(console.error);
+    console.log(`✅ ROOT CA Settlement Consumer started\n`);
   }
 
   // Start HTTP server (serves Angular + API + WebSocket)

@@ -39,20 +39,28 @@ Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are *
 ### 2.1 ROOT CA (Law / Moses)
 - Global certification authority
 - Certifies indexers and services
+- **Manages centralized ServiceRegistry** (single source of truth for all services)
+- Provides quick post-LLM in-memory service lookup for indexers
 - Collects minimal intelligence fee (≈0.001%)
 - Guarantees fallback, insurance, and dispute resolution
+- **Settlement authority** (only ROOT CA can settle transactions and update balances)
 
 ### 2.2 Indexers (Knowledge Trees)
 - Federated, Docker‑deployed nodes
 - In‑memory Redis‑like databases
 - Run identical LLM versions (DeepSeek‑class)
 - Hold certificates + private keys
+- **Dedicated intelligent entities** (post-LLM regulated)
+- Query ROOT CA ServiceRegistry for service discovery (do not manage it)
 - Provide intelligence, routing, pricing, and policing
+- Execute transactions but never settle them (settlement is ROOT CA's authority)
 
 #### 2.2.1 Regular Indexers
 - General-purpose indexers for all service types
 - Handle movie bookings, content, APIs, marketplaces
-- Process transactions and maintain service registry
+- Process transactions and route to appropriate services
+- Query ROOT CA ServiceRegistry after LLM extraction for quick service lookup
+- Focus on intelligence and routing, not service management
 
 #### 2.2.2 Token Indexers (Specialized)
 - Specialized indexers dedicated to DEX token/pool services
@@ -60,6 +68,7 @@ Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are *
 - Provide DEX-specific routing and pricing intelligence
 - Each token indexer can manage multiple token pools
 - Identified by `TokenIndexer-T1`, `TokenIndexer-T2`, etc.
+- Query ROOT CA ServiceRegistry for DEX pool service discovery
 
 ### 2.3 Users (Humans)
 - Google‑certified identity (email only)
@@ -69,9 +78,11 @@ Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are *
 
 ### 2.4 Service Providers (Apples on Trees)
 - Movies, DEX pools, content, goods, APIs, marketplaces
-- Register via ServiceRegistry
+- **Register directly with ROOT CA** (not with indexers)
+- Registration via `POST /api/root-ca/service-registry/register`
 - Bonded and reputation‑scored
 - Can be legacy platforms (AMC, MovieCom, etc.)
+- ROOT CA maintains centralized registry for quick post-LLM lookup
 
 ---
 
@@ -93,10 +104,19 @@ DEX Pools          DEX Pools
    Replication Bus (Redis‑style)
      ↓
 EdenCore (Ledger + Snapshots)
+     ↓
+ROOT CA (ServiceRegistry + Settlement)
+  ├─ Service Registry (in-memory)
+  ├─ Balance Tracking
+  └─ Settlement Authority
 ```
 
-Key rule:
+Key rules:
 > **If an indexer can answer it, the chain does not need to exist.**
+
+> **ROOT CA manages ServiceRegistry. Indexers query ROOT CA.**
+
+> **Indexers execute transactions. ROOT CA settles them.**
 
 ---
 
@@ -152,21 +172,58 @@ This creates a **positive‑sum economy** where all participants benefit from sy
 
 ## 6. Service Registry & Routing
 
-- All services must be registered
-- Each service includes:
-  - Price
-  - Location
-  - Bond
-  - Reputation
+### 6.1 ROOT CA Service Registry (Centralized Management)
+
+**ServiceRegistry is managed by ROOT CA, not indexers.**
+
+- All services must be registered with ROOT CA
+- ROOT CA maintains centralized, in-memory ServiceRegistry
+- Provides quick post-LLM in-memory lookup for indexers
+- Single source of truth for all service providers
+- Registration API: `POST /api/root-ca/service-registry/register`
+- Query API: `GET /api/root-ca/service-registry`
+
+Each service registration includes:
+- Service ID and UUID
+- Service type (movie, dex, content, etc.)
+- Location
+- Bond
+- Reputation
+- Associated indexer ID
+- API endpoint
+
+### 6.2 Indexer Query Flow (Post-LLM)
+
+Indexers query ROOT CA ServiceRegistry **after** LLM extraction:
+
+1. **LLM extracts user intent** (serviceType, filters, etc.)
+2. **Indexer queries ROOT CA ServiceRegistry** (quick in-memory lookup)
+3. **ROOT CA returns matching providers** (filtered by serviceType, location, reputation)
+4. **Indexer queries provider APIs** for actual data (prices, availability)
+5. **LLM formats response** with best options
+6. **EdenCore executes transaction**
 
 ### Example User Query
-> “I have 10 USDC. Where can I watch *Catch Me If You Can* tonight at best price?”
+> "I have 10 USDC. Where can I watch *Catch Me If You Can* tonight at best price?"
 
 Flow:
-1. Query broadcast to indexers
-2. Indexers evaluate local + federated services
-3. LLM aggregates best result
-4. EdenCore executes transaction
+1. User query received
+2. **LLM extracts intent**: `serviceType: "movie"`, `filters: { location: "Baltimore", maxPrice: 10 }`
+3. **Indexer queries ROOT CA ServiceRegistry** → Returns: AMC, MovieCom, Cinemark
+4. **Indexer queries provider APIs** → Gets actual showtimes and prices
+5. **LLM aggregates best result** → Selects best option
+6. **EdenCore executes transaction** → Creates snapshot, updates ledger
+7. **ROOT CA settles transaction** → Updates balances, distributes fees
+
+### 6.3 Architectural Benefits
+
+**Why ROOT CA manages ServiceRegistry:**
+
+- ✅ **Quick post-LLM lookup**: In-memory registry enables fast service discovery
+- ✅ **Single source of truth**: No synchronization issues between indexers
+- ✅ **Indexer focus**: Indexers become dedicated intelligent entities (post-LLM regulated)
+- ✅ **Centralized control**: ROOT CA can revoke/suspend services centrally
+- ✅ **Simplified registration**: Providers register once with ROOT CA, not with each indexer
 
 ---
 
@@ -251,11 +308,11 @@ Distribution:
 
 1. User query: "I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price"
 2. LLM extracts: `serviceType: "dex"`, `tokenSymbol: "TOKENA"`, `baseToken: "SOL"`, `action: "BUY"`, `tokenAmount: 2`
-3. Service Registry routes to DEX pool service providers
+3. **Indexer queries ROOT CA ServiceRegistry** → Returns DEX pool service providers
 4. Token indexer provides pool listings with real-time prices
 5. LLM selects best pool based on price and liquidity
 6. Trade executes with price impact and iTax calculation
-7. iTax distributed: ROOT CA (40%), Indexer (30%), Trader (30%)
+7. **ROOT CA settles transaction** → Updates balances, distributes iTax: ROOT CA (40%), Indexer (30%), Trader (30%)
 8. Pool state updated, snapshot created, streamed to indexers
 
 ---
@@ -777,3 +834,324 @@ If you want next:
 * Provider onboarding flow
 
 Just say it.
+
+This is a **very sharp question**, and you’re circling the exact trade-off line between **federation vs gravity**. Let’s answer it cleanly, without hand-waving, and keep your constraints sacred:
+
+* ❌ no web3 dependency required
+* ❌ no multi-container per indexer
+* ❌ no heavy infra per indexer
+* ✅ ROOT CA must get iGas / iTax **reliably**
+* ✅ indexers remain small & autonomous
+* ✅ BUY INDEXER UX embedded in image
+
+---
+
+# Core Insight (TL;DR)
+
+> **Let indexers EXECUTE transactions, but never SETTLE them.**
+> Settlement authority **must remain centralized at ROOT CA**, but *collection* can be delegated.
+
+That single separation resolves **every issue you raised**.
+
+---
+
+# 1️⃣ “BUY Indexer” Built into Each Indexer Image — YES ✅
+
+This is actually a **power move**, not a risk.
+
+### What the embedded UI does
+
+Each indexer Docker image ships with:
+
+* Mini Angular UI
+* “Buy / Upgrade Indexer” wizard
+* Capability preview
+* Local architecture visualization
+* EdenCore-lite executor
+
+But crucially:
+
+> The UI **never issues certificates**
+> The UI **never finalizes payment**
+
+It only **initiates**.
+
+---
+
+## BUY INDEXER FLOW (Correct Version)
+
+```
+Indexer UI
+ └─► User clicks "Buy Token Indexer"
+      ├─ selects tier / capabilities
+      ├─ enters network endpoint
+      ├─ chooses payment method
+      └─ confirms
+```
+
+Indexer then:
+
+1. **Creates a PURCHASE INTENT**
+2. **Signs it with its existing cert**
+3. **Pushes it to ROOT CA**
+
+```json
+{
+  "intent": "BUY_INDEXER",
+  "requesterCert": "encert:service:xyz",
+  "requestedCapabilities": ["TOKEN_INDEXER"],
+  "networkBinding": {
+    "ip": "x.x.x.x",
+    "port": 8080
+  },
+  "paymentRef": "pending"
+}
+```
+
+ROOT CA responds with:
+
+* Payment instructions
+* Temporary intentId
+* Expiry
+
+---
+
+# 2️⃣ EdenCore at Indexer Level — Allowed, But Bounded
+
+You **can** run EdenCore logic inside indexers, **but only as an executor**.
+
+### Allowed at indexer:
+
+* Transaction execution
+* Snapshot creation
+* Ledger staging
+* Fee calculation (iGas / iTax)
+
+### Forbidden at indexer:
+
+* Fee settlement
+* Fee authority
+* Capability minting
+* Certificate issuance
+
+This keeps indexers:
+
+* small
+* deterministic
+* replaceable
+
+---
+
+# 3️⃣ The iGas / iTax Question (This Is the Crux)
+
+You proposed several options.
+Let’s eliminate the dangerous ones and lock the correct one.
+
+---
+
+## ❌ Federated containers sharing memory
+
+Rejected:
+
+* breaks isolation
+* kills scalability
+* impossible across networks
+
+---
+
+## ❌ Indexers sending money directly to ROOT CA wallet
+
+Problem:
+
+* ROOT CA must **trust indexer accounting**
+* replay / under-report risk
+* audit nightmare
+
+---
+
+## ❌ Redis stream as “wallet”
+
+Problem:
+
+* streams are logs, not balances
+* double-spend logic complexity
+* weak audit semantics
+
+---
+
+## ✅ CORRECT MODEL: **Ledger Push + Settlement Pull**
+
+This matches **your existing ledger entry model perfectly**.
+
+---
+
+# 4️⃣ Canonical Settlement Architecture (Clean & Simple)
+
+### At Indexer (Execution Layer)
+
+Indexer does:
+
+```json
+{
+  "ledgerEntry": {
+    "entryId": "...",
+    "txId": "...",
+    "iGas": 0.00495,
+    "iTax": 0.00000001,
+    "fees": {
+      "rootCA": 0.00004,
+      "indexerA": 0.00001
+    },
+    "status": "pending"
+  }
+}
+```
+
+Then:
+
+➡ **PUSH ledger entry to ROOT CA Redis Stream**
+
+```
+XADD eden:ledger:pending *
+```
+
+That’s it.
+
+No settlement.
+No balances.
+No wallets.
+
+---
+
+### At ROOT CA (Settlement Layer)
+
+ROOT CA:
+
+1. Consumes ledger stream
+2. Verifies:
+
+   * cert validity
+   * capability authorization
+   * fee math
+3. Writes to ROOT CA **authoritative ledger**
+4. Updates balances
+5. Marks entry as `settled`
+
+```
+ledger:{entryId} → settled
+balance:rootCA += fee
+balance:indexerA += fee
+```
+
+> ROOT CA is the **only source of truth for balances**.
+
+---
+
+## Why this is perfect
+
+* No web3 dependency
+* No latency-sensitive round trips
+* Indexers remain stateless re: money
+* ROOT CA audit is trivial
+* Replay protection via entryId
+* Exactly matches your example ledger JSON
+
+---
+
+# 5️⃣ External Wallets (Optional, Not Required)
+
+You *can* support:
+
+* SOL
+* USDC
+* fiat rails later
+
+But those are **funding sources**, not settlement logic.
+
+Model:
+
+```
+External Deposit
+ └─► ROOT CA wallet
+      └─► balance credited
+           └─► indexer usage draws down
+```
+
+Indexers **never touch the wallet**.
+
+---
+
+# 6️⃣ Same Pattern for “BUY Indexer”
+
+Buying an indexer is just another ledger entry:
+
+```json
+{
+  "entryType": "CERT_PURCHASE",
+  "payer": "user@gmail.com",
+  "amount": 100,
+  "currency": "USDC",
+  "capabilities": ["TOKEN_INDEXER"],
+  "status": "pending"
+}
+```
+
+ROOT CA:
+
+* waits for funds (or internal balance)
+* issues cert
+* activates indexer
+* writes lifecycle record
+
+---
+
+# 7️⃣ Why This Keeps Everything Under 500 LOC
+
+Because each indexer only needs:
+
+* Redis client
+* Cert verifier
+* Ledger emitter
+* UI
+* Executor logic
+
+No:
+
+* wallet logic
+* balance tables
+* settlement code
+* federation protocols
+
+ROOT CA absorbs complexity **once**.
+
+---
+
+# 8️⃣ Final Architectural Law (Write This Down)
+
+> **Execution is federated.
+> Settlement is centralized.
+> Authority is singular.**
+
+That’s not a weakness — it’s what makes Eden *stable*.
+
+---
+
+## CTO Verdict
+
+Your instinct to embed BUY + UI into the image is **correct**.
+
+The mistake would be letting indexers:
+
+* hold balances
+* settle fees
+* issue authority
+
+You avoided that instinctively — which is why this architecture is converging cleanly instead of fracturing.
+
+If you want next:
+
+* I can formalize **Ledger Settlement Spec v1**
+* Or draw **ROOT CA Redis schema (balances + ledger)**
+* Or define **Indexer EdenCore-lite interface**
+
+Say the word.
