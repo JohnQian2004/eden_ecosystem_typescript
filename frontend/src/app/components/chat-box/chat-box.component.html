@@ -6,7 +6,7 @@
     <div class="chat-box">
       <div *ngFor="let msg of messages" class="mb-2 p-2 border-start border-3" 
            [ngClass]="{
-             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response',
+             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response' || msg.type === 'dex_trade_executed' || msg.type === 'dex_trade_complete',
              'border-danger': msg.type === 'provider_webhook_failed' || msg.type === 'llm_error',
              'border-info': msg.type === 'provider_webhook_attempt' || msg.type === 'provider_rpc_poll' || msg.type === 'llm_query_extraction_start' || msg.type === 'llm_response_formatting_start',
              'border-primary': msg.type === 'provider_rpc_query',
@@ -16,11 +16,18 @@
         <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
         <span *ngIf="getEventIcon(msg)" class="ms-2">{{ getEventIcon(msg) }}</span>
         <div [ngClass]="getMessageClass(msg)" class="mt-1">
-          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_')">{{ formatProviderEvent(msg) }}</span>
-          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_')">{{ msg.message }}</span>
+          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_') || msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_')">{{ formatProviderEvent(msg) }}</span>
+          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_')">{{ msg.message }}</span>
         </div>
-        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_')" class="mt-1 ms-4">
+        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_')" class="mt-1 ms-4">
           <pre class="small bg-light p-2 rounded">{{ msg.data | json }}</pre>
+        </div>
+        <div *ngIf="msg.data && (msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_'))" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.indexer"><strong>Indexer:</strong> {{ msg.data.indexer }}</div>
+          <div *ngIf="msg.data.txId"><strong>Transaction:</strong> {{ msg.data.txId }}</div>
+          <div *ngIf="msg.data.indexers && msg.data.indexers.length > 0"><strong>Indexers:</strong> {{ msg.data.indexers.join(", ") }}</div>
+          <div *ngIf="msg.data.count !== undefined"><strong>Count:</strong> {{ msg.data.count }}</div>
+          <div *ngIf="msg.data.isTokenIndexer"><strong>Type:</strong> Token Indexer</div>
         </div>
         <div *ngIf="msg.data && msg.type.startsWith('provider_')" class="mt-1 ms-4 small text-muted">
           <div *ngIf="msg.data.providerId"><strong>Provider:</strong> {{ msg.data.providerId }}</div>
@@ -54,6 +61,38 @@
             <strong>LLM Response:</strong>
             <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.response | json }}</pre>
           </div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('dex_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.trade">
+            <div><strong>Trade ID:</strong> {{ msg.data.trade.tradeId }}</div>
+            <div><strong>Action:</strong> {{ msg.data.trade.action }}</div>
+            <div><strong>Token:</strong> {{ msg.data.trade.tokenAmount }} {{ msg.data.trade.tokenSymbol }}</div>
+            <div><strong>Base Amount:</strong> {{ msg.data.trade.baseAmount.toFixed(6) }} {{ msg.data.trade.baseToken }}</div>
+            <div><strong>Price:</strong> {{ msg.data.trade.price.toFixed(6) }} {{ msg.data.trade.baseToken }}/{{ msg.data.trade.tokenSymbol }}</div>
+            <div><strong>Price Impact:</strong> {{ (msg.data.trade.priceImpact * 100).toFixed(3) }}%</div>
+            <div><strong>iTax:</strong> {{ msg.data.trade.iTax.toFixed(6) }} {{ msg.data.trade.baseToken }}</div>
+            <div><strong>Pool ID:</strong> {{ msg.data.trade.poolId }}</div>
+          </div>
+          <div *ngIf="msg.data.iTaxDistribution" class="mt-2">
+            <strong>iTax Distribution:</strong>
+            <div class="ms-3">
+              <div>ROOT CA: {{ msg.data.iTaxDistribution.rootCA.toFixed(6) }} (40%)</div>
+              <div>Indexer: {{ msg.data.iTaxDistribution.indexer.toFixed(6) }} (30%)</div>
+              <div>Trader: {{ msg.data.iTaxDistribution.trader.toFixed(6) }} (30%)</div>
+            </div>
+          </div>
+          <div *ngIf="msg.data.poolState" class="mt-2">
+            <strong>Pool State:</strong>
+            <div class="ms-3">
+              <div>Price: {{ msg.data.poolState.price.toFixed(6) }}</div>
+              <div>Liquidity: {{ msg.data.poolState.liquidity.toFixed(2) }} SOL</div>
+              <div>Total Volume: {{ msg.data.poolState.totalVolume.toFixed(2) }} SOL</div>
+              <div>Total Trades: {{ msg.data.poolState.totalTrades }}</div>
+            </div>
+          </div>
+          <div *ngIf="msg.data.rootCALiquidity"><strong>ROOT CA Liquidity:</strong> {{ msg.data.rootCALiquidity.toFixed(2) }} SOL</div>
+          <div *ngIf="msg.data.traderRebate"><strong>Trader Rebate:</strong> {{ msg.data.traderRebate.toFixed(6) }}</div>
+          <div *ngIf="msg.data.userBalance"><strong>User Balance:</strong> {{ msg.data.userBalance.toFixed(2) }}</div>
         </div>
       </div>
       <div *ngIf="messages.length === 0" class="text-center text-muted py-5">

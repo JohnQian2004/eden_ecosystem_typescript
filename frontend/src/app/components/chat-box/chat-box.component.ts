@@ -66,6 +66,9 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
         return 'text-success';
       case 'llm_error':
         return 'text-danger';
+      case 'dex_trade_executed':
+      case 'dex_trade_complete':
+        return 'text-success fw-bold';
       default:
         return 'text-dark';
     }
@@ -99,6 +102,17 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
         return '✅';
       case 'llm_error':
         return '❌';
+      case 'dex_trade_executed':
+      case 'dex_trade_complete':
+        return '💰';
+      case 'indexer_indexed':
+        return '📡';
+      case 'token_indexer_indexed':
+        return '🔷';
+      case 'indexer_stream':
+        return '📤';
+      case 'token_indexer_stream':
+        return '🔷';
       default:
         return '';
     }
@@ -148,11 +162,58 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
       } else if (event.type === 'llm_response_formatting_response') {
         details = `Provider: ${data.provider || 'unknown'}`;
         if (data.listingsCount !== undefined) details += ` | Listings: ${data.listingsCount}`;
-        if (data.selectedListing) details += ` | Selected: ${data.selectedListing.movieTitle || data.selectedListing.providerName || 'N/A'}`;
+        if (data.selectedListing) details += ` | Selected: ${data.selectedListing.movieTitle || data.selectedListing.providerName || data.selectedListing.tokenSymbol || 'N/A'}`;
       } else if (event.type === 'llm_error') {
         details = `Provider: ${data.provider || 'unknown'}`;
         if (data.error) details += ` | Error: ${data.error}`;
       }
+      
+      return details ? `${event.message} (${details})` : event.message;
+    }
+    
+    if (event.type.startsWith('dex_')) {
+      const data = event.data || {};
+      let details = '';
+      
+      if (event.type === 'dex_trade_executed' || event.type === 'dex_trade_complete') {
+        if (data.trade) {
+          details = `${data.trade.action} ${data.trade.tokenAmount} ${data.trade.tokenSymbol}`;
+          details += ` | Price: ${data.trade.price.toFixed(6)} ${data.trade.baseToken}/${data.trade.tokenSymbol}`;
+          details += ` | iTax: ${data.trade.iTax.toFixed(6)} ${data.trade.baseToken}`;
+        }
+        if (data.traderRebate) details += ` | Rebate: ${data.traderRebate.toFixed(6)}`;
+        if (data.rootCALiquidity) details += ` | ROOT CA Liquidity: ${data.rootCALiquidity.toFixed(2)} SOL`;
+      }
+      
+      return details ? `${event.message} (${details})` : event.message;
+    }
+    
+    // Token indexer events
+    if (event.type === 'token_indexer_indexed' || event.type === 'token_indexer_stream') {
+      const data = event.data || {};
+      let details = '';
+      
+      if (data.indexer) details += `Indexer: ${data.indexer}`;
+      if (data.txId) details += ` | TX: ${data.txId.substring(0, 8)}...`;
+      if (data.indexers && Array.isArray(data.indexers)) {
+        details += ` | Indexers: ${data.indexers.join(", ")}`;
+      }
+      if (data.count !== undefined) details += ` | Count: ${data.count}`;
+      
+      return details ? `${event.message} (${details})` : event.message;
+    }
+    
+    // Regular indexer events
+    if (event.type === 'indexer_indexed' || event.type === 'indexer_stream') {
+      const data = event.data || {};
+      let details = '';
+      
+      if (data.indexer) details += `Indexer: ${data.indexer}`;
+      if (data.txId) details += ` | TX: ${data.txId.substring(0, 8)}...`;
+      if (data.indexers && Array.isArray(data.indexers)) {
+        details += ` | Indexers: ${data.indexers.join(", ")}`;
+      }
+      if (data.count !== undefined) details += ` | Count: ${data.count}`;
       
       return details ? `${event.message} (${details})` : event.message;
     }

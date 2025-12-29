@@ -32,6 +32,10 @@ const ENABLE_OPENAI = args.some(arg => arg.includes("--enable-openai") && (arg.i
 const indexersArg = args.find(arg => arg.startsWith("--indexers"));
 const NUM_INDEXERS = indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2;
 
+// Parse --token-indexers flag (default: 2)
+const tokenIndexersArg = args.find(arg => arg.startsWith("--token-indexers"));
+const NUM_TOKEN_INDEXERS = tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2;
+
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
 
@@ -55,6 +59,24 @@ for (let i = 0; i < NUM_INDEXERS; i++) {
     stream: `eden:indexer:${indexerId}`,
     active: true,
     uuid: `eden:indexer:${crypto.randomUUID()}`
+  });
+}
+
+// Token Indexers (specialized indexers providing DEX token/pool services)
+interface TokenIndexerConfig extends IndexerConfig {
+  tokenServiceType: 'dex'; // Specialized for DEX services
+}
+
+const TOKEN_INDEXERS: TokenIndexerConfig[] = [];
+for (let i = 0; i < NUM_TOKEN_INDEXERS; i++) {
+  const tokenIndexerId = `T${i + 1}`; // T1, T2, T3...
+  TOKEN_INDEXERS.push({
+    id: tokenIndexerId,
+    name: `TokenIndexer-${tokenIndexerId}`,
+    stream: `eden:token-indexer:${tokenIndexerId}`,
+    active: true,
+    uuid: `eden:token-indexer:${crypto.randomUUID()}`,
+    tokenServiceType: 'dex'
   });
 }
 
@@ -1227,6 +1249,14 @@ type LedgerEntry = {
     movieTitle?: string;
     showtime?: string;
     location?: string;
+    // DEX trade details
+    tokenSymbol?: string;
+    baseToken?: string;
+    action?: 'BUY' | 'SELL';
+    tokenAmount?: number;
+    baseAmount?: number;
+    price?: number;
+    iTax?: number;
   };
 };
 
@@ -1270,6 +1300,50 @@ type MovieListing = {
   indexerId: string;
 };
 
+type TokenPool = {
+  poolId: string;
+  tokenSymbol: string;
+  tokenName: string;
+  baseToken: string; // SOL, USDC, etc.
+  poolLiquidity: number; // Total liquidity in base token
+  tokenReserve: number; // Amount of tokens in pool
+  baseReserve: number; // Amount of base token in pool
+  price: number; // Current price (baseToken per token)
+  bond: number; // Creator bond
+  indexerId: string; // Indexer providing this pool service
+  createdAt: number;
+  totalVolume: number;
+  totalTrades: number;
+};
+
+type TokenListing = {
+  poolId: string;
+  providerId: string; // Indexer ID providing the pool
+  providerName: string;
+  tokenSymbol: string;
+  tokenName: string;
+  baseToken: string;
+  price: number; // Current price
+  liquidity: number;
+  volume24h: number;
+  indexerId: string;
+};
+
+type DEXTrade = {
+  tradeId: string;
+  poolId: string;
+  tokenSymbol: string;
+  baseToken: string;
+  action: 'BUY' | 'SELL';
+  tokenAmount: number;
+  baseAmount: number;
+  price: number;
+  priceImpact: number; // 0.001% per trade
+  iTax: number; // 0.0005% commission
+  timestamp: number;
+  trader: string; // User email
+};
+
 type ServiceRegistryQuery = {
   serviceType: string;
   filters?: {
@@ -1278,6 +1352,12 @@ type ServiceRegistryQuery = {
     minReputation?: number;
     genre?: string;
     time?: string;
+    // DEX-specific filters
+    tokenSymbol?: string;
+    baseToken?: string;
+    action?: 'BUY' | 'SELL';
+    tokenAmount?: number;
+    maxPriceImpact?: number;
   };
 };
 
@@ -1289,9 +1369,10 @@ type LLMQueryResult = {
 
 type LLMResponse = {
   message: string;
-  listings: MovieListing[];
-  selectedListing: MovieListing | null;
+  listings: MovieListing[] | TokenListing[];
+  selectedListing: MovieListing | TokenListing | null;
   iGasCost: number;
+  tradeDetails?: DEXTrade; // For DEX trades
 };
 
 // Constants
@@ -1307,6 +1388,22 @@ const INDEXER_FEE = 0.005;
 const LLM_BASE_COST = 0.001; // Base cost per LLM call
 const ROUTING_COST_PER_PROVIDER = 0.0001; // Cost per service provider queried
 const REASONING_COST_MULTIPLIER = 1.5; // Multiplier for complex reasoning
+
+// DEX Trading Constants
+const PRICE_IMPACT_PER_TRADE = 0.00001; // 0.001% = 0.00001
+const ITAX_RATE = 0.000005; // 0.0005% = 0.000005
+const ROOT_CA_LIQUIDITY_POOL = 1000; // Initial ROOT CA liquidity in SOL
+const ITAX_DISTRIBUTION = {
+  rootCA: 0.4, // 40% to ROOT CA
+  indexer: 0.3, // 30% to indexer (token provider)
+  trader: 0.3, // 30% back to trader as rebate
+};
+
+// DEX Pools Registry
+const DEX_POOLS: Map<string, TokenPool> = new Map();
+
+// ROOT CA Liquidity Pool (first liquidity source)
+let rootCALiquidity: number = ROOT_CA_LIQUIDITY_POOL;
 
 // Users
 
@@ -1377,6 +1474,7 @@ const SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     indexerId: "indexer-alpha",
     apiEndpoint: "https://api.cinemark.com/movies",
   },
+  // DEX Pool Service Providers will be dynamically created from token indexers during initialization
 ];
 
 // Mock Service Provider APIs (simulate external API calls)
@@ -1455,8 +1553,153 @@ async function queryCinemarkAPI(location: string, filters?: { genre?: string; ti
   ];
 }
 
+// DEX Pool Functions
+function initializeDEXPools(): void {
+  // Initialize DEX pools, assigning them to token indexers
+  // Each token indexer can provide multiple pools
+  for (let i = 0; i < TOKEN_INDEXERS.length; i++) {
+    const tokenIndexer = TOKEN_INDEXERS[i];
+    if (!tokenIndexer) continue;
+    
+    // Create pools for this token indexer
+    // Token Indexer T1 gets TOKENA, T2 gets TOKENB, etc.
+    const tokenSymbol = `TOKEN${String.fromCharCode(65 + i)}`; // TOKENA, TOKENB, TOKENC...
+    const tokenName = `Token ${String.fromCharCode(65 + i)}`;
+    const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
+    
+    const pool: TokenPool = {
+      poolId: poolId,
+      tokenSymbol: tokenSymbol,
+      tokenName: tokenName,
+      baseToken: "SOL",
+      poolLiquidity: 100 - (i * 10), // Decreasing liquidity for variety: 100, 90, 80...
+      tokenReserve: 100000 - (i * 10000), // 100k, 90k, 80k...
+      baseReserve: 100 - (i * 10), // 100, 90, 80...
+      price: 0.001, // 1 Token = 0.001 SOL
+      bond: 5000,
+      indexerId: tokenIndexer.id, // Assign to token indexer
+      createdAt: Date.now(),
+      totalVolume: 0,
+      totalTrades: 0,
+    };
+    DEX_POOLS.set(poolId, pool);
+  }
+
+  console.log(`🌊 Initialized ${DEX_POOLS.size} DEX pools`);
+  console.log(`💰 ROOT CA Liquidity Pool: ${rootCALiquidity} SOL`);
+  console.log(`🔷 Token Indexers: ${TOKEN_INDEXERS.map(ti => ti.name).join(", ")}`);
+  
+  // Display pool assignments
+  for (const [poolId, pool] of DEX_POOLS.entries()) {
+    console.log(`   ${pool.tokenSymbol} Pool → ${pool.indexerId} (${pool.poolLiquidity} SOL liquidity)`);
+  }
+}
+
+async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<TokenListing[]> {
+  await new Promise(resolve => setTimeout(resolve, 30));
+  
+  const listings: TokenListing[] = [];
+  
+  console.log(`🔍 [DEX] Querying pools for provider: ${provider.id} (indexerId: ${provider.indexerId})`);
+  console.log(`   Filters: ${JSON.stringify(filters)}`);
+  
+  // Find pools matching the provider
+  // Match by: 1) provider.indexerId matches pool.indexerId, OR 2) provider.id contains token symbol
+  // If no specific match, return all pools for DEX providers (fallback)
+  let hasMatch = false;
+  for (const [poolId, pool] of DEX_POOLS.entries()) {
+    const tokenSymbolLower = pool.tokenSymbol.toLowerCase();
+    const providerIdLower = provider.id.toLowerCase();
+    
+    // Match by indexer ID (most reliable)
+    const matchesByIndexer = pool.indexerId === provider.indexerId;
+    
+    // Match by token symbol in provider ID (e.g., "dex-pool-tokena" contains "tokena")
+    const matchesBySymbol = providerIdLower.includes(tokenSymbolLower);
+    
+    // Also check if provider ID matches the expected pattern "dex-pool-{tokenSymbol}"
+    const expectedProviderId = `dex-pool-${tokenSymbolLower}`;
+    const matchesByPattern = providerIdLower === expectedProviderId;
+    
+    const matchesProvider = matchesByIndexer || matchesBySymbol || matchesByPattern;
+    
+    if (matchesProvider) hasMatch = true;
+    
+    console.log(`   Pool ${pool.tokenSymbol} (${pool.indexerId}): matchesByIndexer=${matchesByIndexer}, matchesBySymbol=${matchesBySymbol}, matchesByPattern=${matchesByPattern} (provider.id="${provider.id}", expected="${expectedProviderId}")`);
+    
+    if (!matchesProvider) continue;
+    
+    // Apply filters
+    if (filters?.tokenSymbol && pool.tokenSymbol.toUpperCase() !== filters.tokenSymbol.toUpperCase()) {
+      console.log(`   Pool ${pool.tokenSymbol} filtered out by tokenSymbol filter: ${pool.tokenSymbol.toUpperCase()} !== ${filters.tokenSymbol.toUpperCase()}`);
+      continue;
+    }
+    if (filters?.baseToken && pool.baseToken.toUpperCase() !== filters.baseToken.toUpperCase()) {
+      console.log(`   Pool ${pool.tokenSymbol} filtered out by baseToken filter: ${pool.baseToken.toUpperCase()} !== ${filters.baseToken.toUpperCase()}`);
+      continue;
+    }
+    
+    console.log(`   ✅ Pool ${pool.tokenSymbol} matched!`);
+    listings.push({
+      poolId: pool.poolId,
+      providerId: provider.id,
+      providerName: provider.name,
+      tokenSymbol: pool.tokenSymbol,
+      tokenName: pool.tokenName,
+      baseToken: pool.baseToken,
+      price: pool.price,
+      liquidity: pool.poolLiquidity,
+      volume24h: pool.totalVolume,
+      indexerId: pool.indexerId,
+    });
+  }
+  
+  // Debug logging
+  if (listings.length === 0) {
+    console.log(`⚠️  [DEX] No pools matched for provider ${provider.id} (indexerId: ${provider.indexerId})`);
+    console.log(`   Available pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
+    
+    // Fallback: If this is a DEX provider but no pools matched, return all pools for this indexer
+    // This handles edge cases where matching logic might fail
+    if (!hasMatch && provider.serviceType === "dex") {
+      console.log(`   🔄 Fallback: Returning all pools for indexer ${provider.indexerId}`);
+      for (const [poolId, pool] of DEX_POOLS.entries()) {
+        if (pool.indexerId === provider.indexerId) {
+          // Apply filters
+          if (filters?.tokenSymbol && pool.tokenSymbol.toUpperCase() !== filters.tokenSymbol.toUpperCase()) continue;
+          if (filters?.baseToken && pool.baseToken.toUpperCase() !== filters.baseToken.toUpperCase()) continue;
+          
+          listings.push({
+            poolId: pool.poolId,
+            providerId: provider.id,
+            providerName: provider.name,
+            tokenSymbol: pool.tokenSymbol,
+            tokenName: pool.tokenName,
+            baseToken: pool.baseToken,
+            price: pool.price,
+            liquidity: pool.poolLiquidity,
+            volume24h: pool.totalVolume,
+            indexerId: pool.indexerId,
+          });
+        }
+      }
+      if (listings.length > 0) {
+        console.log(`   ✅ Fallback found ${listings.length} pool(s)`);
+      }
+    }
+  } else {
+    console.log(`✅ [DEX] Found ${listings.length} pool(s) for provider ${provider.id}`);
+  }
+  
+  return listings;
+}
+
 // Provider API router
-async function queryProviderAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
+async function queryProviderAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
+  if (provider.serviceType === "dex") {
+    return await queryDEXPoolAPI(provider, filters);
+  }
+  
   switch (provider.id) {
     case "amc-001":
       return await queryAMCAPI(provider.location, filters);
@@ -1474,14 +1717,29 @@ const LLM_QUERY_EXTRACTION_PROMPT = `
 You are Eden Core AI query processor.
 Extract service query from user input.
 Return JSON only with: query (object with serviceType and filters), serviceType, confidence.
+
+Service types: "movie" or "dex"
+
+For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
+
+For DEX token trading queries (BUY/SELL tokens):
+- Extract tokenSymbol (e.g., "TOKENA", "TOKENB")
+- Extract baseToken (e.g., "SOL", "USDC")
+- Extract action: "BUY" or "SELL"
+- Extract tokenAmount if specified
+- Extract maxPrice if specified (e.g., "1 Token/SOL" means price <= 1)
+
+Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
 `;
 
 const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
 Format service provider listings into user-friendly chat response.
 
-Your responsibilities:
+Your responsibilities depend on serviceType:
+
+FOR MOVIE SERVICE:
 1. Filter listings based on user query filters (e.g., maxPrice, genre, time, location)
 2. If maxPrice is "best" or "lowest", select listings with the lowest price
 3. If maxPrice is a number, only include listings with price <= maxPrice
@@ -1491,8 +1749,17 @@ Your responsibilities:
 
 IMPORTANT: When returning selectedListing, you MUST include ALL fields from the original listing, especially providerId (e.g., "amc-001", "moviecom-001", "cinemark-001").
 
-Include in response: provider name, movie title, price, showtime, location, review count, rating.
-Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option with ALL original fields including providerId, or null).
+FOR DEX TOKEN SERVICE:
+1. Filter token pools based on tokenSymbol, baseToken, and action (BUY/SELL)
+2. If maxPrice is specified (e.g., "1 Token/SOL"), only include pools with price <= maxPrice
+3. If action is "BUY", find pools where user can buy tokens with baseToken
+4. If action is "SELL", find pools where user can sell tokens for baseToken
+5. Select the best pool based on price and liquidity
+6. Format the results showing: token symbol, price, liquidity, pool provider
+
+IMPORTANT: When returning selectedListing for DEX, you MUST include ALL fields: poolId, providerId, tokenSymbol, baseToken, price, liquidity, indexerId.
+
+Return JSON with: message (string), listings (array of filtered listings), selectedListing (best option with ALL original fields including providerId/poolId, or null).
 `;
 
 // Service Registry Functions
@@ -1524,8 +1791,8 @@ function queryServiceRegistry(query: ServiceRegistryQuery): ServiceProvider[] {
   });
 }
 
-async function queryServiceProviders(providers: ServiceProvider[], filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
-  const allListings: MovieListing[] = [];
+async function queryServiceProviders(providers: ServiceProvider[], filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
+  const allListings: (MovieListing | TokenListing)[] = [];
   
   // Query each provider's external API in parallel
   const providerPromises = providers.map(provider => 
@@ -1543,6 +1810,130 @@ async function queryServiceProviders(providers: ServiceProvider[], filters?: { g
   }
   
   return allListings;
+}
+
+// DEX Trading Functions
+function executeDEXTrade(
+  poolId: string,
+  action: 'BUY' | 'SELL',
+  tokenAmount: number,
+  userEmail: string
+): DEXTrade {
+  const pool = DEX_POOLS.get(poolId);
+  if (!pool) {
+    throw new Error(`Pool ${poolId} not found`);
+  }
+
+  // Step 1: Use ROOT CA liquidity as first liquidity source
+  // For BUY: User pays baseToken, gets tokens
+  // For SELL: User pays tokens, gets baseToken
+  
+  let baseAmount: number;
+  let newPrice: number;
+  
+  if (action === 'BUY') {
+    // User wants to BUY tokens with baseToken (SOL)
+    // Calculate baseToken needed using constant product formula: x * y = k
+    // After trade: (baseReserve + baseAmount) * (tokenReserve - tokenAmount) = baseReserve * tokenReserve
+    // Solving: baseAmount = (baseReserve * tokenAmount) / (tokenReserve - tokenAmount)
+    baseAmount = (pool.baseReserve * tokenAmount) / (pool.tokenReserve - tokenAmount);
+    
+    // Apply price impact (0.001% = 0.00001)
+    const priceImpact = PRICE_IMPACT_PER_TRADE;
+    baseAmount = baseAmount * (1 + priceImpact);
+    
+    // Update pool reserves
+    pool.baseReserve += baseAmount;
+    pool.tokenReserve -= tokenAmount;
+    
+    // Calculate new price
+    newPrice = pool.baseReserve / pool.tokenReserve;
+    pool.price = newPrice;
+    
+    // Increase pool value by 0.001%
+    pool.poolLiquidity *= (1 + PRICE_IMPACT_PER_TRADE);
+  } else {
+    // SELL: User wants to SELL tokens for baseToken
+    // Calculate baseToken received: baseAmount = (baseReserve * tokenAmount) / (tokenReserve + tokenAmount)
+    baseAmount = (pool.baseReserve * tokenAmount) / (pool.tokenReserve + tokenAmount);
+    
+    // Apply price impact
+    const priceImpact = PRICE_IMPACT_PER_TRADE;
+    baseAmount = baseAmount * (1 - priceImpact);
+    
+    // Update pool reserves
+    pool.baseReserve -= baseAmount;
+    pool.tokenReserve += tokenAmount;
+    
+    // Calculate new price
+    newPrice = pool.baseReserve / pool.tokenReserve;
+    pool.price = newPrice;
+    
+    // Increase pool value by 0.001%
+    pool.poolLiquidity *= (1 + PRICE_IMPACT_PER_TRADE);
+  }
+  
+  // Step 2: Calculate iTax (0.0005% commission)
+  const tradeValue = baseAmount; // Trade value in baseToken
+  const iTax = tradeValue * ITAX_RATE;
+  
+  // Step 3: Distribute iTax (WIN-WIN-WIN)
+  const iTaxRootCA = iTax * ITAX_DISTRIBUTION.rootCA; // 40% to ROOT CA
+  const iTaxIndexer = iTax * ITAX_DISTRIBUTION.indexer; // 30% to indexer
+  const iTaxTrader = iTax * ITAX_DISTRIBUTION.trader; // 30% back to trader as rebate
+  
+  // Update ROOT CA liquidity (add iTax)
+  rootCALiquidity += iTaxRootCA;
+  
+  // Update pool stats
+  pool.totalVolume += tradeValue;
+  pool.totalTrades += 1;
+  
+  // Create trade record
+  const trade: DEXTrade = {
+    tradeId: crypto.randomUUID(),
+    poolId: pool.poolId,
+    tokenSymbol: pool.tokenSymbol,
+    baseToken: pool.baseToken,
+    action,
+    tokenAmount,
+    baseAmount,
+    price: newPrice,
+    priceImpact: PRICE_IMPACT_PER_TRADE,
+    iTax,
+    timestamp: Date.now(),
+    trader: userEmail,
+  };
+  
+  console.log(`💰 [DEX] Trade executed: ${action} ${tokenAmount} ${pool.tokenSymbol} for ${baseAmount.toFixed(6)} ${pool.baseToken}`);
+  console.log(`   Price: ${newPrice.toFixed(6)} ${pool.baseToken}/${pool.tokenSymbol}`);
+  console.log(`   iTax: ${iTax.toFixed(6)} ${pool.baseToken}`);
+  console.log(`   Distribution: ROOT CA ${iTaxRootCA.toFixed(6)}, Indexer ${iTaxIndexer.toFixed(6)}, Trader ${iTaxTrader.toFixed(6)}`);
+  
+  // Broadcast DEX trade event
+  broadcastEvent({
+    type: "dex_trade_executed",
+    component: "dex",
+    message: `DEX Trade: ${action} ${tokenAmount} ${pool.tokenSymbol}`,
+    timestamp: Date.now(),
+    data: {
+      trade,
+      iTaxDistribution: {
+        rootCA: iTaxRootCA,
+        indexer: iTaxIndexer,
+        trader: iTaxTrader,
+      },
+      poolState: {
+        price: pool.price,
+        liquidity: pool.poolLiquidity,
+        totalVolume: pool.totalVolume,
+        totalTrades: pool.totalTrades,
+      },
+      rootCALiquidity: rootCALiquidity,
+    }
+  });
+  
+  return trade;
 }
 
 // iGas Calculation
@@ -1685,7 +2076,7 @@ async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult
 }
 
 // OpenAI LLM Response Formatting
-async function formatResponseWithOpenAI(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
+async function formatResponseWithOpenAI(listings: MovieListing[] | TokenListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
   const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
@@ -1917,7 +2308,7 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
 }
 
 // DeepSeek LLM Response Formatting (Legacy)
-async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }): Promise<LLMResponse> {
+async function formatResponseWithDeepSeek(listings: MovieListing[] | TokenListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<LLMResponse> {
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
   const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
@@ -1960,19 +2351,41 @@ async function formatResponseWithDeepSeek(listings: MovieListing[], userQuery: s
           try {
             const parsed = JSON.parse(data);
             
-            // Ensure selectedListing has providerId by matching it back to original listings
+            // Ensure selectedListing has providerId/poolId by matching it back to original listings
             let selectedListing = parsed.selectedListing || (listings.length > 0 ? listings[0] : null);
-            if (selectedListing && !selectedListing.providerId) {
-              // Try to find matching listing by movie title and provider name
-              const matchedListing = listings.find(l => 
-                l.movieTitle === selectedListing.movieTitle && 
-                l.providerName === selectedListing.providerName
-              );
-              if (matchedListing) {
-                selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
-              } else if (listings.length > 0) {
-                // Fallback to first listing
-                selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+            if (selectedListing) {
+              // Check if it's a TokenListing (has poolId) or MovieListing (has movieTitle)
+              const isTokenListing = 'poolId' in selectedListing || 'tokenSymbol' in selectedListing;
+              
+              if (isTokenListing) {
+                // TokenListing: match by poolId or tokenSymbol
+                const tokenListing = selectedListing as any;
+                if (!tokenListing.poolId) {
+                  const matchedListing = listings.find((l: any) => 
+                    ('poolId' in l && l.poolId === tokenListing.poolId) ||
+                    ('tokenSymbol' in l && l.tokenSymbol === tokenListing.tokenSymbol)
+                  ) as TokenListing | undefined;
+                  if (matchedListing) {
+                    selectedListing = { ...selectedListing, ...matchedListing };
+                  } else if (listings.length > 0) {
+                    selectedListing = { ...selectedListing, ...(listings[0] as TokenListing) };
+                  }
+                }
+              } else {
+                // MovieListing: match by movie title and provider name
+                const movieListing = selectedListing as any;
+                if (!movieListing.providerId) {
+                  const matchedListing = listings.find((l: any) => 
+                    'movieTitle' in l &&
+                    l.movieTitle === movieListing.movieTitle && 
+                    l.providerName === movieListing.providerName
+                  ) as MovieListing | undefined;
+                  if (matchedListing) {
+                    selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+                  } else if (listings.length > 0) {
+                    selectedListing = { ...selectedListing, providerId: (listings[0] as MovieListing).providerId };
+                  }
+                }
               }
             }
             
@@ -2049,7 +2462,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 
   let llmCalls = 0;
   let extractQueryFn: (input: string) => Promise<LLMQueryResult>;
-  let formatResponseFn: (listings: MovieListing[], query: string, filters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string }) => Promise<LLMResponse>;
+  let formatResponseFn: (listings: MovieListing[] | TokenListing[], query: string, filters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }) => Promise<LLMResponse>;
 
   // Choose LLM provider
   if (ENABLE_OPENAI) {
@@ -2079,6 +2492,10 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     
     const providers = queryServiceRegistry(queryResult.query);
     console.log(`🔍 Found ${providers.length} service providers`);
+    if (queryResult.serviceType === "dex") {
+      console.log(`   DEX Providers: ${providers.map(p => `${p.id} (indexer: ${p.indexerId})`).join(", ")}`);
+      console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
+    }
     
     broadcastEvent({
       type: "service_registry_result",
@@ -2105,11 +2522,19 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     const listings = await queryServiceProviders(providers, {
       genre: queryResult.query.filters?.genre,
       time: queryResult.query.filters?.time,
+      tokenSymbol: queryResult.query.filters?.tokenSymbol,
+      baseToken: queryResult.query.filters?.baseToken,
+      action: queryResult.query.filters?.action,
     });
-    console.log(`🎬 Found ${listings.length} movie listings from provider APIs`);
+    
+    if (queryResult.serviceType === "dex") {
+      console.log(`🌊 Found ${listings.length} DEX pool listings`);
+    } else {
+      console.log(`🎬 Found ${listings.length} movie listings from provider APIs`);
+    }
     
     providers.forEach(provider => {
-      const providerListings = listings.filter(l => l.providerId === provider.id);
+      const providerListings = listings.filter((l: any) => l.providerId === provider.id);
       broadcastEvent({
         type: "provider_api_result",
         component: provider.id,
@@ -2120,13 +2545,16 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     });
 
     if (listings.length === 0) {
-      throw new Error("No movie listings found from service providers");
+      const errorMsg = queryResult.serviceType === "dex" 
+        ? "No DEX pools found from service providers"
+        : "No movie listings found from service providers";
+      throw new Error(errorMsg);
     }
 
     // Step 4: Format response using LLM (LLM will handle filtering based on query filters)
     llmCalls++;
     console.log(`🤖 [LLM] Starting response formatting for ${listings.length} listings`);
-    const formattedResponse = await formatResponseFn(listings, userInput, queryResult.query.filters);
+    const formattedResponse = await formatResponseFn(listings as MovieListing[], userInput, queryResult.query.filters);
     console.log(`✅ [LLM] Response formatted: ${formattedResponse.message.substring(0, 100)}${formattedResponse.message.length > 100 ? '...' : ''}`);
 
     // Step 5: Calculate iGas
@@ -3049,7 +3477,9 @@ async function persistSnapshot(snapshot: TransactionSnapshot) {
 async function streamToIndexers(snapshot: TransactionSnapshot) {
   if (SKIP_REDIS || !redis.isOpen) {
     const indexerNames = INDEXERS.filter(i => i.active).map(i => i.name).join(", ");
-    console.log(`📡 Stream (mock): ${snapshot.txId} → ${indexerNames}`);
+    const tokenIndexerNames = TOKEN_INDEXERS.filter(i => i.active).map(i => i.name).join(", ");
+    const allNames = [indexerNames, tokenIndexerNames].filter(n => n).join(", ");
+    console.log(`📡 Stream (mock): ${snapshot.txId} → ${allNames}`);
     return;
   }
 
@@ -3063,14 +3493,51 @@ async function streamToIndexers(snapshot: TransactionSnapshot) {
       amount: snapshot.amount.toString(),
     };
 
-    // Stream to all active indexers
+    // Stream to all active regular indexers
     const activeIndexers = INDEXERS.filter(i => i.active);
     for (const indexer of activeIndexers) {
       await redis.xAdd(indexer.stream, "*", payload);
     }
     
+    // Stream to all active token indexers
+    const activeTokenIndexers = TOKEN_INDEXERS.filter(i => i.active);
+    for (const tokenIndexer of activeTokenIndexers) {
+      await redis.xAdd(tokenIndexer.stream, "*", payload);
+    }
+    
     const indexerNames = activeIndexers.map(i => i.name).join(", ");
-    console.log(`📡 Streamed to indexers: ${snapshot.txId} → ${indexerNames}`);
+    const tokenIndexerNames = activeTokenIndexers.map(i => i.name).join(", ");
+    const allNames = [indexerNames, tokenIndexerNames].filter(n => n).join(", ");
+    console.log(`📡 Streamed to indexers: ${snapshot.txId} → ${allNames}`);
+    
+    if (activeIndexers.length > 0) {
+      console.log(`   📡 Regular indexers: ${indexerNames}`);
+    }
+    if (activeTokenIndexers.length > 0) {
+      console.log(`   🔷 Token indexers: ${tokenIndexerNames}`);
+    }
+    
+    // Broadcast streaming events
+    if (activeIndexers.length > 0) {
+      broadcastEvent({
+        type: "indexer_stream",
+        component: "indexer",
+        message: `Streamed transaction to ${activeIndexers.length} regular indexer(s)`,
+        timestamp: Date.now(),
+        data: { txId: snapshot.txId, indexers: activeIndexers.map(i => i.name), count: activeIndexers.length }
+      });
+    }
+    
+    if (activeTokenIndexers.length > 0) {
+      console.log(`🔷 [Token Indexer] Streamed transaction ${snapshot.txId} to ${activeTokenIndexers.length} token indexer(s): ${tokenIndexerNames}`);
+      broadcastEvent({
+        type: "token_indexer_stream",
+        component: "token_indexer",
+        message: `Streamed transaction to ${activeTokenIndexers.length} token indexer(s)`,
+        timestamp: Date.now(),
+        data: { txId: snapshot.txId, indexers: activeTokenIndexers.map(i => i.name), count: activeTokenIndexers.length }
+      });
+    }
   } catch (err: any) {
     console.error(`⚠️  Failed to stream to indexers:`, err.message);
   }
@@ -3125,13 +3592,23 @@ async function indexerConsumer(name: string, stream: string) {
           for (const msg of streamResult.messages) {
             const txId = msg.message?.txId;
             if (txId) {
-              console.log(`📡 ${name} indexed tx`, txId);
+              // Check if this is a token indexer
+              const isTokenIndexer = name.toLowerCase().includes('tokenindexer') || name.toLowerCase().startsWith('token');
+              const eventType = isTokenIndexer ? "token_indexer_indexed" : "indexer_indexed";
+              const icon = isTokenIndexer ? "🔷" : "📡";
+              
+              if (isTokenIndexer) {
+                console.log(`🔷 [Token Indexer] ${name} indexed transaction ${txId}`);
+              } else {
+                console.log(`📡 [Indexer] ${name} indexed transaction ${txId}`);
+              }
+              
               broadcastEvent({
-                type: "indexer_indexed",
+                type: eventType,
                 component: name.toLowerCase().replace(/\s+/g, '-'),
                 message: `${name} indexed transaction ${txId}`,
                 timestamp: Date.now(),
-                data: { txId, indexer: name }
+                data: { txId, indexer: name, isTokenIndexer }
               });
             }
             // Update position to this message ID for next read
@@ -3238,6 +3715,121 @@ async function processChatInput(input: string, email: string) {
   }
 
   const selectedListing = llmResponse.selectedListing;
+  
+  // Check if this is a DEX trade (TokenListing has poolId, MovieListing has movieTitle)
+  const isDEXTrade = selectedListing && ('poolId' in selectedListing || 'tokenSymbol' in selectedListing);
+  
+  if (isDEXTrade) {
+    // Handle DEX trade
+    const tokenListing = selectedListing as TokenListing;
+    console.log("🌊 DEX Trade Selected:", `${tokenListing.providerName} - ${tokenListing.tokenSymbol}/${tokenListing.baseToken} at ${tokenListing.price} ${tokenListing.baseToken}/${tokenListing.tokenSymbol}`);
+    
+    // Extract trade details from query (re-extract to get action and tokenAmount)
+    let extractQueryFn: (input: string) => Promise<LLMQueryResult>;
+    if (ENABLE_OPENAI) {
+      extractQueryFn = extractQueryWithOpenAI;
+    } else {
+      extractQueryFn = extractQueryWithDeepSeek;
+    }
+    const queryResult = await extractQueryFn(input);
+    const action = queryResult.query.filters?.action || 'BUY';
+    const tokenAmount = queryResult.query.filters?.tokenAmount || 1;
+    
+    console.log("💰 Executing DEX Trade...");
+    console.log(`   Action: ${action}`);
+    console.log(`   Token Amount: ${tokenAmount} ${tokenListing.tokenSymbol}`);
+    console.log(`   Pool: ${tokenListing.poolId}`);
+    
+    // Execute DEX trade
+    const trade = executeDEXTrade(tokenListing.poolId, action, tokenAmount, user.email);
+    
+    // Update user balance (for BUY: deduct baseToken, for SELL: add baseToken)
+    if (action === 'BUY') {
+      if (user.balance < trade.baseAmount) {
+        throw new Error(`Insufficient balance. Need ${trade.baseAmount} ${tokenListing.baseToken}, have ${user.balance}`);
+      }
+      user.balance -= trade.baseAmount;
+      console.log(`💸 Deducted ${trade.baseAmount} ${tokenListing.baseToken} from user balance`);
+    } else {
+      // SELL: User receives baseToken
+      user.balance += trade.baseAmount;
+      console.log(`💰 Added ${trade.baseAmount} ${tokenListing.baseToken} to user balance`);
+    }
+    
+    // Apply trader rebate (30% of iTax back to trader)
+    const traderRebate = trade.iTax * ITAX_DISTRIBUTION.trader;
+    user.balance += traderRebate;
+    console.log(`🎁 Trader rebate: ${traderRebate.toFixed(6)} ${tokenListing.baseToken}`);
+    
+    // Create snapshot for DEX trade
+    const snapshot = createSnapshot(user.email, trade.baseAmount, tokenListing.providerId);
+    
+    // Find provider UUID
+    const provider = SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
+    const providerUuid = provider?.uuid || '';
+    
+    // Add ledger entry for DEX trade
+    const ledgerEntry = addLedgerEntry(
+      snapshot,
+      'dex',
+      llmResponse.iGasCost,
+      user.email,
+      tokenListing.providerName,
+      providerUuid,
+      {
+        tokenSymbol: tokenListing.tokenSymbol,
+        baseToken: tokenListing.baseToken,
+        action: action,
+        tokenAmount: tokenAmount,
+        baseAmount: trade.baseAmount,
+        price: trade.price,
+        iTax: trade.iTax,
+      } as any
+    );
+    
+    // Complete the trade
+    completeBooking(ledgerEntry);
+    
+    // Persist snapshot and stream to indexers
+    await persistSnapshot(snapshot);
+    await streamToIndexers(snapshot);
+    
+    // Deliver webhook if registered
+    const webhookProvider = SERVICE_REGISTRY.find(p => p.id === tokenListing.providerId);
+    if (webhookProvider) {
+      deliverWebhook(webhookProvider.id, snapshot, ledgerEntry).catch(err => {
+        console.warn(`⚠️  Webhook delivery failed:`, err);
+      });
+    }
+    
+    console.log("✅ DEX Trade completed successfully");
+    console.log("📊 Trade Summary:", {
+      action,
+      tokenAmount: `${tokenAmount} ${tokenListing.tokenSymbol}`,
+      baseAmount: `${trade.baseAmount} ${tokenListing.baseToken}`,
+      price: `${trade.price} ${tokenListing.baseToken}/${tokenListing.tokenSymbol}`,
+      iTax: `${trade.iTax} ${tokenListing.baseToken}`,
+      traderRebate: `${traderRebate} ${tokenListing.baseToken}`,
+      userBalance: user.balance,
+    });
+    
+    broadcastEvent({
+      type: "dex_trade_complete",
+      component: "dex",
+      message: `DEX Trade Complete: ${action} ${tokenAmount} ${tokenListing.tokenSymbol}`,
+      timestamp: Date.now(),
+      data: {
+        trade,
+        traderRebate,
+        userBalance: user.balance,
+        rootCALiquidity: rootCALiquidity,
+      }
+    });
+    
+    return; // Exit early for DEX trades
+  }
+  
+  // Continue with movie purchase flow
   console.log("✅ Selected:", `${selectedListing.providerName} - ${selectedListing.movieTitle} at ${selectedListing.showtime} for ${selectedListing.price} USDC`);
   console.log("📋 Selected listing details:", {
     providerId: selectedListing.providerId,
@@ -3451,15 +4043,55 @@ async function main() {
     skipRedis: SKIP_REDIS,
     enableOpenAI: ENABLE_OPENAI,
     numIndexers: NUM_INDEXERS,
+    numTokenIndexers: NUM_TOKEN_INDEXERS,
   }, "\n");
   
-  console.log(`🌳 Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}\n`);
+  console.log(`🌳 Regular Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}`);
+  console.log(`🔷 Token Indexers configured: ${TOKEN_INDEXERS.map(i => i.name).join(", ")}\n`);
 
   // Initialize ROOT CA
   initializeRootCA();
   
-  // Issue certificates to all indexers
-  console.log("\n📜 Issuing certificates to Indexers...");
+  // Issue certificates to all token indexers first (needed for pool initialization)
+  console.log("\n🔷 Issuing certificates to Token Indexers...");
+  for (const tokenIndexer of TOKEN_INDEXERS) {
+    if (tokenIndexer.active) {
+      try {
+        issueIndexerCertificate(tokenIndexer);
+      } catch (err: any) {
+        console.error(`❌ Failed to issue certificate to ${tokenIndexer.name}:`, err.message);
+      }
+    }
+  }
+  
+  // Initialize DEX Pools (must be after token indexers are created and certified)
+  console.log("\n🌊 Initializing DEX Pools...");
+  initializeDEXPools();
+  
+  // Create DEX pool service providers dynamically from pools
+  console.log("\n📋 Registering DEX Pool Service Providers...");
+  for (const [poolId, pool] of DEX_POOLS.entries()) {
+    const tokenIndexer = TOKEN_INDEXERS.find(ti => ti.id === pool.indexerId);
+    if (tokenIndexer) {
+      const provider: ServiceProviderWithCert = {
+        id: `dex-pool-${pool.tokenSymbol.toLowerCase()}`,
+        uuid: crypto.randomUUID(),
+        name: `${pool.tokenSymbol} Pool (${tokenIndexer.name})`,
+        serviceType: "dex",
+        location: "Eden DEX",
+        bond: pool.bond,
+        reputation: 5.0,
+        indexerId: pool.indexerId,
+        apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
+        status: 'active',
+      };
+      SERVICE_REGISTRY.push(provider);
+      console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenIndexer.name}`);
+    }
+  }
+  
+  // Issue certificates to all regular indexers
+  console.log("\n📜 Issuing certificates to Regular Indexers...");
   for (const indexer of INDEXERS) {
     if (indexer.active) {
       try {
@@ -3470,7 +4102,7 @@ async function main() {
     }
   }
   
-  // Issue certificates to all service providers
+  // Issue certificates to all service providers (including dynamically created DEX pool providers)
   console.log("\n📜 Issuing certificates to Service Providers...");
   for (const provider of SERVICE_REGISTRY) {
     try {
@@ -3480,7 +4112,10 @@ async function main() {
     }
   }
   
-  console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}\n`);
+  console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}`);
+  console.log(`   - Regular Indexers: ${INDEXERS.length}`);
+  console.log(`   - Token Indexers: ${TOKEN_INDEXERS.length}`);
+  console.log(`   - Service Providers: ${SERVICE_REGISTRY.length}\n`);
 
   // ============================================
   // SERVICE PROVIDER NOTIFICATION SETUP
@@ -3570,14 +4205,24 @@ async function main() {
     // Initialize revocation stream consumer groups
     await initializeRevocationConsumers();
     
-    // Start revocation stream processors for each indexer
+    // Start revocation stream processors for regular indexers
     for (const indexer of INDEXERS) {
       if (indexer.active) {
         indexerConsumer(indexer.name, indexer.stream).catch(console.error);
         processRevocationStream(indexer.name, indexer.id).catch(console.error);
       }
     }
-    console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
+    
+    // Start revocation stream processors for token indexers
+    for (const tokenIndexer of TOKEN_INDEXERS) {
+      if (tokenIndexer.active) {
+        indexerConsumer(tokenIndexer.name, tokenIndexer.stream).catch(console.error);
+        processRevocationStream(tokenIndexer.name, tokenIndexer.id).catch(console.error);
+      }
+    }
+    
+    console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} regular indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}`);
+    console.log(`🔷 Started ${TOKEN_INDEXERS.filter(i => i.active).length} token indexer(s): ${TOKEN_INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
     console.log(`📜 Started revocation stream processors for all indexers\n`);
   }
 
