@@ -235,8 +235,8 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.indexerName"
-                name="indexerName"
+                [(ngModel)]="gardenConfig.gardenName"
+                name="gardenName"
                 required>
             </div>
           </div>
@@ -247,7 +247,7 @@
               <label class="form-label">Target Movie Theater Providers</label>
               <select 
                 class="form-select" 
-                [(ngModel)]="indexerConfig.selectedProviders"
+                [(ngModel)]="gardenConfig.selectedProviders"
                 name="selectedProviders"
                 multiple
                 size="3"
@@ -258,7 +258,7 @@
               </select>
               <small class="text-muted">
                 Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
-                Selected: {{ indexerConfig.selectedProviders?.length || 0 }} provider(s)
+                Selected: {{ gardenConfig.selectedProviders?.length || 0 }} provider(s)
               </small>
               <div *ngIf="!hasSelectedProviders() && selectedServiceType?.type === 'movie'" class="mt-2">
                 <small class="text-danger">
@@ -274,7 +274,7 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverIp"
+                [(ngModel)]="gardenConfig.serverIp"
                 name="serverIp"
                 placeholder="localhost"
                 required>
@@ -284,9 +284,9 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverDomain"
+                [(ngModel)]="gardenConfig.serverDomain"
                 name="serverDomain"
-                placeholder="indexer.eden.local"
+                placeholder="garden.eden.local"
                 required>
             </div>
             <div class="col-md-4">
@@ -294,7 +294,7 @@
               <input 
                 type="number" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverPort"
+                [(ngModel)]="gardenConfig.serverPort"
                 name="serverPort"
                 placeholder="3001"
                 min="3001"
@@ -308,7 +308,7 @@
               <label class="form-label">Network Type</label>
               <select 
                 class="form-select" 
-                [(ngModel)]="indexerConfig.networkType"
+                [(ngModel)]="gardenConfig.networkType"
                 name="networkType"
                 required>
                 <option value="http">HTTP</option>
@@ -320,7 +320,7 @@
                 <input 
                   class="form-check-input" 
                   type="checkbox" 
-                  [(ngModel)]="indexerConfig.isSnake"
+                  [(ngModel)]="gardenConfig.isSnake"
                   name="isSnake"
                   [disabled]="selectedServiceType?.type === 'snake'">
                 <label class="form-check-label">
@@ -338,8 +338,8 @@
                 <span *ngIf="selectedServiceType?.type === 'snake'" class="badge bg-warning ms-2">Snake Service (2x)</span>
                 <span *ngIf="selectedServiceType?.type === 'movie'" class="badge bg-info ms-2">
                   Base: 100 JSC
-                  <span *ngIf="indexerConfig.selectedProviders && indexerConfig.selectedProviders.length > 0">
-                    + {{ (indexerConfig.selectedProviders || []).length }} provider(s) × 10 JSC
+                  <span *ngIf="gardenConfig.selectedProviders && gardenConfig.selectedProviders.length > 0">
+                    + {{ (gardenConfig.selectedProviders || []).length }} provider(s) × 10 JSC
                   </span>
                 </span>
               </div>
@@ -351,7 +351,7 @@
                 </span>
               </div>
             </div>
-            <div *ngIf="!hasSufficientBalance() && indexerConfig.indexerName" class="mt-2">
+            <div *ngIf="!hasSufficientBalance() && gardenConfig.gardenName" class="mt-2">
               <small class="text-danger">
                 ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} JSC, Available: {{ walletBalance.toFixed(2) }} JSC
               </small>
@@ -369,19 +369,19 @@
               type="button" 
               class="btn"
               [class.btn-primary]="hasSufficientBalance() && hasSelectedProviders()"
-              [class.btn-warning]="(!hasSufficientBalance() || !hasSelectedProviders()) && indexerConfig.indexerName"
-              [class.btn-secondary]="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName"
-              (click)="createIndexer()"
-              [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance() || !hasSelectedProviders()">
+              [class.btn-warning]="(!hasSufficientBalance() || !hasSelectedProviders()) && gardenConfig.gardenName"
+              [class.btn-secondary]="(!hasSufficientBalance() || !hasSelectedProviders()) && !gardenConfig.gardenName"
+              (click)="createGarden()"
+              [disabled]="isCreating || !gardenConfig.gardenName || !hasSufficientBalance() || !hasSelectedProviders()">
               <span *ngIf="!isCreating">
                 <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Garden</span>
-                <span *ngIf="!hasSufficientBalance() && indexerConfig.indexerName">
+                <span *ngIf="!hasSufficientBalance() && gardenConfig.gardenName">
                   Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
                 </span>
-                <span *ngIf="!hasSelectedProviders() && indexerConfig.indexerName && selectedServiceType?.type === 'movie'">
+                <span *ngIf="!hasSelectedProviders() && gardenConfig.gardenName && selectedServiceType?.type === 'movie'">
                   Select at least one provider
                 </span>
-                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName">Create Garden</span>
+                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !gardenConfig.gardenName">Create Garden</span>
               </span>
               <span *ngIf="isCreating">
                 <span class="spinner-border spinner-border-sm me-2"></span>Creating...

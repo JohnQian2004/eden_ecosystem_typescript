@@ -113,23 +113,23 @@
     </ng-container>
   </div>
   
-  <!-- Indexer Tabs (filtered by view mode) -->
-  <div *ngIf="getFilteredIndexers().length > 0" class="indexer-tabs-container">
-    <div class="indexer-tabs">
+  <!-- Garden Tabs (filtered by view mode) -->
+  <div *ngIf="getFilteredGardens().length > 0" class="garden-tabs-container">
+    <div class="garden-tabs">
       <button 
-        *ngFor="let indexer of getFilteredIndexers()" 
-        class="indexer-tab"
-        [class.active]="selectedIndexerTab === indexer.id"
-        [class.token-indexer]="indexer.type === 'token'"
-        [class.root-indexer]="indexer.type === 'root'"
+        *ngFor="let garden of getFilteredGardens()" 
+        class="garden-tab"
+        [class.active]="selectedGardenTab === garden.id"
+        [class.token-garden]="garden.type === 'token'"
+        [class.root-garden]="garden.type === 'root'"
         type="button"
-        (click)="selectIndexerTab(indexer.id)">
+        (click)="selectGardenTab(garden.id)">
         <span class="tab-icon">
-          <span *ngIf="indexer.type === 'root'">✨</span>
-          <span *ngIf="indexer.type === 'token'">🔷</span>
-          <span *ngIf="indexer.type !== 'root' && indexer.type !== 'token'">🌳</span>
+          <span *ngIf="garden.type === 'root'">✨</span>
+          <span *ngIf="garden.type === 'token'">🔷</span>
+          <span *ngIf="garden.type !== 'root' && garden.type !== 'token'">🌳</span>
         </span>
-        <span class="tab-label">{{ indexer.name }}</span>
+        <span class="tab-label">{{ garden.name }}</span>
       </button>
     </div>
   </div>
@@ -151,27 +151,27 @@
       </div>
       
       <div *ngIf="group.expanded" class="group-components">
-        <!-- Nested structure for Indexers: Show components for selected indexer tab -->
+        <!-- Nested structure for Gardens: Show components for selected garden tab -->
         <ng-container *ngIf="group.category === 'indexer'">
-          <!-- Selected Indexer Node -->
-          <div *ngIf="selectedIndexerTab" class="indexer-node">
-            <div class="indexer-header">
-              <span class="indexer-icon">
-                <span *ngIf="selectedIndexerTab === 'HG'">✨</span>
-                <span *ngIf="selectedIndexerTab !== 'HG'">🌳</span>
+          <!-- Selected Garden Node -->
+          <div *ngIf="selectedGardenTab" class="garden-node">
+            <div class="garden-header">
+              <span class="garden-icon">
+                <span *ngIf="selectedGardenTab === 'HG'">✨</span>
+                <span *ngIf="selectedGardenTab !== 'HG'">🌳</span>
               </span>
-              <span class="indexer-name">{{ selectedIndexerName }}</span>
-              <span class="badge bg-success badge-xs">{{ selectedIndexerNodeCount }}</span>
+              <span class="garden-name">{{ selectedGardenName }}</span>
+              <span class="badge bg-success badge-xs">{{ selectedGardenNodeCount }}</span>
             </div>
             
-            <div class="indexer-components">
-              <!-- Holy Ghost (ROOT CA Indexer) shows Infrastructure Services -->
-              <ng-container *ngIf="selectedIndexerTab === 'HG'">
+            <div class="garden-components">
+              <!-- Holy Ghost (ROOT CA Garden) shows Infrastructure Services -->
+              <ng-container *ngIf="selectedGardenTab === 'HG'">
                 <!-- Infrastructure Services -->
-                <div *ngIf="selectedIndexerInfrastructureServices.length > 0" class="sub-group">
+                <div *ngIf="selectedGardenInfrastructureServices.length > 0" class="sub-group">
                   <div class="sub-group-label">Infrastructure Services</div>
                   <div 
-                    *ngFor="let component of selectedIndexerInfrastructureServices" 
+                    *ngFor="let component of selectedGardenInfrastructureServices" 
                     class="component-item border-start border-2"
                     [ngClass]="getStatusClass(component.status)"
                     [class.border-success]="component.status === 'success'"
@@ -189,13 +189,13 @@
                 </div>
               </ng-container>
               
-              <!-- Regular/Token Indexers show Infrastructure Services and Service Providers -->
-              <ng-container *ngIf="selectedIndexerTab !== 'HG'">
+              <!-- Regular/Token Gardens show Infrastructure Services and Service Providers -->
+              <ng-container *ngIf="selectedGardenTab !== 'HG'">
                 <!-- Infrastructure Services -->
-                <div *ngIf="selectedIndexerInfrastructureServices.length > 0" class="sub-group">
+                <div *ngIf="selectedGardenInfrastructureServices.length > 0" class="sub-group">
                   <div class="sub-group-label">Infrastructure Services</div>
                   <div 
-                    *ngFor="let component of selectedIndexerInfrastructureServices" 
+                    *ngFor="let component of selectedGardenInfrastructureServices" 
                     class="component-item border-start border-2"
                     [ngClass]="getStatusClass(component.status)"
                     [class.border-success]="component.status === 'success'"
@@ -212,10 +212,10 @@
                   </div>
                 </div>
                 <!-- Service Providers -->
-                <div *ngIf="selectedIndexerRegularServiceProviders.length > 0" class="sub-group">
+                <div *ngIf="selectedGardenRegularServiceProviders.length > 0" class="sub-group">
                   <div class="sub-group-label">Service Providers</div>
                   <div 
-                    *ngFor="let component of selectedIndexerRegularServiceProviders" 
+                    *ngFor="let component of selectedGardenRegularServiceProviders" 
                     class="component-item border-start border-2"
                     [ngClass]="getStatusClass(component.status)"
                     [class.border-success]="component.status === 'success'"
@@ -233,11 +233,11 @@
                 </div>
               </ng-container>
               
-              <!-- LLM (shown for all indexers) -->
-              <div *ngIf="selectedIndexerLLM.length > 0" class="sub-group">
+              <!-- LLM (shown for all gardens) -->
+              <div *ngIf="selectedGardenLLM.length > 0" class="sub-group">
                 <div class="sub-group-label">LLM Intelligence</div>
                 <div 
-                  *ngFor="let component of selectedIndexerLLM" 
+                  *ngFor="let component of selectedGardenLLM" 
                   class="component-item border-start border-2"
                   [ngClass]="getStatusClass(component.status)"
                   [class.border-success]="component.status === 'success'"
@@ -255,10 +255,10 @@
               </div>
               
               <!-- EdenCore -->
-              <div *ngIf="selectedIndexerEdenCore.length > 0" class="sub-group">
+              <div *ngIf="selectedGardenEdenCore.length > 0" class="sub-group">
                 <div class="sub-group-label">EdenCore</div>
                 <div 
-                  *ngFor="let component of selectedIndexerEdenCore" 
+                  *ngFor="let component of selectedGardenEdenCore" 
                   class="component-item border-start border-2"
                   [ngClass]="getStatusClass(component.status)"
                   [class.border-success]="component.status === 'success'"
@@ -276,10 +276,10 @@
               </div>
               
               <!-- Users -->
-              <div *ngIf="selectedIndexerUsers.length > 0" class="sub-group">
+              <div *ngIf="selectedGardenUsers.length > 0" class="sub-group">
                 <div class="sub-group-label">Users</div>
                 <div 
-                  *ngFor="let component of selectedIndexerUsers" 
+                  *ngFor="let component of selectedGardenUsers" 
                   class="component-item border-start border-2"
                   [ngClass]="getStatusClass(component.status)"
                   [class.border-success]="component.status === 'success'"
@@ -320,7 +320,7 @@
           </div>
         </ng-container>
         
-        <!-- Regular flat list for non-Indexer groups (Infrastructure, etc.) -->
+        <!-- Regular flat list for non-Garden groups (Infrastructure, etc.) -->
         <ng-container *ngIf="group.category !== 'indexer'">
           <div 
             *ngFor="let component of group.components" 

@@ -77,7 +77,7 @@
             <strong>iTax Distribution:</strong>
             <div class="ms-3">
               <div>ROOT CA: {{ msg.data.iTaxDistribution.rootCA.toFixed(6) }} (40%)</div>
-              <div>Indexer: {{ msg.data.iTaxDistribution.indexer.toFixed(6) }} (30%)</div>
+              <div *ngIf="msg.data.iTaxDistribution?.indexer !== undefined">Indexer: {{ msg.data.iTaxDistribution.indexer.toFixed(6) }} (30%)</div>
               <div>Trader: {{ msg.data.iTaxDistribution.trader.toFixed(6) }} (30%)</div>
             </div>
           </div>

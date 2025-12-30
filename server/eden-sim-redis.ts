@@ -472,13 +472,15 @@ httpServer.on("request", async (req, res) => {
       if (fs.existsSync(persistenceFile)) {
         const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
-        if (persisted.indexers && Array.isArray(persisted.indexers)) {
-          // CRITICAL: All indexers (regular and token) are now in 'indexers' array
+        // Backward compatibility: check both 'gardens' and 'indexers' fields
+        const gardensFromFile = persisted.gardens || persisted.indexers;
+        if (gardensFromFile && Array.isArray(gardensFromFile)) {
+          // CRITICAL: All indexers (regular and token) are now in 'gardens' array
           // Separate them into regular and token indexers
-          const regularIndexersFromArray = persisted.indexers.filter((idx: any) => 
+          const regularIndexersFromArray = gardensFromFile.filter((idx: any) => 
             !(idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T')))
           );
-          const tokenIndexersFromArray = persisted.indexers.filter((idx: any) => 
+          const tokenIndexersFromArray = gardensFromFile.filter((idx: any) => 
             idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
           );
           
@@ -1363,7 +1365,7 @@ httpServer.on("request", async (req, res) => {
       let currentPersistence: any = {
         walletBalances: {},
         ledgerEntries: [],
-        indexers: []
+        gardens: []
       };
       
       // Load existing persistence to preserve wallet balances and ledger entries
@@ -1376,11 +1378,11 @@ httpServer.on("request", async (req, res) => {
         }
       }
       
-      // Update persistence file - keep wallet balances and ledger entries, clear indexers and serviceRegistry
+      // Update persistence file - keep wallet balances and ledger entries, clear gardens and serviceRegistry
       const updatedPersistence = {
         walletBalances: currentPersistence.walletBalances || {},
         ledgerEntries: LEDGER.length > 0 ? LEDGER : (currentPersistence.ledgerEntries || []),
-        indexers: [], // Clear indexers
+        gardens: [], // Clear gardens
         serviceRegistry: [], // Clear serviceRegistry
         lastSaved: new Date().toISOString(),
         resetAt: new Date().toISOString()
@@ -1426,7 +1428,7 @@ httpServer.on("request", async (req, res) => {
         let currentPersistence: any = {
           walletBalances: {},
           ledgerEntries: [],
-          indexers: [],
+          gardens: [],
           systemPrompts: []
         };
         
@@ -2191,30 +2193,75 @@ httpServer.on("request", async (req, res) => {
         }
         
         // Create indexer configuration
-        const existingIndexers = [...GARDENS, ...TOKEN_GARDENS];
+        // CRITICAL: Check BOTH in-memory arrays AND persistence file to avoid duplicates
+        // This follows the same pattern as movie garden creation
+        const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+        let persistedGardens: any[] = [];
+        if (fs.existsSync(persistenceFile)) {
+          try {
+            const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+            const persisted = JSON.parse(fileContent);
+            persistedGardens = persisted.gardens || persisted.indexers || [];
+            // Deduplicate persisted gardens by ID
+            const persistedMap = new Map<string, any>();
+            for (const g of persistedGardens) {
+              if (!persistedMap.has(g.id)) {
+                persistedMap.set(g.id, g);
+              }
+            }
+            persistedGardens = Array.from(persistedMap.values());
+          } catch (err: any) {
+            console.warn(`   ⚠️  [${requestId}] Failed to read persistence file for ID generation: ${err.message}`);
+          }
+        }
+        
+        // Combine in-memory and persisted gardens for ID generation
+        const allExistingIndexers = [...GARDENS, ...TOKEN_GARDENS, ...persistedGardens];
+        // Deduplicate by ID to ensure we have unique list
+        const allIndexersMap = new Map<string, any>();
+        for (const idx of allExistingIndexers) {
+          if (!allIndexersMap.has(idx.id)) {
+            allIndexersMap.set(idx.id, idx);
+          }
+        }
+        const uniqueExistingIndexers = Array.from(allIndexersMap.values());
+        
         let indexerId: string;
         if (isSnake) {
-          indexerId = `S${existingIndexers.filter(i => (i as any).isSnake).length + 1}`;
-        } else if (serviceType === "dex") {
-          // CRITICAL: Use the actual count of token indexers, not length + 1
-          // Find the highest T number and add 1
-          const tokenIndexerIds = TOKEN_GARDENS.map(ti => {
-            const match = ti.id.match(/^T(\d+)$/);
+          const snakeIds = uniqueExistingIndexers.filter(i => (i as any).isSnake).map(i => {
+            const match = i.id.match(/^S(\d+)$/);
             return match ? parseInt(match[1], 10) : 0;
           });
+          const maxSnakeNumber = snakeIds.length > 0 ? Math.max(...snakeIds) : 0;
+          indexerId = `S${maxSnakeNumber + 1}`;
+        } else if (serviceType === "dex") {
+          // CRITICAL: Check BOTH in-memory TOKEN_GARDENS AND persisted gardens
+          // Find the highest T number from all sources and add 1
+          const tokenIndexerIds = uniqueExistingIndexers
+            .filter(i => i.id && i.id.startsWith('T'))
+            .map(ti => {
+              const match = ti.id.match(/^T(\d+)$/);
+              return match ? parseInt(match[1], 10) : 0;
+            });
           const maxTokenNumber = tokenIndexerIds.length > 0 ? Math.max(...tokenIndexerIds) : 0;
           indexerId = `T${maxTokenNumber + 1}`;
-          console.log(`   🔢 [${requestId}] Generated token indexer ID: ${indexerId} (max existing: ${maxTokenNumber}, total token indexers: ${TOKEN_GARDENS.length})`);
+          console.log(`   🔢 [${requestId}] Generated token indexer ID: ${indexerId} (max existing: ${maxTokenNumber}, total unique token indexers found: ${tokenIndexerIds.length})`);
         } else {
           // For regular indexers, use format: indexer-1, indexer-2, etc.
-          // Find the next available number
-          const existingRegularIndexers = GARDENS.filter(i => i.id.startsWith('indexer-'));
-          const nextNumber = existingRegularIndexers.length + 1;
-          indexerId = `indexer-${nextNumber}`;
+          // Check BOTH in-memory GARDENS AND persisted gardens
+          const regularIndexerIds = uniqueExistingIndexers
+            .filter(i => i.id && i.id.startsWith('indexer-'))
+            .map(i => {
+              const match = i.id.match(/^indexer-(\d+)$/);
+              return match ? parseInt(match[1], 10) : 0;
+            });
+          const maxRegularNumber = regularIndexerIds.length > 0 ? Math.max(...regularIndexerIds) : 0;
+          indexerId = `indexer-${maxRegularNumber + 1}`;
         }
         
         // Check if indexer ID already exists (prevent duplicates by ID - names can be the same)
-        const existingIndexerById = [...GARDENS, ...TOKEN_GARDENS].find(i => i.id === indexerId);
+        // Check in BOTH in-memory arrays AND persisted gardens
+        const existingIndexerById = uniqueExistingIndexers.find(i => i.id === indexerId);
         if (existingIndexerById) {
           console.error(`   ❌ [${requestId}] DUPLICATE DETECTED: Indexer ID "${indexerId}" already exists!`);
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -2558,14 +2605,40 @@ httpServer.on("request", async (req, res) => {
           }
         }
         
+        // CRITICAL: First, deduplicate BOTH in-memory arrays to prevent saving duplicates
+        // This ensures we're working with clean data before saving
+        
+        // Deduplicate GARDENS array
+        const deduplicatedRegularIndexers = new Map<string, GardenConfig>();
+        for (const idx of GARDENS) {
+          const existing = deduplicatedRegularIndexers.get(idx.id);
+          if (!existing) {
+            deduplicatedRegularIndexers.set(idx.id, idx);
+          } else {
+            // Prefer the one with certificate
+            const hasCert = !!(idx as any).certificate;
+            const existingHasCert = !!(existing as any).certificate;
+            if (hasCert && !existingHasCert) {
+              deduplicatedRegularIndexers.set(idx.id, idx);
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate regular indexer ${idx.id} in GARDENS - keeping version with certificate`);
+            } else {
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate regular indexer ${idx.id} in GARDENS - keeping existing version`);
+            }
+          }
+        }
+        // Update GARDENS array to remove duplicates
+        const cleanRegularIndexers = Array.from(deduplicatedRegularIndexers.values());
+        GARDENS.length = 0;
+        GARDENS.push(...cleanRegularIndexers);
+        
         let regularIndexersToSave: GardenConfig[] = [];
         let tokenIndexersToSave: GardenConfig[] = [];
         
-        // Prepare regular indexers to save
+        // Prepare regular indexers to save (from deduplicated array)
         // CRITICAL: Exclude token indexers (they have tokenServiceType or serviceType === "dex" and ID starts with T)
         if (NUM_GARDENS > 0) {
           const defaultIds = Array.from({ length: NUM_GARDENS }, (_, i) => String.fromCharCode(65 + i));
-          regularIndexersToSave = GARDENS.filter(idx => {
+          regularIndexersToSave = cleanRegularIndexers.filter(idx => {
             // Exclude token indexers (defensive check)
             if ((idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
               console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
@@ -2575,7 +2648,7 @@ httpServer.on("request", async (req, res) => {
           });
         } else {
           // ROOT mode: ONLY save indexers created via Angular (format: indexer-1, indexer-2, etc.)
-          regularIndexersToSave = GARDENS.filter(idx => {
+          regularIndexersToSave = cleanRegularIndexers.filter(idx => {
             // Exclude token indexers (defensive check)
             if ((idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
               console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
@@ -2588,45 +2661,54 @@ httpServer.on("request", async (req, res) => {
         
         // CRITICAL: Deduplicate TOKEN_GARDENS array BEFORE collecting tokenIndexersToSave
         // This prevents duplicates from being saved if TOKEN_GARDENS has duplicates
+        // CRITICAL: Always deduplicate in-memory arrays FIRST to prevent saving duplicates
         const deduplicatedTokenIndexers = new Map<string, TokenGardenConfig>();
         for (const ti of TOKEN_GARDENS) {
           const existing = deduplicatedTokenIndexers.get(ti.id);
           if (!existing) {
             deduplicatedTokenIndexers.set(ti.id, ti);
           } else {
-            // Prefer the one with certificate
+            // Prefer the one with certificate, or the newer one (by UUID timestamp if available)
             const hasCert = !!(ti as any).certificate;
             const existingHasCert = !!(existing as any).certificate;
             if (hasCert && !existingHasCert) {
               deduplicatedTokenIndexers.set(ti.id, ti);
               console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping version with certificate`);
+            } else if (!hasCert && existingHasCert) {
+              // Keep existing version with certificate
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping existing version with certificate`);
             } else {
-              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping existing version`);
+              // Both have or don't have cert - prefer current one (assumed newer)
+              deduplicatedTokenIndexers.set(ti.id, ti);
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping current version`);
             }
           }
         }
         const cleanTokenIndexers = Array.from(deduplicatedTokenIndexers.values());
         
+        // CRITICAL: Always update TOKEN_GARDENS array to remove duplicates, even if count is same
+        // This ensures the in-memory array is clean before we save
+        TOKEN_GARDENS.length = 0;
+        TOKEN_GARDENS.push(...cleanTokenIndexers);
+        
         if (cleanTokenIndexers.length !== TOKEN_GARDENS.length) {
-          console.warn(`⚠️  [Indexer Persistence] Removed ${TOKEN_GARDENS.length - cleanTokenIndexers.length} duplicate(s) from TOKEN_GARDENS array`);
-          // Update TOKEN_GARDENS array to remove duplicates
-          TOKEN_GARDENS.length = 0;
-          TOKEN_GARDENS.push(...cleanTokenIndexers);
+          // This should never happen now, but log if it does
+          console.error(`❌ [Indexer Persistence] CRITICAL: TOKEN_GARDENS length mismatch after deduplication!`);
         }
         
-        // Prepare token indexers to save
-        console.log(`🔍 [Indexer Persistence] TOKEN_GARDENS array has ${TOKEN_GARDENS.length} indexer(s): ${TOKEN_GARDENS.map(ti => ti.id).join(', ')}`);
+        // Prepare token indexers to save (from deduplicated array)
+        console.log(`🔍 [Indexer Persistence] TOKEN_GARDENS array has ${cleanTokenIndexers.length} indexer(s) after deduplication: ${cleanTokenIndexers.map(ti => ti.id).join(', ')}`);
         console.log(`🔍 [Indexer Persistence] NUM_TOKEN_GARDENS = ${NUM_TOKEN_GARDENS}, DEPLOYED_AS_ROOT = ${DEPLOYED_AS_ROOT}`);
         
         if (NUM_TOKEN_GARDENS > 0) {
           const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
           console.log(`🔍 [Indexer Persistence] Filtering out default token IDs: ${defaultTokenIds.join(', ')}`);
-          tokenIndexersToSave = TOKEN_GARDENS.filter(idx => !defaultTokenIds.includes(idx.id));
+          tokenIndexersToSave = cleanTokenIndexers.filter(idx => !defaultTokenIds.includes(idx.id));
         } else {
           // ROOT mode: save all token indexers (no defaults)
           // CRITICAL: In ROOT mode, we should only have token indexers created via Angular
-          tokenIndexersToSave = TOKEN_GARDENS;
-          console.log(`🔍 [Indexer Persistence] ROOT mode: saving all ${TOKEN_GARDENS.length} token indexer(s)`);
+          tokenIndexersToSave = cleanTokenIndexers;
+          console.log(`🔍 [Indexer Persistence] ROOT mode: saving all ${cleanTokenIndexers.length} token indexer(s) after deduplication`);
         }
         
         console.log(`📋 [Indexer Persistence] Preparing to save: ${regularIndexersToSave.length} regular indexer(s), ${tokenIndexersToSave.length} token indexer(s)`);
@@ -2683,8 +2765,7 @@ httpServer.on("request", async (req, res) => {
           let existing: any = {
             walletBalances: {},
             ledgerEntries: [],
-            indexers: [],
-            tokenIndexers: [],
+            gardens: [],
             serviceRegistry: [],
             lastSaved: new Date().toISOString()
           };
@@ -2693,16 +2774,28 @@ httpServer.on("request", async (req, res) => {
             try {
               const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
               existing = JSON.parse(fileContent);
-              // Backward compatibility: Migrate tokenIndexers to indexers array if it exists
-              if (existing.tokenIndexers && Array.isArray(existing.tokenIndexers)) {
-                console.log(`📋 [Indexer Persistence] Found tokenIndexers field - migrating to indexers array`);
-                if (!existing.indexers || !Array.isArray(existing.indexers)) {
-                  existing.indexers = [];
+              // Backward compatibility: Migrate from old fields to 'gardens'
+              if (!existing.gardens || !Array.isArray(existing.gardens)) {
+                existing.gardens = [];
+              }
+              // Migrate from 'indexers' if it exists
+              if (existing.indexers && Array.isArray(existing.indexers)) {
+                console.log(`📋 [Indexer Persistence] Found 'indexers' field - migrating to 'gardens' array`);
+                const existingGardenIds = new Set(existing.gardens.map((idx: any) => idx.id));
+                for (const idx of existing.indexers) {
+                  if (!existingGardenIds.has(idx.id)) {
+                    existing.gardens.push(idx);
+                  }
                 }
-                const existingTokenIds = new Set(existing.indexers.map((idx: any) => idx.id));
+                delete existing.indexers; // Remove old field
+              }
+              // Migrate from 'tokenIndexers' if it exists
+              if (existing.tokenIndexers && Array.isArray(existing.tokenIndexers)) {
+                console.log(`📋 [Indexer Persistence] Found 'tokenIndexers' field - migrating to 'gardens' array`);
+                const existingGardenIds = new Set(existing.gardens.map((idx: any) => idx.id));
                 for (const tokenIdx of existing.tokenIndexers) {
-                  if (!existingTokenIds.has(tokenIdx.id)) {
-                    existing.indexers.push(tokenIdx);
+                  if (!existingGardenIds.has(tokenIdx.id)) {
+                    existing.gardens.push(tokenIdx);
                   }
                 }
                 delete existing.tokenIndexers; // Remove old field
@@ -2712,41 +2805,29 @@ httpServer.on("request", async (req, res) => {
             }
           }
           
-          // CRITICAL: Combine regular and token indexers into a single indexers array
-          // All indexers (regular and token) go into 'indexers' array, NOT 'tokenIndexers'
-          // User requirement: All indexers should be in 'indexers' array, NOT 'tokenIndexers'
-          const cleanedRegularIndexers = regularIndexersToSave.filter((idx: any) => {
-            return !(idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T')));
-          });
+          // CRITICAL: In-memory arrays (GARDENS and TOKEN_GARDENS) are the SINGLE SOURCE OF TRUTH
+          // We MUST NOT read or merge gardens from the file - that would reintroduce duplicates
+          // We ONLY use the deduplicated in-memory arrays that were already cleaned above
           
-          // CRITICAL: Merge with existing indexers instead of overwriting
-          // This prevents duplicates when saving
-          const existingIndexerMap = new Map<string, any>();
-          if (existing.indexers && Array.isArray(existing.indexers)) {
-            for (const idx of existing.indexers) {
-              existingIndexerMap.set(idx.id, idx);
-            }
-          }
+          // Build final gardens array from ONLY the deduplicated in-memory arrays
+          const allIndexersToSave: any[] = [];
           
-          // Add/update regular indexers
-          for (const regIdx of cleanedRegularIndexers) {
-            const existingIdx = existingIndexerMap.get(regIdx.id);
-            if (existingIdx) {
-              // Prefer the one with certificate
-              const hasCert = !!(regIdx as any).certificate;
-              const existingHasCert = !!(existingIdx as any).certificate;
-              if (hasCert && !existingHasCert) {
-                existingIndexerMap.set(regIdx.id, regIdx);
-                console.log(`🔄 [Indexer Persistence] Updating regular indexer ${regIdx.id} (new version has certificate)`);
-              } else {
-                console.log(`📋 [Indexer Persistence] Regular indexer ${regIdx.id} already exists in persistence - keeping existing`);
+          // Add regular indexers (already deduplicated above)
+          for (const regIdx of regularIndexersToSave) {
+            // Verify certificate before saving
+            if (!regIdx.certificate) {
+              console.error(`❌ [Indexer Persistence] Regular indexer ${regIdx.id} is missing certificate! Re-issuing...`);
+              try {
+                issueGardenCertificate(regIdx);
+                console.log(`✅ [Indexer Persistence] Certificate re-issued for ${regIdx.id}`);
+              } catch (err: any) {
+                console.error(`❌ [Indexer Persistence] Failed to re-issue certificate for ${regIdx.id}:`, err.message);
               }
-            } else {
-              existingIndexerMap.set(regIdx.id, regIdx);
             }
+            allIndexersToSave.push(regIdx);
           }
           
-          // Add/update token indexers
+          // Add token indexers (already deduplicated above)
           for (const tokenIdx of tokenIndexersToSave) {
             // Verify certificate before saving
             if (!tokenIdx.certificate) {
@@ -2758,60 +2839,44 @@ httpServer.on("request", async (req, res) => {
                 console.error(`❌ [Indexer Persistence] Failed to re-issue certificate for ${tokenIdx.id}:`, err.message);
               }
             }
-            
-            const existingIdx = existingIndexerMap.get(tokenIdx.id);
-            if (existingIdx) {
-              // Prefer the one with certificate
-              const hasCert = !!(tokenIdx as any).certificate;
-              const existingHasCert = !!(existingIdx as any).certificate;
-              if (hasCert && !existingHasCert) {
-                existingIndexerMap.set(tokenIdx.id, tokenIdx);
-                console.log(`🔄 [Indexer Persistence] Updating token indexer ${tokenIdx.id} (new version has certificate)`);
-              } else {
-                console.warn(`⚠️  [Indexer Persistence] Token indexer ${tokenIdx.id} already exists in persistence - skipping duplicate`);
-              }
-            } else {
-              existingIndexerMap.set(tokenIdx.id, tokenIdx);
-            }
+            allIndexersToSave.push(tokenIdx);
           }
           
-          // Convert map back to array (deduplicated)
-          let allIndexersToSave = Array.from(existingIndexerMap.values());
-          
-          // CRITICAL: Final deduplication pass by ID to ensure no duplicates
+          // CRITICAL: Final deduplication pass by ID as absolute safety net
+          // This should not be necessary since arrays are already deduplicated, but it's a safety check
           const finalDeduplicatedMap = new Map<string, any>();
           for (const idx of allIndexersToSave) {
             const existing = finalDeduplicatedMap.get(idx.id);
             if (!existing) {
               finalDeduplicatedMap.set(idx.id, idx);
             } else {
-              // If duplicate found, prefer the one with certificate
+              // Prefer the one with certificate
               const hasCert = !!(idx as any).certificate;
               const existingHasCert = !!(existing as any).certificate;
               if (hasCert && !existingHasCert) {
                 finalDeduplicatedMap.set(idx.id, idx);
-                console.warn(`⚠️  [Indexer Persistence] Found duplicate ${idx.id} - keeping version with certificate`);
+                console.warn(`⚠️  [Indexer Persistence] Final safety check: Found duplicate ${idx.id} - keeping version with certificate`);
               } else {
-                console.warn(`⚠️  [Indexer Persistence] Found duplicate ${idx.id} - keeping existing version`);
+                console.warn(`⚠️  [Indexer Persistence] Final safety check: Found duplicate ${idx.id} - keeping existing version`);
               }
             }
           }
-          allIndexersToSave = Array.from(finalDeduplicatedMap.values());
           
-          // Log if duplicates were removed
-          const duplicatesRemoved = existingIndexerMap.size - finalDeduplicatedMap.size;
+          const finalIndexersToSave = Array.from(finalDeduplicatedMap.values());
+          const duplicatesRemoved = allIndexersToSave.length - finalIndexersToSave.length;
           if (duplicatesRemoved > 0) {
-            console.warn(`⚠️  [Indexer Persistence] Removed ${duplicatesRemoved} duplicate indexer(s) in final deduplication pass`);
+            console.warn(`⚠️  [Indexer Persistence] Removed ${duplicatesRemoved} duplicate indexer(s) in final safety check`);
           }
           
-          console.log(`📋 [Indexer Persistence] Saving ${cleanedRegularIndexers.length} regular indexer(s) and ${tokenIndexersToSave.length} token indexer(s) to 'indexers' array`);
-          console.log(`📋 [Indexer Persistence] Regular indexer IDs: ${cleanedRegularIndexers.map(i => i.id).join(', ')}`);
-          console.log(`📋 [Indexer Persistence] Token indexer IDs: ${tokenIndexersToSave.map(ti => ti.id).join(', ')}`);
-          console.log(`📋 [Indexer Persistence] Total indexers after merge/deduplication: ${allIndexersToSave.length}`);
-          console.log(`📋 [Indexer Persistence] Final indexer IDs: ${allIndexersToSave.map(i => i.id).join(', ')}`);
+          console.log(`📋 [Indexer Persistence] Saving ${regularIndexersToSave.length} regular indexer(s) and ${tokenIndexersToSave.length} token indexer(s) to 'gardens' array`);
+          console.log(`📋 [Indexer Persistence] Final deduplicated count: ${finalIndexersToSave.length} indexer(s)`);
+          console.log(`📋 [Indexer Persistence] Final indexer IDs: ${finalIndexersToSave.map(i => i.id).join(', ')}`);
           
-          existing.indexers = allIndexersToSave;
-          // Remove tokenIndexers field - all indexers go in 'indexers' array
+          // CRITICAL: Replace existing.gardens with ONLY the deduplicated in-memory data
+          // Do NOT merge with file data - that would reintroduce duplicates
+          existing.gardens = finalIndexersToSave;
+          // Remove old fields for backward compatibility
+          delete existing.indexers;
           delete existing.tokenIndexers;
           
           // Save ServiceRegistry for debugging
@@ -2854,13 +2919,13 @@ httpServer.on("request", async (req, res) => {
           
           // CRITICAL: Final verification before saving
           console.log(`🔍 [Indexer Persistence] Final check before save:`);
-          console.log(`   - existing.indexers.length: ${existing.indexers ? existing.indexers.length : 'undefined'}`);
-          console.log(`   - Regular indexers: ${cleanedRegularIndexers.length}`);
+          console.log(`   - existing.gardens.length: ${existing.gardens ? existing.gardens.length : 'undefined'}`);
+          console.log(`   - Regular indexers: ${regularIndexersToSave.length}`);
           console.log(`   - Token indexers: ${tokenIndexersToSave.length}`);
-          console.log(`   - Total indexers to save: ${allIndexersToSave.length}`);
+          console.log(`   - Total indexers to save: ${finalIndexersToSave.length}`);
           
           // Verify certificates are present before saving
-          const indexersWithoutCert = allIndexersToSave.filter(idx => !idx.certificate);
+          const indexersWithoutCert = finalIndexersToSave.filter(idx => !idx.certificate);
           if (indexersWithoutCert.length > 0) {
             console.error(`❌ [Indexer Persistence] ${indexersWithoutCert.length} indexer(s) missing certificates: ${indexersWithoutCert.map(i => i.id).join(', ')}`);
             console.error(`❌ [Indexer Persistence] Re-issuing certificates before save...`);
@@ -2872,12 +2937,19 @@ httpServer.on("request", async (req, res) => {
                 console.error(`❌ [Indexer Persistence] Failed to issue certificate to ${idx.id}:`, err.message);
               }
             }
+            // Update finalIndexersToSave with re-issued certificates
+            for (const idx of finalIndexersToSave) {
+              const withoutCert = indexersWithoutCert.find(w => w.id === idx.id);
+              if (withoutCert && withoutCert.certificate) {
+                idx.certificate = withoutCert.certificate;
+              }
+            }
           }
           
           fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
-          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${allIndexersToSave.length} total indexer(s) (${cleanedRegularIndexers.length} regular + ${tokenIndexersToSave.length} token) and ${existing.serviceRegistry.length} service provider(s) to ${persistenceFile}`);
-          if (cleanedRegularIndexers.length > 0) {
-            console.log(`💾 [Indexer Persistence] Saved regular indexers: ${cleanedRegularIndexers.map(i => `${i.name} (${i.id})`).join(', ')}`);
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${finalIndexersToSave.length} total indexer(s) (${regularIndexersToSave.length} regular + ${tokenIndexersToSave.length} token) and ${existing.serviceRegistry.length} service provider(s) to ${persistenceFile}`);
+          if (regularIndexersToSave.length > 0) {
+            console.log(`💾 [Indexer Persistence] Saved regular indexers: ${regularIndexersToSave.map(i => `${i.name} (${i.id})`).join(', ')}`);
           }
           if (tokenIndexersToSave.length > 0) {
             console.log(`💾 [Indexer Persistence] Saved token indexers: ${tokenIndexersToSave.map(i => `${i.name} (${i.id})${i.certificate ? ' ✓cert' : ' ❌no cert'}`).join(', ')}`);
@@ -2993,31 +3065,65 @@ class InMemoryRedisServer extends EventEmitter {
 
   // Load wallet data, ledger entries, and indexers from persistence file
   private loadPersistence(): { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } {
-    const result = { walletBalances: {}, ledgerEntries: [], indexers: [] };
+    const result: { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } = { walletBalances: {}, ledgerEntries: [], indexers: [] };
     try {
       if (fs.existsSync(this.persistenceFile)) {
         const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
         
         // Restore wallet balances and audit logs
-        if (persisted.walletBalances) {
+        if (persisted.walletBalances && Object.keys(persisted.walletBalances).length > 0) {
           for (const [key, value] of Object.entries(persisted.walletBalances)) {
             this.data.set(key, value);
+            // Log balance keys for debugging
+            if (key.startsWith('wallet:balance:')) {
+              console.log(`📂 [Redis Persistence] Loaded wallet balance: ${key} = ${value}`);
+            }
           }
           result.walletBalances = persisted.walletBalances;
           console.log(`📂 [Redis Persistence] Loaded ${Object.keys(persisted.walletBalances).length} wallet balances from ${this.persistenceFile}`);
+        } else {
+          console.log(`📂 [Redis Persistence] No wallet balances found in persistence file (starting with empty wallets)`);
         }
         
         // Restore ledger entries
-        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
+        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
           result.ledgerEntries = persisted.ledgerEntries;
           console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.persistenceFile}`);
+        } else {
+          console.log(`📂 [Redis Persistence] No ledger entries found in persistence file (starting with empty ledger)`);
         }
         
-        // Restore dynamically created indexers
-        if (persisted.indexers && Array.isArray(persisted.indexers)) {
-          result.indexers = persisted.indexers;
-          console.log(`📂 [Redis Persistence] Loaded ${persisted.indexers.length} persisted indexers from ${this.persistenceFile}`);
+        // Restore dynamically created indexers (gardens)
+        // Backward compatibility: check both 'gardens' and 'indexers' fields
+        const gardensToLoad = persisted.gardens || persisted.indexers;
+        if (gardensToLoad && Array.isArray(gardensToLoad) && gardensToLoad.length > 0) {
+          // CRITICAL: Deduplicate gardens when loading to prevent duplicates in memory
+          const deduplicatedGardens = new Map<string, any>();
+          for (const garden of gardensToLoad) {
+            const existing = deduplicatedGardens.get(garden.id);
+            if (!existing) {
+              deduplicatedGardens.set(garden.id, garden);
+            } else {
+              // Prefer the one with certificate
+              const hasCert = !!(garden as any).certificate;
+              const existingHasCert = !!(existing as any).certificate;
+              if (hasCert && !existingHasCert) {
+                deduplicatedGardens.set(garden.id, garden);
+                console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping version with certificate`);
+              } else {
+                console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping existing version`);
+              }
+            }
+          }
+          const cleanGardens = Array.from(deduplicatedGardens.values());
+          result.indexers = cleanGardens;
+          if (gardensToLoad.length !== cleanGardens.length) {
+            console.warn(`⚠️  [Indexer Persistence] Removed ${gardensToLoad.length - cleanGardens.length} duplicate(s) when loading gardens from persistence file`);
+          }
+          console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from ${this.persistenceFile} (${gardensToLoad.length} in file, ${gardensToLoad.length - cleanGardens.length} duplicates removed)`);
+        } else {
+          console.log(`📂 [Redis Persistence] No gardens found in persistence file (starting with empty gardens - will be populated by Angular wizard)`);
         }
       } else {
         console.log(`📂 [Redis Persistence] No persistence file found, starting fresh: ${this.persistenceFile}`);
@@ -3039,11 +3145,39 @@ class InMemoryRedisServer extends EventEmitter {
     // Debounce saves to avoid too many file writes
     this.saveTimeout = setTimeout(() => {
       try {
-        const walletBalances: Record<string, string> = {};
+        // CRITICAL: Load existing wallet balances FIRST to preserve them
+        // We must merge wallet balances, not overwrite them
+        let existingWalletBalances: Record<string, string> = {};
         
-        // Only persist wallet-related keys
+        if (fs.existsSync(this.persistenceFile)) {
+          try {
+            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+            const existing = JSON.parse(fileContent);
+            if (existing.walletBalances && typeof existing.walletBalances === 'object') {
+              existingWalletBalances = existing.walletBalances;
+            }
+          } catch (err: any) {
+            console.warn(`⚠️  [Redis Persistence] Failed to load existing wallet balances: ${err.message}`);
+          }
+        }
+        
+        // Start with existing wallet balances from file (preserve them)
+        const walletBalances: Record<string, string> = { ...existingWalletBalances };
+        
+        // CRITICAL: Only update wallet balances from in-memory if they exist AND are valid
+        // Do NOT overwrite with 0 or missing values - preserve existing balances
         for (const [key, value] of this.data.entries()) {
-          if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
+          if (key.startsWith('wallet:balance:')) {
+            // Only update balance if it exists in memory and is not 0 or empty
+            const balanceValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const balanceNum = parseFloat(balanceValue);
+            // Only update if balance exists in memory AND is a valid positive number
+            if (!isNaN(balanceNum) && balanceNum > 0) {
+              walletBalances[key] = balanceValue;
+            }
+            // If balance is 0 or invalid in memory, preserve existing from file (don't overwrite)
+          } else if (key.startsWith('wallet:audit:')) {
+            // Always update audit logs (they're append-only)
             walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
           }
         }
@@ -3061,12 +3195,14 @@ class InMemoryRedisServer extends EventEmitter {
             }
             // CRITICAL: In ROOT mode, DO NOT modify indexers here - they're saved via immediate save
             // In non-ROOT mode, preserve existing indexers
-            if (existing.indexers && Array.isArray(existing.indexers)) {
-              existingIndexers = existing.indexers;
+            // Backward compatibility: check both 'gardens' and 'indexers' fields
+            const gardensFromFile = existing.gardens || existing.indexers;
+            if (gardensFromFile && Array.isArray(gardensFromFile)) {
+              existingIndexers = gardensFromFile;
             }
-            // Backward compatibility: Migrate tokenIndexers to indexers array if it exists (non-ROOT only)
+            // Backward compatibility: Migrate tokenIndexers to gardens array if it exists (non-ROOT only)
             if (!DEPLOYED_AS_ROOT && existing.tokenIndexers && Array.isArray(existing.tokenIndexers)) {
-              console.log(`📋 [Redis Persistence] Found tokenIndexers field - migrating to indexers array`);
+              console.log(`📋 [Redis Persistence] Found tokenIndexers field - migrating to gardens array`);
               const existingTokenIds = new Set(existingIndexers.map((idx: any) => idx.id));
               for (const tokenIdx of existing.tokenIndexers) {
                 if (!existingTokenIds.has(tokenIdx.id)) {
@@ -3081,11 +3217,44 @@ class InMemoryRedisServer extends EventEmitter {
 
         // Merge: use new data if provided, otherwise keep existing
         const finalLedgerEntries = ledgerEntries !== undefined ? ledgerEntries : existingLedgerEntries;
-        // CRITICAL: In ROOT mode, NEVER save indexers here - use existing from persistence file
-        // Indexers are saved via immediate save in /api/wizard/create-indexer
-        const finalIndexers = DEPLOYED_AS_ROOT 
-          ? existingIndexers  // ROOT mode: preserve existing indexers, don't overwrite
-          : (indexers !== undefined ? indexers : existingIndexers);  // Non-ROOT mode: use provided or existing
+        // CRITICAL: In ROOT mode, use in-memory arrays as source of truth, NOT the file
+        // The file might have duplicates from previous bad saves - we must use current in-memory state
+        let finalIndexers: any[];
+        if (DEPLOYED_AS_ROOT) {
+          // ROOT mode: Use in-memory arrays (GARDENS + TOKEN_GARDENS) as single source of truth
+          // Do NOT read from file - that would reintroduce duplicates
+          const allInMemoryIndexers = [...GARDENS, ...TOKEN_GARDENS];
+          finalIndexers = allInMemoryIndexers;
+        } else {
+          // Non-ROOT mode: use provided or existing from file
+          finalIndexers = indexers !== undefined ? indexers : existingIndexers;
+        }
+        
+        // CRITICAL: Always deduplicate gardens before saving to prevent duplicates
+        // This is essential because saveLedgerEntries() can trigger saves that reload duplicates from file
+        const originalCount = finalIndexers.length;
+        const deduplicatedGardens = new Map<string, any>();
+        for (const garden of finalIndexers) {
+          const existing = deduplicatedGardens.get(garden.id);
+          if (!existing) {
+            deduplicatedGardens.set(garden.id, garden);
+          } else {
+            // Prefer the one with certificate
+            const hasCert = !!(garden as any).certificate;
+            const existingHasCert = !!(existing as any).certificate;
+            if (hasCert && !existingHasCert) {
+              deduplicatedGardens.set(garden.id, garden);
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} in savePersistence - keeping version with certificate`);
+            } else {
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} in savePersistence - keeping existing version`);
+            }
+          }
+        }
+        finalIndexers = Array.from(deduplicatedGardens.values());
+        
+        if (originalCount !== finalIndexers.length) {
+          console.warn(`⚠️  [Indexer Persistence] Removed ${originalCount - finalIndexers.length} duplicate(s) from gardens array before saving`);
+        }
         
         // Include ServiceRegistry for debugging (always save current state)
         // CRITICAL: indexerId is REQUIRED - services without indexerId are NOT allowed
@@ -3125,7 +3294,7 @@ class InMemoryRedisServer extends EventEmitter {
         const persisted = {
           walletBalances,
           ledgerEntries: finalLedgerEntries,
-          indexers: finalIndexers, // CRITICAL: All indexers (regular and token) are in 'indexers' array
+          gardens: finalIndexers, // CRITICAL: All indexers (regular and token) are in 'gardens' array
           serviceRegistry: serviceRegistry,
           lastSaved: new Date().toISOString()
         };
@@ -3161,22 +3330,22 @@ class InMemoryRedisServer extends EventEmitter {
   // Public method to save ServiceRegistry (for debugging)
   // CRITICAL: This should ONLY save ServiceRegistry, NOT indexers
   // Indexers are saved separately via the immediate save in /api/wizard/create-indexer
+  // In ROOT mode, this can be called during initialization to populate the persistence file
   saveServiceRegistry(): void {
-    // CRITICAL: In ROOT mode, we should NOT save ServiceRegistry separately
-    // ServiceRegistry is saved together with indexers in the immediate save
-    // This method should only be used for debugging or non-ROOT mode
+    // In ROOT mode, allow saving during initialization to populate empty persistence file
+    // But skip if called during normal operation (indexers are saved separately)
     if (DEPLOYED_AS_ROOT) {
-      console.log(`📋 [ServiceRegistry Persistence] ROOT mode: Skipping separate ServiceRegistry save - it's saved with indexers`);
-      return;
+      // Allow saving during initialization - this helps populate empty persistence files
+      // The check for whether to save is handled by the caller
     }
     
-    // Force immediate save of ServiceRegistry (non-ROOT mode only)
+    // Force immediate save of ServiceRegistry
     try {
       const persistenceFile = this.persistenceFile;
       let existing: any = {
         walletBalances: {},
         ledgerEntries: [],
-        indexers: [],
+        gardens: [],
         serviceRegistry: [],
         lastSaved: new Date().toISOString()
       };
@@ -3185,11 +3354,18 @@ class InMemoryRedisServer extends EventEmitter {
         try {
           const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
           existing = JSON.parse(fileContent);
-          // CRITICAL: Preserve existing indexers array (DO NOT modify it)
-          if (!existing.indexers || !Array.isArray(existing.indexers)) {
-            existing.indexers = [];
+          // CRITICAL: Preserve existing gardens array (DO NOT modify it)
+          // Backward compatibility: check both 'gardens' and 'indexers' fields
+          if (!existing.gardens || !Array.isArray(existing.gardens)) {
+            // Migrate from indexers if it exists
+            if (existing.indexers && Array.isArray(existing.indexers)) {
+              existing.gardens = existing.indexers;
+              delete existing.indexers;
+            } else {
+              existing.gardens = [];
+            }
           }
-          // Remove tokenIndexers field if it exists (migrated to indexers array)
+          // Remove old tokenIndexers field if it exists
           if (existing.tokenIndexers) {
             delete existing.tokenIndexers;
           }
@@ -3198,8 +3374,11 @@ class InMemoryRedisServer extends EventEmitter {
         }
       }
       
-      // Update ServiceRegistry ONLY (do not touch indexers)
-      const servicesToSave = ROOT_CA_SERVICE_REGISTRY;
+      // Update ServiceRegistry ONLY (do not touch gardens)
+      const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
+        // Only save services with indexerId set (required field)
+        return p.indexerId !== undefined && p.indexerId !== null;
+      });
       
       existing.serviceRegistry = servicesToSave.map(p => {
         const provider: any = {
@@ -3211,12 +3390,9 @@ class InMemoryRedisServer extends EventEmitter {
           reputation: p.reputation,
           status: p.status,
           uuid: p.uuid,
-          apiEndpoint: p.apiEndpoint
+          apiEndpoint: p.apiEndpoint,
+          indexerId: p.indexerId // REQUIRED - always include
         };
-        // Only include indexerId if it's actually set (not undefined)
-        if (p.indexerId !== undefined) {
-          provider.indexerId = p.indexerId;
-        }
         // Include Snake-specific fields if present
         if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
         if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
@@ -3230,11 +3406,11 @@ class InMemoryRedisServer extends EventEmitter {
       
       existing.lastSaved = new Date().toISOString();
       
-      // CRITICAL: Preserve indexers array exactly as it is (DO NOT modify)
-      // Indexers are saved separately via immediate save in /api/wizard/create-indexer
+      // CRITICAL: Preserve gardens array exactly as it is (DO NOT modify)
+      // Gardens are saved separately via immediate save in /api/wizard/create-indexer
       
       fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
-      console.log(`💾 [ServiceRegistry Persistence] Saved ${existing.serviceRegistry.length} service providers to ${persistenceFile} (preserved ${existing.indexers?.length || 0} indexers)`);
+      console.log(`💾 [ServiceRegistry Persistence] Saved ${existing.serviceRegistry.length} service providers to ${persistenceFile} (preserved ${existing.gardens?.length || 0} gardens)`);
     } catch (err: any) {
       console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
     }
@@ -5375,8 +5551,51 @@ async function getWalletBalance(email: string): Promise<number> {
     await ensureRedisConnection();
     
     // Read directly from Redis - NO SYNC from USERS array
-    const balanceStr = await redis.get(`${WALLET_BALANCE_PREFIX}${email}`);
-    return balanceStr ? parseFloat(balanceStr) : 0;
+    const key = `${WALLET_BALANCE_PREFIX}${email}`;
+    const balanceStr = await redis.get(key);
+    
+    console.log(`🔍 [Wallet] getWalletBalance for ${email}: key=${key}, balanceStr=${balanceStr}`);
+    
+    if (!balanceStr || balanceStr === '0' || balanceStr === '') {
+      // Balance not found in Redis or is 0 - try to load from persistence file as fallback
+      console.warn(`⚠️  [Wallet] Balance not found or is 0 in Redis for ${email}, checking persistence file...`);
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(persistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.walletBalances && persisted.walletBalances[key]) {
+            const fileBalance = persisted.walletBalances[key];
+            const fileBalanceNum = parseFloat(fileBalance);
+            // Only restore if file balance is valid and > 0
+            if (!isNaN(fileBalanceNum) && fileBalanceNum > 0) {
+              // Restore to Redis
+              await redis.set(key, fileBalance);
+              console.log(`🔄 [Wallet] Restored balance from file: ${email} = ${fileBalance} JSC`);
+              return fileBalanceNum;
+            } else {
+              console.warn(`⚠️  [Wallet] File balance is invalid or 0: ${fileBalance}`);
+            }
+          } else {
+            console.warn(`⚠️  [Wallet] Balance key ${key} not found in persistence file`);
+          }
+        } catch (err: any) {
+          console.error(`⚠️  [Wallet] Failed to read persistence file: ${err.message}`);
+        }
+      } else {
+        console.warn(`⚠️  [Wallet] Persistence file not found: ${persistenceFile}`);
+      }
+      return 0;
+    }
+    
+    const balance = parseFloat(balanceStr);
+    if (isNaN(balance)) {
+      console.error(`⚠️  [Wallet] Invalid balance value for ${email}: "${balanceStr}"`);
+      return 0;
+    }
+    
+    console.log(`✅ [Wallet] Balance retrieved: ${email} = ${balance} JSC`);
+    return balance;
   } catch (err: any) {
     console.error(`⚠️  [Wallet] Error getting balance for ${email}:`, err.message);
     // Fallback to in-memory
@@ -6430,27 +6649,27 @@ function issueGardenCertificate(garden: GardenConfig): EdenCertificate {
   }
   
   const cert = ROOT_CA.issueCertificate({
-    subject: indexer.uuid,
+    subject: garden.uuid,
     capabilities: ["INDEXER", "ISSUE_CERT"],
     constraints: {
-      indexerId: indexer.id,
-      indexerName: indexer.name,
-      stream: indexer.stream
+      indexerId: garden.id,
+      indexerName: garden.name,
+      stream: garden.stream
     },
     ttlSeconds: 365 * 24 * 60 * 60 // 1 year
   });
   
-  CERTIFICATE_REGISTRY.set(indexer.uuid, cert);
-  indexer.certificate = cert;
+  CERTIFICATE_REGISTRY.set(garden.uuid, cert);
+  garden.certificate = cert;
   
-  console.log(`📜 Certificate issued to ${indexer.name}: ${indexer.uuid}`);
+  console.log(`📜 Certificate issued to ${garden.name}: ${garden.uuid}`);
   console.log(`   Capabilities: ${cert.capabilities.join(", ")}`);
   console.log(`   Expires: ${new Date(cert.expiresAt).toISOString()}`);
   
   broadcastEvent({
     type: "certificate_issued",
     component: "root-ca",
-    message: `Certificate issued to ${indexer.name}`,
+    message: `Certificate issued to ${garden.name}`,
     timestamp: Date.now(),
     data: {
       subject: cert.subject,
@@ -7706,7 +7925,7 @@ async function processChatInput(input: string, email: string) {
   // Check if user has sufficient balance BEFORE creating ledger entry
   const totalCost = moviePrice + llmResponse.iGasCost;
   if (updatedWalletBalance < totalCost) {
-    const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} JSC (${moviePrice} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${currentWalletBalance.toFixed(6)} JSC`;
+    const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} JSC (${moviePrice} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${updatedWalletBalance.toFixed(6)} JSC`;
     console.error(`❌ ${errorMsg}`);
     broadcastEvent({
       type: "insufficient_balance",
@@ -8401,6 +8620,17 @@ async function main() {
     console.error("❌ Unexpected Redis connection failure\n");
     process.exit(1);
   }
+
+  // In ROOT mode, save service registry and wallets to persistence file after Redis connection
+  if (DEPLOYED_AS_ROOT && redisConnected && !SKIP_REDIS) {
+    console.log(`💾 [ROOT Mode] Saving service registry and wallets to persistence file...`);
+    try {
+      redis.saveServiceRegistry();
+      console.log(`   ✅ Service registry saved to persistence file`);
+    } catch (err: any) {
+      console.warn(`   ⚠️  Failed to save service registry: ${err.message}`);
+    }
+  }
   
   // Load ledger entries and persisted indexers from persistence file
   if (redisConnected && !SKIP_REDIS) {
@@ -8424,13 +8654,15 @@ async function main() {
         const indexersToRestore: GardenConfig[] = [];
         const tokenIndexersToRestore: TokenGardenConfig[] = [];
         
-        if (persisted.indexers && Array.isArray(persisted.indexers)) {
+        // Backward compatibility: check both 'gardens' and 'indexers' fields
+        const gardensFromFile = persisted.gardens || persisted.indexers;
+        if (gardensFromFile && Array.isArray(gardensFromFile)) {
           // First pass: Collect all indexers to restore FROM PERSISTENCE FILE ONLY
           // In ROOT mode: persistence file is the SINGLE SOURCE OF TRUTH
           let restoredCount = 0;
           let skippedCount = 0;
           
-          for (const persistedIndexer of persisted.indexers) {
+          for (const persistedIndexer of gardensFromFile) {
             // Skip token indexers (they're restored separately)
             if (persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'))) {
               skippedCount++;
@@ -8460,7 +8692,7 @@ async function main() {
           }
           
           // Restore token indexers separately
-          for (const persistedIndexer of persisted.indexers) {
+          for (const persistedIndexer of gardensFromFile) {
             const isTokenIndexer = persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'));
             
             if (isTokenIndexer) {
@@ -8500,11 +8732,41 @@ async function main() {
             TOKEN_GARDENS.push(...filteredTokenGardens);
           }
           
-          // Restore indexers from persistence file
-          GARDENS.push(...indexersToRestore);
-          TOKEN_GARDENS.push(...tokenIndexersToRestore);
+          // CRITICAL: Deduplicate BEFORE adding to arrays to prevent duplicates in memory
+          // This is the ROOT CAUSE fix - prevent duplicates at the source, not after creation
+          const deduplicatedRegular = new Map<string, GardenConfig>();
+          for (const idx of indexersToRestore) {
+            if (!deduplicatedRegular.has(idx.id)) {
+              deduplicatedRegular.set(idx.id, idx);
+            } else {
+              console.warn(`⚠️  [Indexer Persistence] Skipping duplicate regular indexer ${idx.id} when restoring from file`);
+            }
+          }
           
-          console.log(`✅ [Indexer Persistence] Restored ${indexersToRestore.length} regular indexer(s) and ${tokenIndexersToRestore.length} token indexer(s) from persistence file`);
+          const deduplicatedToken = new Map<string, TokenGardenConfig>();
+          for (const idx of tokenIndexersToRestore) {
+            if (!deduplicatedToken.has(idx.id)) {
+              deduplicatedToken.set(idx.id, idx as TokenGardenConfig);
+            } else {
+              console.warn(`⚠️  [Indexer Persistence] Skipping duplicate token indexer ${idx.id} when restoring from file`);
+            }
+          }
+          
+          // Only add deduplicated indexers to arrays
+          const cleanRegularIndexers = Array.from(deduplicatedRegular.values());
+          const cleanTokenIndexers = Array.from(deduplicatedToken.values());
+          
+          GARDENS.push(...cleanRegularIndexers);
+          TOKEN_GARDENS.push(...cleanTokenIndexers);
+          
+          const regularDupsRemoved = indexersToRestore.length - cleanRegularIndexers.length;
+          const tokenDupsRemoved = tokenIndexersToRestore.length - cleanTokenIndexers.length;
+          
+          if (regularDupsRemoved > 0 || tokenDupsRemoved > 0) {
+            console.warn(`⚠️  [Indexer Persistence] Removed ${regularDupsRemoved} duplicate regular indexer(s) and ${tokenDupsRemoved} duplicate token indexer(s) when loading from file`);
+          }
+          
+          console.log(`✅ [Indexer Persistence] Restored ${cleanRegularIndexers.length} regular indexer(s) and ${cleanTokenIndexers.length} token indexer(s) from persistence file`);
         }
       }
     } catch (err: any) {
@@ -8524,3 +8786,9 @@ async function main() {
     }
   });
 }
+
+// Start the server
+main().catch((err) => {
+  console.error("❌ Fatal error starting server:", err);
+  process.exit(1);
+});

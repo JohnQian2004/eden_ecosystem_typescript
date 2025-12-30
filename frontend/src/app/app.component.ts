@@ -188,7 +188,7 @@ export class AppComponent implements OnInit, OnDestroy {
     });
     
     // Check for service indexers (non-root) - Main Street only shows if there are service indexers
-    this.checkServiceIndexers();
+    this.checkServiceGardens();
     
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
@@ -196,14 +196,15 @@ export class AppComponent implements OnInit, OnDestroy {
     this.loadSnakeProviders();
   }
   
-  checkServiceIndexers() {
-    // Check if there are any service indexers (non-root indexers)
+  checkServiceGardens() {
+    // Check if there are any service gardens (non-root gardens)
+    // API still uses "indexers" endpoint and response field for backward compatibility
     this.http.get<{success: boolean, indexers: Array<{id: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/indexers`)
       .subscribe({
         next: (response) => {
           if (response.success && response.indexers) {
-            // Check if there are any active non-root indexers (regular or token indexers)
-            // An indexer is a service indexer if it's active and not a root indexer
+            // Check if there are any active non-root gardens (regular or token gardens)
+            // A garden is a service garden if it's active and not a root garden
             this.hasServiceIndexers = response.indexers.some(i => 
               i.active && i.type !== 'root'
             );
@@ -214,7 +215,7 @@ export class AppComponent implements OnInit, OnDestroy {
           }
         },
         error: (err) => {
-          console.error('Failed to check service indexers:', err);
+          console.error('Failed to check service gardens:', err);
           this.hasServiceIndexers = false;
           this.cdr.detectChanges();
         }
@@ -306,23 +307,23 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
   
-  refreshIndexers() {
-    // Refresh indexers in sidebar and certificate components
+  refreshGardens() {
+    // Refresh gardens in sidebar and certificate components
     // Use setTimeout to ensure ViewChild is initialized
     setTimeout(() => {
       if (this.sidebarComponent) {
-        this.sidebarComponent.fetchIndexers();
+        this.sidebarComponent.fetchGardens();
         this.sidebarComponent.fetchServiceProviders();
       }
       if (this.certificateComponent) {
-        this.certificateComponent.fetchIndexers();
+        this.certificateComponent.fetchGardens();
       }
-      console.log('🔄 Indexers refreshed after wallet reset');
+      console.log('🔄 Gardens refreshed after wallet reset');
     }, 100);
     
     // Also trigger via localStorage as fallback
-    localStorage.setItem('edenRefreshIndexers', Date.now().toString());
-    setTimeout(() => localStorage.removeItem('edenRefreshIndexers'), 100);
+    localStorage.setItem('edenRefreshGardens', Date.now().toString());
+    setTimeout(() => localStorage.removeItem('edenRefreshGardens'), 100);
   }
 
   loadWalletBalance() {
@@ -463,8 +464,8 @@ export class AppComponent implements OnInit, OnDestroy {
             this.serviceTypes = [];
           }
           this.isLoadingServices = false;
-          // Refresh service indexers check in case indexers were created
-          this.checkServiceIndexers();
+          // Refresh service gardens check in case gardens were created
+          this.checkServiceGardens();
           this.cdr.detectChanges();
         },
         error: (err) => {

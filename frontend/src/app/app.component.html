@@ -18,7 +18,7 @@
         </div>
         
         <!-- Garden of Eden Main Street - Service Type Cards -->
-        <!-- Only show Main Street if there are service indexers (non-root) available -->
+        <!-- Only show Main Street if there are service gardens (non-root) available -->
         <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0 && hasServiceIndexers">
           <div class="col-12">
             <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
@@ -47,7 +47,7 @@
           </div>
         </div>
         
-        <!-- Snake Services (serviceType: "snake", belongs to indexers) -->
+        <!-- Snake Services (serviceType: "snake", belongs to gardens) -->
         <div class="row mb-3" *ngIf="!isLoadingSnakeProviders && snakeProviders.length > 0">
           <div class="col-12">
             <h5 class="mb-2">🐍 Snake Services</h5>
@@ -293,7 +293,7 @@
                 [ngClass]="{'show active': activeTab === 'config'}"
                 id="config-pane" 
                 role="tabpanel">
-                <app-system-config (indexersRefreshed)="refreshIndexers()"></app-system-config>
+                <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
               </div>
             </div>
           </div>

@@ -8,9 +8,9 @@ interface ServiceType {
   description: string;
 }
 
-interface IndexerConfig {
+interface GardenConfig {
   serviceType: string;
-  indexerName: string;
+  gardenName: string;
   serverIp: string;
   serverDomain: string;
   serverPort: number;
@@ -48,9 +48,9 @@ export class SystemConfigComponent implements OnInit {
   isGeneratingNotificationCode: boolean = false;
   generationError: string | null = null;
   chatHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: number}> = [];
-  indexerConfig: IndexerConfig = {
+  gardenConfig: GardenConfig = {
     serviceType: '',
-    indexerName: '',
+    gardenName: '',
     serverIp: 'localhost',
     serverDomain: '',
     serverPort: 3001,
@@ -77,7 +77,7 @@ export class SystemConfigComponent implements OnInit {
   resetError: string | null = null;
   resetSuccess: boolean = false;
 
-  @Output() indexersRefreshed = new EventEmitter<void>();
+  @Output() gardensRefreshed = new EventEmitter<void>();
 
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -164,8 +164,8 @@ export class SystemConfigComponent implements OnInit {
   }
 
   calculateDeploymentFee(): number {
-    // Base indexer fee: 100 JSC
-    const baseIndexerFee = 100;
+    // Base garden fee: 100 JSC
+    const baseGardenFee = 100;
     
     // Snake services: 2x multiplier (220 JSC)
     if (this.selectedServiceType?.type === 'snake') {
@@ -174,8 +174,8 @@ export class SystemConfigComponent implements OnInit {
     
     // For movie service type: base indexer fee (100 JSC) + 10 JSC per selected provider
     if (this.selectedServiceType?.type === 'movie') {
-      const providerCount = this.indexerConfig.selectedProviders?.length || 0;
-      return baseIndexerFee + (providerCount * 10);
+      const providerCount = this.gardenConfig.selectedProviders?.length || 0;
+      return baseGardenFee + (providerCount * 10);
     }
     
     return this.deploymentFee;
@@ -188,7 +188,7 @@ export class SystemConfigComponent implements OnInit {
   hasSelectedProviders(): boolean {
     // For movie service type, require at least one provider to be selected
     if (this.selectedServiceType?.type === 'movie') {
-      const selectedProviders = this.indexerConfig.selectedProviders || [];
+      const selectedProviders = this.gardenConfig.selectedProviders || [];
       return Array.isArray(selectedProviders) && selectedProviders.length > 0;
     }
     // For other service types (snake, dex), providers are not required
@@ -214,25 +214,25 @@ export class SystemConfigComponent implements OnInit {
 
   selectServiceType(serviceType: ServiceType) {
     this.selectedServiceType = serviceType;
-    this.indexerConfig.serviceType = serviceType.type;
-    this.indexerConfig.isSnake = serviceType.type === 'snake';
+    this.gardenConfig.serviceType = serviceType.type;
+    this.gardenConfig.isSnake = serviceType.type === 'snake';
     
     // Auto-generate indexer name
     const baseName = serviceType.type === 'snake' ? 'Snake' : 
                     serviceType.type === 'dex' ? 'Garden' : 
                     'Garden';
-    this.indexerConfig.indexerName = `${baseName}-${serviceType.type.toUpperCase()}`;
+    this.gardenConfig.gardenName = `${baseName}-${serviceType.type.toUpperCase()}`;
     
     // Auto-generate domain
-    this.indexerConfig.serverDomain = `indexer-${serviceType.type.toLowerCase()}.eden.local`;
+    this.gardenConfig.serverDomain = `indexer-${serviceType.type.toLowerCase()}.eden.local`;
     
     // Initialize selected providers for movie service type
     if (serviceType.type === 'movie') {
       // Start with empty selection - user must manually select providers
-      this.indexerConfig.selectedProviders = [];
+      this.gardenConfig.selectedProviders = [];
       console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
     } else {
-      this.indexerConfig.selectedProviders = [];
+      this.gardenConfig.selectedProviders = [];
     }
     
     // Refresh wallet balance when entering configuration step
@@ -252,14 +252,14 @@ export class SystemConfigComponent implements OnInit {
   }
 
   calculateNextPort(): number {
-    // In a real implementation, this would query existing indexers
+    // In a real implementation, this would query existing gardens
     // For now, we'll use a simple increment starting from 3001
-    return this.indexerConfig.serverPort || 3001;
+    return this.gardenConfig.serverPort || 3001;
   }
-
-  createIndexer() {
-    if (!this.indexerConfig.serviceType || !this.indexerConfig.indexerName) {
-      this.creationError = 'Service type and indexer name are required';
+  
+  createGarden() {
+    if (!this.gardenConfig.serviceType || !this.gardenConfig.gardenName) {
+      this.creationError = 'Service type and garden name are required';
       return;
     }
 
@@ -269,8 +269,8 @@ export class SystemConfigComponent implements OnInit {
     }
 
     // For movie service type, validate that at least one provider is selected
-    if (this.indexerConfig.serviceType === 'movie') {
-      const selectedProviders = this.indexerConfig.selectedProviders || [];
+    if (this.gardenConfig.serviceType === 'movie') {
+      const selectedProviders = this.gardenConfig.selectedProviders || [];
       if (!Array.isArray(selectedProviders) || selectedProviders.length === 0) {
         this.creationError = 'Please select at least one movie theater provider';
         return;
@@ -290,23 +290,29 @@ export class SystemConfigComponent implements OnInit {
     this.creationSuccess = false;
 
     // Include email and amount in the request
-    // Ensure selectedProviders is included and is an array (only for movie service type)
+    // Map gardenName to indexerName for backend API compatibility
     const requestBody: any = {
-      ...this.indexerConfig,
+      serviceType: this.gardenConfig.serviceType,
+      indexerName: this.gardenConfig.gardenName, // Map gardenName to indexerName for API
+      serverIp: this.gardenConfig.serverIp,
+      serverDomain: this.gardenConfig.serverDomain,
+      serverPort: this.gardenConfig.serverPort,
+      networkType: this.gardenConfig.networkType,
+      isSnake: this.gardenConfig.isSnake,
       email: this.userEmail,
       amount: requiredFee
     };
     
     // Only include selectedProviders for movie service type
-    if (this.indexerConfig.serviceType === 'movie') {
-      requestBody.selectedProviders = Array.isArray(this.indexerConfig.selectedProviders) 
-        ? this.indexerConfig.selectedProviders 
+    if (this.gardenConfig.serviceType === 'movie') {
+      requestBody.selectedProviders = Array.isArray(this.gardenConfig.selectedProviders) 
+        ? this.gardenConfig.selectedProviders 
         : [];
     }
     
-    console.log('📤 Creating indexer with selectedProviders:', requestBody.selectedProviders);
-
-    this.http.post<{success: boolean, indexer?: any, balance?: number, error?: string}>(
+    console.log('📤 Creating garden with selectedProviders:', requestBody.selectedProviders);
+    
+    this.http.post<{success: boolean, garden?: any, balance?: number, error?: string}>(
       `${this.apiUrl}/api/wizard/create-indexer`,
       requestBody
     ).subscribe({
@@ -323,12 +329,12 @@ export class SystemConfigComponent implements OnInit {
             this.resetWizard();
           }, 3000);
         } else {
-          this.creationError = response.error || 'Failed to create indexer';
+          this.creationError = response.error || 'Failed to create garden';
         }
         this.isCreating = false;
       },
       error: (err) => {
-        this.creationError = err.error?.error || 'Failed to create indexer';
+        this.creationError = err.error?.error || 'Failed to create garden';
         this.isCreating = false;
       }
     });
@@ -337,9 +343,9 @@ export class SystemConfigComponent implements OnInit {
   resetWizard() {
     this.wizardStep = 1;
     this.selectedServiceType = null;
-    this.indexerConfig = {
+    this.gardenConfig = {
       serviceType: '',
-      indexerName: '',
+      gardenName: '',
       serverIp: 'localhost',
       serverDomain: '',
       serverPort: 3001,
@@ -483,7 +489,7 @@ export class SystemConfigComponent implements OnInit {
 
     // Save system prompt to persistence file
     this.saveSystemPromptToPersistence().then(() => {
-      // Create the indexer using the standard flow
+      // Create the garden using the standard flow
       this.selectedServiceType = {
         type: this.newServiceTypeName.trim(),
         name: this.newServiceTypeName.charAt(0).toUpperCase() + this.newServiceTypeName.slice(1),
@@ -491,11 +497,11 @@ export class SystemConfigComponent implements OnInit {
         description: this.newServiceTypeDescription
       };
       
-      this.indexerConfig.serviceType = this.newServiceTypeName.trim();
-      this.indexerConfig.indexerName = `Indexer-${this.newServiceTypeName.toUpperCase()}`;
-      this.indexerConfig.serverDomain = `indexer-${this.newServiceTypeName.toLowerCase()}.eden.local`;
-      this.indexerConfig.isSnake = false;
-      this.indexerConfig.selectedProviders = [];
+      this.gardenConfig.serviceType = this.newServiceTypeName.trim();
+      this.gardenConfig.gardenName = `Indexer-${this.newServiceTypeName.toUpperCase()}`;
+      this.gardenConfig.serverDomain = `indexer-${this.newServiceTypeName.toLowerCase()}.eden.local`;
+      this.gardenConfig.isSnake = false;
+      this.gardenConfig.selectedProviders = [];
       
       // Move to configuration step
       this.wizardStep = 2;
@@ -555,8 +561,8 @@ export class SystemConfigComponent implements OnInit {
           this.walletBalance = 0; // Reset displayed balance
           console.log(`✅ Wallet persistence reset: ${response.message}`);
           
-          // Emit event to trigger indexer refresh in parent component
-          this.indexersRefreshed.emit();
+          // Emit event to trigger garden refresh in parent component
+          this.gardensRefreshed.emit();
           
           // Hide success message after 3 seconds
           setTimeout(() => {

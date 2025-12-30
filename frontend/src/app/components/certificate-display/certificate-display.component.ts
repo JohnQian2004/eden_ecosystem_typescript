@@ -39,7 +39,7 @@ interface CertificateInfo {
   revocation?: RevocationEvent;
 }
 
-interface IndexerInfo {
+interface GardenInfo {
   id: string;
   name: string;
   stream: string;
@@ -57,7 +57,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
   certificates: CertificateInfo[] = [];
   revokedCertificates: RevocationEvent[] = [];
   selectedCertificate: CertificateInfo | null = null;
-  indexers: IndexerInfo[] = [];
+  gardens: GardenInfo[] = []; // Gardens (formerly called indexers)
   private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
     ? 'http://localhost:3000' 
     : `${window.location.protocol}//${window.location.host}`;
@@ -69,7 +69,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.fetchIndexers();
+    this.fetchGardens();
     this.fetchCertificates();
     
     // Subscribe to certificate events
@@ -83,18 +83,19 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
     });
   }
   
-  fetchIndexers() {
-    this.http.get<{success: boolean, indexers: IndexerInfo[]}>(`${this.apiUrl}/api/indexers`)
+  fetchGardens() {
+    // API still uses "indexers" endpoint and response field for backward compatibility
+    this.http.get<{success: boolean, indexers: GardenInfo[]}>(`${this.apiUrl}/api/indexers`)
       .subscribe({
         next: (response) => {
           if (response.success) {
-            this.indexers = response.indexers || [];
+            this.gardens = response.indexers || [];
             // Re-fetch certificates to update names
             this.fetchCertificates();
           }
         },
         error: (err) => {
-          console.error('Failed to fetch indexers:', err);
+          console.error('Failed to fetch gardens:', err);
         }
       });
   }
@@ -133,7 +134,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
             
             this.certificates = Array.from(certMap.values())
               .sort((a, b) => {
-                // Sort by: ROOT CA first, then Indexers, then Service Providers
+                // Sort by: ROOT CA first, then Gardens, then Service Providers
                 if (a.uuid.includes('root')) return -1;
                 if (b.uuid.includes('root')) return 1;
                 if (a.uuid.includes('indexer') && !b.uuid.includes('indexer')) return -1;
@@ -150,11 +151,11 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
 
   getEntityName(uuid: string): string {
     if (uuid.includes('root')) return 'ROOT CA';
-    if (uuid.includes('indexer')) {
-      // Match UUID to actual indexer name from fetched indexers
-      const indexer = this.indexers.find(i => i.uuid === uuid);
-      if (indexer) {
-        return indexer.name;
+    if (uuid.includes('garden') || uuid.includes('indexer')) {
+      // Match UUID to actual garden name from fetched gardens
+      const garden = this.gardens.find(i => i.uuid === uuid);
+      if (garden) {
+        return garden.name;
       }
       // Fallback: try to extract from UUID if not found (shouldn't happen)
       return `Garden-${uuid.split(':').pop()?.substring(0, 1).toUpperCase() || '?'}`;
@@ -261,7 +262,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
   }
 
   getRevokedType(uuid: string): 'indexer' | 'service' | 'provider' {
-    if (uuid.includes('indexer')) return 'indexer';
+    if (uuid.includes('garden') || uuid.includes('indexer')) return 'indexer'; // Keep 'indexer' for backward compatibility with API
     if (uuid.includes('service')) return 'service';
     return 'provider';
   }
