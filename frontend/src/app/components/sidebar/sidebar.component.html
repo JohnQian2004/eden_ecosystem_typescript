@@ -168,10 +168,10 @@
               <!-- Holy Ghost (ROOT CA Indexer) shows Infrastructure Services -->
               <ng-container *ngIf="selectedIndexerTab === 'HG'">
                 <!-- Infrastructure Services -->
-                <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
+                <div *ngIf="selectedIndexerInfrastructureServices.length > 0" class="sub-group">
                   <div class="sub-group-label">Infrastructure Services</div>
                   <div 
-                    *ngFor="let component of selectedIndexerServiceProviders" 
+                    *ngFor="let component of selectedIndexerInfrastructureServices" 
                     class="component-item border-start border-2"
                     [ngClass]="getStatusClass(component.status)"
                     [class.border-success]="component.status === 'success'"
@@ -189,13 +189,33 @@
                 </div>
               </ng-container>
               
-              <!-- Regular/Token Indexers show Service Providers -->
+              <!-- Regular/Token Indexers show Infrastructure Services and Service Providers -->
               <ng-container *ngIf="selectedIndexerTab !== 'HG'">
+                <!-- Infrastructure Services -->
+                <div *ngIf="selectedIndexerInfrastructureServices.length > 0" class="sub-group">
+                  <div class="sub-group-label">Infrastructure Services</div>
+                  <div 
+                    *ngFor="let component of selectedIndexerInfrastructureServices" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                    </div>
+                  </div>
+                </div>
                 <!-- Service Providers -->
-                <div *ngIf="selectedIndexerServiceProviders.length > 0" class="sub-group">
+                <div *ngIf="selectedIndexerRegularServiceProviders.length > 0" class="sub-group">
                   <div class="sub-group-label">Service Providers</div>
                   <div 
-                    *ngFor="let component of selectedIndexerServiceProviders" 
+                    *ngFor="let component of selectedIndexerRegularServiceProviders" 
                     class="component-item border-start border-2"
                     [ngClass]="getStatusClass(component.status)"
                     [class.border-success]="component.status === 'success'"

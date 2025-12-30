@@ -610,14 +610,22 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   getComponentsForIndexer(indexerId: string): ComponentStatus[] {
     // Check indexer type
-    // indexerId is the tab ID (e.g., "B"), need to find the indexer by matching mapped ID
+    // indexerId can be either the tab ID (e.g., "1", "A", "B") or the full indexer ID (e.g., "indexer-1", "indexer-alpha")
+    // Try to find the indexer by matching both mapped ID and raw ID
     const indexer = this.indexers.find(i => {
+      // Check if it matches the raw indexer ID
+      if (i.id === indexerId) return true;
       // Map indexer's full ID to tab ID and compare
       const mappedId = this.mapIndexerIdToTabId(i.id);
       return mappedId === indexerId;
     });
     const isRootIndexer = indexer?.type === 'root'; // Holy Ghost
     const isTokenIndexer = indexer?.type === 'token';
+    
+    // Get the actual tab ID to use for matching providers
+    // If indexerId is a raw ID like "indexer-1", map it to tab ID "1"
+    // Otherwise use it as-is
+    const tabId = indexer ? this.mapIndexerIdToTabId(indexer.id) : indexerId;
     
     // Holy Ghost (ROOT CA's indexer) shows infrastructure services
     if (isRootIndexer) {
@@ -638,7 +646,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
               // Check if this provider belongs to Holy Ghost (indexerId: "HG")
               const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
               
-              if (mappedIndexerId === indexerId && infrastructureServiceTypes.includes(provider.serviceType)) {
+              if (mappedIndexerId === tabId && infrastructureServiceTypes.includes(provider.serviceType)) {
                 return true;
               }
             }
@@ -692,7 +700,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
             // Map provider's indexerId to sidebar tab ID
             const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
             
-            if (mappedIndexerId === indexerId) {
+            if (mappedIndexerId === tabId) {
               belongsToIndexer = true;
               break;
             }
@@ -800,6 +808,53 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   get selectedIndexerServiceProviders(): ComponentStatus[] {
     return this.selectedIndexerComponents.filter(c => c.category === 'service-provider');
+  }
+  
+  // Helper method to find provider for a component
+  private findProviderForComponent(component: ComponentStatus): {id: string, name: string, serviceType: string, indexerId: string} | null {
+    // Try to find component key by matching component object reference
+    const componentEntry = Array.from(this.components.entries()).find(([_, comp]) => comp === component);
+    if (!componentEntry) {
+      // Fallback: try matching by name
+      for (const [providerId, provider] of this.serviceProviders.entries()) {
+        if (provider.name === component.name) {
+          return provider;
+        }
+      }
+      return null;
+    }
+    const [componentKey] = componentEntry;
+    
+    // Match component key to provider ID
+    for (const [providerId, provider] of this.serviceProviders.entries()) {
+      const expectedComponentKey = this.mapProviderIdToComponentKey(providerId);
+      if (componentKey === expectedComponentKey) {
+        return provider;
+      }
+    }
+    return null;
+  }
+  
+  get selectedIndexerInfrastructureServices(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+    return this.selectedIndexerComponents.filter(c => {
+      if (c.category !== 'service-provider') return false;
+      const provider = this.findProviderForComponent(c);
+      return provider !== null && infrastructureServiceTypes.includes(provider.serviceType);
+    });
+  }
+  
+  get selectedIndexerRegularServiceProviders(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+    // Return all service providers that are NOT infrastructure services
+    // Since selectedIndexerComponents already contains correctly filtered components for this indexer,
+    // we just need to filter out infrastructure services
+    return this.selectedIndexerComponents.filter(c => {
+      if (c.category !== 'service-provider') return false;
+      const provider = this.findProviderForComponent(c);
+      if (provider === null) return false;
+      return !infrastructureServiceTypes.includes(provider.serviceType);
+    });
   }
   
   get selectedIndexerLLM(): ComponentStatus[] {

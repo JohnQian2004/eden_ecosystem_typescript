@@ -1,0 +1,148 @@
+{
+  "walletBalances": {
+    "wallet:balance:bill.draper.auto@gmail.com": "499780",
+    "wallet:audit:bill.draper.auto@gmail.com:1767090872688": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"9ee15e46-b04b-4926-8565-f4656dd842df\",\"reason\":\"Stripe payment confirmed: pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767090872688}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767090918658": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":500000,\"newBalance\":499890,\"txId\":\"fcbedff6-5e8f-446b-bf77-7906bb9c6a24\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Indexer-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767090918658}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767091237813": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":499890,\"newBalance\":499780,\"txId\":\"82672d15-cf9f-49ae-a755-b144132acba4\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Indexer-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767091237814}"
+  },
+  "ledgerEntries": [
+    {
+      "entryId": "3fc0443b-3864-4876-a4c3-f9c754585718",
+      "txId": "f9478e4e-5dd2-4727-b0a9-53e5717dd1c1",
+      "timestamp": 1767090872692,
+      "payer": "stripe:pi_3Sk0FzP4h6MOSVxD0H0U1eua",
+      "payerId": "pi_3Sk0FzP4h6MOSVxD0H0U1eua",
+      "merchant": "bill.draper.auto@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3Sk0FzP4h6MOSVxD0H0U1eua",
+        "stripePaymentMethodId": "pm_1Sk0FzP4h6MOSVxDyufEz3ZU",
+        "stripeSessionId": "cs_test_a1vPHjzfMBWhiovkppr0rylpawXMZI5lIlZ8keDITgEWvPqArL2zjOXDXw"
+      }
+    }
+  ],
+  "indexers": [
+    {
+      "id": "indexer-1",
+      "name": "Indexer-MOVIE",
+      "stream": "eden:indexer:indexer-1",
+      "active": true,
+      "uuid": "eden:indexer:a273bdb8-300b-47be-87f5-f0c2237efc92",
+      "serverIp": "localhost",
+      "serverDomain": "indexer-movie.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "movie",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:indexer:a273bdb8-300b-47be-87f5-f0c2237efc92",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "indexerId": "indexer-1",
+          "indexerName": "Indexer-MOVIE",
+          "stream": "eden:indexer:indexer-1"
+        },
+        "issuedAt": 1767091237815,
+        "expiresAt": 1798627237815,
+        "signature": "dakZ9v9uJA3StAmHqVQKh4+GtEvLaqgUaC6bKDLwX79bUTiCc3wrwaRtwJiwXFUJDsZVgh9A1bjbqPeofix8BQ=="
+      }
+    }
+  ],
+  "serviceRegistry": [
+    {
+      "id": "stripe-payment-rail-001",
+      "name": "Stripe Payment Rail",
+      "serviceType": "payment-rail",
+      "location": "Global",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440100",
+      "apiEndpoint": "https://api.stripe.com/v1",
+      "indexerId": "HG"
+    },
+    {
+      "id": "settlement-service-001",
+      "name": "Settlement Service",
+      "serviceType": "settlement",
+      "location": "ROOT CA",
+      "bond": 100000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440101",
+      "apiEndpoint": "internal://settlement",
+      "indexerId": "HG"
+    },
+    {
+      "id": "service-registry-001",
+      "name": "Service Registry",
+      "serviceType": "registry",
+      "location": "ROOT CA",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440102",
+      "apiEndpoint": "internal://service-registry",
+      "indexerId": "HG"
+    },
+    {
+      "id": "webserver-service-001",
+      "name": "Web Server",
+      "serviceType": "webserver",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440103",
+      "apiEndpoint": "http://localhost:3000",
+      "indexerId": "HG"
+    },
+    {
+      "id": "websocket-service-001",
+      "name": "WebSocket Service",
+      "serviceType": "websocket",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440104",
+      "apiEndpoint": "ws://localhost:3000",
+      "indexerId": "HG"
+    },
+    {
+      "id": "wallet-service-001",
+      "name": "JesusCoin Wallet Service",
+      "serviceType": "wallet",
+      "location": "ROOT CA",
+      "bond": 200000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440105",
+      "apiEndpoint": "internal://wallet",
+      "indexerId": "HG"
+    },
+    {
+      "id": "amc-001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "indexerId": "indexer-1"
+    }
+  ],
+  "lastSaved": "2025-12-30T10:40:38.830Z"
+}

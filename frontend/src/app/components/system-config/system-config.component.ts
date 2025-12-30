@@ -173,6 +173,16 @@ export class SystemConfigComponent implements OnInit {
     return this.walletBalance >= this.calculateDeploymentFee();
   }
 
+  hasSelectedProviders(): boolean {
+    // For movie service type, require at least one provider to be selected
+    if (this.selectedServiceType?.type === 'movie') {
+      const selectedProviders = this.indexerConfig.selectedProviders || [];
+      return Array.isArray(selectedProviders) && selectedProviders.length > 0;
+    }
+    // For other service types (snake, dex), providers are not required
+    return true;
+  }
+
   loadServiceTypes() {
     this.isLoadingServiceTypes = true;
     this.http.get<{success: boolean, serviceTypes: ServiceType[]}>(`${this.apiUrl}/api/wizard/service-types`)
@@ -206,9 +216,9 @@ export class SystemConfigComponent implements OnInit {
     
     // Initialize selected providers for movie service type
     if (serviceType.type === 'movie') {
-      // Default: select all providers (user can deselect if needed)
-      this.indexerConfig.selectedProviders = [...this.movieProviders.map(p => p.id)];
-      console.log('🎬 Initialized selectedProviders for movie:', this.indexerConfig.selectedProviders);
+      // Start with empty selection - user must manually select providers
+      this.indexerConfig.selectedProviders = [];
+      console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
     } else {
       this.indexerConfig.selectedProviders = [];
     }

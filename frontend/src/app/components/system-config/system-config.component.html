@@ -105,6 +105,11 @@
                 Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
                 Selected: {{ indexerConfig.selectedProviders?.length || 0 }} provider(s)
               </small>
+              <div *ngIf="!hasSelectedProviders() && selectedServiceType?.type === 'movie'" class="mt-2">
+                <small class="text-danger">
+                  ⚠️ Please select at least one movie theater provider to continue
+                </small>
+              </div>
             </div>
           </div>
           
@@ -208,17 +213,20 @@
             <button 
               type="button" 
               class="btn"
-              [class.btn-primary]="hasSufficientBalance()"
-              [class.btn-warning]="!hasSufficientBalance() && indexerConfig.indexerName"
-              [class.btn-secondary]="!hasSufficientBalance() && !indexerConfig.indexerName"
+              [class.btn-primary]="hasSufficientBalance() && hasSelectedProviders()"
+              [class.btn-warning]="(!hasSufficientBalance() || !hasSelectedProviders()) && indexerConfig.indexerName"
+              [class.btn-secondary]="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName"
               (click)="createIndexer()"
-              [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance()">
+              [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance() || !hasSelectedProviders()">
               <span *ngIf="!isCreating">
-                <span *ngIf="hasSufficientBalance()">Create Indexer</span>
+                <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Indexer</span>
                 <span *ngIf="!hasSufficientBalance() && indexerConfig.indexerName">
                   Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
                 </span>
-                <span *ngIf="!hasSufficientBalance() && !indexerConfig.indexerName">Create Indexer</span>
+                <span *ngIf="!hasSelectedProviders() && indexerConfig.indexerName && selectedServiceType?.type === 'movie'">
+                  Select at least one provider
+                </span>
+                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName">Create Indexer</span>
               </span>
               <span *ngIf="isCreating">
                 <span class="spinner-border spinner-border-sm me-2"></span>Creating...

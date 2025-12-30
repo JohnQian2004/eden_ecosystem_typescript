@@ -91,6 +91,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
   
   isLoadingServices: boolean = false;
+  hasServiceIndexers: boolean = false; // Track if there are any service indexers (non-root)
   
   // Snake (Advertising) Service Providers
   snakeProviders: ServiceProvider[] = [];

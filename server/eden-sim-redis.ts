@@ -390,9 +390,9 @@ httpServer.on("request", async (req, res) => {
         const providerData = JSON.parse(body);
         
         // Validate required fields
-        if (!providerData.id || !providerData.name || !providerData.serviceType) {
+        if (!providerData.id || !providerData.name || !providerData.serviceType || !providerData.indexerId) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Missing required fields: id, name, serviceType" }));
+          res.end(JSON.stringify({ success: false, error: "Missing required fields: id, name, serviceType, indexerId" }));
           return;
         }
         
@@ -405,7 +405,7 @@ httpServer.on("request", async (req, res) => {
           location: providerData.location || "Unknown",
           bond: providerData.bond || 0,
           reputation: providerData.reputation || 5.0,
-          indexerId: providerData.indexerId || "unknown",
+          indexerId: providerData.indexerId,
           apiEndpoint: providerData.apiEndpoint || "",
           status: providerData.status || 'active',
           // Snake service fields (if serviceType is "snake")
@@ -463,7 +463,39 @@ httpServer.on("request", async (req, res) => {
     console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
     res.writeHead(200, { "Content-Type": "application/json" });
     
-    // Combine all indexers: Holy Ghost (ROOT CA's indexer), regular indexers, and token indexers
+    // Load persisted indexers from file (single source of truth)
+    let persistedIndexers: IndexerConfig[] = [];
+    let persistedTokenIndexers: TokenIndexerConfig[] = [];
+    
+    try {
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(persistenceFile)) {
+        const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        if (persisted.indexers && Array.isArray(persisted.indexers)) {
+          // In ROOT mode: ONLY return indexers created via Angular (format: indexer-1, indexer-2, etc.)
+          // Filter out all other indexers (A, B, C, etc.) - they're defaults from non-ROOT mode
+          if (DEPLOYED_AS_ROOT) {
+            persistedIndexers = persisted.indexers.filter((idx: any) => idx.id && idx.id.startsWith('indexer-'));
+          } else {
+            persistedIndexers = persisted.indexers;
+          }
+        }
+        if (persisted.tokenIndexers && Array.isArray(persisted.tokenIndexers)) {
+          // In ROOT mode: ONLY return token indexers created via Angular (format: indexer-N with dex serviceType)
+          // Filter out all default token indexers (T1, T2, etc.) - they're defaults from non-ROOT mode
+          if (DEPLOYED_AS_ROOT) {
+            persistedTokenIndexers = persisted.tokenIndexers.filter((idx: any) => idx.id && idx.id.startsWith('indexer-'));
+          } else {
+            persistedTokenIndexers = persisted.tokenIndexers;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  [Indexer API] Failed to load persisted indexers: ${err.message}`);
+    }
+    
+    // Combine all indexers: Holy Ghost (ROOT CA's indexer) + persisted indexers only
     const allIndexers = [
       // Holy Ghost (ROOT CA's infrastructure indexer) - listed first
       {
@@ -475,7 +507,8 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!HOLY_GHOST_INDEXER.certificate,
         type: 'root' as const
       },
-      ...INDEXERS.map(i => ({
+      // Only return persisted indexers (not in-memory defaults)
+      ...persistedIndexers.map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -484,7 +517,7 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!i.certificate,
         type: 'regular' as const
       })),
-      ...TOKEN_INDEXERS.map(i => ({
+      ...persistedTokenIndexers.map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -494,6 +527,8 @@ httpServer.on("request", async (req, res) => {
         type: 'token' as const
       }))
     ];
+    
+    console.log(`   📋 [Indexer API] Returning ${allIndexers.length} indexer(s): ${allIndexers.map(i => i.name).join(', ')}`);
     
     res.end(JSON.stringify({
       success: true,
@@ -1231,7 +1266,46 @@ httpServer.on("request", async (req, res) => {
       // Save cleared indexers state to persistence (empty array since all dynamic indexers are cleared)
       redis.saveIndexers([]);
       
-      // Update persistence file - keep wallet balances and ledger entries, only clear indexers
+      // Helper function to get default indexerId for a provider (non-ROOT mode only)
+      function getDefaultIndexerIdForProvider(providerId: string): string | undefined {
+        const defaults: Record<string, string> = {
+          'amc-001': 'indexer-1',
+          'cinemark-001': 'indexer-1',
+          'moviecom-001': 'indexer-2',
+          'snake-premium-cinema-001': 'indexer-1',
+          'snake-shopping-deals-001': 'indexer-2'
+        };
+        return defaults[providerId];
+      }
+      
+      // Reset provider indexerId assignments in ROOT_CA_SERVICE_REGISTRY
+      // In ROOT mode: set to undefined (no indexer assigned)
+      // In non-ROOT mode: restore to default assignments (indexer-1, indexer-2, etc.)
+      let providersReset = 0;
+      for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+        // Skip Holy Ghost infrastructure providers (they always belong to HG)
+        if (provider.indexerId === "HG") {
+          continue;
+        }
+        
+        // Reset indexerId based on deployment mode
+        if (DEPLOYED_AS_ROOT) {
+          // ROOT mode: clear all assignments
+          if (provider.indexerId !== undefined) {
+            provider.indexerId = undefined;
+            providersReset++;
+          }
+        } else {
+          // Non-ROOT mode: restore default assignments
+          const defaultIndexerId = getDefaultIndexerIdForProvider(provider.id);
+          if (provider.indexerId !== defaultIndexerId) {
+            provider.indexerId = defaultIndexerId;
+            providersReset++;
+          }
+        }
+      }
+      
+      // Update persistence file - keep wallet balances and ledger entries, only clear indexers and serviceRegistry
       const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
       let currentPersistence: any = {
         walletBalances: {},
@@ -1249,24 +1323,29 @@ httpServer.on("request", async (req, res) => {
         }
       }
       
-      // Update persistence file - keep wallet balances and ledger entries, clear only indexers
+      // Update persistence file - keep wallet balances and ledger entries, clear indexers and serviceRegistry
       const updatedPersistence = {
         walletBalances: currentPersistence.walletBalances || {},
         ledgerEntries: LEDGER.length > 0 ? LEDGER : (currentPersistence.ledgerEntries || []),
         indexers: [], // Clear indexers
+        serviceRegistry: [], // Clear serviceRegistry
         lastSaved: new Date().toISOString(),
         resetAt: new Date().toISOString()
       };
       
       fs.writeFileSync(persistenceFile, JSON.stringify(updatedPersistence, null, 2), 'utf-8');
       
-      console.log(`   ✅ Cleared ${clearedIndexersCount} generated indexers. Wallet balances and ledger entries preserved.`);
+      // Save updated ServiceRegistry state to persistence (will be empty array after reset)
+      redis.saveServiceRegistry();
+      
+      console.log(`   ✅ Cleared ${clearedIndexersCount} generated indexers and reset ${providersReset} provider assignments. Wallet balances and ledger entries preserved.`);
       
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         success: true,
-        message: `Reset successful. Cleared ${clearedIndexersCount} generated indexers. Wallet balances and ledger entries preserved.`,
+        message: `Reset successful. Cleared ${clearedIndexersCount} generated indexers and reset ${providersReset} provider assignments. Wallet balances and ledger entries preserved.`,
         clearedIndexers: clearedIndexersCount,
+        resetProviders: providersReset,
         remainingIndexers: INDEXERS.length + TOKEN_INDEXERS.length,
         persistenceFile: persistenceFile
       }));
@@ -1984,9 +2063,30 @@ httpServer.on("request", async (req, res) => {
         
         // Create indexer configuration
         const existingIndexers = [...INDEXERS, ...TOKEN_INDEXERS];
-        const indexerId = isSnake ? `S${existingIndexers.filter(i => (i as any).isSnake).length + 1}` : 
-                       (serviceType === "dex" ? `T${TOKEN_INDEXERS.length + 1}` : 
-                        String.fromCharCode(65 + INDEXERS.length));
+        let indexerId: string;
+        if (isSnake) {
+          indexerId = `S${existingIndexers.filter(i => (i as any).isSnake).length + 1}`;
+        } else if (serviceType === "dex") {
+          indexerId = `T${TOKEN_INDEXERS.length + 1}`;
+        } else {
+          // For regular indexers, use format: indexer-1, indexer-2, etc.
+          // Find the next available number
+          const existingRegularIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
+          const nextNumber = existingRegularIndexers.length + 1;
+          indexerId = `indexer-${nextNumber}`;
+        }
+        
+        // Check if indexer ID already exists (prevent duplicates by ID - names can be the same)
+        const existingIndexerById = [...INDEXERS, ...TOKEN_INDEXERS].find(i => i.id === indexerId);
+        if (existingIndexerById) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Indexer with ID "${indexerId}" already exists (Name: ${existingIndexerById.name})`,
+            existingIndexer: existingIndexerById
+          }));
+          return;
+        }
         
         const indexerConfig: IndexerConfig = {
           id: indexerId,
@@ -2011,6 +2111,8 @@ httpServer.on("request", async (req, res) => {
         } else {
           INDEXERS.push(indexerConfig);
         }
+        
+        console.log(`   ✅ Created indexer: ${indexerConfig.name} (${indexerConfig.id})`);
         
         // Issue certificate
         issueIndexerCertificate(indexerConfig);
@@ -2057,15 +2159,24 @@ httpServer.on("request", async (req, res) => {
             
             // Assign existing providers to this indexer (don't create new provider instances)
             // Find providers in ROOT_CA_SERVICE_REGISTRY and update their indexerId
+            console.log(`   🔍 [Provider Assignment] Looking for ${selectedProviders.length} provider(s) in ServiceRegistry...`);
+            console.log(`   🔍 [Provider Assignment] Selected provider IDs: ${selectedProviders.join(', ')}`);
+            console.log(`   🔍 [Provider Assignment] ServiceRegistry has ${ROOT_CA_SERVICE_REGISTRY.length} providers`);
+            
             for (const providerId of selectedProviders) {
               // Find the existing provider in the ServiceRegistry
               const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId);
               
               if (existingProvider) {
+                // Check if provider is already assigned to another indexer
+                if (existingProvider.indexerId && existingProvider.indexerId !== indexerConfig.id) {
+                  console.warn(`   ⚠️  Provider ${existingProvider.name} (${existingProvider.id}) is already assigned to indexer ${existingProvider.indexerId}. Reassigning to ${indexerConfig.id}.`);
+                }
+                
                 // Update the provider's indexerId to point to this indexer
                 existingProvider.indexerId = indexerConfig.id;
                 providersCreated++;
-                console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to indexer ${indexerConfig.id}`);
+                console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to indexer ${indexerConfig.id} (${indexerConfig.name})`);
                 
                 // Broadcast event for provider assignment
                 broadcastEvent({
@@ -2081,17 +2192,151 @@ httpServer.on("request", async (req, res) => {
                   }
                 });
               } else {
-                console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry. Skipping.`);
+                console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry. Available providers: ${ROOT_CA_SERVICE_REGISTRY.map(p => `${p.name} (${p.id})`).join(', ')}`);
               }
+            }
+            
+            if (providersCreated === 0) {
+              console.error(`   ❌ [Provider Assignment] No providers were assigned! Check if provider IDs match ServiceRegistry.`);
+            } else {
+              // Save ServiceRegistry to persistence file for debugging after provider assignments
+              redis.saveServiceRegistry();
             }
             
             console.log(`   ✅ Created ${providersCreated} service provider(s) for indexer ${indexerConfig.id}`);
           }
         }
         
-        // Persist indexers
-        const dynamicIndexers = serviceType === "dex" ? TOKEN_INDEXERS : INDEXERS;
-        redis.saveIndexers(dynamicIndexers);
+        // Persist indexers - filter out default indexers and save immediately
+        let indexersToSave: IndexerConfig[] = [];
+        
+        if (serviceType === "dex") {
+          // For token indexers, filter out defaults (T1, T2, ... up to NUM_TOKEN_INDEXERS)
+          if (NUM_TOKEN_INDEXERS > 0) {
+            const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
+            indexersToSave = TOKEN_INDEXERS.filter(idx => !defaultTokenIds.includes(idx.id));
+          } else {
+            // ROOT mode: save all token indexers (no defaults)
+            indexersToSave = TOKEN_INDEXERS;
+          }
+        } else {
+          // For regular indexers, filter out defaults (A, B, C, ... up to NUM_INDEXERS)
+          if (NUM_INDEXERS > 0) {
+            const defaultIds = Array.from({ length: NUM_INDEXERS }, (_, i) => String.fromCharCode(65 + i));
+            indexersToSave = INDEXERS.filter(idx => !defaultIds.includes(idx.id));
+          } else {
+            // ROOT mode: ONLY save indexers created via Angular (format: indexer-1, indexer-2, etc.)
+            // Everything else (A, B, C, T1, T2, etc.) should NOT be persisted in ROOT mode
+            indexersToSave = INDEXERS.filter(idx => {
+              // Only save indexers with format "indexer-N" (created via Angular)
+              return idx.id.startsWith('indexer-');
+            });
+          }
+        }
+        
+        // Remove duplicates by ID - always keep the latest version (prefer one with certificate)
+        const uniqueIndexers = new Map<string, IndexerConfig>();
+        for (const idx of indexersToSave) {
+          const existing = uniqueIndexers.get(idx.id);
+          if (!existing) {
+            uniqueIndexers.set(idx.id, idx);
+          } else {
+            // Prefer the version with certificate, or the newer one
+            const hasCert = !!(idx as any).certificate;
+            const existingHasCert = !!(existing as any).certificate;
+            if (hasCert && !existingHasCert) {
+              uniqueIndexers.set(idx.id, idx); // Replace with version that has certificate
+              console.log(`🔄 [Indexer Persistence] Updated ${idx.id} with certificate version`);
+            } else if (!hasCert && existingHasCert) {
+              // Keep existing version with certificate
+              console.log(`🔄 [Indexer Persistence] Keeping ${idx.id} with certificate version`);
+            } else {
+              // Both have or don't have certs - prefer new version (latest from INDEXERS array)
+              uniqueIndexers.set(idx.id, idx);
+              console.warn(`⚠️  [Indexer Persistence] Duplicate indexer found: ${idx.name} (${idx.id}), keeping latest version`);
+            }
+          }
+        }
+        indexersToSave = Array.from(uniqueIndexers.values());
+        
+        // Force immediate save (bypass debounce)
+        try {
+          const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+          let existing: any = {
+            walletBalances: {},
+            ledgerEntries: [],
+            indexers: [],
+            tokenIndexers: [],
+            serviceRegistry: [],
+            lastSaved: new Date().toISOString()
+          };
+          
+          if (fs.existsSync(persistenceFile)) {
+            try {
+              const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+              existing = JSON.parse(fileContent);
+            } catch (err: any) {
+              console.warn(`⚠️  [Indexer Persistence] Failed to load existing file: ${err.message}`);
+            }
+          }
+          
+          // Update indexers array based on service type
+          // Replace with current state from INDEXERS array (which has the latest data including certificates)
+          if (serviceType === "dex") {
+            existing.tokenIndexers = indexersToSave;
+          } else {
+            existing.indexers = indexersToSave;
+          }
+          
+          // Save ServiceRegistry for debugging
+          // CRITICAL: indexerId is REQUIRED - services without indexerId are NOT allowed
+          // In ROOT mode: only save services with an indexerId assigned (not undefined)
+          // In non-ROOT mode: also require indexerId (it's a key context during service)
+          const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
+            if (p.indexerId === undefined || p.indexerId === null) {
+              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
+              return false;
+            }
+            return true;
+          });
+          
+          existing.serviceRegistry = servicesToSave.map(p => {
+            const provider: any = {
+              id: p.id,
+              name: p.name,
+              serviceType: p.serviceType,
+              location: p.location,
+              bond: p.bond,
+              reputation: p.reputation,
+              status: p.status,
+              uuid: p.uuid,
+              apiEndpoint: p.apiEndpoint,
+              indexerId: p.indexerId // REQUIRED - always include
+            };
+            // Include Snake-specific fields if present
+            if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
+            if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
+            if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
+            if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
+            if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
+            if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
+            if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+            return provider;
+          });
+          
+          existing.lastSaved = new Date().toISOString();
+          
+          fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${indexersToSave.length} ${serviceType} indexer(s) and ${existing.serviceRegistry.length} service provider(s) to ${persistenceFile}`);
+          if (indexersToSave.length > 0) {
+            console.log(`💾 [Indexer Persistence] Saved indexers: ${indexersToSave.map(i => `${i.name} (${i.id})`).join(', ')}`);
+          }
+        } catch (err: any) {
+          console.error(`❌ [Indexer Persistence] Failed to save immediately: ${err.message}`);
+        }
+        
+        // Also call redis.saveIndexers for consistency (but immediate save above takes precedence)
+        redis.saveIndexers(indexersToSave);
         
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ 
@@ -2270,16 +2515,52 @@ class InMemoryRedisServer extends EventEmitter {
         // Merge: use new data if provided, otherwise keep existing
         const finalLedgerEntries = ledgerEntries !== undefined ? ledgerEntries : existingLedgerEntries;
         const finalIndexers = indexers !== undefined ? indexers : existingIndexers;
+        
+        // Include ServiceRegistry for debugging (always save current state)
+        // CRITICAL: indexerId is REQUIRED - services without indexerId are NOT allowed
+        // indexerId is a key context during service - it must always be present
+        const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
+          if (p.indexerId === undefined || p.indexerId === null) {
+            console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
+            return false;
+          }
+          return true;
+        });
+        
+        const serviceRegistry = servicesToSave.map(p => {
+          const provider: any = {
+            id: p.id,
+            name: p.name,
+            serviceType: p.serviceType,
+            location: p.location,
+            bond: p.bond,
+            reputation: p.reputation,
+            status: p.status,
+            uuid: p.uuid,
+            apiEndpoint: p.apiEndpoint,
+            indexerId: p.indexerId // REQUIRED - always include
+          };
+          // Include Snake-specific fields if present
+          if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
+          if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
+          if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
+          if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
+          if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
+          if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
+          if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+          return provider;
+        });
 
         const persisted = {
           walletBalances,
           ledgerEntries: finalLedgerEntries,
           indexers: finalIndexers,
+          serviceRegistry: serviceRegistry,
           lastSaved: new Date().toISOString()
         };
 
         fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
-        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries, ${finalLedgerEntries.length} ledger entries, and ${finalIndexers.length} indexers to ${this.persistenceFile}`);
+        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries, ${finalLedgerEntries.length} ledger entries, ${finalIndexers.length} indexers, and ${serviceRegistry.length} service providers to ${this.persistenceFile}`);
       } catch (err: any) {
         console.error(`❌ [Redis Persistence] Failed to save persistence file: ${err.message}`);
       }
@@ -2294,6 +2575,71 @@ class InMemoryRedisServer extends EventEmitter {
   // Public method to save indexers
   saveIndexers(indexers: any[]): void {
     this.savePersistence(undefined, indexers);
+  }
+  
+  // Public method to save ServiceRegistry (for debugging)
+  saveServiceRegistry(): void {
+    // Force immediate save of ServiceRegistry
+    try {
+      const persistenceFile = this.persistenceFile;
+      let existing: any = {
+        walletBalances: {},
+        ledgerEntries: [],
+        indexers: [],
+        tokenIndexers: [],
+        serviceRegistry: [],
+        lastSaved: new Date().toISOString()
+      };
+      
+      if (fs.existsSync(persistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+          existing = JSON.parse(fileContent);
+        } catch (err: any) {
+          console.warn(`⚠️  [ServiceRegistry Persistence] Failed to load existing file: ${err.message}`);
+        }
+      }
+      
+      // Update ServiceRegistry
+      // In ROOT mode: only save services with an indexerId assigned (not undefined)
+      // In non-ROOT mode: save all services
+      const servicesToSave = DEPLOYED_AS_ROOT 
+        ? ROOT_CA_SERVICE_REGISTRY.filter(p => p.indexerId !== undefined)
+        : ROOT_CA_SERVICE_REGISTRY;
+      
+      existing.serviceRegistry = servicesToSave.map(p => {
+        const provider: any = {
+          id: p.id,
+          name: p.name,
+          serviceType: p.serviceType,
+          location: p.location,
+          bond: p.bond,
+          reputation: p.reputation,
+          status: p.status,
+          uuid: p.uuid,
+          apiEndpoint: p.apiEndpoint
+        };
+        // Only include indexerId if it's actually set (not undefined)
+        if (p.indexerId !== undefined) {
+          provider.indexerId = p.indexerId;
+        }
+        // Include Snake-specific fields if present
+        if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
+        if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
+        if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
+        if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
+        if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
+        if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
+        if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+        return provider;
+      });
+      
+      existing.lastSaved = new Date().toISOString();
+      fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
+      console.log(`💾 [ServiceRegistry Persistence] Saved ${existing.serviceRegistry.length} service providers to ${persistenceFile}`);
+    } catch (err: any) {
+      console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
+    }
   }
 
   async connect(): Promise<void> {
@@ -2971,70 +3317,74 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "Baltimore, Maryland",
     bond: 1000,
     reputation: 4.8,
-    indexerId: "indexer-alpha",
+    indexerId: DEPLOYED_AS_ROOT ? undefined : "indexer-1", // Only assign in non-ROOT mode
     apiEndpoint: "https://api.amctheatres.com/v1/listings",
   },
-  {
-    id: "moviecom-001",
-    uuid: "550e8400-e29b-41d4-a716-446655440002", // UUID for certificate issuance
-    name: "MovieCom",
-    serviceType: "movie",
-    location: "Baltimore, Maryland",
-    bond: 800,
-    reputation: 4.5,
-    indexerId: "indexer-beta",
-    apiEndpoint: "https://api.moviecom.com/showtimes",
-  },
-  {
-    id: "cinemark-001",
-    uuid: "550e8400-e29b-41d4-a716-446655440003", // UUID for certificate issuance
-    name: "Cinemark",
-    serviceType: "movie",
-    location: "Baltimore, Maryland",
-    bond: 1200,
-    reputation: 4.7,
-    indexerId: "indexer-alpha",
-    apiEndpoint: "https://api.cinemark.com/movies",
-  },
-  // Snake Service Providers (serviceType: "snake", belongs to indexers)
-  {
-    id: "snake-premium-cinema-001",
-    uuid: "550e8400-e29b-41d4-a716-446655440010",
-    name: "Premium Cinema Ads",
-    serviceType: "snake", // Snake is a service type, not a provider type
-    location: "Global",
-    bond: 10000,
-    insuranceFee: 10000, // Higher insurance fee for Snake
-    reputation: 4.5,
-    indexerId: "indexer-alpha", // Belongs to indexer-alpha
-    apiEndpoint: "https://ads.premiumcinema.com/api",
-    iGasMultiplier: 2.0, // Double iGas
-    iTaxMultiplier: 2.0, // Double iTax
-    maxInfluence: 0.15, // 15% max influence
-    contextsAllowed: ["movies", "entertainment", "shopping"],
-    contextsForbidden: ["health", "legal", "finance", "education"],
-    adCapabilities: ["product_promotion", "service_highlighting"],
-    status: 'active'
-  },
-  {
-    id: "snake-shopping-deals-001",
-    uuid: "550e8400-e29b-41d4-a716-446655440011",
-    name: "Shopping Deals Ads",
-    serviceType: "snake", // Snake is a service type, not a provider type
-    location: "Global",
-    bond: 10000,
-    insuranceFee: 10000,
-    reputation: 4.3,
-    indexerId: "indexer-beta", // Belongs to indexer-beta
-    apiEndpoint: "https://ads.shoppingdeals.com/api",
-    iGasMultiplier: 2.0,
-    iTaxMultiplier: 2.0,
-    maxInfluence: 0.12, // 12% max influence
-    contextsAllowed: ["shopping", "restaurants"],
-    contextsForbidden: ["health", "legal", "finance", "education"],
-    adCapabilities: ["product_promotion"],
-    status: 'active'
-  },
+  // In ROOT mode: moviecom-001, cinemark-001, and snake services should NOT exist
+  // They are only created in non-ROOT mode
+  ...(DEPLOYED_AS_ROOT ? [] : [
+    {
+      id: "moviecom-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440002", // UUID for certificate issuance
+      name: "MovieCom",
+      serviceType: "movie",
+      location: "Baltimore, Maryland",
+      bond: 800,
+      reputation: 4.5,
+      indexerId: "indexer-2",
+      apiEndpoint: "https://api.moviecom.com/showtimes",
+    },
+    {
+      id: "cinemark-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440003", // UUID for certificate issuance
+      name: "Cinemark",
+      serviceType: "movie",
+      location: "Baltimore, Maryland",
+      bond: 1200,
+      reputation: 4.7,
+      indexerId: "indexer-1",
+      apiEndpoint: "https://api.cinemark.com/movies",
+    },
+    // Snake Service Providers (serviceType: "snake", belongs to indexers)
+    {
+      id: "snake-premium-cinema-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440010",
+      name: "Premium Cinema Ads",
+      serviceType: "snake", // Snake is a service type, not a provider type
+      location: "Global",
+      bond: 10000,
+      insuranceFee: 10000, // Higher insurance fee for Snake
+      reputation: 4.5,
+      indexerId: "indexer-1",
+      apiEndpoint: "https://ads.premiumcinema.com/api",
+      iGasMultiplier: 2.0, // Double iGas
+      iTaxMultiplier: 2.0, // Double iTax
+      maxInfluence: 0.15, // 15% max influence
+      contextsAllowed: ["movies", "entertainment", "shopping"],
+      contextsForbidden: ["health", "legal", "finance", "education"],
+      adCapabilities: ["product_promotion", "service_highlighting"],
+      status: 'active'
+    },
+    {
+      id: "snake-shopping-deals-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440011",
+      name: "Shopping Deals Ads",
+      serviceType: "snake", // Snake is a service type, not a provider type
+      location: "Global",
+      bond: 10000,
+      insuranceFee: 10000,
+      reputation: 4.3,
+      indexerId: "indexer-2",
+      apiEndpoint: "https://ads.shoppingdeals.com/api",
+      iGasMultiplier: 2.0,
+      iTaxMultiplier: 2.0,
+      maxInfluence: 0.12, // 12% max influence
+      contextsAllowed: ["shopping", "restaurants"],
+      contextsForbidden: ["health", "legal", "finance", "education"],
+      adCapabilities: ["product_promotion"],
+      status: 'active'
+    },
+  ]),
   // DEX Pool Service Providers will be dynamically created from token indexers during initialization
 ];
 
@@ -3042,6 +3392,10 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
 async function queryAMCAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Get the actual indexerId from the provider registry
+  const amcProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001");
+  const indexerId = amcProvider?.indexerId;
   
   // Mock AMC API response with real-time pricing
   return [
@@ -3055,7 +3409,7 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
       location: location,
       reviewCount: 100,
       rating: 5.0,
-      indexerId: "indexer-alpha",
+      indexerId: indexerId,
     },
     {
       providerId: "amc-001",
@@ -3067,7 +3421,7 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
       location: location,
       reviewCount: 150,
       rating: 4.9,
-      indexerId: "indexer-alpha",
+      indexerId: indexerId,
     },
   ];
 }
@@ -3075,6 +3429,10 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
 async function queryMovieComAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Get the actual indexerId from the provider registry
+  const moviecomProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "moviecom-001");
+  const indexerId = moviecomProvider?.indexerId;
   
   // Mock MovieCom API response with real-time pricing
   return [
@@ -3088,7 +3446,7 @@ async function queryMovieComAPI(location: string, filters?: { genre?: string; ti
       location: location,
       reviewCount: 85,
       rating: 4.7,
-      indexerId: "indexer-beta",
+      indexerId: indexerId,
     },
   ];
 }
@@ -3096,6 +3454,10 @@ async function queryMovieComAPI(location: string, filters?: { genre?: string; ti
 async function queryCinemarkAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Get the actual indexerId from the provider registry
+  const cinemarkProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "cinemark-001");
+  const indexerId = cinemarkProvider?.indexerId;
   
   // Mock Cinemark API response with real-time pricing
   return [
@@ -3109,7 +3471,7 @@ async function queryCinemarkAPI(location: string, filters?: { genre?: string; ti
       location: location,
       reviewCount: 120,
       rating: 4.8,
-      indexerId: "indexer-alpha",
+      indexerId: indexerId,
     },
   ];
 }
@@ -4113,7 +4475,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
       location: "Baltimore, Maryland",
       reviewCount: 100,
       rating: 5.0,
-      indexerId: "indexer-alpha",
+      indexerId: ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001")?.indexerId,
     };
     return {
       message: "5 stars movie provider AMC in indexer A, Baltimore, Maryland offers 2 USDC for 'Back to the Future' at 10:30 PM and 100 viewers already reviewed the AMC viewing service",
@@ -4779,29 +5141,8 @@ async function registerNewMovieIndexer(
   INDEXERS.push(newIndexer);
   console.log(`✅ [Indexer Registration] Created indexer: ${newIndexer.name} (${newIndexer.id})`);
   
-  // Persist indexers to survive server reboot (save immediately, don't wait for debounce)
-  const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
-  console.log(`💾 [Indexer Persistence] Saving ${dynamicIndexers.length} dynamic indexer(s) to persistence file...`);
-  redis.saveIndexers(dynamicIndexers);
-  
-  // Also force immediate save (bypass debounce for critical data)
-  setTimeout(() => {
-    try {
-      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-      if (fs.existsSync(persistenceFile)) {
-        const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
-        const existing = JSON.parse(fileContent);
-        existing.indexers = dynamicIndexers;
-        existing.lastSaved = new Date().toISOString();
-        fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
-        console.log(`💾 [Indexer Persistence] Force-saved ${dynamicIndexers.length} indexer(s) immediately`);
-      }
-    } catch (err: any) {
-      console.warn(`⚠️  [Indexer Persistence] Failed to force-save: ${err.message}`);
-    }
-  }, 100);
-  
   // Issue certificate to the new indexer
+  // Note: Persistence is handled by the HTTP handler after certificate issuance
   try {
     issueIndexerCertificate(newIndexer);
   } catch (err: any) {
@@ -7377,11 +7718,28 @@ async function main() {
         if (persisted.indexers && Array.isArray(persisted.indexers)) {
           // Restore dynamically created indexers
           // Only restore indexers that don't already exist (by ID)
+          // In ROOT mode: ONLY restore indexers created via Angular (format: indexer-1, indexer-2, etc.)
+          // Skip all other indexers (A, B, C, T1, T2, etc.) - they're defaults from non-ROOT mode
           const existingIds = new Set(INDEXERS.map(i => i.id));
           let restoredCount = 0;
+          let skippedCount = 0;
           const restoredIndexers: IndexerConfig[] = [];
           
           for (const persistedIndexer of persisted.indexers) {
+            // In ROOT mode: only restore indexers with format "indexer-N" (created via Angular)
+            if (DEPLOYED_AS_ROOT && !persistedIndexer.id.startsWith('indexer-')) {
+              skippedCount++;
+              console.log(`📂 [Indexer Persistence] Skipping indexer ${persistedIndexer.id} (not created via Angular in ROOT mode)`);
+              continue;
+            }
+            
+            // Skip single-letter indexers in non-ROOT mode (they're defaults created at startup)
+            if (!DEPLOYED_AS_ROOT && persistedIndexer.id.length === 1 && /^[A-Z]$/.test(persistedIndexer.id)) {
+              skippedCount++;
+              console.log(`📂 [Indexer Persistence] Skipping default indexer ${persistedIndexer.id} (created at startup)`);
+              continue;
+            }
+            
             if (!existingIds.has(persistedIndexer.id)) {
               // Clear certificate property - it will be reissued
               const restoredIndexer: IndexerConfig = {
@@ -7399,6 +7757,9 @@ async function main() {
           if (restoredCount > 0) {
             console.log(`📂 [Indexer Persistence] Restored ${restoredCount} persisted indexers from ${persistenceFile}`);
             console.log(`📜 [Indexer Persistence] Certificates will be reissued for restored indexers during startup`);
+          }
+          if (skippedCount > 0) {
+            console.log(`📂 [Indexer Persistence] Skipped ${skippedCount} indexer(s) (not valid in ${DEPLOYED_AS_ROOT ? 'ROOT' : 'non-ROOT'} mode)`);
           }
         }
       }
