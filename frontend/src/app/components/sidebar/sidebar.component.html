@@ -1,12 +1,38 @@
 <div class="sidebar-content">
   <div class="sidebar-header">
-    <h5 class="mb-1">🌳 System Architecture</h5>
-    <small class="text-muted">Eden Hierarchy</small>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h5 class="mb-1">🌳 System Architecture</h5>
+        <small class="text-muted">Eden Hierarchy</small>
+      </div>
+    </div>
+    
+    <!-- Mode Filter Toggle -->
+    <div class="mode-filter">
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': viewMode === 'god', 'btn-outline-primary': viewMode !== 'god'}"
+          (click)="setViewMode('god')"
+          title="GOD Mode: Shows ROOT CA">
+          ⛪ GOD
+        </button>
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-success': viewMode === 'priest', 'btn-outline-success': viewMode !== 'priest'}"
+          (click)="setViewMode('priest')"
+          title="Priest Mode: Hides ROOT CA">
+          🛐 Priest
+        </button>
+      </div>
+    </div>
   </div>
   
-  <!-- ROOT CA at the top -->
+  <!-- ROOT CA at the top (only shown in GOD mode) -->
   <div *ngFor="let group of groups" class="component-group">
-    <ng-container *ngIf="group.category === 'root'">
+    <ng-container *ngIf="group.category === 'root' && viewMode === 'god'">
       <div 
         class="group-header d-flex justify-content-between align-items-center cursor-pointer"
         [class.bg-light]="group.expanded"
@@ -87,11 +113,11 @@
     </ng-container>
   </div>
   
-  <!-- Indexer Tabs -->
-  <div *ngIf="indexers.length > 0" class="indexer-tabs-container">
+  <!-- Indexer Tabs (filtered by view mode) -->
+  <div *ngIf="getFilteredIndexers().length > 0" class="indexer-tabs-container">
     <div class="indexer-tabs">
       <button 
-        *ngFor="let indexer of indexers" 
+        *ngFor="let indexer of getFilteredIndexers()" 
         class="indexer-tab"
         [class.active]="selectedIndexerTab === indexer.id"
         [class.token-indexer]="indexer.type === 'token'"

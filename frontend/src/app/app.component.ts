@@ -99,6 +99,9 @@ export class AppComponent implements OnInit, OnDestroy {
   
   // Wallet balance
   walletBalance: number = 0;
+  
+  // Active tab for main content area
+  activeTab: 'ledger' | 'certificates' | 'chat' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   

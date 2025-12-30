@@ -39,6 +39,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   selectedIndexerTab: string = '';
   selectedIndexerComponents: ComponentStatus[] = [];
   serviceProviders: Map<string, {id: string, name: string, serviceType: string, indexerId: string}> = new Map(); // Store service providers from ServiceRegistry
+  viewMode: 'god' | 'priest' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it
   private subscription: any;
   private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -50,6 +51,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    // Load view mode from localStorage (default: 'god')
+    const savedMode = localStorage.getItem('edenViewMode');
+    if (savedMode === 'god' || savedMode === 'priest') {
+      this.viewMode = savedMode;
+    }
+    
     // Fetch indexers from server
     this.fetchIndexers();
     
@@ -63,6 +70,38 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.updateComponentStatus(event);
       this.updateSelectedIndexerComponents();
     });
+  }
+  
+  setViewMode(mode: 'god' | 'priest') {
+    this.viewMode = mode;
+    localStorage.setItem('edenViewMode', mode);
+    
+    // If switching to Priest mode and Holy Ghost is selected, switch to first non-HG indexer
+    if (mode === 'priest' && this.selectedIndexerTab === 'HG') {
+      const nonHGIndexers = this.getFilteredIndexers();
+      if (nonHGIndexers.length > 0) {
+        this.selectedIndexerTab = nonHGIndexers[0].id;
+        this.updateSelectedIndexerComponents();
+      } else {
+        this.selectedIndexerTab = '';
+      }
+    }
+    
+    // If switching to GOD mode and no tab is selected, select first indexer
+    if (mode === 'god' && !this.selectedIndexerTab && this.indexers.length > 0) {
+      this.selectedIndexerTab = this.indexers[0].id;
+      this.updateSelectedIndexerComponents();
+    }
+  }
+  
+  // Get filtered indexers based on view mode
+  getFilteredIndexers(): IndexerInfo[] {
+    if (this.viewMode === 'priest') {
+      // Priest mode: hide Holy Ghost (HG)
+      return this.indexers.filter(i => i.id !== 'HG');
+    }
+    // GOD mode: show all indexers
+    return this.indexers;
   }
   
   fetchServiceProviders() {
@@ -155,7 +194,17 @@ export class SidebarComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success && response.indexers) {
             this.indexers = response.indexers.filter(i => i.active);
-            if (this.indexers.length > 0) {
+            
+            // Select first available indexer based on view mode
+            const filteredIndexers = this.getFilteredIndexers();
+            if (filteredIndexers.length > 0) {
+              // If current selection is invalid for current mode, switch to first valid one
+              if (!filteredIndexers.find(i => i.id === this.selectedIndexerTab)) {
+                this.selectedIndexerTab = filteredIndexers[0].id;
+              }
+              this.updateSelectedIndexerComponents();
+            } else if (this.indexers.length > 0) {
+              // Fallback: select first indexer if filtered list is empty but we have indexers
               this.selectedIndexerTab = this.indexers[0].id;
               this.updateSelectedIndexerComponents();
             }
