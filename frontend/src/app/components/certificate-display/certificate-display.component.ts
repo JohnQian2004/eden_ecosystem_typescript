@@ -157,7 +157,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
         return indexer.name;
       }
       // Fallback: try to extract from UUID if not found (shouldn't happen)
-      return `Indexer-${uuid.split(':').pop()?.substring(0, 1).toUpperCase() || '?'}`;
+      return `Garden-${uuid.split(':').pop()?.substring(0, 1).toUpperCase() || '?'}`;
     }
     // Service provider UUIDs - try to match with known providers
     const providerMap: Record<string, string> = {

@@ -219,8 +219,8 @@ export class SystemConfigComponent implements OnInit {
     
     // Auto-generate indexer name
     const baseName = serviceType.type === 'snake' ? 'Snake' : 
-                    serviceType.type === 'dex' ? 'TokenIndexer' : 
-                    'Indexer';
+                    serviceType.type === 'dex' ? 'Garden' : 
+                    'Garden';
     this.indexerConfig.indexerName = `${baseName}-${serviceType.type.toUpperCase()}`;
     
     // Auto-generate domain

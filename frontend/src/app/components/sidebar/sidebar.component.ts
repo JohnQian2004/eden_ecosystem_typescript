@@ -460,11 +460,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (normalized.startsWith('tokenindexer-') || normalized.startsWith('token-indexer-')) {
       // Dynamically add new token indexers
       if (!this.components.has(normalized)) {
-        // Format: "tokenindexer-t1" -> "TokenIndexer T1"
+        // Format: "tokenindexer-t1" -> "Garden T1"
         const parts = normalized.split('-');
         let indexerName = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        // Handle "tokenindexer" -> "TokenIndexer"
-        indexerName = indexerName.replace(/Tokenindexer/g, 'TokenIndexer');
+        // Handle "tokenindexer" -> "Garden"
+        indexerName = indexerName.replace(/Tokenindexer/g, 'Garden');
         this.addComponent(normalized, indexerName, 'indexer');
         this.updateGroups(); // Update groups after adding new component
       }
@@ -798,7 +798,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   get selectedIndexerName(): string {
     const indexer = this.indexers.find(i => i.id === this.selectedIndexerTab);
-    return indexer ? indexer.name : 'Indexer';
+    return indexer ? indexer.name : 'Garden';
   }
   
   get selectedIndexerServiceRegistry(): ComponentStatus[] {
@@ -883,7 +883,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   mapIndexerIdToTabId(indexerId: string | undefined): string {
     // Map ServiceRegistry indexerId to sidebar tab ID
     // "HG" -> "HG" (Holy Ghost)
-    // "indexer-alpha" -> "A", "indexer-beta" -> "B", "TokenIndexer-T1" -> "TokenIndexer-T1", etc.
+    // "indexer-alpha" -> "A", "indexer-beta" -> "B", "Garden-T1" -> "Garden-T1", etc.
     if (!indexerId) {
       return ''; // Return empty string if indexerId is undefined/null
     }
@@ -899,7 +899,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       }
     }
     // For token indexers, return as-is
-    if (indexerId.startsWith('TokenIndexer-')) {
+    if (indexerId.startsWith('Garden-')) {
       return indexerId;
     }
     // Default: return first character uppercase

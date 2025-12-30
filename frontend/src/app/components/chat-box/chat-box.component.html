@@ -27,7 +27,7 @@
           <div *ngIf="msg.data.txId"><strong>Transaction:</strong> {{ msg.data.txId }}</div>
           <div *ngIf="msg.data.indexers && msg.data.indexers.length > 0"><strong>Indexers:</strong> {{ msg.data.indexers.join(", ") }}</div>
           <div *ngIf="msg.data.count !== undefined"><strong>Count:</strong> {{ msg.data.count }}</div>
-          <div *ngIf="msg.data.isTokenIndexer"><strong>Type:</strong> Token Indexer</div>
+          <div *ngIf="msg.data.isTokenIndexer"><strong>Type:</strong> Garden</div>
         </div>
         <div *ngIf="msg.data && msg.type.startsWith('provider_')" class="mt-1 ms-4 small text-muted">
           <div *ngIf="msg.data.providerId"><strong>Provider:</strong> {{ msg.data.providerId }}</div>

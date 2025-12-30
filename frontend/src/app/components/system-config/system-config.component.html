@@ -40,7 +40,7 @@
   <!-- Step 1: Service Type Selection -->
   <div *ngIf="wizardStep === 1" class="wizard-step">
     <h4 class="mb-3">Step 1: Select Service Type</h4>
-    <p class="text-muted mb-4">Choose the type of service provider for this indexer</p>
+    <p class="text-muted mb-4">Choose the type of service provider for this garden</p>
     
     <div *ngIf="isLoadingServiceTypes" class="text-center py-5">
       <div class="spinner-border text-primary" role="status">
@@ -195,7 +195,7 @@
             class="btn btn-primary" 
             (click)="saveAndCreateIndexer()"
             [disabled]="isCreating">
-            <span *ngIf="!isCreating">✅ Save & Create Indexer</span>
+            <span *ngIf="!isCreating">✅ Save & Create Garden</span>
             <span *ngIf="isCreating">
               <span class="spinner-border spinner-border-sm me-2"></span>Creating...
             </span>
@@ -219,7 +219,7 @@
   
   <!-- Step 2: Configuration -->
   <div *ngIf="wizardStep === 2" class="wizard-step">
-    <h4 class="mb-3">Step 2: Configure Indexer</h4>
+    <h4 class="mb-3">Step 2: Configure Garden</h4>
     <p class="text-muted mb-4">Configure network settings and authorization for {{ selectedServiceType?.name }}</p>
     
     <div class="card">
@@ -231,7 +231,7 @@
               <input type="text" class="form-control" [value]="selectedServiceType?.name" disabled>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Indexer Name</label>
+              <label class="form-label">Garden Name</label>
               <input 
                 type="text" 
                 class="form-control" 
@@ -359,8 +359,8 @@
           </div>
           
           <div class="alert alert-info">
-            <strong>Note:</strong> This wizard will create a new indexer with the specified configuration.
-            The indexer will be certified by ROOT CA and persisted to the system.
+            <strong>Note:</strong> This wizard will create a new garden with the specified configuration.
+            The garden will be certified by ROOT CA and persisted to the system.
           </div>
           
           <div class="d-flex justify-content-between">
@@ -374,14 +374,14 @@
               (click)="createIndexer()"
               [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance() || !hasSelectedProviders()">
               <span *ngIf="!isCreating">
-                <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Indexer</span>
+                <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Garden</span>
                 <span *ngIf="!hasSufficientBalance() && indexerConfig.indexerName">
                   Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
                 </span>
                 <span *ngIf="!hasSelectedProviders() && indexerConfig.indexerName && selectedServiceType?.type === 'movie'">
                   Select at least one provider
                 </span>
-                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName">Create Indexer</span>
+                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName">Create Garden</span>
               </span>
               <span *ngIf="isCreating">
                 <span class="spinner-border spinner-border-sm me-2"></span>Creating...
@@ -402,9 +402,9 @@
     <div class="card border-success">
       <div class="card-body text-center py-5">
         <div class="display-1 text-success mb-3">✅</div>
-        <h3 class="mb-3">Indexer Created Successfully!</h3>
-        <p class="text-muted mb-4">The indexer has been created, certified, and persisted to the system.</p>
-        <button type="button" class="btn btn-primary" (click)="resetWizard()">Create Another Indexer</button>
+        <h3 class="mb-3">Garden Created Successfully!</h3>
+        <p class="text-muted mb-4">The garden has been created, certified, and persisted to the system.</p>
+        <button type="button" class="btn btn-primary" (click)="resetWizard()">Create Another Garden</button>
       </div>
     </div>
   </div>

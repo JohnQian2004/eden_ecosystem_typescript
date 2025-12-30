@@ -32,11 +32,11 @@ const DEPLOYED_AS_ROOT = args.some(arg => arg.includes("--deployed-as-root") && 
 
 // Parse --indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
 const indexersArg = args.find(arg => arg.startsWith("--indexers"));
-const NUM_INDEXERS = DEPLOYED_AS_ROOT ? 0 : (indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2);
+const NUM_GARDENS = DEPLOYED_AS_ROOT ? 0 : (indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2);
 
 // Parse --token-indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
 const tokenIndexersArg = args.find(arg => arg.startsWith("--token-indexers"));
-const NUM_TOKEN_INDEXERS = DEPLOYED_AS_ROOT ? 0 : (tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2);
+const NUM_TOKEN_GARDENS = DEPLOYED_AS_ROOT ? 0 : (tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2);
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
@@ -57,7 +57,7 @@ const stripe = new Stripe(STRIPE_SECRET_KEY, {
 });
 
 // Dynamic Indexer Configuration
-interface IndexerConfig {
+interface GardenConfig {
   id: string;
   name: string;
   stream: string;
@@ -67,13 +67,13 @@ interface IndexerConfig {
   pki?: EdenPKI; // Store PKI instance for signing revocations
 }
 
-const INDEXERS: IndexerConfig[] = [];
+const GARDENS: GardenConfig[] = [];
 if (!DEPLOYED_AS_ROOT) {
-  for (let i = 0; i < NUM_INDEXERS; i++) {
+  for (let i = 0; i < NUM_GARDENS; i++) {
     const indexerId = String.fromCharCode(65 + i); // A, B, C, D, E...
-    INDEXERS.push({
+    GARDENS.push({
       id: indexerId,
-      name: `Indexer-${indexerId}`,
+      name: `Garden-${indexerId}`,
       stream: `eden:indexer:${indexerId}`,
       active: true,
       uuid: `eden:indexer:${crypto.randomUUID()}`
@@ -82,17 +82,17 @@ if (!DEPLOYED_AS_ROOT) {
 }
 
 // Token Indexers (specialized indexers providing DEX token/pool services)
-interface TokenIndexerConfig extends IndexerConfig {
+interface TokenGardenConfig extends GardenConfig {
   tokenServiceType: 'dex'; // Specialized for DEX services
 }
 
-const TOKEN_INDEXERS: TokenIndexerConfig[] = [];
+const TOKEN_GARDENS: TokenGardenConfig[] = [];
 if (!DEPLOYED_AS_ROOT) {
-  for (let i = 0; i < NUM_TOKEN_INDEXERS; i++) {
+  for (let i = 0; i < NUM_TOKEN_GARDENS; i++) {
     const tokenIndexerId = `T${i + 1}`; // T1, T2, T3...
-    TOKEN_INDEXERS.push({
+    TOKEN_GARDENS.push({
       id: tokenIndexerId,
-      name: `TokenIndexer-${tokenIndexerId}`,
+      name: `Garden-${tokenIndexerId}`,
       stream: `eden:token-indexer:${tokenIndexerId}`,
       active: true,
       uuid: `eden:token-indexer:${crypto.randomUUID()}`,
@@ -106,12 +106,12 @@ const ROOT_CA_UUID = "eden:root:ca:00000000-0000-0000-0000-000000000001";
 
 // Holy Ghost - ROOT CA's dedicated indexer for infrastructure services
 // Must be defined AFTER ROOT_CA_UUID
-const HOLY_GHOST_INDEXER: IndexerConfig = {
+const HOLY_GHOST_GARDEN: GardenConfig = {
   id: "HG",
   name: "Holy Ghost",
   stream: "eden:holy-ghost",
   active: true,
-  uuid: ROOT_CA_UUID, // Uses ROOT CA UUID since it's ROOT CA's indexer
+  uuid: ROOT_CA_UUID, // Uses ROOT CA UUID since it's ROOT CA's Garden
 };
 let ROOT_CA: EdenPKI | null = null;
 let ROOT_CA_IDENTITY: EdenIdentity | null = null;
@@ -464,8 +464,8 @@ httpServer.on("request", async (req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     
     // Load persisted indexers from file (single source of truth)
-    let persistedIndexers: IndexerConfig[] = [];
-    let persistedTokenIndexers: TokenIndexerConfig[] = [];
+    let persistedGardens: GardenConfig[] = [];
+    let persistedTokenGardens: TokenGardenConfig[] = [];
     
     try {
       const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
@@ -485,17 +485,17 @@ httpServer.on("request", async (req, res) => {
           // In ROOT mode: ONLY return indexers created via Angular (format: indexer-1, indexer-2, etc.)
           // Filter out all other indexers (A, B, C, etc.) - they're defaults from non-ROOT mode
           if (DEPLOYED_AS_ROOT) {
-            persistedIndexers = regularIndexersFromArray.filter((idx: any) => idx.id && idx.id.startsWith('indexer-'));
+            persistedGardens = regularIndexersFromArray.filter((idx: any) => idx.id && idx.id.startsWith('indexer-'));
             // In ROOT mode: all token indexers are created via Angular, so return all
-            persistedTokenIndexers = tokenIndexersFromArray;
+            persistedTokenGardens = tokenIndexersFromArray;
           } else {
-            persistedIndexers = regularIndexersFromArray;
+            persistedGardens = regularIndexersFromArray;
             // Non-ROOT mode: filter out defaults
-            if (NUM_TOKEN_INDEXERS > 0) {
-              const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
-              persistedTokenIndexers = tokenIndexersFromArray.filter((idx: any) => !defaultTokenIds.includes(idx.id));
+            if (NUM_TOKEN_GARDENS > 0) {
+              const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
+              persistedTokenGardens = tokenIndexersFromArray.filter((idx: any) => !defaultTokenIds.includes(idx.id));
             } else {
-              persistedTokenIndexers = tokenIndexersFromArray;
+              persistedTokenGardens = tokenIndexersFromArray;
             }
           }
         }
@@ -504,13 +504,13 @@ httpServer.on("request", async (req, res) => {
         if (persisted.tokenIndexers && Array.isArray(persisted.tokenIndexers)) {
           console.log(`📋 [Indexer API] Found tokenIndexers field (backward compatibility) - using it`);
           if (DEPLOYED_AS_ROOT) {
-            persistedTokenIndexers = persisted.tokenIndexers;
+            persistedTokenGardens = persisted.tokenIndexers;
           } else {
-            if (NUM_TOKEN_INDEXERS > 0) {
-              const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
-              persistedTokenIndexers = persisted.tokenIndexers.filter((idx: any) => !defaultTokenIds.includes(idx.id));
+            if (NUM_TOKEN_GARDENS > 0) {
+              const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
+              persistedTokenGardens = persisted.tokenIndexers.filter((idx: any) => !defaultTokenIds.includes(idx.id));
             } else {
-              persistedTokenIndexers = persisted.tokenIndexers;
+              persistedTokenGardens = persisted.tokenIndexers;
             }
           }
         }
@@ -523,16 +523,16 @@ httpServer.on("request", async (req, res) => {
     const allIndexers = [
       // Holy Ghost (ROOT CA's infrastructure indexer) - listed first
       {
-        id: HOLY_GHOST_INDEXER.id,
-        name: HOLY_GHOST_INDEXER.name,
-        stream: HOLY_GHOST_INDEXER.stream,
-        active: HOLY_GHOST_INDEXER.active,
-        uuid: HOLY_GHOST_INDEXER.uuid,
-        hasCertificate: !!HOLY_GHOST_INDEXER.certificate,
+        id: HOLY_GHOST_GARDEN.id,
+        name: HOLY_GHOST_GARDEN.name,
+        stream: HOLY_GHOST_GARDEN.stream,
+        active: HOLY_GHOST_GARDEN.active,
+        uuid: HOLY_GHOST_GARDEN.uuid,
+        hasCertificate: !!HOLY_GHOST_GARDEN.certificate,
         type: 'root' as const
       },
       // Only return persisted indexers (not in-memory defaults)
-      ...persistedIndexers.map(i => ({
+      ...persistedGardens.map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -541,7 +541,7 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!i.certificate,
         type: 'regular' as const
       })),
-      ...persistedTokenIndexers.map(i => ({
+      ...persistedTokenGardens.map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -659,7 +659,7 @@ httpServer.on("request", async (req, res) => {
           REVOCATION_REGISTRY.delete(uuid);
           
           // Reactivate entity
-          const indexer = INDEXERS.find(i => i.uuid === uuid);
+          const indexer = GARDENS.find(i => i.uuid === uuid);
           if (indexer) {
             indexer.active = true;
             // Note: Certificate would need to be re-issued in a real system
@@ -926,7 +926,7 @@ httpServer.on("request", async (req, res) => {
         
         // Register new movie indexer
         console.log(`   🎬 Registering new movie indexer for ${email} (wallet purchase)...`);
-        const newIndexer = await registerNewMovieIndexer(
+        const newIndexer = await registerNewMovieGarden(
           email,
           `wallet:${txId}`, // Use wallet transaction ID instead of Stripe payment intent
           undefined, // No Stripe customer ID
@@ -1064,7 +1064,7 @@ httpServer.on("request", async (req, res) => {
               }
               // Register new movie indexer after payment
               console.log(`   🎬 Registering new movie indexer for ${email}...`);
-              const newIndexer = await registerNewMovieIndexer(email, paymentIntentId, customerId, paymentMethodId, session.id);
+              const newIndexer = await registerNewMovieGarden(email, paymentIntentId, customerId, paymentMethodId, session.id);
               
               console.log(`   ✅ Movie indexer registered successfully: ${newIndexer.id} (${newIndexer.name})`);
               console.log(`      Stripe Customer ID: ${customerId}`);
@@ -1210,7 +1210,7 @@ httpServer.on("request", async (req, res) => {
           
           // Register new movie indexer
           console.log(`   🎬 Registering new movie indexer for ${email} (fallback mechanism)...`);
-          const newIndexer = await registerNewMovieIndexer(email, paymentIntentId, customerId, paymentMethodId, session.id);
+          const newIndexer = await registerNewMovieGarden(email, paymentIntentId, customerId, paymentMethodId, session.id);
           const balance = await getWalletBalance(email);
           
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -1296,21 +1296,21 @@ httpServer.on("request", async (req, res) => {
       // Clear generated indexers from in-memory arrays
       // Keep only the default indexers (A, B, C, etc. and T1, T2, etc.)
       // Remove dynamically created indexers (those with IDs starting with 'indexer-')
-      const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
-      const dynamicTokenIndexers = TOKEN_INDEXERS.filter(i => i.id.startsWith('indexer-'));
+      const dynamicIndexers = GARDENS.filter(i => i.id.startsWith('indexer-'));
+      const dynamicTokenIndexers = TOKEN_GARDENS.filter(i => i.id.startsWith('indexer-'));
       
       const clearedIndexersCount = dynamicIndexers.length + dynamicTokenIndexers.length;
       
       // Remove dynamic indexers from arrays (filter out those starting with 'indexer-')
-      const filteredIndexers = INDEXERS.filter(i => !i.id.startsWith('indexer-'));
-      const filteredTokenIndexers = TOKEN_INDEXERS.filter(i => !i.id.startsWith('indexer-'));
+      const filteredIndexers = GARDENS.filter(i => !i.id.startsWith('indexer-'));
+      const filteredTokenIndexers = TOKEN_GARDENS.filter(i => !i.id.startsWith('indexer-'));
       
       // Clear arrays and repopulate with filtered indexers
-      INDEXERS.length = 0;
-      INDEXERS.push(...filteredIndexers);
+      GARDENS.length = 0;
+      GARDENS.push(...filteredIndexers);
       
-      TOKEN_INDEXERS.length = 0;
-      TOKEN_INDEXERS.push(...filteredTokenIndexers);
+      TOKEN_GARDENS.length = 0;
+      TOKEN_GARDENS.push(...filteredTokenIndexers);
       
       // Save cleared indexers state to persistence (empty array since all dynamic indexers are cleared)
       // CRITICAL: In ROOT mode, skip this - indexers are saved via immediate save in /api/wizard/create-indexer
@@ -1401,7 +1401,7 @@ httpServer.on("request", async (req, res) => {
         message: `Reset successful. Cleared ${clearedIndexersCount} generated indexers and reset ${providersReset} provider assignments. Wallet balances and ledger entries preserved.`,
         clearedIndexers: clearedIndexersCount,
         resetProviders: providersReset,
-        remainingIndexers: INDEXERS.length + TOKEN_INDEXERS.length,
+        remainingIndexers: GARDENS.length + TOKEN_GARDENS.length,
         persistenceFile: persistenceFile
       }));
     } catch (err: any) {
@@ -2098,7 +2098,7 @@ httpServer.on("request", async (req, res) => {
 
   if (pathname === "/api/wizard/create-indexer" && req.method === "POST") {
     console.log(`   🧙 [${requestId}] POST /api/wizard/create-indexer - Creating indexer via wizard`);
-    console.log(`   🔍 [${requestId}] Current state: ${INDEXERS.length} regular indexers, ${TOKEN_INDEXERS.length} token indexers`);
+    console.log(`   🔍 [${requestId}] Current state: ${GARDENS.length} regular indexers, ${TOKEN_GARDENS.length} token indexers`);
     let body = "";
     req.on("data", (chunk) => { body += chunk.toString(); });
     req.on("end", async () => {
@@ -2113,8 +2113,8 @@ httpServer.on("request", async (req, res) => {
           selectedProviders: selectedProviders || 'NOT PROVIDED',
           selectedProvidersType: typeof selectedProviders,
           selectedProvidersIsArray: Array.isArray(selectedProviders),
-          currentTokenIndexersCount: TOKEN_INDEXERS.length,
-          currentTokenIndexerIds: TOKEN_INDEXERS.map(ti => ti.id).join(', ')
+          currentTokenIndexersCount: TOKEN_GARDENS.length,
+          currentTokenIndexerIds: TOKEN_GARDENS.map(ti => ti.id).join(', ')
         });
         
         if (!serviceType || !indexerName) {
@@ -2177,7 +2177,7 @@ httpServer.on("request", async (req, res) => {
         let finalPort = serverPort;
         if (!finalPort || finalPort < 3001) {
           const basePort = 3001;
-          const existingIndexers = [...INDEXERS, ...TOKEN_INDEXERS];
+          const existingIndexers = [...GARDENS, ...TOKEN_GARDENS];
           const usedPorts = existingIndexers.map(i => {
             // Extract port from existing indexers if stored
             return (i as any).serverPort || null;
@@ -2191,30 +2191,30 @@ httpServer.on("request", async (req, res) => {
         }
         
         // Create indexer configuration
-        const existingIndexers = [...INDEXERS, ...TOKEN_INDEXERS];
+        const existingIndexers = [...GARDENS, ...TOKEN_GARDENS];
         let indexerId: string;
         if (isSnake) {
           indexerId = `S${existingIndexers.filter(i => (i as any).isSnake).length + 1}`;
         } else if (serviceType === "dex") {
           // CRITICAL: Use the actual count of token indexers, not length + 1
           // Find the highest T number and add 1
-          const tokenIndexerIds = TOKEN_INDEXERS.map(ti => {
+          const tokenIndexerIds = TOKEN_GARDENS.map(ti => {
             const match = ti.id.match(/^T(\d+)$/);
             return match ? parseInt(match[1], 10) : 0;
           });
           const maxTokenNumber = tokenIndexerIds.length > 0 ? Math.max(...tokenIndexerIds) : 0;
           indexerId = `T${maxTokenNumber + 1}`;
-          console.log(`   🔢 [${requestId}] Generated token indexer ID: ${indexerId} (max existing: ${maxTokenNumber}, total token indexers: ${TOKEN_INDEXERS.length})`);
+          console.log(`   🔢 [${requestId}] Generated token indexer ID: ${indexerId} (max existing: ${maxTokenNumber}, total token indexers: ${TOKEN_GARDENS.length})`);
         } else {
           // For regular indexers, use format: indexer-1, indexer-2, etc.
           // Find the next available number
-          const existingRegularIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
+          const existingRegularIndexers = GARDENS.filter(i => i.id.startsWith('indexer-'));
           const nextNumber = existingRegularIndexers.length + 1;
           indexerId = `indexer-${nextNumber}`;
         }
         
         // Check if indexer ID already exists (prevent duplicates by ID - names can be the same)
-        const existingIndexerById = [...INDEXERS, ...TOKEN_INDEXERS].find(i => i.id === indexerId);
+        const existingIndexerById = [...GARDENS, ...TOKEN_GARDENS].find(i => i.id === indexerId);
         if (existingIndexerById) {
           console.error(`   ❌ [${requestId}] DUPLICATE DETECTED: Indexer ID "${indexerId}" already exists!`);
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -2226,7 +2226,7 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
-        const indexerConfig: IndexerConfig = {
+        const indexerConfig: GardenConfig = {
           id: indexerId,
           name: indexerName,
           stream: isSnake ? `eden:snake:${indexerId}` : 
@@ -2246,7 +2246,7 @@ httpServer.on("request", async (req, res) => {
         // CRITICAL: Issue certificate BEFORE adding to array AND BEFORE saving
         // This ensures the certificate is included in the indexerConfig object
         console.log(`   📜 [Certificate] Issuing certificate for ${indexerConfig.name} (${indexerConfig.id})...`);
-        issueIndexerCertificate(indexerConfig);
+        issueGardenCertificate(indexerConfig);
         
         // Verify certificate was issued
         if (!indexerConfig.certificate) {
@@ -2264,9 +2264,9 @@ httpServer.on("request", async (req, res) => {
         // CRITICAL: Check for duplicates before adding
         if (serviceType === "dex") {
           // Check if this token indexer already exists
-          const existingTokenIndexer = TOKEN_INDEXERS.find(ti => ti.id === indexerConfig.id);
+          const existingTokenIndexer = TOKEN_GARDENS.find(ti => ti.id === indexerConfig.id);
           if (existingTokenIndexer) {
-            console.error(`   ❌ [DUPLICATE PREVENTION] Token indexer ${indexerConfig.id} already exists in TOKEN_INDEXERS! Skipping duplicate.`);
+            console.error(`   ❌ [DUPLICATE PREVENTION] Token indexer ${indexerConfig.id} already exists in TOKEN_GARDENS! Skipping duplicate.`);
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ 
               success: false, 
@@ -2277,15 +2277,15 @@ httpServer.on("request", async (req, res) => {
           }
           // CRITICAL: Include certificate in the object we push
           const tokenIndexerWithCert = { ...indexerConfig, tokenServiceType: 'dex', certificate: indexerConfig.certificate };
-          (TOKEN_INDEXERS as any[]).push(tokenIndexerWithCert);
-          console.log(`   ✅ Created token indexer: ${indexerConfig.name} (${indexerConfig.id}). Total token indexers in memory: ${TOKEN_INDEXERS.length}`);
-          console.log(`   🔍 [Token Indexer Debug] TOKEN_INDEXERS IDs: ${TOKEN_INDEXERS.map(ti => ti.id).join(', ')}`);
+          (TOKEN_GARDENS as any[]).push(tokenIndexerWithCert);
+          console.log(`   ✅ Created token indexer: ${indexerConfig.name} (${indexerConfig.id}). Total token indexers in memory: ${TOKEN_GARDENS.length}`);
+          console.log(`   🔍 [Token Indexer Debug] TOKEN_GARDENS IDs: ${TOKEN_GARDENS.map(ti => ti.id).join(', ')}`);
           console.log(`   🔍 [Certificate Check] Token indexer ${indexerConfig.id} has certificate: ${!!tokenIndexerWithCert.certificate}`);
         } else {
           // Check if this regular indexer already exists
-          const existingRegularIndexer = INDEXERS.find(i => i.id === indexerConfig.id);
+          const existingRegularIndexer = GARDENS.find(i => i.id === indexerConfig.id);
           if (existingRegularIndexer) {
-            console.error(`   ❌ [DUPLICATE PREVENTION] Regular indexer ${indexerConfig.id} already exists in INDEXERS! Skipping duplicate.`);
+            console.error(`   ❌ [DUPLICATE PREVENTION] Regular indexer ${indexerConfig.id} already exists in GARDENS! Skipping duplicate.`);
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ 
               success: false, 
@@ -2295,8 +2295,8 @@ httpServer.on("request", async (req, res) => {
             return;
           }
           // CRITICAL: Include certificate in the object we push
-          INDEXERS.push({ ...indexerConfig, certificate: indexerConfig.certificate });
-          console.log(`   ✅ Created regular indexer: ${indexerConfig.name} (${indexerConfig.id}). Total regular indexers: ${INDEXERS.length}`);
+          GARDENS.push({ ...indexerConfig, certificate: indexerConfig.certificate });
+          console.log(`   ✅ Created regular indexer: ${indexerConfig.name} (${indexerConfig.id}). Total regular indexers: ${GARDENS.length}`);
           console.log(`   🔍 [Certificate Check] Regular indexer ${indexerConfig.id} has certificate: ${!!indexerConfig.certificate}`);
           console.log(`   🔍 [Service Type] Regular indexer ${indexerConfig.id} has serviceType: ${(indexerConfig as any).serviceType || 'undefined'}`);
           if ((indexerConfig as any).serviceType === 'movie') {
@@ -2445,10 +2445,10 @@ httpServer.on("request", async (req, res) => {
         if (serviceType === "dex") {
           console.log(`   💰 Creating DEX pool service providers for token indexer ${indexerConfig.id}...`);
           
-          // Find the index of this token indexer in TOKEN_INDEXERS array
-          const tokenIndexerIndex = TOKEN_INDEXERS.findIndex(ti => ti.id === indexerConfig.id);
+          // Find the index of this token indexer in TOKEN_GARDENS array
+          const tokenIndexerIndex = TOKEN_GARDENS.findIndex(ti => ti.id === indexerConfig.id);
           if (tokenIndexerIndex === -1) {
-            console.warn(`   ⚠️  Token indexer ${indexerConfig.id} not found in TOKEN_INDEXERS array`);
+            console.warn(`   ⚠️  Token indexer ${indexerConfig.id} not found in TOKEN_GARDENS array`);
           } else {
             // Create pool for this token indexer (matching initializeDEXPools format)
             // Token Indexer T1 gets TOKENA, T2 gets TOKENB, etc.
@@ -2538,47 +2538,47 @@ httpServer.on("request", async (req, res) => {
         // Persist indexers - save BOTH regular and token indexers together
         // Filter out default indexers and save immediately
         
-        // CRITICAL: First, check if any token indexers accidentally got into INDEXERS
-        // If so, move them to TOKEN_INDEXERS and log a warning
-        const tokenIndexersInRegularArray = INDEXERS.filter(idx => 
+        // CRITICAL: First, check if any token indexers accidentally got into GARDENS
+        // If so, move them to TOKEN_GARDENS and log a warning
+        const tokenIndexersInRegularArray = GARDENS.filter(idx => 
           (idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
         );
         if (tokenIndexersInRegularArray.length > 0) {
-          console.warn(`⚠️  [Indexer Persistence] Found ${tokenIndexersInRegularArray.length} token indexer(s) in INDEXERS array! Moving them to TOKEN_INDEXERS...`);
+          console.warn(`⚠️  [Indexer Persistence] Found ${tokenIndexersInRegularArray.length} token indexer(s) in GARDENS array! Moving them to TOKEN_GARDENS...`);
           for (const tokenIdx of tokenIndexersInRegularArray) {
-            // Remove from INDEXERS
-            const index = INDEXERS.indexOf(tokenIdx);
+            // Remove from GARDENS
+            const index = GARDENS.indexOf(tokenIdx);
             if (index > -1) {
-              INDEXERS.splice(index, 1);
+              GARDENS.splice(index, 1);
             }
-            // Add to TOKEN_INDEXERS if not already there
-            if (!TOKEN_INDEXERS.some(ti => ti.id === tokenIdx.id)) {
-              TOKEN_INDEXERS.push(tokenIdx as any);
+            // Add to TOKEN_GARDENS if not already there
+            if (!TOKEN_GARDENS.some(ti => ti.id === tokenIdx.id)) {
+              TOKEN_GARDENS.push(tokenIdx as any);
             }
           }
         }
         
-        let regularIndexersToSave: IndexerConfig[] = [];
-        let tokenIndexersToSave: IndexerConfig[] = [];
+        let regularIndexersToSave: GardenConfig[] = [];
+        let tokenIndexersToSave: GardenConfig[] = [];
         
         // Prepare regular indexers to save
         // CRITICAL: Exclude token indexers (they have tokenServiceType or serviceType === "dex" and ID starts with T)
-        if (NUM_INDEXERS > 0) {
-          const defaultIds = Array.from({ length: NUM_INDEXERS }, (_, i) => String.fromCharCode(65 + i));
-          regularIndexersToSave = INDEXERS.filter(idx => {
+        if (NUM_GARDENS > 0) {
+          const defaultIds = Array.from({ length: NUM_GARDENS }, (_, i) => String.fromCharCode(65 + i));
+          regularIndexersToSave = GARDENS.filter(idx => {
             // Exclude token indexers (defensive check)
             if ((idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
-              console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in INDEXERS during save - excluding from regular indexers`);
+              console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
               return false;
             }
             return !defaultIds.includes(idx.id);
           });
         } else {
           // ROOT mode: ONLY save indexers created via Angular (format: indexer-1, indexer-2, etc.)
-          regularIndexersToSave = INDEXERS.filter(idx => {
+          regularIndexersToSave = GARDENS.filter(idx => {
             // Exclude token indexers (defensive check)
             if ((idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
-              console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in INDEXERS during save - excluding from regular indexers`);
+              console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
               return false;
             }
             // Only save indexers with format "indexer-N" (created via Angular)
@@ -2586,10 +2586,10 @@ httpServer.on("request", async (req, res) => {
           });
         }
         
-        // CRITICAL: Deduplicate TOKEN_INDEXERS array BEFORE collecting tokenIndexersToSave
-        // This prevents duplicates from being saved if TOKEN_INDEXERS has duplicates
-        const deduplicatedTokenIndexers = new Map<string, TokenIndexerConfig>();
-        for (const ti of TOKEN_INDEXERS) {
+        // CRITICAL: Deduplicate TOKEN_GARDENS array BEFORE collecting tokenIndexersToSave
+        // This prevents duplicates from being saved if TOKEN_GARDENS has duplicates
+        const deduplicatedTokenIndexers = new Map<string, TokenGardenConfig>();
+        for (const ti of TOKEN_GARDENS) {
           const existing = deduplicatedTokenIndexers.get(ti.id);
           if (!existing) {
             deduplicatedTokenIndexers.set(ti.id, ti);
@@ -2599,34 +2599,34 @@ httpServer.on("request", async (req, res) => {
             const existingHasCert = !!(existing as any).certificate;
             if (hasCert && !existingHasCert) {
               deduplicatedTokenIndexers.set(ti.id, ti);
-              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_INDEXERS - keeping version with certificate`);
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping version with certificate`);
             } else {
-              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_INDEXERS - keeping existing version`);
+              console.warn(`⚠️  [Indexer Persistence] Found duplicate token indexer ${ti.id} in TOKEN_GARDENS - keeping existing version`);
             }
           }
         }
         const cleanTokenIndexers = Array.from(deduplicatedTokenIndexers.values());
         
-        if (cleanTokenIndexers.length !== TOKEN_INDEXERS.length) {
-          console.warn(`⚠️  [Indexer Persistence] Removed ${TOKEN_INDEXERS.length - cleanTokenIndexers.length} duplicate(s) from TOKEN_INDEXERS array`);
-          // Update TOKEN_INDEXERS array to remove duplicates
-          TOKEN_INDEXERS.length = 0;
-          TOKEN_INDEXERS.push(...cleanTokenIndexers);
+        if (cleanTokenIndexers.length !== TOKEN_GARDENS.length) {
+          console.warn(`⚠️  [Indexer Persistence] Removed ${TOKEN_GARDENS.length - cleanTokenIndexers.length} duplicate(s) from TOKEN_GARDENS array`);
+          // Update TOKEN_GARDENS array to remove duplicates
+          TOKEN_GARDENS.length = 0;
+          TOKEN_GARDENS.push(...cleanTokenIndexers);
         }
         
         // Prepare token indexers to save
-        console.log(`🔍 [Indexer Persistence] TOKEN_INDEXERS array has ${TOKEN_INDEXERS.length} indexer(s): ${TOKEN_INDEXERS.map(ti => ti.id).join(', ')}`);
-        console.log(`🔍 [Indexer Persistence] NUM_TOKEN_INDEXERS = ${NUM_TOKEN_INDEXERS}, DEPLOYED_AS_ROOT = ${DEPLOYED_AS_ROOT}`);
+        console.log(`🔍 [Indexer Persistence] TOKEN_GARDENS array has ${TOKEN_GARDENS.length} indexer(s): ${TOKEN_GARDENS.map(ti => ti.id).join(', ')}`);
+        console.log(`🔍 [Indexer Persistence] NUM_TOKEN_GARDENS = ${NUM_TOKEN_GARDENS}, DEPLOYED_AS_ROOT = ${DEPLOYED_AS_ROOT}`);
         
-        if (NUM_TOKEN_INDEXERS > 0) {
-          const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
+        if (NUM_TOKEN_GARDENS > 0) {
+          const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
           console.log(`🔍 [Indexer Persistence] Filtering out default token IDs: ${defaultTokenIds.join(', ')}`);
-          tokenIndexersToSave = TOKEN_INDEXERS.filter(idx => !defaultTokenIds.includes(idx.id));
+          tokenIndexersToSave = TOKEN_GARDENS.filter(idx => !defaultTokenIds.includes(idx.id));
         } else {
           // ROOT mode: save all token indexers (no defaults)
           // CRITICAL: In ROOT mode, we should only have token indexers created via Angular
-          tokenIndexersToSave = TOKEN_INDEXERS;
-          console.log(`🔍 [Indexer Persistence] ROOT mode: saving all ${TOKEN_INDEXERS.length} token indexer(s)`);
+          tokenIndexersToSave = TOKEN_GARDENS;
+          console.log(`🔍 [Indexer Persistence] ROOT mode: saving all ${TOKEN_GARDENS.length} token indexer(s)`);
         }
         
         console.log(`📋 [Indexer Persistence] Preparing to save: ${regularIndexersToSave.length} regular indexer(s), ${tokenIndexersToSave.length} token indexer(s)`);
@@ -2635,7 +2635,7 @@ httpServer.on("request", async (req, res) => {
         }
         
         // Remove duplicates by ID - always keep the latest version (prefer one with certificate)
-        const uniqueRegularIndexers = new Map<string, IndexerConfig>();
+        const uniqueRegularIndexers = new Map<string, GardenConfig>();
         for (const idx of regularIndexersToSave) {
           const existing = uniqueRegularIndexers.get(idx.id);
           if (!existing) {
@@ -2656,7 +2656,7 @@ httpServer.on("request", async (req, res) => {
         regularIndexersToSave = Array.from(uniqueRegularIndexers.values());
         
         // Remove duplicates for token indexers (by ID)
-        const uniqueTokenIndexers = new Map<string, IndexerConfig>();
+        const uniqueTokenIndexers = new Map<string, GardenConfig>();
         for (const idx of tokenIndexersToSave) {
           const existing = uniqueTokenIndexers.get(idx.id);
           if (!existing) {
@@ -2670,7 +2670,7 @@ httpServer.on("request", async (req, res) => {
             } else if (!hasCert && existingHasCert) {
               // Keep existing version with certificate
             } else {
-              // Both have or don't have cert - prefer current one (from TOKEN_INDEXERS)
+              // Both have or don't have cert - prefer current one (from TOKEN_GARDENS)
               uniqueTokenIndexers.set(idx.id, idx);
             }
           }
@@ -2752,7 +2752,7 @@ httpServer.on("request", async (req, res) => {
             if (!tokenIdx.certificate) {
               console.error(`❌ [Indexer Persistence] Token indexer ${tokenIdx.id} is missing certificate! Re-issuing...`);
               try {
-                issueIndexerCertificate(tokenIdx);
+                issueGardenCertificate(tokenIdx);
                 console.log(`✅ [Indexer Persistence] Certificate re-issued for ${tokenIdx.id}`);
               } catch (err: any) {
                 console.error(`❌ [Indexer Persistence] Failed to re-issue certificate for ${tokenIdx.id}:`, err.message);
@@ -2866,7 +2866,7 @@ httpServer.on("request", async (req, res) => {
             console.error(`❌ [Indexer Persistence] Re-issuing certificates before save...`);
             for (const idx of indexersWithoutCert) {
               try {
-                issueIndexerCertificate(idx);
+                issueGardenCertificate(idx);
                 console.log(`✅ [Indexer Persistence] Certificate issued to ${idx.id}`);
               } catch (err: any) {
                 console.error(`❌ [Indexer Persistence] Failed to issue certificate to ${idx.id}:`, err.message);
@@ -3753,7 +3753,7 @@ const CHAIN_ID = "eden-core";
 const ROOT_CA_FEE = 0.02;
 const INDEXER_FEE = 0.005;
 
-// Stream names are now dynamically generated from INDEXERS array
+// Stream names are now dynamically generated from GARDENS array
 
 // iGas Calculation Constants
 const LLM_BASE_COST = 0.001; // Base cost per LLM call
@@ -4078,8 +4078,8 @@ async function queryCinemarkAPI(location: string, filters?: { genre?: string; ti
 function initializeDEXPools(): void {
   // Initialize DEX pools, assigning them to token indexers
   // Each token indexer can provide multiple pools
-  for (let i = 0; i < TOKEN_INDEXERS.length; i++) {
-    const tokenIndexer = TOKEN_INDEXERS[i];
+  for (let i = 0; i < TOKEN_GARDENS.length; i++) {
+    const tokenIndexer = TOKEN_GARDENS[i];
     if (!tokenIndexer) continue;
     
     // Create pools for this token indexer
@@ -4108,7 +4108,7 @@ function initializeDEXPools(): void {
 
   console.log(`🌊 Initialized ${DEX_POOLS.size} DEX pools`);
   console.log(`💰 ROOT CA Liquidity Pool: ${rootCALiquidity} SOL`);
-  console.log(`🔷 Token Indexers: ${TOKEN_INDEXERS.map(ti => ti.name).join(", ")}`);
+  console.log(`🔷 Token Indexers: ${TOKEN_GARDENS.map(ti => ti.name).join(", ")}`);
   
   // Display pool assignments
   for (const [poolId, pool] of DEX_POOLS.entries()) {
@@ -5699,24 +5699,24 @@ async function processWalletIntent(intent: WalletIntent): Promise<WalletResult> 
 // Stores Stripe customer ID, payment method ID, and payment intent ID in ledger for webhook querying
 // Register a new movie indexer after Stripe payment
 // CRITICAL: In ROOT mode, this function should NOT be called - all indexers are created via Angular wizard
-async function registerNewMovieIndexer(
+async function registerNewMovieGarden(
   email: string,
   stripePaymentIntentId: string,
   stripeCustomerId?: string | null,
   stripePaymentMethodId?: string | null,
   stripeSessionId?: string
-): Promise<IndexerConfig> {
+): Promise<GardenConfig> {
   // CRITICAL: In ROOT mode, DO NOT create indexers via this function
   // All indexers must be created via Angular wizard (/api/wizard/create-indexer)
   // Persistence file is the single source of truth
   if (DEPLOYED_AS_ROOT) {
-    throw new Error(`Cannot create indexer via registerNewMovieIndexer in ROOT mode. All indexers must be created via Angular wizard (/api/wizard/create-indexer). Persistence file is the single source of truth.`);
+    throw new Error(`Cannot create indexer via registerNewMovieGarden in ROOT mode. All indexers must be created via Angular wizard (/api/wizard/create-indexer). Persistence file is the single source of truth.`);
   }
   
   console.log(`🎬 [Indexer Registration] Starting registration for ${email}...`);
   
   // Generate unique indexer ID (next available letter after existing indexers)
-  const existingIds = INDEXERS.map(i => i.id).sort();
+  const existingIds = GARDENS.map(i => i.id).sort();
   let nextId = 'A';
   if (existingIds.length > 0) {
     const lastId = existingIds[existingIds.length - 1];
@@ -5725,17 +5725,17 @@ async function registerNewMovieIndexer(
       nextId = String.fromCharCode(lastCharCode + 1);
     } else {
       // If we've exceeded Z, use numbers
-      nextId = `INDEXER-${INDEXERS.length + 1}`;
+      nextId = `INDEXER-${GARDENS.length + 1}`;
     }
   }
   
   const indexerId = `indexer-${nextId.toLowerCase()}`;
-  const indexerName = `Indexer-${nextId}`;
+  const indexerName = `Garden-${nextId}`;
   const streamName = `eden:indexer:${nextId}`;
   const indexerUuid = `eden:indexer:${crypto.randomUUID()}`;
   
   // Create new indexer config
-  const newIndexer: IndexerConfig = {
+  const newIndexer: GardenConfig = {
     id: indexerId,
     name: indexerName,
     stream: streamName,
@@ -5743,15 +5743,15 @@ async function registerNewMovieIndexer(
     uuid: indexerUuid
   };
   
-  // Add to INDEXERS array
-  INDEXERS.push(newIndexer);
+  // Add to GARDENS array
+  GARDENS.push(newIndexer);
   console.log(`✅ [Indexer Registration] Created indexer: ${newIndexer.name} (${newIndexer.id})`);
-  console.warn(`⚠️  [Indexer Registration] WARNING: Movie indexer created via registerNewMovieIndexer - this should NOT happen in ROOT mode!`);
+  console.warn(`⚠️  [Indexer Registration] WARNING: Movie indexer created via registerNewMovieGarden - this should NOT happen in ROOT mode!`);
   
   // Issue certificate to the new indexer
   // Note: Persistence is handled by the HTTP handler after certificate issuance
   try {
-    issueIndexerCertificate(newIndexer);
+    issueGardenCertificate(newIndexer);
   } catch (err: any) {
     console.error(`❌ [Indexer Registration] Failed to issue certificate:`, err.message);
     throw err;
@@ -6424,7 +6424,7 @@ function initializeRootCA(): void {
   }
 }
 
-function issueIndexerCertificate(indexer: IndexerConfig): EdenCertificate {
+function issueGardenCertificate(garden: GardenConfig): EdenCertificate {
   if (!ROOT_CA) {
     throw new Error("ROOT CA not initialized");
   }
@@ -6542,7 +6542,7 @@ function revokeCertificate(
   CERTIFICATE_REGISTRY.delete(uuid);
   
   // Mark indexer or provider as inactive/revoked
-  const indexer = INDEXERS.find(i => i.uuid === uuid);
+  const indexer = GARDENS.find(i => i.uuid === uuid);
   if (indexer) {
     indexer.active = false;
     indexer.certificate = undefined;
@@ -6588,7 +6588,7 @@ function revokeCertificateByIndexer(
   severity: "soft" | "hard" = "hard",
   metadata?: Record<string, any>
 ): RevocationEvent {
-  const indexer = INDEXERS.find(i => i.id === indexerId || i.uuid === indexerId);
+  const indexer = GARDENS.find(i => i.id === indexerId || i.uuid === indexerId);
   if (!indexer || !indexer.pki) {
     throw new Error(`Indexer not found or PKI not initialized: ${indexerId}`);
   }
@@ -6748,7 +6748,7 @@ function getRevokedCertificates(): RevocationEvent[] {
 // Initialize revocation stream consumer groups for each indexer
 async function initializeRevocationConsumers(): Promise<void> {
   try {
-    for (const indexer of INDEXERS) {
+    for (const indexer of GARDENS) {
       if (indexer.active) {
         const consumerGroup = `indexer-${indexer.id}`;
         try {
@@ -6867,7 +6867,7 @@ async function processRevocationMessage(message: any, indexerName: string): Prom
       issuerPublicKey = ROOT_CA_IDENTITY.publicKey;
     } else {
       // For indexers, get their public key from their PKI instance
-      const issuerIndexer = INDEXERS.find(i => i.uuid === revocation.issuer_uuid);
+      const issuerIndexer = GARDENS.find(i => i.uuid === revocation.issuer_uuid);
       if (issuerIndexer && issuerIndexer.pki) {
         issuerPublicKey = issuerIndexer.pki.identity.publicKey;
       } else {
@@ -6889,7 +6889,7 @@ async function processRevocationMessage(message: any, indexerName: string): Prom
       REVOCATION_REGISTRY.set(revocation.revoked_uuid, revocation);
       
       // Mark entity as inactive
-      const indexer = INDEXERS.find(i => i.uuid === revocation.revoked_uuid);
+      const indexer = GARDENS.find(i => i.uuid === revocation.revoked_uuid);
       if (indexer) {
         indexer.active = false;
         indexer.certificate = undefined;
@@ -6928,7 +6928,7 @@ function verifyRevocationAuthority(revocation: RevocationEvent): boolean {
   }
   
   // Indexers can only revoke services they certified
-  const issuerIndexer = INDEXERS.find(i => i.uuid === revocation.issuer_uuid);
+  const issuerIndexer = GARDENS.find(i => i.uuid === revocation.issuer_uuid);
   if (issuerIndexer && revocation.revoked_type === "service") {
     // Verify issuer has INDEXER capability
     const issuerCert = CERTIFICATE_REGISTRY.get(revocation.issuer_uuid);
@@ -7002,8 +7002,8 @@ async function persistSnapshot(snapshot: TransactionSnapshot) {
 
 async function streamToIndexers(snapshot: TransactionSnapshot) {
   if (SKIP_REDIS || !redis.isOpen) {
-    const indexerNames = INDEXERS.filter(i => i.active).map(i => i.name).join(", ");
-    const tokenIndexerNames = TOKEN_INDEXERS.filter(i => i.active).map(i => i.name).join(", ");
+    const indexerNames = GARDENS.filter(i => i.active).map(i => i.name).join(", ");
+    const tokenIndexerNames = TOKEN_GARDENS.filter(i => i.active).map(i => i.name).join(", ");
     const allNames = [indexerNames, tokenIndexerNames].filter(n => n).join(", ");
     console.log(`📡 Stream (mock): ${snapshot.txId} → ${allNames}`);
     return;
@@ -7020,13 +7020,13 @@ async function streamToIndexers(snapshot: TransactionSnapshot) {
     };
 
     // Stream to all active regular indexers
-    const activeIndexers = INDEXERS.filter(i => i.active);
+    const activeIndexers = GARDENS.filter(i => i.active);
     for (const indexer of activeIndexers) {
       await redis.xAdd(indexer.stream, "*", payload);
     }
     
     // Stream to all active token indexers
-    const activeTokenIndexers = TOKEN_INDEXERS.filter(i => i.active);
+    const activeTokenIndexers = TOKEN_GARDENS.filter(i => i.active);
     for (const tokenIndexer of activeTokenIndexers) {
       await redis.xAdd(tokenIndexer.stream, "*", payload);
     }
@@ -7074,7 +7074,7 @@ async function streamToIndexers(snapshot: TransactionSnapshot) {
 // Track last read position per consumer
 const consumerPositions = new Map<string, string>();
 
-async function indexerConsumer(name: string, stream: string) {
+async function gardenConsumer(name: string, stream: string) {
   if (SKIP_REDIS) {
     console.log(`⚠️  ${name}: Skipped (Redis disabled)`);
     return;
@@ -8191,8 +8191,8 @@ async function main() {
     skipRedis: SKIP_REDIS,
     enableOpenAI: ENABLE_OPENAI,
     deployedAsRoot: DEPLOYED_AS_ROOT,
-    numIndexers: NUM_INDEXERS,
-    numTokenIndexers: NUM_TOKEN_INDEXERS,
+    numIndexers: NUM_GARDENS,
+    numTokenIndexers: NUM_TOKEN_GARDENS,
   }, "\n");
   
   if (DEPLOYED_AS_ROOT) {
@@ -8200,10 +8200,10 @@ async function main() {
     console.log("   All additional indexers will be created via Angular UI wizard\n");
   }
   
-  console.log(`✨ Holy Ghost (ROOT CA Indexer) configured: ${HOLY_GHOST_INDEXER.name}`);
+  console.log(`✨ Holy Ghost (ROOT CA Indexer) configured: ${HOLY_GHOST_GARDEN.name}`);
   if (!DEPLOYED_AS_ROOT) {
-    console.log(`🌳 Regular Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}`);
-    console.log(`🔷 Token Indexers configured: ${TOKEN_INDEXERS.map(i => i.name).join(", ")}\n`);
+    console.log(`🌳 Regular Indexers configured: ${GARDENS.map(i => i.name).join(", ")}`);
+    console.log(`🔷 Token Indexers configured: ${TOKEN_GARDENS.map(i => i.name).join(", ")}\n`);
   } else {
     console.log(`🌳 Regular Indexers: 0 (will be created via UI)`);
     console.log(`🔷 Token Indexers: 0 (will be created via UI)\n`);
@@ -8215,23 +8215,23 @@ async function main() {
   // Issue certificate to Holy Ghost (ROOT CA Indexer)
   console.log("\n✨ Issuing certificate to Holy Ghost (ROOT CA Indexer)...");
   try {
-    issueIndexerCertificate(HOLY_GHOST_INDEXER);
-    console.log(`   ✅ Certificate issued to ${HOLY_GHOST_INDEXER.name}`);
+    issueGardenCertificate(HOLY_GHOST_GARDEN);
+    console.log(`   ✅ Certificate issued to ${HOLY_GHOST_GARDEN.name}`);
   } catch (err: any) {
-    console.error(`   ❌ Failed to issue certificate to ${HOLY_GHOST_INDEXER.name}:`, err.message);
+    console.error(`   ❌ Failed to issue certificate to ${HOLY_GHOST_GARDEN.name}:`, err.message);
   }
   
   // Only initialize regular indexers if NOT in root-only mode
   if (!DEPLOYED_AS_ROOT) {
     // Issue certificates to all regular indexers (including restored ones)
     console.log("\n🌳 Issuing certificates to Regular Indexers...");
-    for (const indexer of INDEXERS) {
+    for (const indexer of GARDENS) {
       if (indexer.active) {
         // Check if certificate exists in registry (not just in indexer object)
         const existingCert = CERTIFICATE_REGISTRY.get(indexer.uuid);
         if (!existingCert) {
           try {
-            issueIndexerCertificate(indexer);
+            issueGardenCertificate(indexer);
             console.log(`   ✅ Certificate issued to ${indexer.name} (${indexer.id})`);
           } catch (err: any) {
             console.error(`   ❌ Failed to issue certificate to ${indexer.name}:`, err.message);
@@ -8246,13 +8246,13 @@ async function main() {
     
     // Issue certificates to all token indexers (needed for pool initialization)
     console.log("\n🔷 Issuing certificates to Token Indexers...");
-    for (const tokenIndexer of TOKEN_INDEXERS) {
+    for (const tokenIndexer of TOKEN_GARDENS) {
       if (tokenIndexer.active) {
         // Check if certificate exists in registry (not just in indexer object)
         const existingCert = CERTIFICATE_REGISTRY.get(tokenIndexer.uuid);
         if (!existingCert) {
           try {
-            issueIndexerCertificate(tokenIndexer);
+            issueGardenCertificate(tokenIndexer);
             console.log(`   ✅ Certificate issued to ${tokenIndexer.name} (${tokenIndexer.id})`);
           } catch (err: any) {
             console.error(`   ❌ Failed to issue certificate to ${tokenIndexer.name}:`, err.message);
@@ -8272,7 +8272,7 @@ async function main() {
     // Create DEX pool service providers dynamically from pools
     console.log("\n📋 Registering DEX Pool Service Providers...");
     for (const [poolId, pool] of DEX_POOLS.entries()) {
-      const tokenIndexer = TOKEN_INDEXERS.find(ti => ti.id === pool.indexerId);
+      const tokenIndexer = TOKEN_GARDENS.find(ti => ti.id === pool.indexerId);
       if (tokenIndexer) {
         const provider: ServiceProviderWithCert = {
           id: `dex-pool-${pool.tokenSymbol.toLowerCase()}`,
@@ -8293,10 +8293,10 @@ async function main() {
     
     // Issue certificates to all regular indexers
     console.log("\n📜 Issuing certificates to Regular Indexers...");
-    for (const indexer of INDEXERS) {
+    for (const indexer of GARDENS) {
       if (indexer.active) {
         try {
-          issueIndexerCertificate(indexer);
+          issueGardenCertificate(indexer);
         } catch (err: any) {
           console.error(`❌ Failed to issue certificate to ${indexer.name}:`, err.message);
         }
@@ -8315,8 +8315,8 @@ async function main() {
   }
   
   console.log(`\n✅ Certificate issuance complete. Total certificates: ${CERTIFICATE_REGISTRY.size}`);
-  console.log(`   - Regular Indexers: ${INDEXERS.length}`);
-  console.log(`   - Token Indexers: ${TOKEN_INDEXERS.length}`);
+  console.log(`   - Regular Indexers: ${GARDENS.length}`);
+  console.log(`   - Token Indexers: ${TOKEN_GARDENS.length}`);
   console.log(`   - Service Providers: ${ROOT_CA_SERVICE_REGISTRY.length}\n`);
 
   // ============================================
@@ -8421,8 +8421,8 @@ async function main() {
         // Collect all indexers to restore FIRST, then reset memory arrays and populate
         
         // Temporary arrays to collect indexers to restore
-        const indexersToRestore: IndexerConfig[] = [];
-        const tokenIndexersToRestore: TokenIndexerConfig[] = [];
+        const indexersToRestore: GardenConfig[] = [];
+        const tokenIndexersToRestore: TokenGardenConfig[] = [];
         
         if (persisted.indexers && Array.isArray(persisted.indexers)) {
           // First pass: Collect all indexers to restore FROM PERSISTENCE FILE ONLY
@@ -8441,315 +8441,86 @@ async function main() {
             // CRITICAL: In ROOT mode, ONLY restore what's in persistence file
             // Persistence file is the SINGLE SOURCE OF TRUTH
             if (DEPLOYED_AS_ROOT) {
-              const isTokenIndexer = persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'));
               const isRegularIndexer = persistedIndexer.id && persistedIndexer.id.startsWith('indexer-');
               
-              // In ROOT mode, all indexers in the persistence file were created via Angular wizard
-              // Restore all indexers from persistence file (including movie indexers)
-              if (!isTokenIndexer && !isRegularIndexer) {
-                skippedCount++;
-                console.log(`📂 [Indexer Persistence] ROOT mode: Skipping indexer ${persistedIndexer.id} (unexpected format)`);
-                continue;
+              if (isRegularIndexer) {
+                indexersToRestore.push(persistedIndexer as GardenConfig);
+                restoredCount++;
+                console.log(`📂 [Indexer Persistence] Will restore regular indexer: ${persistedIndexer.name} (${persistedIndexer.id})`);
               }
-              // This indexer is in persistence file, restore it
-              console.log(`📂 [Indexer Persistence] ROOT mode: Restoring ${isTokenIndexer ? 'token' : 'regular'} indexer ${persistedIndexer.id} from persistence file`);
             } else {
-              // In non-ROOT mode: skip single-letter indexers (they're defaults created at startup)
-              if (persistedIndexer.id.length === 1 && /^[A-Z]$/.test(persistedIndexer.id)) {
-                skippedCount++;
-                console.log(`📂 [Indexer Persistence] Skipping default indexer ${persistedIndexer.id} (created at startup)`);
-                continue;
+              // Non-ROOT mode: restore all regular indexers (not defaults)
+              const defaultIds = Array.from({ length: NUM_GARDENS }, (_, i) => String.fromCharCode(65 + i));
+              if (persistedIndexer.id && !defaultIds.includes(persistedIndexer.id)) {
+                indexersToRestore.push(persistedIndexer as GardenConfig);
+                restoredCount++;
+                console.log(`📂 [Indexer Persistence] Will restore regular indexer: ${persistedIndexer.name} (${persistedIndexer.id})`);
               }
             }
-            
-            // Check if this is a token indexer (should go to TOKEN_INDEXERS, not INDEXERS)
+          }
+          
+          // Restore token indexers separately
+          for (const persistedIndexer of persisted.indexers) {
             const isTokenIndexer = persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'));
             
             if (isTokenIndexer) {
-              // Token indexer - collect for token indexer restoration
-              // Will be processed in token indexer section
-              continue;
-            }
-            
-            // Regular indexer - collect for restoration
-            // Clear certificate property - it will be reissued
-            const restoredIndexer: IndexerConfig = {
-              ...persistedIndexer,
-              certificate: undefined // Certificates will be reissued on startup
-            };
-            indexersToRestore.push(restoredIndexer);
-            restoredCount++;
-            console.log(`📂 [Indexer Persistence] Collected regular indexer from persistence: ${restoredIndexer.name} (${restoredIndexer.id})`);
-          }
-          
-          if (restoredCount > 0) {
-            console.log(`📂 [Indexer Persistence] Collected ${restoredCount} regular indexer(s) from ${persistenceFile}`);
-          }
-          if (skippedCount > 0) {
-            console.log(`📂 [Indexer Persistence] Skipped ${skippedCount} indexer(s) (not valid in ${DEPLOYED_AS_ROOT ? 'ROOT' : 'non-ROOT'} mode)`);
-          }
-        }
-        
-        // Collect token indexers from indexers array
-        // CRITICAL: All indexers (regular and token) are now stored in 'indexers' array
-        // There is NO 'tokenIndexers' field - token indexers are identified by tokenServiceType or serviceType === "dex"
-        // Use a Set to track collected IDs to prevent duplicates
-        const collectedTokenIndexerIds = new Set<string>();
-        
-        if (persisted.indexers && Array.isArray(persisted.indexers)) {
-          console.log(`📂 [Token Indexer Persistence] Checking ${persisted.indexers.length} indexer(s) in persistence file for token indexers...`);
-          for (const idx of persisted.indexers) {
-            // Check if it's a token indexer (has tokenServiceType or serviceType === "dex" and id starts with T)
-            if (idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
-              // CRITICAL: Check for duplicates - skip if already collected
-              if (collectedTokenIndexerIds.has(idx.id)) {
-                console.warn(`⚠️  [Token Indexer Persistence] Duplicate token indexer ${idx.id} found in persistence file - skipping`);
-                continue;
-              }
-              
-              // CRITICAL: In ROOT mode, ALL token indexers in persistence file are created via Angular wizard
-              // In ROOT mode, NUM_TOKEN_INDEXERS = 0, so there are no defaults to skip
               if (DEPLOYED_AS_ROOT) {
-                // In ROOT mode: collect ALL token indexers (they're all created via Angular wizard)
-                console.log(`📂 [Token Indexer Persistence] ROOT mode: Collected token indexer ${idx.id} (created via Angular wizard)`);
+                // ROOT mode: restore all token indexers
+                tokenIndexersToRestore.push(persistedIndexer as TokenGardenConfig);
+                restoredCount++;
+                console.log(`📂 [Indexer Persistence] Will restore token indexer: ${persistedIndexer.name} (${persistedIndexer.id})`);
               } else {
-                // In non-ROOT mode: skip default token indexers (T1, T2, etc. up to NUM_TOKEN_INDEXERS)
-                if (NUM_TOKEN_INDEXERS > 0) {
-                  const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
-                  if (defaultTokenIds.includes(idx.id)) {
-                    console.log(`📂 [Token Indexer Persistence] Skipping default token indexer ${idx.id} (created at startup)`);
-                    continue;
-                  }
+                // Non-ROOT mode: exclude defaults
+                const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
+                if (persistedIndexer.id && !defaultTokenIds.includes(persistedIndexer.id)) {
+                  tokenIndexersToRestore.push(persistedIndexer as TokenGardenConfig);
+                  restoredCount++;
+                  console.log(`📂 [Indexer Persistence] Will restore token indexer: ${persistedIndexer.name} (${persistedIndexer.id})`);
                 }
               }
-              
-              // Clear certificate property - it will be reissued
-              const restoredTokenIndexer: TokenIndexerConfig = {
-                ...idx,
-                certificate: undefined // Certificates will be reissued on startup
-              };
-              tokenIndexersToRestore.push(restoredTokenIndexer);
-              collectedTokenIndexerIds.add(idx.id);
-              console.log(`📂 [Token Indexer Persistence] Collected token indexer from persistence: ${idx.id} (${idx.name})`);
             }
           }
-          console.log(`📂 [Token Indexer Persistence] Collected ${tokenIndexersToRestore.length} token indexer(s) from persistence file`);
-        }
-        
-        // Backward compatibility: Also check tokenIndexers field if it exists (old files)
-        // CRITICAL: Only add if not already collected from indexers array (prevent duplicates)
-        if (persisted.tokenIndexers && Array.isArray(persisted.tokenIndexers)) {
-          console.log(`📋 [Token Indexer Persistence] Found tokenIndexers field (backward compatibility) - checking for duplicates...`);
-          let duplicatesSkipped = 0;
-          for (const tokenIdx of persisted.tokenIndexers) {
-            // Skip if already collected from indexers array
-            if (collectedTokenIndexerIds.has(tokenIdx.id)) {
-              duplicatesSkipped++;
-              console.log(`📋 [Token Indexer Persistence] Token indexer ${tokenIdx.id} already collected from indexers array - skipping duplicate`);
-              continue;
-            }
-            
-            // Skip defaults in non-ROOT mode
-            if (!DEPLOYED_AS_ROOT && NUM_TOKEN_INDEXERS > 0) {
-              const defaultTokenIds = Array.from({ length: NUM_TOKEN_INDEXERS }, (_, i) => `T${i + 1}`);
-              if (defaultTokenIds.includes(tokenIdx.id)) {
-                continue;
-              }
-            }
-            const restoredTokenIndexer: TokenIndexerConfig = {
-              ...tokenIdx,
-              certificate: undefined
-            };
-            tokenIndexersToRestore.push(restoredTokenIndexer);
-            collectedTokenIndexerIds.add(tokenIdx.id);
-            console.log(`📋 [Token Indexer Persistence] Collected token indexer from tokenIndexers field: ${tokenIdx.id}`);
-          }
-          if (duplicatesSkipped > 0) {
-            console.log(`📋 [Token Indexer Persistence] Skipped ${duplicatesSkipped} duplicate(s) from tokenIndexers field`);
-          }
-        }
-        
-        // CRITICAL: Final deduplication check - remove any duplicates by ID
-        const finalTokenIndexersMap = new Map<string, TokenIndexerConfig>();
-        for (const tokenIdx of tokenIndexersToRestore) {
-          const existing = finalTokenIndexersMap.get(tokenIdx.id);
-          if (!existing) {
-            finalTokenIndexersMap.set(tokenIdx.id, tokenIdx);
+          
+          console.log(`📂 [Indexer Persistence] Collected ${indexersToRestore.length} regular indexer(s) and ${tokenIndexersToRestore.length} token indexer(s) to restore`);
+          
+          // Clear existing arrays (except defaults in non-ROOT mode)
+          if (DEPLOYED_AS_ROOT) {
+            // ROOT mode: clear all (no defaults)
+            GARDENS.length = 0;
+            TOKEN_GARDENS.length = 0;
           } else {
-            // Prefer the one with certificate, or keep the first one
-            const hasCert = !!(tokenIdx as any).certificate;
-            const existingHasCert = !!(existing as any).certificate;
-            if (hasCert && !existingHasCert) {
-              finalTokenIndexersMap.set(tokenIdx.id, tokenIdx);
-            }
+            // Non-ROOT mode: keep defaults, remove others
+            const defaultIds = Array.from({ length: NUM_GARDENS }, (_, i) => String.fromCharCode(65 + i));
+            const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
+            const filteredGardens = GARDENS.filter(idx => defaultIds.includes(idx.id));
+            const filteredTokenGardens = TOKEN_GARDENS.filter(idx => defaultTokenIds.includes(idx.id));
+            GARDENS.length = 0;
+            TOKEN_GARDENS.length = 0;
+            GARDENS.push(...filteredGardens);
+            TOKEN_GARDENS.push(...filteredTokenGardens);
           }
-        }
-        // Clear and repopulate with deduplicated token indexers
-        tokenIndexersToRestore.length = 0;
-        tokenIndexersToRestore.push(...Array.from(finalTokenIndexersMap.values()));
-        
-        if (finalTokenIndexersMap.size !== collectedTokenIndexerIds.size) {
-          console.warn(`⚠️  [Token Indexer Persistence] Removed ${collectedTokenIndexerIds.size - finalTokenIndexersMap.size} duplicate token indexer(s) during deduplication`);
-        }
-        
-        // CRITICAL: NOW reset memory arrays and populate ONLY with restored indexers
-        // This ensures memory matches persistence file exactly
-        console.log(`🔄 [Indexer Persistence] Resetting in-memory arrays to match persistence file...`);
-        console.log(`   Before reset: ${INDEXERS.length} regular indexers, ${TOKEN_INDEXERS.length} token indexers`);
-        
-        // Clear arrays completely
-        INDEXERS.length = 0;
-        TOKEN_INDEXERS.length = 0;
-        
-        // Populate with all restored indexers from persistence file (including movie indexers)
-        INDEXERS.push(...indexersToRestore);
-        TOKEN_INDEXERS.push(...tokenIndexersToRestore);
-        
-        console.log(`   After reset: ${INDEXERS.length} regular indexers, ${TOKEN_INDEXERS.length} token indexers`);
-        console.log(`✅ [Indexer Persistence] Memory arrays reset to match persistence file exactly`);
-        
-        if (indexersToRestore.length > 0 || tokenIndexersToRestore.length > 0) {
-          console.log(`📜 [Indexer Persistence] Certificates will be reissued for restored indexers during startup`);
-        }
-        
-        // Reissue certificates for restored indexers
-        if (!DEPLOYED_AS_ROOT) {
-          for (const idx of INDEXERS) {
-            if (!idx.certificate) {
-              try {
-                issueIndexerCertificate(idx);
-                console.log(`📜 [Indexer Persistence] Re-issued certificate for ${idx.id}`);
-              } catch (err: any) {
-                console.warn(`⚠️  [Indexer Persistence] Failed to re-issue certificate for ${idx.id}:`, err.message);
-              }
-            }
-          }
-          for (const tokenIdx of TOKEN_INDEXERS) {
-            if (!tokenIdx.certificate) {
-              try {
-                issueIndexerCertificate(tokenIdx);
-                console.log(`📜 [Indexer Persistence] Re-issued certificate for ${tokenIdx.id}`);
-              } catch (err: any) {
-                console.warn(`⚠️  [Indexer Persistence] Failed to re-issue certificate for ${tokenIdx.id}:`, err.message);
-              }
-            }
-          }
+          
+          // Restore indexers from persistence file
+          GARDENS.push(...indexersToRestore);
+          TOKEN_GARDENS.push(...tokenIndexersToRestore);
+          
+          console.log(`✅ [Indexer Persistence] Restored ${indexersToRestore.length} regular indexer(s) and ${tokenIndexersToRestore.length} token indexer(s) from persistence file`);
         }
       }
     } catch (err: any) {
-      console.warn(`⚠️  [Persistence] Failed to load persisted data: ${err.message}`);
+      console.error(`❌ [Indexer Persistence] Failed to restore indexers: ${err.message}`);
     }
   }
   
-  // Start indexer consumers (non-blocking) for all active indexers
-  if (redisConnected) {
-    // Initialize revocation stream consumer groups
-    await initializeRevocationConsumers();
-    
-    // Start revocation stream processors for regular indexers
-    for (const indexer of INDEXERS) {
-      if (indexer.active) {
-        indexerConsumer(indexer.name, indexer.stream).catch(console.error);
-        processRevocationStream(indexer.name, indexer.id).catch(console.error);
-      }
+  // Start the server
+  const PORT = process.env.PORT || 3000;
+  httpServer.listen(PORT, () => {
+    console.log(`\n🚀 Eden Ecosystem Server running on port ${PORT}`);
+    console.log(`📡 WebSocket server ready for connections`);
+    if (DEPLOYED_AS_ROOT) {
+      console.log(`🌳 ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
+    } else {
+      console.log(`🌳 Non-ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
     }
-    
-    // Start revocation stream processors for token indexers
-    for (const tokenIndexer of TOKEN_INDEXERS) {
-      if (tokenIndexer.active) {
-        indexerConsumer(tokenIndexer.name, tokenIndexer.stream).catch(console.error);
-        processRevocationStream(tokenIndexer.name, tokenIndexer.id).catch(console.error);
-      }
-    }
-    
-    console.log(`🌳 Started ${INDEXERS.filter(i => i.active).length} regular indexer(s): ${INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}`);
-    console.log(`🔷 Started ${TOKEN_INDEXERS.filter(i => i.active).length} token indexer(s): ${TOKEN_INDEXERS.filter(i => i.active).map(i => i.name).join(", ")}\n`);
-    console.log(`📜 Started revocation stream processors for all indexers\n`);
-    
-    // Start ROOT CA Settlement Consumer (settlement authority)
-    // ROOT CA is the ONLY settlement authority - indexers execute but never settle
-    console.log(`⚖️  Starting ROOT CA Settlement Consumer...`);
-    rootCASettlementConsumer().catch(console.error);
-    console.log(`✅ ROOT CA Settlement Consumer started\n`);
-  }
-
-  // Start HTTP server (serves Angular + API + WebSocket)
-  httpServer.listen(HTTP_PORT, () => {
-    console.log(`🌐 HTTP server running on port ${HTTP_PORT}`);
-    console.log(`🔌 WebSocket server available at ws://localhost:${HTTP_PORT}/ws`);
-    console.log(`📁 Serving frontend from: ${FRONTEND_PATH}`);
-    console.log(`🌱 Eden Core Online\n`);
-    console.log(`💡 Access the dashboard at: http://localhost:${HTTP_PORT}`);
-    console.log(`💡 API endpoint: http://localhost:${HTTP_PORT}/api/chat\n`);
-  });
-  
-  // Monitor server health
-  httpServer.on("error", (err: Error) => {
-    console.error(`❌ HTTP Server Error:`, err);
-  });
-  
-  httpServer.on("clientError", (err: Error, socket: any) => {
-    console.error(`❌ HTTP Client Error:`, err.message);
-    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
   });
 }
-
-// Handle process termination (wrapped for Node.js v24+ compatibility)
-function setupGracefulShutdown() {
-  const shutdown = async (signal: string) => {
-    console.log(`\n\n🛑 Received ${signal}, shutting down gracefully...`);
-    try {
-      // Save ledger entries and indexers before shutdown
-      if (redis.isOpen) {
-        if (LEDGER.length > 0) {
-          redis.saveLedgerEntries(LEDGER);
-        }
-      // CRITICAL: In ROOT mode, indexers are saved via immediate save in /api/wizard/create-indexer
-      // Do NOT save indexers here - persistence file is the single source of truth
-      if (!DEPLOYED_AS_ROOT) {
-        // Save dynamically created indexers (those with IDs starting with 'indexer-') - non-ROOT mode only
-        const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
-        if (dynamicIndexers.length > 0) {
-          redis.saveIndexers(dynamicIndexers);
-          // Wait a bit for the save to complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      } else {
-        console.log(`📋 [Shutdown] ROOT mode: Skipping indexer save - persistence file is single source of truth`);
-      }
-        await redis.quit();
-      }
-    } catch (err: any) {
-      console.error("Error during shutdown:", err.message);
-    }
-    process.exit(0);
-  };
-
-  // Try to register signal handlers (may fail in Node.js v24+ due to read-only _eventsCount)
-  // Wrap each call individually to prevent one failure from blocking the other
-  const registerHandler = (signal: string) => {
-    try {
-      process.once(signal, () => shutdown(signal));
-    } catch (err: any) {
-      // Silently fail - signal handlers are optional in Node.js v24+
-      // The script will work fine without them
-    }
-  };
-
-  registerHandler("SIGINT");
-  registerHandler("SIGTERM");
-}
-
-setupGracefulShutdown();
-
-main().catch(async (err) => {
-  console.error("❌ Fatal error:", err);
-  try {
-    if (redis.isOpen) {
-      await redis.quit();
-    }
-  } catch (closeErr: any) {
-    console.error("Error closing Redis:", closeErr.message);
-  }
-  process.exit(1);
-});
