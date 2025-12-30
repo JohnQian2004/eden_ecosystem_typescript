@@ -1,0 +1,248 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">⚙️ System Configuration Wizard</h2>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Wallet Balance Display -->
+      <div class="card border-primary" style="min-width: 200px;">
+        <div class="card-body py-2 px-3">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-muted small">Wallet Balance:</span>
+            <span *ngIf="isLoadingBalance" class="spinner-border spinner-border-sm text-primary"></span>
+            <strong *ngIf="!isLoadingBalance" class="text-primary ms-2">
+              {{ walletBalance.toFixed(2) }} JSC
+            </strong>
+          </div>
+        </div>
+      </div>
+      <button 
+        type="button" 
+        class="btn btn-danger" 
+        (click)="resetWalletPersistence()"
+        [disabled]="isResetting">
+        <span *ngIf="!isResetting">🔄 Reset Wallet Persistence</span>
+        <span *ngIf="isResetting">
+          <span class="spinner-border spinner-border-sm me-2"></span>Resetting...
+        </span>
+      </button>
+    </div>
+  </div>
+  
+  <!-- Reset Status Messages -->
+  <div *ngIf="resetSuccess" class="alert alert-success alert-dismissible fade show" role="alert">
+    <strong>✅ Success!</strong> Wallet persistence file has been cleared. All wallet balances have been reset.
+    <button type="button" class="btn-close" (click)="resetSuccess = false" aria-label="Close"></button>
+  </div>
+  <div *ngIf="resetError" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>❌ Error:</strong> {{ resetError }}
+    <button type="button" class="btn-close" (click)="resetError = null" aria-label="Close"></button>
+  </div>
+  
+  <!-- Step 1: Service Type Selection -->
+  <div *ngIf="wizardStep === 1" class="wizard-step">
+    <h4 class="mb-3">Step 1: Select Service Type</h4>
+    <p class="text-muted mb-4">Choose the type of service provider for this indexer</p>
+    
+    <div *ngIf="isLoadingServiceTypes" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading service types...</span>
+      </div>
+    </div>
+    
+    <div class="row g-3" *ngIf="!isLoadingServiceTypes">
+      <div class="col-md-6 col-lg-4" *ngFor="let serviceType of serviceTypes">
+        <div class="card h-100 service-type-card" (click)="selectServiceType(serviceType)" style="cursor: pointer;">
+          <div class="card-body text-center">
+            <div class="display-4 mb-3">{{ serviceType.icon }}</div>
+            <h5 class="card-title">{{ serviceType.name }}</h5>
+            <p class="card-text text-muted small">{{ serviceType.description }}</p>
+            <span class="badge bg-primary">{{ serviceType.type }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Step 2: Configuration -->
+  <div *ngIf="wizardStep === 2" class="wizard-step">
+    <h4 class="mb-3">Step 2: Configure Indexer</h4>
+    <p class="text-muted mb-4">Configure network settings and authorization for {{ selectedServiceType?.name }}</p>
+    
+    <div class="card">
+      <div class="card-body">
+        <form>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Service Type</label>
+              <input type="text" class="form-control" [value]="selectedServiceType?.name" disabled>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Indexer Name</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                [(ngModel)]="indexerConfig.indexerName"
+                name="indexerName"
+                required>
+            </div>
+          </div>
+          
+          <!-- Movie Theater Providers Multi-Select (only for movie service type) -->
+          <div class="row mb-3" *ngIf="selectedServiceType?.type === 'movie'">
+            <div class="col-12">
+              <label class="form-label">Target Movie Theater Providers</label>
+              <select 
+                class="form-select" 
+                [(ngModel)]="indexerConfig.selectedProviders"
+                name="selectedProviders"
+                multiple
+                size="3"
+                style="min-height: 100px;">
+                <option *ngFor="let provider of movieProviders" [value]="provider.id">
+                  {{ provider.name }}
+                </option>
+              </select>
+              <small class="text-muted">
+                Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
+                Selected: {{ indexerConfig.selectedProviders?.length || 0 }} provider(s)
+              </small>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Server IP</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                [(ngModel)]="indexerConfig.serverIp"
+                name="serverIp"
+                placeholder="localhost"
+                required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Server Domain</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                [(ngModel)]="indexerConfig.serverDomain"
+                name="serverDomain"
+                placeholder="indexer.eden.local"
+                required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Server Port</label>
+              <input 
+                type="number" 
+                class="form-control" 
+                [(ngModel)]="indexerConfig.serverPort"
+                name="serverPort"
+                placeholder="3001"
+                min="3001"
+                required>
+              <small class="text-muted">Starting from 3001 (ROOT CA uses 3000)</small>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Network Type</label>
+              <select 
+                class="form-select" 
+                [(ngModel)]="indexerConfig.networkType"
+                name="networkType"
+                required>
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <div class="form-check mt-4">
+                <input 
+                  class="form-check-input" 
+                  type="checkbox" 
+                  [(ngModel)]="indexerConfig.isSnake"
+                  name="isSnake"
+                  [disabled]="selectedServiceType?.type === 'snake'">
+                <label class="form-check-label">
+                  Snake (Advertiser) Service
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Deployment Fee Information -->
+          <div class="alert alert-info mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>Deployment Fee:</strong> {{ calculateDeploymentFee() }} JSC
+                <span *ngIf="selectedServiceType?.type === 'snake'" class="badge bg-warning ms-2">Snake Service (2x)</span>
+                <span *ngIf="selectedServiceType?.type === 'movie'" class="badge bg-info ms-2">
+                  Base: 100 JSC
+                  <span *ngIf="indexerConfig.selectedProviders && indexerConfig.selectedProviders.length > 0">
+                    + {{ (indexerConfig.selectedProviders || []).length }} provider(s) × 10 JSC
+                  </span>
+                </span>
+              </div>
+              <div>
+                <strong>Available Balance:</strong> 
+                <span [class.text-success]="hasSufficientBalance()" 
+                      [class.text-danger]="!hasSufficientBalance()">
+                  {{ walletBalance.toFixed(2) }} JSC
+                </span>
+              </div>
+            </div>
+            <div *ngIf="!hasSufficientBalance() && indexerConfig.indexerName" class="mt-2">
+              <small class="text-danger">
+                ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} JSC, Available: {{ walletBalance.toFixed(2) }} JSC
+              </small>
+            </div>
+          </div>
+          
+          <div class="alert alert-info">
+            <strong>Note:</strong> This wizard will create a new indexer with the specified configuration.
+            The indexer will be certified by ROOT CA and persisted to the system.
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <button type="button" class="btn btn-secondary" (click)="goBack()">← Back</button>
+            <button 
+              type="button" 
+              class="btn"
+              [class.btn-primary]="hasSufficientBalance()"
+              [class.btn-warning]="!hasSufficientBalance() && indexerConfig.indexerName"
+              [class.btn-secondary]="!hasSufficientBalance() && !indexerConfig.indexerName"
+              (click)="createIndexer()"
+              [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance()">
+              <span *ngIf="!isCreating">
+                <span *ngIf="hasSufficientBalance()">Create Indexer</span>
+                <span *ngIf="!hasSufficientBalance() && indexerConfig.indexerName">
+                  Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
+                </span>
+                <span *ngIf="!hasSufficientBalance() && !indexerConfig.indexerName">Create Indexer</span>
+              </span>
+              <span *ngIf="isCreating">
+                <span class="spinner-border spinner-border-sm me-2"></span>Creating...
+              </span>
+            </button>
+          </div>
+          
+          <div *ngIf="creationError" class="alert alert-danger mt-3">
+            {{ creationError }}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Step 3: Success -->
+  <div *ngIf="wizardStep === 3" class="wizard-step">
+    <div class="card border-success">
+      <div class="card-body text-center py-5">
+        <div class="display-1 text-success mb-3">✅</div>
+        <h3 class="mb-3">Indexer Created Successfully!</h3>
+        <p class="text-muted mb-4">The indexer has been created, certified, and persisted to the system.</p>
+        <button type="button" class="btn btn-primary" (click)="resetWizard()">Create Another Indexer</button>
+      </div>
+    </div>
+  </div>
+</div>

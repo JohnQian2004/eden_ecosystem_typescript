@@ -10,6 +10,7 @@ import { LedgerDisplayComponent } from './components/ledger-display/ledger-displ
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
+import { SystemConfigComponent } from './components/system-config/system-config.component';
 
 @NgModule({
   declarations: [
@@ -18,7 +19,8 @@ import { ChatService } from './services/chat.service';
     SidebarComponent,
     IgasDisplayComponent,
     LedgerDisplayComponent,
-    CertificateDisplayComponent
+    CertificateDisplayComponent,
+    SystemConfigComponent
   ],
   imports: [
     BrowserModule,

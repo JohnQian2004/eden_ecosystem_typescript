@@ -1,7 +1,10 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
+import { SidebarComponent } from './components/sidebar/sidebar.component';
+import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
+import { SystemConfigComponent } from './components/system-config/system-config.component';
 
 export interface ServiceProvider {
   id: string;
@@ -101,14 +104,17 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'ledger' | 'certificates' | 'chat' = 'chat';
+  activeTab: 'ledger' | 'certificates' | 'chat' | 'config' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
     : '';
-  
+
+  @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
+  @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
+
   constructor(
     public wsService: WebSocketService,
     private chatService: ChatService,
@@ -260,6 +266,25 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
   
+  refreshIndexers() {
+    // Refresh indexers in sidebar and certificate components
+    // Use setTimeout to ensure ViewChild is initialized
+    setTimeout(() => {
+      if (this.sidebarComponent) {
+        this.sidebarComponent.fetchIndexers();
+        this.sidebarComponent.fetchServiceProviders();
+      }
+      if (this.certificateComponent) {
+        this.certificateComponent.fetchIndexers();
+      }
+      console.log('🔄 Indexers refreshed after wallet reset');
+    }, 100);
+    
+    // Also trigger via localStorage as fallback
+    localStorage.setItem('edenRefreshIndexers', Date.now().toString());
+    setTimeout(() => localStorage.removeItem('edenRefreshIndexers'), 100);
+  }
+
   loadWalletBalance() {
     // Ensure email is set before loading balance
     if (!this.userEmail) {

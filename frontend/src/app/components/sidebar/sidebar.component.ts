@@ -70,6 +70,29 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.updateComponentStatus(event);
       this.updateSelectedIndexerComponents();
     });
+    
+    // Listen for indexer refresh events (triggered after wallet reset)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'edenRefreshIndexers') {
+        console.log('🔄 Refreshing indexers after wallet reset...');
+        this.fetchIndexers();
+        this.fetchServiceProviders();
+      }
+    });
+    
+    // Also listen for same-window events (since storage event only fires in other windows)
+    const originalSetItem = localStorage.setItem;
+    const self = this;
+    localStorage.setItem = function(key: string, value: string) {
+      originalSetItem.apply(this, arguments as any);
+      if (key === 'edenRefreshIndexers') {
+        console.log('🔄 Refreshing indexers after wallet reset...');
+        setTimeout(() => {
+          self.fetchIndexers();
+          self.fetchServiceProviders();
+        }, 100);
+      }
+    };
   }
   
   setViewMode(mode: 'god' | 'priest') {
@@ -587,7 +610,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   getComponentsForIndexer(indexerId: string): ComponentStatus[] {
     // Check indexer type
-    const indexer = this.indexers.find(i => i.id === indexerId);
+    // indexerId is the tab ID (e.g., "B"), need to find the indexer by matching mapped ID
+    const indexer = this.indexers.find(i => {
+      // Map indexer's full ID to tab ID and compare
+      const mappedId = this.mapIndexerIdToTabId(i.id);
+      return mappedId === indexerId;
+    });
     const isRootIndexer = indexer?.type === 'root'; // Holy Ghost
     const isTokenIndexer = indexer?.type === 'token';
     
@@ -645,84 +673,36 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
     
     // Regular and Token Indexers - filter service providers based on indexerId from ServiceRegistry
-    // Only show services that belong to this indexer
-    let providerComponents = Array.from(this.components.values())
-      .filter(c => {
+    // Show ALL providers that are registered with this indexer in the backend ServiceRegistry
+    // The backend determines which providers belong to which indexer via the indexerId field
+    let providerComponents = Array.from(this.components.entries())
+      .filter(([componentKey, c]) => {
         if (c.category !== 'service-provider') return false;
         
-        // Find the service provider in our ServiceRegistry map by matching component name
+        // Find the service provider in our ServiceRegistry map by matching component key to provider ID
         let belongsToIndexer = false;
-        let serviceType = '';
         
+        // Match component key to provider ID using the reverse mapping
         for (const [providerId, provider] of this.serviceProviders.entries()) {
-          // Try to match component name with provider name or ID
-          const componentNameLower = c.name.toLowerCase();
-          const providerNameLower = provider.name.toLowerCase();
-          const providerIdLower = providerId.toLowerCase();
+          // Get the expected component key for this provider
+          const expectedComponentKey = this.mapProviderIdToComponentKey(providerId);
           
-          // Match if component name contains provider name or ID
-          if (componentNameLower.includes(providerNameLower) || 
-              componentNameLower.includes(providerIdLower.replace(/-\d+$/, '')) ||
-              providerNameLower.includes(componentNameLower.replace(/\s+/g, '-'))) {
+          // Match if component key matches expected key
+          if (componentKey === expectedComponentKey) {
             // Map provider's indexerId to sidebar tab ID
             const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
             
             if (mappedIndexerId === indexerId) {
               belongsToIndexer = true;
-              serviceType = provider.serviceType;
               break;
             }
           }
         }
         
-        if (!belongsToIndexer) {
-          // Fallback: if not found in ServiceRegistry, use old logic
-          // For regular indexers: exclude DEX/token services
-          // For token indexers: filter out movie providers
-          if (isTokenIndexer) {
-            const movieProviderNames = ['AMC Theatres', 'Cinemark', 'MovieCom', 'AMC', 'Moviecom'];
-            const isMovieProvider = movieProviderNames.some(movie => 
-              c.name.toLowerCase().includes(movie.toLowerCase())
-            );
-            if (isMovieProvider) return false;
-            // Only include DEX-related providers
-            return c.name.toLowerCase().includes('pool') || 
-                   c.name.toLowerCase().includes('dex') ||
-                   c.name.toLowerCase().includes('token');
-          } else {
-            // Regular indexer: exclude DEX/token services and infrastructure services
-            const isDEXProvider = c.name.toLowerCase().includes('pool') || 
-                                  c.name.toLowerCase().includes('dex') ||
-                                  (c.name.toLowerCase().includes('token') && !c.name.toLowerCase().includes('snake'));
-            const isInfrastructureProvider = c.name.toLowerCase().includes('stripe') ||
-                                           c.name.toLowerCase().includes('settlement') ||
-                                           c.name.toLowerCase().includes('registry') ||
-                                           c.name.toLowerCase().includes('webserver') ||
-                                           c.name.toLowerCase().includes('websocket');
-            if (isDEXProvider || isInfrastructureProvider) return false;
-            // Show movie providers and Snake services
-            return true;
-          }
-        }
-        
-        // Additional filtering by service type
-        if (isTokenIndexer) {
-          // Token indexers: only show DEX services (serviceType: "dex")
-          return serviceType === 'dex';
-        } else {
-          // Regular indexers: show movie services and Snake services, but NOT DEX/token services or infrastructure
-          // Explicitly exclude DEX services and infrastructure services from regular indexers
-          if (serviceType === 'dex' || 
-              serviceType === 'payment-rail' || 
-              serviceType === 'settlement' || 
-              serviceType === 'registry' || 
-              serviceType === 'webserver' || 
-              serviceType === 'websocket') {
-            return false;
-          }
-          return serviceType === 'movie' || serviceType === 'snake';
-        }
-      });
+        // Show all providers that belong to this indexer according to the backend ServiceRegistry
+        return belongsToIndexer;
+      })
+      .map(([_, c]) => c); // Extract component values
     
     // Sort providers
     providerComponents = providerComponents.sort((a, b) => a.name.localeCompare(b.name));

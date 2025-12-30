@@ -82,7 +82,7 @@
                     <h6 class="card-title mb-1 small fw-bold">Stripe Payment Rail</h6>
                     <div class="small mb-2">
                       <div><strong>Buy JesusCoin</strong></div>
-                      <div>100 JSC = $100 USD</div>
+                      <div>500 JSC = $500 USD</div>
                     </div>
                     <div class="mb-2 small" *ngIf="userEmail">
                       <div><strong>Email:</strong> {{ userEmail }}</div>
@@ -96,9 +96,9 @@
                     </div>
                     <button 
                       class="btn btn-light btn-sm w-100 mb-2" 
-                      (click)="buyJesusCoin(100); $event.stopPropagation()"
+                      (click)="buyJesusCoin(500); $event.stopPropagation()"
                       [disabled]="isProcessingStripe || isProcessingIndexer || !userEmail">
-                      <span *ngIf="!isProcessingStripe">BUY 100 JSC</span>
+                      <span *ngIf="!isProcessingStripe">BUY 500 JSC</span>
                       <span *ngIf="isProcessingStripe">
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                         Processing...
@@ -234,17 +234,28 @@
                   🔐 Certificates
                 </button>
               </li>
-              <li class="nav-item" role="presentation">
-                <button 
-                  class="nav-link" 
-                  [ngClass]="{'active': activeTab === 'chat'}"
-                  id="chat-tab" 
-                  type="button" 
-                  (click)="activeTab = 'chat'"
-                  role="tab">
-                  💬 Simulator Chat
-                </button>
-              </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'chat'}"
+                      id="chat-tab" 
+                      type="button"
+                      (click)="activeTab = 'chat'"
+                      role="tab">
+                      💬 Simulator Chat
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'config'}"
+                      id="config-tab" 
+                      type="button"
+                      (click)="activeTab = 'config'"
+                      role="tab">
+                      ⚙️ System Configuration
+                    </button>
+                  </li>
             </ul>
             
             <div class="tab-content" id="mainTabContent">
@@ -273,6 +284,14 @@
                 id="chat-pane" 
                 role="tabpanel">
                 <app-chat-box></app-chat-box>
+              </div>
+              <!-- System Configuration Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'config'}"
+                id="config-pane" 
+                role="tabpanel">
+                <app-system-config (indexersRefreshed)="refreshIndexers()"></app-system-config>
               </div>
             </div>
           </div>

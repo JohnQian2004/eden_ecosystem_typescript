@@ -28,17 +28,23 @@ const args = process.argv.slice(2);
 const MOCKED_LLM = args.some(arg => arg.includes("--mocked-llm") && (arg.includes("=true") || !arg.includes("=false")));
 const SKIP_REDIS = args.some(arg => arg.includes("--skip-redis") && (arg.includes("=true") || !arg.includes("=false")));
 const ENABLE_OPENAI = args.some(arg => arg.includes("--enable-openai") && (arg.includes("=true") || !arg.includes("=false")));
+const DEPLOYED_AS_ROOT = args.some(arg => arg.includes("--deployed-as-root") && (arg.includes("=true") || !arg.includes("=false")));
 
-// Parse --indexers flag (default: 2)
+// Parse --indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
 const indexersArg = args.find(arg => arg.startsWith("--indexers"));
-const NUM_INDEXERS = indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2;
+const NUM_INDEXERS = DEPLOYED_AS_ROOT ? 0 : (indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2);
 
-// Parse --token-indexers flag (default: 2)
+// Parse --token-indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
 const tokenIndexersArg = args.find(arg => arg.startsWith("--token-indexers"));
-const NUM_TOKEN_INDEXERS = tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2;
+const NUM_TOKEN_INDEXERS = DEPLOYED_AS_ROOT ? 0 : (tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2);
 
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
+
+// Wallet Service Constants
+const WALLET_BALANCE_PREFIX = "wallet:balance:";
+const WALLET_HOLD_PREFIX = "wallet:hold:";
+const WALLET_AUDIT_PREFIX = "wallet:audit:";
 
 // Stripe Configuration (hardcoded as requested)
 const STRIPE_SECRET_KEY = "sk_test_51RrflYP4h6MOSVxDAFUAr0i7mmsQ8MSGi9Y0atxTsVaeVZsokRn09C9AEc0TWHidYdicNnGBTRpgJsoGz2CsZ0HC009CA5NFCn";
@@ -62,15 +68,17 @@ interface IndexerConfig {
 }
 
 const INDEXERS: IndexerConfig[] = [];
-for (let i = 0; i < NUM_INDEXERS; i++) {
-  const indexerId = String.fromCharCode(65 + i); // A, B, C, D, E...
-  INDEXERS.push({
-    id: indexerId,
-    name: `Indexer-${indexerId}`,
-    stream: `eden:indexer:${indexerId}`,
-    active: true,
-    uuid: `eden:indexer:${crypto.randomUUID()}`
-  });
+if (!DEPLOYED_AS_ROOT) {
+  for (let i = 0; i < NUM_INDEXERS; i++) {
+    const indexerId = String.fromCharCode(65 + i); // A, B, C, D, E...
+    INDEXERS.push({
+      id: indexerId,
+      name: `Indexer-${indexerId}`,
+      stream: `eden:indexer:${indexerId}`,
+      active: true,
+      uuid: `eden:indexer:${crypto.randomUUID()}`
+    });
+  }
 }
 
 // Token Indexers (specialized indexers providing DEX token/pool services)
@@ -79,16 +87,18 @@ interface TokenIndexerConfig extends IndexerConfig {
 }
 
 const TOKEN_INDEXERS: TokenIndexerConfig[] = [];
-for (let i = 0; i < NUM_TOKEN_INDEXERS; i++) {
-  const tokenIndexerId = `T${i + 1}`; // T1, T2, T3...
-  TOKEN_INDEXERS.push({
-    id: tokenIndexerId,
-    name: `TokenIndexer-${tokenIndexerId}`,
-    stream: `eden:token-indexer:${tokenIndexerId}`,
-    active: true,
-    uuid: `eden:token-indexer:${crypto.randomUUID()}`,
-    tokenServiceType: 'dex'
-  });
+if (!DEPLOYED_AS_ROOT) {
+  for (let i = 0; i < NUM_TOKEN_INDEXERS; i++) {
+    const tokenIndexerId = `T${i + 1}`; // T1, T2, T3...
+    TOKEN_INDEXERS.push({
+      id: tokenIndexerId,
+      name: `TokenIndexer-${tokenIndexerId}`,
+      stream: `eden:token-indexer:${tokenIndexerId}`,
+      active: true,
+      uuid: `eden:token-indexer:${crypto.randomUUID()}`,
+      tokenServiceType: 'dex'
+    });
+  }
 }
 
 // ROOT CA Identity and PKI
@@ -162,8 +172,9 @@ function broadcastEvent(event: any) {
 // HTTP Server Routes
 httpServer.on("request", async (req, res) => {
   const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  console.log(`\n📥 [${requestId}] Incoming ${req.method} request: ${req.url}`);
-  console.log(`   Headers:`, JSON.stringify(req.headers, null, 2));
+  // Verbose logging disabled - uncomment below for debugging
+  // console.log(`\n📥 [${requestId}] Incoming ${req.method} request: ${req.url}`);
+  // console.log(`   Headers:`, JSON.stringify(req.headers, null, 2));
   
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
@@ -493,7 +504,8 @@ httpServer.on("request", async (req, res) => {
   }
 
   if (pathname === "/api/certificates" && req.method === "GET") {
-    console.log(`   ✅ [${requestId}] GET /api/certificates - Sending certificate list`);
+    // Verbose logging disabled - uncomment below for debugging
+    // console.log(`   ✅ [${requestId}] GET /api/certificates - Sending certificate list`);
     const parsedUrl = url.parse(req.url || "/", true);
     const uuid = parsedUrl.query.uuid as string | undefined;
     
@@ -1190,6 +1202,82 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // POST /api/wallet/reset - Reset wallet persistence file (clear all wallet balances)
+  if (pathname === "/api/wallet/reset" && req.method === "POST") {
+    console.log(`   🔄 [${requestId}] POST /api/wallet/reset - Clearing generated indexers only`);
+    
+    try {
+      await ensureRedisConnection();
+      
+      // Clear generated indexers from in-memory arrays
+      // Keep only the default indexers (A, B, C, etc. and T1, T2, etc.)
+      // Remove dynamically created indexers (those with IDs starting with 'indexer-')
+      const dynamicIndexers = INDEXERS.filter(i => i.id.startsWith('indexer-'));
+      const dynamicTokenIndexers = TOKEN_INDEXERS.filter(i => i.id.startsWith('indexer-'));
+      
+      const clearedIndexersCount = dynamicIndexers.length + dynamicTokenIndexers.length;
+      
+      // Remove dynamic indexers from arrays (filter out those starting with 'indexer-')
+      const filteredIndexers = INDEXERS.filter(i => !i.id.startsWith('indexer-'));
+      const filteredTokenIndexers = TOKEN_INDEXERS.filter(i => !i.id.startsWith('indexer-'));
+      
+      // Clear arrays and repopulate with filtered indexers
+      INDEXERS.length = 0;
+      INDEXERS.push(...filteredIndexers);
+      
+      TOKEN_INDEXERS.length = 0;
+      TOKEN_INDEXERS.push(...filteredTokenIndexers);
+      
+      // Save cleared indexers state to persistence (empty array since all dynamic indexers are cleared)
+      redis.saveIndexers([]);
+      
+      // Update persistence file - keep wallet balances and ledger entries, only clear indexers
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      let currentPersistence: any = {
+        walletBalances: {},
+        ledgerEntries: [],
+        indexers: []
+      };
+      
+      // Load existing persistence to preserve wallet balances and ledger entries
+      if (fs.existsSync(persistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+          currentPersistence = JSON.parse(fileContent);
+        } catch (err: any) {
+          console.warn(`   ⚠️  Could not load existing persistence file:`, err.message);
+        }
+      }
+      
+      // Update persistence file - keep wallet balances and ledger entries, clear only indexers
+      const updatedPersistence = {
+        walletBalances: currentPersistence.walletBalances || {},
+        ledgerEntries: LEDGER.length > 0 ? LEDGER : (currentPersistence.ledgerEntries || []),
+        indexers: [], // Clear indexers
+        lastSaved: new Date().toISOString(),
+        resetAt: new Date().toISOString()
+      };
+      
+      fs.writeFileSync(persistenceFile, JSON.stringify(updatedPersistence, null, 2), 'utf-8');
+      
+      console.log(`   ✅ Cleared ${clearedIndexersCount} generated indexers. Wallet balances and ledger entries preserved.`);
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        message: `Reset successful. Cleared ${clearedIndexersCount} generated indexers. Wallet balances and ledger entries preserved.`,
+        clearedIndexers: clearedIndexersCount,
+        remainingIndexers: INDEXERS.length + TOKEN_INDEXERS.length,
+        persistenceFile: persistenceFile
+      }));
+    } catch (err: any) {
+      console.error(`   ❌ Error resetting:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
   // GET /api/jsc/transactions/:email - Get user transaction history
   if (pathname.startsWith("/api/jsc/transactions/") && req.method === "GET") {
     const email = decodeURIComponent(pathname.split("/api/jsc/transactions/")[1]);
@@ -1630,11 +1718,11 @@ httpServer.on("request", async (req, res) => {
     return;
   }
   
-  // Log unhandled routes for debugging
+  // Log unhandled routes for debugging (disabled for less verbose output)
   if (!pathname.startsWith("/api/")) {
-    console.log(`   📁 [${requestId}] Serving static file: ${pathname}`);
+    // console.log(`   📁 [${requestId}] Serving static file: ${pathname}`);
   } else {
-    console.log(`   ⚠️  [${requestId}] Unhandled API route: ${req.method} ${pathname}`);
+    // console.log(`   ⚠️  [${requestId}] Unhandled API route: ${req.method} ${pathname}`);
   }
 
   if (pathname === "/api/ledger" && req.method === "GET") {
@@ -1657,6 +1745,373 @@ httpServer.on("request", async (req, res) => {
       success: true,
       cashier: cashierStatus
     }));
+    return;
+  }
+
+  // ============================================
+  // SYSTEM PROMPT GENERATION SERVICE (Holy Ghost)
+  // ============================================
+  if (pathname === "/api/system-prompt/generate" && req.method === "POST") {
+    console.log(`   🤖 [${requestId}] POST /api/system-prompt/generate - Generating system prompt`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { description, serviceType } = JSON.parse(body);
+        if (!description || !serviceType) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "description and serviceType required" }));
+          return;
+        }
+        
+        // Generate prompts using LLM
+        const prompts = await generateSystemPrompts(description, serviceType);
+        
+        // Store in Redis
+        const redisKey = `eden:system-prompts:${serviceType}`;
+        redis.set(redisKey, JSON.stringify(prompts));
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, prompts, redisKey }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/system-prompt/") && req.method === "GET") {
+    const serviceType = pathname.split("/").pop();
+    console.log(`   📋 [${requestId}] GET /api/system-prompt/${serviceType} - Retrieving system prompt`);
+    
+    try {
+      const redisKey = `eden:system-prompts:${serviceType}`;
+      const promptsJson = redis.get(redisKey);
+      
+      if (promptsJson) {
+        const prompts = JSON.parse(promptsJson);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, prompts }));
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "System prompt not found" }));
+      }
+    } catch (err: any) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // ============================================
+  // NOTIFICATION CODE GENERATION SERVICE (Holy Ghost)
+  // ============================================
+  if (pathname === "/api/notification-code/generate" && req.method === "POST") {
+    console.log(`   🔔 [${requestId}] POST /api/notification-code/generate - Generating notification code`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { providerId, providerName, language, framework, indexerEndpoint, webhookUrl, serviceType, notificationMethods } = JSON.parse(body);
+        if (!providerId || !language || !framework) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "providerId, language, and framework required" }));
+          return;
+        }
+        
+        // Generate code using LLM
+        const code = await generateNotificationCode({
+          providerId,
+          providerName: providerName || providerId,
+          language,
+          framework,
+          indexerEndpoint: indexerEndpoint || `http://localhost:${HTTP_PORT}`,
+          webhookUrl: webhookUrl || `http://localhost:${HTTP_PORT}/mock/webhook/${providerId}`,
+          serviceType: serviceType || "movie",
+          notificationMethods: notificationMethods || ["webhook", "pull", "rpc"]
+        });
+        
+        // Store in Redis
+        const redisKey = `eden:notification-code:${providerId}`;
+        redis.set(redisKey, JSON.stringify(code));
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, code, redisKey }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/notification-code/") && req.method === "GET") {
+    const providerId = pathname.split("/").pop();
+    console.log(`   📋 [${requestId}] GET /api/notification-code/${providerId} - Retrieving notification code`);
+    
+    try {
+      const redisKey = `eden:notification-code:${providerId}`;
+      const codeJson = redis.get(redisKey);
+      
+      if (codeJson) {
+        const code = JSON.parse(codeJson);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, code }));
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Notification code not found" }));
+      }
+    } catch (err: any) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // ============================================
+  // CERTIFICATION PROVISION WIZARD API
+  // ============================================
+  if (pathname === "/api/wizard/service-types" && req.method === "GET") {
+    // Verbose logging disabled - uncomment below for debugging
+    // console.log(`   🧙 [${requestId}] GET /api/wizard/service-types - Getting service types`);
+    
+    const serviceTypes = [
+      { type: "movie", icon: "🎬", name: "Movie Tickets", description: "Movie ticket booking service" },
+      { type: "dex", icon: "💰", name: "DEX Tokens", description: "Decentralized exchange token pools" },
+      { type: "airline", icon: "✈️", name: "Airline Tickets", description: "Airline ticket booking service" },
+      { type: "autoparts", icon: "🔧", name: "Auto Parts", description: "Automotive parts marketplace" },
+      { type: "hotel", icon: "🏨", name: "Hotel Booking", description: "Hotel reservation service" },
+      { type: "restaurant", icon: "🍽️", name: "Restaurant Reservations", description: "Restaurant booking service" },
+      { type: "snake", icon: "🐍", name: "Snake (Advertiser)", description: "Advertising service provider" }
+    ];
+    
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, serviceTypes }));
+    return;
+  }
+
+  if (pathname === "/api/wizard/create-indexer" && req.method === "POST") {
+    console.log(`   🧙 [${requestId}] POST /api/wizard/create-indexer - Creating indexer via wizard`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const requestData = JSON.parse(body);
+        const { serviceType, indexerName, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
+        
+        // Log received data for debugging
+        console.log(`   📥 Received create-indexer request:`, {
+          serviceType,
+          indexerName,
+          selectedProviders: selectedProviders || 'NOT PROVIDED',
+          selectedProvidersType: typeof selectedProviders,
+          selectedProvidersIsArray: Array.isArray(selectedProviders)
+        });
+        
+        if (!serviceType || !indexerName) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "serviceType and indexerName required" }));
+          return;
+        }
+        
+        // Validate email (Google user aware)
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required. Please sign in with Google first." }));
+          return;
+        }
+        
+        // Validate amount
+        if (!amount || typeof amount !== 'number' || amount <= 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid deployment fee amount required" }));
+          return;
+        }
+        
+        // Check wallet balance BEFORE creating indexer
+        const balance = await getWalletBalance(email);
+        if (balance < amount) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Insufficient balance. Required: ${amount} JSC, Available: ${balance} JSC. Please purchase more JSC first.`,
+            balance: balance
+          }));
+          return;
+        }
+        
+        // Debit wallet balance BEFORE creating indexer
+        const txId = crypto.randomUUID();
+        const debitResult = await debitWallet(
+          email,
+          amount,
+          txId,
+          'indexer_deployment',
+          { 
+            serviceType: serviceType,
+            indexerName: indexerName,
+            createdBy: email
+          }
+        );
+        
+        if (!debitResult.success) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: debitResult.error || 'Failed to debit wallet',
+            balance: debitResult.balance
+          }));
+          return;
+        }
+        
+        // Determine next available port (starting from 3001) if not provided
+        let finalPort = serverPort;
+        if (!finalPort || finalPort < 3001) {
+          const basePort = 3001;
+          const existingIndexers = [...INDEXERS, ...TOKEN_INDEXERS];
+          const usedPorts = existingIndexers.map(i => {
+            // Extract port from existing indexers if stored
+            return (i as any).serverPort || null;
+          }).filter(p => p !== null && p !== undefined);
+          
+          let nextPort = basePort;
+          while (usedPorts.includes(nextPort)) {
+            nextPort++;
+          }
+          finalPort = nextPort;
+        }
+        
+        // Create indexer configuration
+        const existingIndexers = [...INDEXERS, ...TOKEN_INDEXERS];
+        const indexerId = isSnake ? `S${existingIndexers.filter(i => (i as any).isSnake).length + 1}` : 
+                       (serviceType === "dex" ? `T${TOKEN_INDEXERS.length + 1}` : 
+                        String.fromCharCode(65 + INDEXERS.length));
+        
+        const indexerConfig: IndexerConfig = {
+          id: indexerId,
+          name: indexerName,
+          stream: isSnake ? `eden:snake:${indexerId}` : 
+                 (serviceType === "dex" ? `eden:token-indexer:${indexerId}` : `eden:indexer:${indexerId}`),
+          active: true,
+          uuid: `eden:indexer:${crypto.randomUUID()}`,
+        };
+        
+        // Add network configuration
+        (indexerConfig as any).serverIp = serverIp || "localhost";
+        (indexerConfig as any).serverDomain = serverDomain || `indexer-${indexerId.toLowerCase()}.eden.local`;
+        (indexerConfig as any).serverPort = finalPort;
+        (indexerConfig as any).networkType = networkType || "http";
+        (indexerConfig as any).serviceType = serviceType;
+        (indexerConfig as any).isSnake = isSnake || false;
+        
+        // Add to appropriate array
+        if (serviceType === "dex") {
+          (TOKEN_INDEXERS as any[]).push({ ...indexerConfig, tokenServiceType: 'dex' });
+        } else {
+          INDEXERS.push(indexerConfig);
+        }
+        
+        // Issue certificate
+        issueIndexerCertificate(indexerConfig);
+        
+        // Create service providers for movie indexers based on selectedProviders
+        let providersCreated = 0;
+        if (serviceType === "movie") {
+          // Validate that selectedProviders is provided and is an array
+          if (!selectedProviders || !Array.isArray(selectedProviders) || selectedProviders.length === 0) {
+            console.warn(`   ⚠️  No selectedProviders provided for movie indexer. Skipping provider creation.`);
+          } else {
+            console.log(`   🎬 Creating ${selectedProviders.length} movie service provider(s) for indexer ${indexerConfig.id}...`);
+            console.log(`   📋 Selected providers array:`, selectedProviders);
+            console.log(`   📋 Selected providers count: ${selectedProviders.length}`);
+            
+            // Map of provider IDs to their base configurations
+            // ONLY these providers will be created - no others
+            const providerMap: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }> = {
+              'amc-001': {
+                name: 'AMC Theatres',
+                uuid: '550e8400-e29b-41d4-a716-446655440001',
+                location: 'Baltimore, Maryland',
+                bond: 1000,
+                reputation: 4.8,
+                apiEndpoint: 'https://api.amctheatres.com/v1/listings'
+              },
+              'cinemark-001': {
+                name: 'Cinemark',
+                uuid: '550e8400-e29b-41d4-a716-446655440003',
+                location: 'Baltimore, Maryland',
+                bond: 1200,
+                reputation: 4.7,
+                apiEndpoint: 'https://api.cinemark.com/movies'
+              },
+              'moviecom-001': {
+                name: 'MovieCom',
+                uuid: '550e8400-e29b-41d4-a716-446655440002',
+                location: 'Baltimore, Maryland',
+                bond: 800,
+                reputation: 4.5,
+                apiEndpoint: 'https://api.moviecom.com/showtimes'
+              }
+            };
+            
+            // Assign existing providers to this indexer (don't create new provider instances)
+            // Find providers in ROOT_CA_SERVICE_REGISTRY and update their indexerId
+            for (const providerId of selectedProviders) {
+              // Find the existing provider in the ServiceRegistry
+              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId);
+              
+              if (existingProvider) {
+                // Update the provider's indexerId to point to this indexer
+                existingProvider.indexerId = indexerConfig.id;
+                providersCreated++;
+                console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to indexer ${indexerConfig.id}`);
+                
+                // Broadcast event for provider assignment
+                broadcastEvent({
+                  type: "service_provider_assigned",
+                  component: "root-ca",
+                  message: `Service provider ${existingProvider.name} assigned to ${indexerConfig.name}`,
+                  timestamp: Date.now(),
+                  data: {
+                    providerId: existingProvider.id,
+                    providerName: existingProvider.name,
+                    indexerId: indexerConfig.id,
+                    indexerName: indexerConfig.name
+                  }
+                });
+              } else {
+                console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry. Skipping.`);
+              }
+            }
+            
+            console.log(`   ✅ Created ${providersCreated} service provider(s) for indexer ${indexerConfig.id}`);
+          }
+        }
+        
+        // Persist indexers
+        const dynamicIndexers = serviceType === "dex" ? TOKEN_INDEXERS : INDEXERS;
+        redis.saveIndexers(dynamicIndexers);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          indexer: {
+            id: indexerConfig.id,
+            name: indexerConfig.name,
+            uuid: indexerConfig.uuid,
+            port: (indexerConfig as any).serverPort,
+            hasCertificate: !!indexerConfig.certificate
+          },
+          balance: debitResult.balance, // Return updated balance
+          createdBy: email, // Return the Google user email
+          providersCreated: providersCreated // Return number of providers created
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
     return;
   }
 
@@ -1877,6 +2332,30 @@ class InMemoryRedisServer extends EventEmitter {
     if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
       this.savePersistence();
     }
+  }
+
+  async del(key: string): Promise<number> {
+    const existed = this.data.has(key);
+    if (existed) {
+      this.data.delete(key);
+      // Persist wallet-related keys immediately
+      if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:') || key.startsWith('wallet:hold:')) {
+        this.savePersistence();
+      }
+      return 1;
+    }
+    return 0;
+  }
+
+  // Get all keys matching a pattern (for wallet reset)
+  getKeysMatching(pattern: string): string[] {
+    const keys: string[] = [];
+    for (const key of this.data.keys()) {
+      if (key.startsWith(pattern)) {
+        keys.push(key);
+      }
+    }
+    return keys;
   }
 
   async hSet(key: string, value: any): Promise<number> {
@@ -3877,10 +4356,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 // Wallet is Redis-backed, authoritative, event-sourced
 // EdenCore submits intents, Wallet decides and updates balances
 // Ledger records outcomes but does not define truth
-
-const WALLET_BALANCE_PREFIX = "wallet:balance:";
-const WALLET_HOLD_PREFIX = "wallet:hold:";
-const WALLET_AUDIT_PREFIX = "wallet:audit:";
+// (Constants moved to top of file for use in reset endpoint)
 
 interface WalletIntent {
   intent: "CREDIT" | "DEBIT" | "HOLD" | "RELEASE";
@@ -6153,13 +6629,33 @@ async function processChatInput(input: string, email: string) {
     console.log(`   Token Amount: ${tokenAmount} ${tokenListing.tokenSymbol}`);
     console.log(`   Pool: ${tokenListing.poolId}`);
     
+    // IMPORTANT: Sync wallet balance BEFORE processing (Google user aware)
+    const currentWalletBalance = await getWalletBalance(user.email);
+    user.balance = currentWalletBalance;
+    
     // Execute DEX trade
     const trade = executeDEXTrade(tokenListing.poolId, action, tokenAmount, user.email);
     
-    // Update user balance (for BUY: deduct baseToken, for SELL: add baseToken)
+    // Check balance BEFORE processing (for BUY: need baseToken, for SELL: need tokens)
     if (action === 'BUY') {
-      if (user.balance < trade.baseAmount) {
-        throw new Error(`Insufficient balance. Need ${trade.baseAmount} ${tokenListing.baseToken}, have ${user.balance}`);
+      const totalCost = trade.baseAmount + llmResponse.iGasCost;
+      if (currentWalletBalance < totalCost) {
+        const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} ${tokenListing.baseToken} (${trade.baseAmount} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${currentWalletBalance.toFixed(6)} ${tokenListing.baseToken}`;
+        console.error(`❌ ${errorMsg}`);
+        broadcastEvent({
+          type: "insufficient_balance",
+          component: "wallet",
+          message: errorMsg,
+          timestamp: Date.now(),
+          data: {
+            email: user.email,
+            balance: currentWalletBalance,
+            required: totalCost,
+            tradeAmount: trade.baseAmount,
+            iGasCost: llmResponse.iGasCost
+          }
+        });
+        throw new Error(errorMsg);
       }
       user.balance -= trade.baseAmount;
       console.log(`💸 Deducted ${trade.baseAmount} ${tokenListing.baseToken} from user balance`);
@@ -6252,6 +6748,33 @@ async function processChatInput(input: string, email: string) {
 
   console.log("3️⃣ Ledger: Create Booking Entry");
   const moviePrice = selectedListing.price;
+  
+  // IMPORTANT: Check wallet balance BEFORE creating ledger entry (Google user aware)
+  // Re-sync user.balance with wallet balance (wallet is source of truth)
+  // Note: currentWalletBalance was already declared at function start, so we update it
+  const updatedWalletBalance = await getWalletBalance(user.email);
+  user.balance = updatedWalletBalance;
+  
+  // Check if user has sufficient balance BEFORE creating ledger entry
+  const totalCost = moviePrice + llmResponse.iGasCost;
+  if (updatedWalletBalance < totalCost) {
+    const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} JSC (${moviePrice} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${currentWalletBalance.toFixed(6)} JSC`;
+    console.error(`❌ ${errorMsg}`);
+    broadcastEvent({
+      type: "insufficient_balance",
+      component: "wallet",
+      message: errorMsg,
+      timestamp: Date.now(),
+      data: {
+        email: user.email,
+        balance: updatedWalletBalance,
+        required: totalCost,
+        moviePrice: moviePrice,
+        iGasCost: llmResponse.iGasCost
+      }
+    });
+    throw new Error(errorMsg);
+  }
   
   // Create snapshot first (needed for ledger entry)
   const snapshot = createSnapshot(user.email, moviePrice, selectedListing.providerId);
@@ -6448,6 +6971,185 @@ async function processChatInput(input: string, email: string) {
   }
 }
 
+// ============================================
+// SYSTEM PROMPT GENERATION (Holy Ghost Service)
+// ============================================
+async function generateSystemPrompts(description: string, serviceType: string): Promise<any> {
+  const prompt = `Generate system prompts for an Eden service provider.
+
+Service Type: ${serviceType}
+Description: ${description}
+
+Generate two prompts:
+1. Query Extraction Prompt: Instructions for extracting user intent from natural language queries
+2. Response Formatting Prompt: Instructions for formatting provider responses
+
+Return JSON with:
+{
+  "queryExtractionPrompt": "...",
+  "responseFormattingPrompt": "...",
+  "metadata": {
+    "description": "${description}",
+    "serviceType": "${serviceType}",
+    "requiredFields": [...],
+    "ledgerFields": [...]
+  }
+}`;
+
+  if (MOCKED_LLM) {
+    return {
+      queryExtractionPrompt: `You are Eden Core AI query processor for ${serviceType} services.\nExtract service query from user input.\nReturn JSON only with: query (object with serviceType and filters), serviceType, confidence.`,
+      responseFormattingPrompt: `You are Eden Core AI response formatter for ${serviceType} services.\nFormat service provider listings into user-friendly chat response.`,
+      metadata: {
+        description,
+        serviceType,
+        requiredFields: [],
+        ledgerFields: []
+      },
+      generatedAt: Date.now(),
+      generatedBy: ROOT_CA_UUID,
+      iGasCost: 0.0025,
+      version: 1
+    };
+  }
+
+  try {
+    const response = await callLLM(prompt, ENABLE_OPENAI);
+    const parsed = JSON.parse(response);
+    return {
+      ...parsed,
+      generatedAt: Date.now(),
+      generatedBy: ROOT_CA_UUID,
+      iGasCost: 0.0025,
+      version: 1
+    };
+  } catch (err: any) {
+    console.error(`❌ Failed to generate system prompts:`, err.message);
+    throw new Error(`System prompt generation failed: ${err.message}`);
+  }
+}
+
+// ============================================
+// NOTIFICATION CODE GENERATION (Holy Ghost Service)
+// ============================================
+async function generateNotificationCode(config: {
+  providerId: string;
+  providerName: string;
+  language: string;
+  framework: string;
+  indexerEndpoint: string;
+  webhookUrl: string;
+  serviceType: string;
+  notificationMethods: string[];
+}): Promise<any> {
+  const prompt = `Generate notification code for an Eden service provider integration.
+
+Provider ID: ${config.providerId}
+Provider Name: ${config.providerName}
+Language: ${config.language}
+Framework: ${config.framework}
+Indexer Endpoint: ${config.indexerEndpoint}
+Webhook URL: ${config.webhookUrl}
+Service Type: ${config.serviceType}
+Notification Methods: ${config.notificationMethods.join(", ")}
+
+Generate code that implements:
+1. Webhook receiver (if webhook in methods)
+2. Pull/poll client (if pull in methods)
+3. RPC client (if rpc in methods)
+
+Return JSON with:
+{
+  "webhookCode": "...",
+  "pullCode": "...",
+  "rpcCode": "...",
+  "readme": "..."
+}`;
+
+  if (MOCKED_LLM) {
+    return {
+      webhookCode: `// Webhook receiver for ${config.providerId}\n// POST ${config.webhookUrl}`,
+      pullCode: `// Pull/poll client for ${config.providerId}\n// Poll ${config.indexerEndpoint}/rpc/tx/status`,
+      rpcCode: `// RPC client for ${config.providerId}\n// GET ${config.indexerEndpoint}/rpc/getTransactionByPayer`,
+      readme: `# ${config.providerName} Integration\n\nThis code implements ${config.notificationMethods.join(", ")} notification methods.`,
+      generatedAt: Date.now(),
+      generatedBy: ROOT_CA_UUID,
+      iGasCost: 0.0040,
+      version: 1
+    };
+  }
+
+  try {
+    const response = await callLLM(prompt, ENABLE_OPENAI);
+    const parsed = JSON.parse(response);
+    return {
+      ...parsed,
+      generatedAt: Date.now(),
+      generatedBy: ROOT_CA_UUID,
+      iGasCost: 0.0040,
+      version: 1
+    };
+  } catch (err: any) {
+    console.error(`❌ Failed to generate notification code:`, err.message);
+    throw new Error(`Notification code generation failed: ${err.message}`);
+  }
+}
+
+// Helper function to call LLM (reuse existing LLM infrastructure)
+async function callLLM(prompt: string, useOpenAI: boolean): Promise<string> {
+  if (useOpenAI) {
+    // Use OpenAI API
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY || ""}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7
+      })
+    });
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "";
+  } else {
+    // Use DeepSeek API
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7
+      });
+      
+      const req = https.request({
+        hostname: "api.deepseek.com",
+        path: "/chat/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY || ""}`
+        }
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk.toString(); });
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.choices[0]?.message?.content || "");
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+      
+      req.on("error", reject);
+      req.write(payload);
+      req.end();
+    });
+  }
+}
+
 // Main Server Initialization
 async function main() {
   console.log("🌱 Eden Core Starting...\n");
@@ -6455,84 +7157,107 @@ async function main() {
     mockedLLM: MOCKED_LLM,
     skipRedis: SKIP_REDIS,
     enableOpenAI: ENABLE_OPENAI,
+    deployedAsRoot: DEPLOYED_AS_ROOT,
     numIndexers: NUM_INDEXERS,
     numTokenIndexers: NUM_TOKEN_INDEXERS,
   }, "\n");
   
+  if (DEPLOYED_AS_ROOT) {
+    console.log("🔷 DEPLOYED AS ROOT MODE: Only ROOT CA and Holy Ghost will be initialized");
+    console.log("   All additional indexers will be created via Angular UI wizard\n");
+  }
+  
   console.log(`✨ Holy Ghost (ROOT CA Indexer) configured: ${HOLY_GHOST_INDEXER.name}`);
-  console.log(`🌳 Regular Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}`);
-  console.log(`🔷 Token Indexers configured: ${TOKEN_INDEXERS.map(i => i.name).join(", ")}\n`);
+  if (!DEPLOYED_AS_ROOT) {
+    console.log(`🌳 Regular Indexers configured: ${INDEXERS.map(i => i.name).join(", ")}`);
+    console.log(`🔷 Token Indexers configured: ${TOKEN_INDEXERS.map(i => i.name).join(", ")}\n`);
+  } else {
+    console.log(`🌳 Regular Indexers: 0 (will be created via UI)`);
+    console.log(`🔷 Token Indexers: 0 (will be created via UI)\n`);
+  }
 
   // Initialize ROOT CA
   initializeRootCA();
   
-  // Issue certificates to all regular indexers (including restored ones)
-  console.log("\n🌳 Issuing certificates to Regular Indexers...");
-  for (const indexer of INDEXERS) {
-    if (indexer.active) {
-      // Check if certificate exists in registry (not just in indexer object)
-      const existingCert = CERTIFICATE_REGISTRY.get(indexer.uuid);
-      if (!existingCert) {
+  // Issue certificate to Holy Ghost (ROOT CA Indexer)
+  console.log("\n✨ Issuing certificate to Holy Ghost (ROOT CA Indexer)...");
+  try {
+    issueIndexerCertificate(HOLY_GHOST_INDEXER);
+    console.log(`   ✅ Certificate issued to ${HOLY_GHOST_INDEXER.name}`);
+  } catch (err: any) {
+    console.error(`   ❌ Failed to issue certificate to ${HOLY_GHOST_INDEXER.name}:`, err.message);
+  }
+  
+  // Only initialize regular indexers if NOT in root-only mode
+  if (!DEPLOYED_AS_ROOT) {
+    // Issue certificates to all regular indexers (including restored ones)
+    console.log("\n🌳 Issuing certificates to Regular Indexers...");
+    for (const indexer of INDEXERS) {
+      if (indexer.active) {
+        // Check if certificate exists in registry (not just in indexer object)
+        const existingCert = CERTIFICATE_REGISTRY.get(indexer.uuid);
+        if (!existingCert) {
+          try {
+            issueIndexerCertificate(indexer);
+            console.log(`   ✅ Certificate issued to ${indexer.name} (${indexer.id})`);
+          } catch (err: any) {
+            console.error(`   ❌ Failed to issue certificate to ${indexer.name}:`, err.message);
+          }
+        } else {
+          // Certificate already exists, restore it to indexer object
+          indexer.certificate = existingCert;
+          console.log(`   ✅ Certificate already exists for ${indexer.name} (${indexer.id})`);
+        }
+      }
+    }
+    
+    // Issue certificates to all token indexers (needed for pool initialization)
+    console.log("\n🔷 Issuing certificates to Token Indexers...");
+    for (const tokenIndexer of TOKEN_INDEXERS) {
+      if (tokenIndexer.active) {
+        try {
+          issueIndexerCertificate(tokenIndexer);
+        } catch (err: any) {
+          console.error(`❌ Failed to issue certificate to ${tokenIndexer.name}:`, err.message);
+        }
+      }
+    }
+    
+    // Initialize DEX Pools (must be after token indexers are created and certified)
+    console.log("\n🌊 Initializing DEX Pools...");
+    initializeDEXPools();
+    
+    // Create DEX pool service providers dynamically from pools
+    console.log("\n📋 Registering DEX Pool Service Providers...");
+    for (const [poolId, pool] of DEX_POOLS.entries()) {
+      const tokenIndexer = TOKEN_INDEXERS.find(ti => ti.id === pool.indexerId);
+      if (tokenIndexer) {
+        const provider: ServiceProviderWithCert = {
+          id: `dex-pool-${pool.tokenSymbol.toLowerCase()}`,
+          uuid: crypto.randomUUID(),
+          name: `${pool.tokenSymbol} Pool (${tokenIndexer.name})`,
+          serviceType: "dex",
+          location: "Eden DEX",
+          bond: pool.bond,
+          reputation: 5.0,
+          indexerId: pool.indexerId,
+          apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
+          status: 'active',
+        };
+        registerServiceProviderWithROOTCA(provider);
+        console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenIndexer.name}`);
+      }
+    }
+    
+    // Issue certificates to all regular indexers
+    console.log("\n📜 Issuing certificates to Regular Indexers...");
+    for (const indexer of INDEXERS) {
+      if (indexer.active) {
         try {
           issueIndexerCertificate(indexer);
-          console.log(`   ✅ Certificate issued to ${indexer.name} (${indexer.id})`);
         } catch (err: any) {
-          console.error(`   ❌ Failed to issue certificate to ${indexer.name}:`, err.message);
+          console.error(`❌ Failed to issue certificate to ${indexer.name}:`, err.message);
         }
-      } else {
-        // Certificate already exists, restore it to indexer object
-        indexer.certificate = existingCert;
-        console.log(`   ✅ Certificate already exists for ${indexer.name} (${indexer.id})`);
-      }
-    }
-  }
-  
-  // Issue certificates to all token indexers (needed for pool initialization)
-  console.log("\n🔷 Issuing certificates to Token Indexers...");
-  for (const tokenIndexer of TOKEN_INDEXERS) {
-    if (tokenIndexer.active) {
-      try {
-        issueIndexerCertificate(tokenIndexer);
-      } catch (err: any) {
-        console.error(`❌ Failed to issue certificate to ${tokenIndexer.name}:`, err.message);
-      }
-    }
-  }
-  
-  // Initialize DEX Pools (must be after token indexers are created and certified)
-  console.log("\n🌊 Initializing DEX Pools...");
-  initializeDEXPools();
-  
-  // Create DEX pool service providers dynamically from pools
-  console.log("\n📋 Registering DEX Pool Service Providers...");
-  for (const [poolId, pool] of DEX_POOLS.entries()) {
-    const tokenIndexer = TOKEN_INDEXERS.find(ti => ti.id === pool.indexerId);
-    if (tokenIndexer) {
-      const provider: ServiceProviderWithCert = {
-        id: `dex-pool-${pool.tokenSymbol.toLowerCase()}`,
-        uuid: crypto.randomUUID(),
-        name: `${pool.tokenSymbol} Pool (${tokenIndexer.name})`,
-        serviceType: "dex",
-        location: "Eden DEX",
-        bond: pool.bond,
-        reputation: 5.0,
-        indexerId: pool.indexerId,
-        apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
-        status: 'active',
-      };
-      registerServiceProviderWithROOTCA(provider);
-      console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenIndexer.name}`);
-    }
-  }
-  
-  // Issue certificates to all regular indexers
-  console.log("\n📜 Issuing certificates to Regular Indexers...");
-  for (const indexer of INDEXERS) {
-    if (indexer.active) {
-      try {
-        issueIndexerCertificate(indexer);
-      } catch (err: any) {
-        console.error(`❌ Failed to issue certificate to ${indexer.name}:`, err.message);
       }
     }
   }
