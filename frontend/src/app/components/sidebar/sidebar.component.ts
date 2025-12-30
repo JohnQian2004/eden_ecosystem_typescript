@@ -643,6 +643,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
             
             // Match if component key matches expected key
             if (componentKey === expectedComponentKey) {
+              // Skip providers without indexerId
+              if (!provider.indexerId) return false;
               // Check if this provider belongs to Holy Ghost (indexerId: "HG")
               const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
               
@@ -697,6 +699,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
           
           // Match if component key matches expected key
           if (componentKey === expectedComponentKey) {
+            // Skip providers without indexerId
+            if (!provider.indexerId) {
+              break;
+            }
             // Map provider's indexerId to sidebar tab ID
             const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
             
@@ -874,10 +880,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return nodes.length > 0 ? nodes[0].count : 0;
   }
   
-  mapIndexerIdToTabId(indexerId: string): string {
+  mapIndexerIdToTabId(indexerId: string | undefined): string {
     // Map ServiceRegistry indexerId to sidebar tab ID
     // "HG" -> "HG" (Holy Ghost)
     // "indexer-alpha" -> "A", "indexer-beta" -> "B", "TokenIndexer-T1" -> "TokenIndexer-T1", etc.
+    if (!indexerId) {
+      return ''; // Return empty string if indexerId is undefined/null
+    }
     if (indexerId === 'HG') {
       return 'HG'; // Holy Ghost indexer
     }

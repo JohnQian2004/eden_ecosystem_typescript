@@ -176,10 +176,49 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.wsService.connect();
     
+    // Listen for service provider creation events to refresh service types
+    this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      if (event.type === 'service_provider_created' || event.type === 'service_provider_registered') {
+        console.log(`🔄 Service provider created/registered, refreshing service types...`);
+        // Refresh services after a short delay to ensure backend has updated
+        setTimeout(() => {
+          this.loadServices();
+        }, 500);
+      }
+    });
+    
+    // Check for service indexers (non-root) - Main Street only shows if there are service indexers
+    this.checkServiceIndexers();
+    
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
     // Load Snake providers separately
     this.loadSnakeProviders();
+  }
+  
+  checkServiceIndexers() {
+    // Check if there are any service indexers (non-root indexers)
+    this.http.get<{success: boolean, indexers: Array<{id: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/indexers`)
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.indexers) {
+            // Check if there are any active non-root indexers (regular or token indexers)
+            // An indexer is a service indexer if it's active and not a root indexer
+            this.hasServiceIndexers = response.indexers.some(i => 
+              i.active && i.type !== 'root'
+            );
+            this.cdr.detectChanges();
+          } else {
+            this.hasServiceIndexers = false;
+            this.cdr.detectChanges();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to check service indexers:', err);
+          this.hasServiceIndexers = false;
+          this.cdr.detectChanges();
+        }
+      });
   }
   
   initializeGoogleSignIn() {
@@ -328,31 +367,110 @@ export class AppComponent implements OnInit, OnDestroy {
   loadServices() {
     // Query ROOT CA ServiceRegistry to verify service types are available
     // This is a quick in-memory lookup - no LLM needed
-    // Note: Mocked service types (airline, autoparts, hotel, restaurant) are always shown
+    // Only show service types that are actually registered in the ServiceRegistry
     this.isLoadingServices = true;
     this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
-            const availableTypes = new Set(response.providers.filter(p => p.status === 'active').map(p => p.serviceType));
-            // Mocked service types that should always be shown
-            const mockedTypes = new Set(['airline', 'autoparts', 'hotel', 'restaurant']);
+            // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
+            // These belong to Holy Ghost (HG) and should NOT appear in Main Street
+            // Main Street should only show service types that have providers belonging to NON-ROOT indexers
+            const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
             
-            // Filter service types: show mocked ones always, or real ones if available in registry
-            this.serviceTypes = this.serviceTypes.filter(st => 
-              mockedTypes.has(st.type) || availableTypes.has(st.type)
+            // Only include service types that:
+            // 1. Have active providers
+            // 2. Are NOT infrastructure services
+            // 3. Have at least one provider belonging to a non-root indexer (not HG)
+            const nonInfrastructureProviders = response.providers.filter(p => 
+              p.status === 'active' && 
+              !infrastructureServiceTypes.has(p.serviceType) &&
+              p.indexerId !== 'HG' // Exclude Holy Ghost providers
             );
-            console.log(`✅ Loaded service types: ${this.serviceTypes.map(st => st.type).join(', ')}`);
-            console.log(`   Real providers: ${Array.from(availableTypes).join(', ')}`);
-            console.log(`   Mocked types: ${Array.from(mockedTypes).join(', ')}`);
+            
+            // Create Set of unique service types from non-infrastructure providers
+            const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
+            
+            // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
+            // This ensures we don't lose service types that were filtered out previously
+            const allServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+              {
+                type: 'movie',
+                icon: '🎬',
+                adText: 'Movie Tickets',
+                sampleQuery: 'I want a sci-fi movie to watch tonight at the best price'
+              },
+              {
+                type: 'dex',
+                icon: '💰',
+                adText: 'DEX Tokens',
+                sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
+              },
+              {
+                type: 'airline',
+                icon: '✈️',
+                adText: 'Airline Tickets',
+                sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price'
+              },
+              {
+                type: 'autoparts',
+                icon: '🔧',
+                adText: 'Auto Parts',
+                sampleQuery: 'I need brake pads for a 2020 Toyota Camry at the best price'
+              },
+              {
+                type: 'hotel',
+                icon: '🏨',
+                adText: 'Hotel Booking',
+                sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price'
+              },
+              {
+                type: 'restaurant',
+                icon: '🍽️',
+                adText: 'Restaurant Reservations',
+                sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
+              }
+            ];
+            
+            // Only show service types that are actually available in the ServiceRegistry
+            const filteredServiceTypes = allServiceTypes.filter(st => 
+              availableTypes.has(st.type)
+            );
+            
+            // CRITICAL: Deduplicate by service type to prevent duplicates
+            // This prevents duplicates from race conditions or multiple rapid calls
+            const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string}>();
+            for (const st of filteredServiceTypes) {
+              if (!serviceTypeMap.has(st.type)) {
+                serviceTypeMap.set(st.type, st);
+              }
+            }
+            this.serviceTypes = Array.from(serviceTypeMap.values());
+            
+            // Log if duplicates were found
+            if (filteredServiceTypes.length !== this.serviceTypes.length) {
+              console.warn(`⚠️  [Main Street] Removed ${filteredServiceTypes.length - this.serviceTypes.length} duplicate service type(s)`);
+            }
+            
+            console.log(`✅ Loaded service types: ${this.serviceTypes.map(st => `${st.type} (${st.adText})`).join(', ')}`);
+            console.log(`   Available types in registry (non-infrastructure, non-HG): ${Array.from(availableTypes).join(', ')}`);
+            console.log(`   Providers by type:`, Array.from(availableTypes).map(type => {
+              const providers = nonInfrastructureProviders.filter(p => p.serviceType === type);
+              return `${type}: ${providers.length} provider(s) [${providers.map(p => `${p.name} (${p.indexerId})`).join(', ')}]`;
+            }).join(', '));
+          } else {
+            // If no providers, clear service types
+            this.serviceTypes = [];
           }
           this.isLoadingServices = false;
+          // Refresh service indexers check in case indexers were created
+          this.checkServiceIndexers();
           this.cdr.detectChanges();
         },
         error: (err) => {
           console.error('Failed to load services:', err);
-          // Keep all service types (including mocked ones) even if API fails
-          console.log(`✅ Using all service types (including mocked): ${this.serviceTypes.map(st => st.type).join(', ')}`);
+          // If API fails, don't show any service types
+          this.serviceTypes = [];
           this.isLoadingServices = false;
           this.cdr.detectChanges();
         }

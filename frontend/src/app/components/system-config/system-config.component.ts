@@ -34,8 +34,20 @@ export class SystemConfigComponent implements OnInit {
   isLoadingBalance: boolean = false;
   
   // Wizard state
-  wizardStep: number = 1; // 1: Service Type Selection, 2: Configuration, 3: Review
+  wizardStep: number = 1; // 0: New Service Type Creation, 1: Service Type Selection, 2: Configuration, 3: Review
   selectedServiceType: ServiceType | null = null;
+  
+  // New Service Type Creation state
+  isCreatingNewServiceType: boolean = false;
+  newServiceTypeDescription: string = 'I need a multi-vendor ecommerce service provider that needs to persist vendorId/location/price/shipping cost/categories/itemName/quantity etc in ledger';
+  newServiceTypeName: string = '';
+  newServiceTypeIcon: string = '🆕';
+  systemPromptResult: any = null;
+  notificationCodeResult: any = null;
+  isGeneratingSystemPrompt: boolean = false;
+  isGeneratingNotificationCode: boolean = false;
+  generationError: string | null = null;
+  chatHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: number}> = [];
   indexerConfig: IndexerConfig = {
     serviceType: '',
     indexerName: '',
@@ -337,6 +349,191 @@ export class SystemConfigComponent implements OnInit {
     };
     this.creationError = null;
     this.creationSuccess = false;
+  }
+
+  startNewServiceTypeCreation() {
+    this.wizardStep = 0;
+    // Keep the hardcoded description, don't clear it
+    // this.newServiceTypeDescription = '';
+    this.newServiceTypeName = '';
+    this.newServiceTypeIcon = '🆕';
+    this.systemPromptResult = null;
+    this.notificationCodeResult = null;
+    this.generationError = null;
+    this.chatHistory = [];
+  }
+
+  goBackToServiceSelection() {
+    this.wizardStep = 1;
+    this.systemPromptResult = null;
+    this.notificationCodeResult = null;
+    this.generationError = null;
+  }
+
+  generateSystemPrompt() {
+    if (!this.newServiceTypeDescription.trim()) {
+      this.generationError = 'Please provide a description of your service type';
+      return;
+    }
+
+    // Auto-generate service type name from description if not provided
+    if (!this.newServiceTypeName.trim()) {
+      // Extract a simple name from description (first few words, lowercase, no special chars)
+      const words = this.newServiceTypeDescription.toLowerCase().split(/\s+/).slice(0, 3);
+      this.newServiceTypeName = words.join('-').replace(/[^a-z0-9-]/g, '');
+    }
+
+    this.isGeneratingSystemPrompt = true;
+    this.generationError = null;
+    this.chatHistory.push({
+      role: 'user',
+      content: this.newServiceTypeDescription,
+      timestamp: Date.now()
+    });
+
+    this.http.post<{success: boolean, prompts?: any, redisKey?: string, error?: string}>(
+      `${this.apiUrl}/api/system-prompt/generate`,
+      {
+        description: this.newServiceTypeDescription,
+        serviceType: this.newServiceTypeName.trim()
+      }
+    ).subscribe({
+      next: (response) => {
+        if (response.success && response.prompts) {
+          this.systemPromptResult = response.prompts;
+          this.chatHistory.push({
+            role: 'assistant',
+            content: 'System prompt generated successfully!',
+            timestamp: Date.now()
+          });
+        } else {
+          this.generationError = response.error || 'Failed to generate system prompt';
+        }
+        this.isGeneratingSystemPrompt = false;
+      },
+      error: (err) => {
+        console.error('Failed to generate system prompt:', err);
+        this.generationError = err.error?.error || err.message || 'Failed to generate system prompt';
+        this.isGeneratingSystemPrompt = false;
+      }
+    });
+  }
+
+  regenerateSystemPrompt() {
+    this.systemPromptResult = null;
+    this.generateSystemPrompt();
+  }
+
+  generateNotificationCode() {
+    if (!this.systemPromptResult) {
+      this.generationError = 'Please generate system prompt first';
+      return;
+    }
+
+    this.isGeneratingNotificationCode = true;
+    this.generationError = null;
+
+    const providerId = `${this.newServiceTypeName}-001`;
+    const providerName = this.newServiceTypeName.charAt(0).toUpperCase() + this.newServiceTypeName.slice(1);
+
+    this.http.post<{success: boolean, code?: any, redisKey?: string, error?: string}>(
+      `${this.apiUrl}/api/notification-code/generate`,
+      {
+        providerId: providerId,
+        providerName: providerName,
+        language: 'typescript',
+        framework: 'express',
+        indexerEndpoint: `http://localhost:3000`,
+        webhookUrl: `http://localhost:3000/mock/webhook/${providerId}`,
+        serviceType: this.newServiceTypeName.trim(),
+        notificationMethods: ['webhook', 'pull', 'rpc']
+      }
+    ).subscribe({
+      next: (response) => {
+        if (response.success && response.code) {
+          this.notificationCodeResult = response.code;
+          this.chatHistory.push({
+            role: 'assistant',
+            content: 'Notification code generated successfully!',
+            timestamp: Date.now()
+          });
+        } else {
+          this.generationError = response.error || 'Failed to generate notification code';
+        }
+        this.isGeneratingNotificationCode = false;
+      },
+      error: (err) => {
+        console.error('Failed to generate notification code:', err);
+        this.generationError = err.error?.error || err.message || 'Failed to generate notification code';
+        this.isGeneratingNotificationCode = false;
+      }
+    });
+  }
+
+  regenerateNotificationCode() {
+    this.notificationCodeResult = null;
+    this.generateNotificationCode();
+  }
+
+  saveAndCreateIndexer() {
+    if (!this.systemPromptResult || !this.notificationCodeResult) {
+      this.generationError = 'Please generate both system prompt and notification code first';
+      return;
+    }
+
+    // Save system prompt to persistence file
+    this.saveSystemPromptToPersistence().then(() => {
+      // Create the indexer using the standard flow
+      this.selectedServiceType = {
+        type: this.newServiceTypeName.trim(),
+        name: this.newServiceTypeName.charAt(0).toUpperCase() + this.newServiceTypeName.slice(1),
+        icon: this.newServiceTypeIcon || '🆕',
+        description: this.newServiceTypeDescription
+      };
+      
+      this.indexerConfig.serviceType = this.newServiceTypeName.trim();
+      this.indexerConfig.indexerName = `Indexer-${this.newServiceTypeName.toUpperCase()}`;
+      this.indexerConfig.serverDomain = `indexer-${this.newServiceTypeName.toLowerCase()}.eden.local`;
+      this.indexerConfig.isSnake = false;
+      this.indexerConfig.selectedProviders = [];
+      
+      // Move to configuration step
+      this.wizardStep = 2;
+    }).catch((err) => {
+      this.generationError = `Failed to save system prompt: ${err.message}`;
+    });
+  }
+
+  async saveSystemPromptToPersistence(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const systemPromptData = {
+        serviceType: this.newServiceTypeName.trim(),
+        description: this.newServiceTypeDescription,
+        queryExtractionPrompt: this.systemPromptResult.queryExtractionPrompt || this.systemPromptResult.prompts?.queryExtractionPrompt,
+        responseFormattingPrompt: this.systemPromptResult.responseFormattingPrompt || this.systemPromptResult.prompts?.responseFormattingPrompt,
+        notificationCode: this.notificationCodeResult,
+        createdAt: new Date().toISOString(),
+        createdBy: this.userEmail
+      };
+
+      this.http.post<{success: boolean, error?: string}>(
+        `${this.apiUrl}/api/wallet/persistence/system-prompt`,
+        systemPromptData
+      ).subscribe({
+        next: (response) => {
+          if (response.success) {
+            console.log('✅ System prompt saved to persistence');
+            resolve();
+          } else {
+            reject(new Error(response.error || 'Failed to save system prompt'));
+          }
+        },
+        error: (err) => {
+          console.error('Failed to save system prompt:', err);
+          reject(err);
+        }
+      });
+    });
   }
 
   resetWalletPersistence() {

@@ -3274,7 +3274,186 @@ eden_ecosystem_typescript/
 
 ---
 
-## 14. Eden‑Sim (Reference Implementation)
+## 14. Eden Service Type Testbed (STT) Specification — v1.0
+
+### Purpose
+
+The **Service Type Testbed (STT)** is a controlled, deterministic integration environment governed by **ROOT CA / Holy Ghost** that validates a new **service type** before it is allowed into the Eden ecosystem.
+
+A service type is considered **non-existent** in Eden until it passes the STT and is certified.
+
+> **Principle:**
+> *No service enters the Garden without surviving Genesis.*
+
+### Scope
+
+The STT validates **end-to-end correctness** of a service type across:
+
+* LLM interpretation
+* Service routing
+* Payment (JesusCoin)
+* iGas / iTax accounting
+* Notification delivery
+* Ledger truth
+* Failure handling
+* Governance compliance
+
+The STT does **not** certify a specific provider.
+It certifies the **service type contract itself**.
+
+### Actors
+
+| Actor                           | Role                                   |
+| ------------------------------- | -------------------------------------- |
+| **ROOT CA / Holy Ghost**        | Owns, governs, certifies STT           |
+| **Service Type Generator**      | Declares service intent & capabilities |
+| **System Prompt Generator**     | Produces LLM governance prompts        |
+| **Notification Code Generator** | Produces integration adapters          |
+| **Indexer (Mock)**              | Hosts the service type                 |
+| **Provider (Mock)**             | Simulates external service             |
+| **User (Mock)**                 | Simulates consumer                     |
+| **EdenCore (Mock)**             | Executes ledger, wallet, cashier logic |
+
+All actors are **containerized** and **isolated**.
+
+### Service Type Declaration (Input)
+
+A service type must begin with a formal declaration:
+
+```json
+{
+  "serviceType": "movie",
+  "capabilities": ["price_quote", "reserve", "confirm", "cancel"],
+  "notificationModes": ["webhook", "poll", "rpc"],
+  "paymentModel": {
+    "currency": "JSC",
+    "iGas": "dynamic",
+    "iTax": "root_governed"
+  }
+}
+```
+
+This declaration is immutable once testing begins.
+
+### Testbed Environment
+
+The STT spins up a **deterministic sandbox** consisting of:
+
+* Mock Indexer (same Docker image as production)
+* Mock Provider API
+* Mock Wallet (Redis-backed)
+* Mock Ledger
+* Mock Replication Bus
+* Mock LLM (real or mocked)
+* Notification endpoints
+
+> **Rule:**
+> *Production images are reused. Only certificates differ.*
+
+### Test Phases
+
+#### 1. Genesis Phase
+
+* Validate service declaration
+* Generate system prompts
+* Generate notification adapters
+* Initialize wallet + ledger state
+
+#### 2. Happy Path
+
+* User intent → LLM extraction
+* Provider discovery
+* Payment authorization
+* Ledger booking
+* Notification delivery
+* Service fulfillment
+
+#### 3. Failure Paths (Mandatory)
+
+* Insufficient balance
+* Timeout
+* Provider rejection
+* Notification failure
+* Duplicate request
+* Replay attack
+* Invalid payload
+
+#### 4. Governance Checks
+
+* iGas correctly charged
+* iTax distributed correctly
+* ROOT CA visibility maintained
+* No hidden state mutation
+* Ledger truth preserved
+
+### Evidence & Artifacts (Output)
+
+Each STT run produces immutable artifacts:
+
+* Execution logs
+* Ledger snapshots
+* Wallet diffs
+* Notification traces
+* LLM decision outputs
+* Testbed hash
+
+Artifacts are:
+
+* Timestamped
+* Hash-addressed
+* Replayable
+
+### Certification Decision
+
+A service type is certified **only if all mandatory tests pass**.
+
+Certification record:
+
+```json
+{
+  "serviceType": "movie",
+  "status": "CERTIFIED",
+  "certifiedBy": "eden:root:ca",
+  "testbedHash": "0xabc123...",
+  "rulesetVersion": "v1.0",
+  "validFrom": "2025-12-29"
+}
+```
+
+Once certified:
+
+* Indexers may host the service type
+* Providers may register under it
+* Users may consume it
+
+### Invariants (Non-Negotiable Laws)
+
+1. No service execution without ledger entry
+2. No ledger entry without wallet truth
+3. No wallet mutation without ROOT CA visibility
+4. No notification without traceability
+5. No certification without replayable evidence
+
+### Design Philosophy
+
+The STT is:
+
+* **Preventive**, not reactive
+* **Deterministic**, not heuristic
+* **Composable**, not hardcoded
+* **Governed**, not trusted
+
+> *Eden does not trust promises.
+> Eden certifies behavior.*
+
+### Status
+
+**STT v1.0 — APPROVED**
+This specification is sufficient to bootstrap Eden's service evolution without introducing external dependencies, Web3 coupling, or opaque integrations.
+
+---
+
+## 15. Eden‑Sim (Reference Implementation)
 
 - TypeScript
 - <1500 LOC
@@ -3286,7 +3465,7 @@ Purpose: economic + architectural validation
 
 ---
 
-## 15. Why Eden Wins
+## 16. Why Eden Wins
 
 | Problem | Eden Solution |
 |------|-------------|
@@ -3298,7 +3477,7 @@ Purpose: economic + architectural validation
 
 ---
 
-## 16. Architectural Completeness & Validation
+## 17. Architectural Completeness & Validation
 
 ### 16.1 Conceptual Completeness
 
@@ -3498,7 +3677,7 @@ The system is:
 
 ---
 
-## 17. Genesis Statement
+## 18. Genesis Statement
 
 > *Eden is not a protocol.*  
 > *It is a living system.*
@@ -3511,7 +3690,7 @@ Humans give meaning.
 
 ---
 
-## 18. ENCERT v1
+## 19. ENCERT v1
 
 ### Redis Stream Schema — Revocation Events
 
@@ -3884,11 +4063,11 @@ It is **PKI built for intelligence systems**, not browsers.
 
 ---
 
-## 19. Federation Design & Trust Architecture
+## 20. Federation Design & Trust Architecture
 
 Eden implements a **lightweight PKI-based trust fabric** that provides HTTPS-equivalent security without relying on third-party Certificate Authorities (CAs). This design enables secure federation between ROOT CA, indexers, and service providers while maintaining sovereignty and avoiding browser trust dependencies.
 
-### 19.1 Trust Layer Separation
+### 20.1 Trust Layer Separation
 
 Eden separates **three distinct HTTPS trust problems**:
 
@@ -3905,7 +4084,7 @@ Eden separates **three distinct HTTPS trust problems**:
 - Indexers and services trust Eden
 - Eden PKI provides mutual trust without third-party dependencies
 
-### 19.2 Eden Trust Model
+### 20.2 Eden Trust Model
 
 Eden's trust architecture follows a **Kubernetes-style model**, not browser PKI:
 
@@ -3921,7 +4100,7 @@ Eden's trust architecture follows a **Kubernetes-style model**, not browser PKI:
 - Indexer ↔ Service Provider: Eden mTLS or signed payloads
 - Browser ↔ Eden UI: Public HTTPS (optional, edge-only)
 
-### 19.3 ROOT CA HTTPS Without Public CA
+### 20.3 ROOT CA HTTPS Without Public CA
 
 **Solution: Private PKI + mTLS (Mutual TLS)**
 
@@ -3960,7 +4139,7 @@ Eden issues **ENCERT certificates**, not X.509 certificates from public CAs.
 
 **This is how Kubernetes, etcd, Consul, Vault work.**
 
-### 19.4 Indexer HTTP with TLS Termination
+### 20.4 Indexer HTTP with TLS Termination
 
 **Problem:** What if indexers run HTTP only (for simplicity)?
 
@@ -4002,7 +4181,7 @@ Indexers can remain **pure HTTP** while maintaining network security through a g
 - ✅ **Eden-controlled trust**: Gateway enforces Eden PKI policies
 - ✅ **Lightweight indexers**: Reduced operational complexity
 
-### 19.5 Indexer Authorization & Network Binding
+### 20.5 Indexer Authorization & Network Binding
 
 When ROOT CA issues an ENCERT certificate, it includes **network binding constraints**:
 
@@ -4041,7 +4220,7 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 - Prevents certificate reuse across different network locations
 - Enables network-level access control and routing decisions
 
-### 19.6 HTTPS Traffic Matrix
+### 20.6 HTTPS Traffic Matrix
 
 **Traffic Security by Layer:**
 
@@ -4059,7 +4238,7 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 - **Internal traffic**: Can use plain HTTP within trusted boundaries
 - **Sovereignty**: Core remains sovereign, independent of public CAs
 
-### 19.7 Certificate Revocation Architecture
+### 20.7 Certificate Revocation Architecture
 
 Eden's revocation system is **stronger than traditional OCSP**:
 
@@ -4083,7 +4262,7 @@ eden:indexer:*:auth (per-indexer streams)
 - ✅ **Scalable**: Redis Streams handle high throughput
 - ✅ **Auditable**: Complete revocation history in streams
 
-### 19.8 Why Eden PKI Is Superior to Public CAs
+### 20.8 Why Eden PKI Is Superior to Public CAs
 
 **Public CAs (DigiCert, Let's Encrypt) provide:**
 - Domain name identity
@@ -4115,7 +4294,7 @@ An Eden ENCERT certificate **can**:
 }
 ```
 
-### 19.9 Implementation Architecture
+### 20.9 Implementation Architecture
 
 #### Option 1: Eden mTLS over Standard TLS (Recommended)
 
@@ -4150,7 +4329,7 @@ An Eden ENCERT certificate **can**:
 5. Indexer processes request (no TLS complexity)
 6. Gateway returns response over HTTPS
 
-### 19.10 Certificate Constraints & Network Law
+### 20.10 Certificate Constraints & Network Law
 
 **Network Binding Constraints:**
 - `serverIp`: IP address where indexer accepts connections
@@ -4174,7 +4353,7 @@ An Eden ENCERT certificate **can**:
 - Gateway checks revocation status
 - Network routing based on certificate constraints
 
-### 19.11 Implementation Requirements
+### 20.11 Implementation Requirements
 
 **REQ-FED-001**: Root CA Certificate Generation
 - ROOT CA generates self-signed root certificate
@@ -4206,7 +4385,7 @@ An Eden ENCERT certificate **can**:
 - Prevents certificate reuse across different endpoints
 - Enforces network-level access control
 
-### 19.12 Benefits
+### 20.12 Benefits
 
 **For System:**
 - ✅ **Sovereignty**: No dependency on third-party CAs
@@ -4473,7 +4652,7 @@ This is how Eden ships.
 
 ---
 
-### 19.10 Holy Ghost: JesusCoin Wallet Service (Redis-backed)
+### 20.13 Holy Ghost: JesusCoin Wallet Service (Redis-backed)
 
 **Single Source of Truth**
 
@@ -4552,7 +4731,7 @@ Wallet identity:
 
 ---
 
-### 19.11 EdenCore's Proper Role
+### 20.14 EdenCore's Proper Role
 
 EdenCore:
 
@@ -4588,7 +4767,7 @@ Only then:
 
 ---
 
-### 19.12 Ledger = Proof, Not Control
+### 20.15 Ledger = Proof, Not Control
 
 Ledger entries are:
 
@@ -4607,7 +4786,7 @@ This is a subtle but important distinction.
 
 ---
 
-### 19.13 Wallet Architecture Rationale
+### 20.16 Wallet Architecture Rationale
 
 #### External Wallet Provider Risks:
 

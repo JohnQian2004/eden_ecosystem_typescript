@@ -49,6 +49,19 @@
     </div>
     
     <div class="row g-3" *ngIf="!isLoadingServiceTypes">
+      <!-- NEW Service Provider Type Card -->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 service-type-card border-success" (click)="startNewServiceTypeCreation()" style="cursor: pointer; border-width: 2px;">
+          <div class="card-body text-center">
+            <div class="display-4 mb-3">🆕</div>
+            <h5 class="card-title">NEW Service Provider Type</h5>
+            <p class="card-text text-muted small">Create a custom service type using AI-powered system prompt and notification code generation</p>
+            <span class="badge bg-success">NEW</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Existing Service Types -->
       <div class="col-md-6 col-lg-4" *ngFor="let serviceType of serviceTypes">
         <div class="card h-100 service-type-card" (click)="selectServiceType(serviceType)" style="cursor: pointer;">
           <div class="card-body text-center">
@@ -59,6 +72,148 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+  
+  <!-- Step 0: New Service Type Creation Wizard -->
+  <div *ngIf="wizardStep === 0" class="wizard-step">
+    <h4 class="mb-3">🆕 Create New Service Provider Type</h4>
+    <p class="text-muted mb-4">Describe your service type and let AI generate the system prompts and notification code</p>
+    
+    <div class="card mb-4">
+      <div class="card-body">
+        <!-- Chat Input -->
+        <div class="mb-3">
+          <label class="form-label">Describe your service type:</label>
+          <textarea 
+            class="form-control" 
+            rows="4"
+            [(ngModel)]="newServiceTypeDescription"
+            name="newServiceTypeDescription"
+            placeholder="e.g., I need a multi-vendor ecommerce service provider that needs to persist vendorId/location/price/shipping cost/categories/itemName/quantity etc in ledger"
+            [disabled]="isGeneratingSystemPrompt || isGeneratingNotificationCode"></textarea>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Service Type Name (auto-generated from description)</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              [(ngModel)]="newServiceTypeName"
+              name="newServiceTypeName"
+              placeholder="e.g., ecommerce"
+              [disabled]="isGeneratingSystemPrompt || isGeneratingNotificationCode">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Icon</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              [(ngModel)]="newServiceTypeIcon"
+              name="newServiceTypeIcon"
+              placeholder="e.g., 🛒"
+              maxlength="2">
+          </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+          <button 
+            class="btn btn-primary" 
+            (click)="generateSystemPrompt()"
+            [disabled]="!newServiceTypeDescription.trim() || isGeneratingSystemPrompt || isGeneratingNotificationCode">
+            <span *ngIf="!isGeneratingSystemPrompt">🤖 Generate System Prompt</span>
+            <span *ngIf="isGeneratingSystemPrompt">
+              <span class="spinner-border spinner-border-sm me-2"></span>Generating...
+            </span>
+          </button>
+          
+          <button 
+            class="btn btn-secondary" 
+            (click)="goBackToServiceSelection()"
+            [disabled]="isGeneratingSystemPrompt || isGeneratingNotificationCode">
+            ← Back
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- System Prompt Result -->
+    <div class="card mb-4" *ngIf="systemPromptResult">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">✅ System Prompt Generated</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Query Extraction Prompt:</label>
+          <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ systemPromptResult.queryExtractionPrompt || systemPromptResult.prompts?.queryExtractionPrompt }}</pre>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Response Formatting Prompt:</label>
+          <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ systemPromptResult.responseFormattingPrompt || systemPromptResult.prompts?.responseFormattingPrompt }}</pre>
+        </div>
+        <div class="d-flex gap-2">
+          <button 
+            class="btn btn-success" 
+            (click)="generateNotificationCode()"
+            [disabled]="isGeneratingNotificationCode">
+            <span *ngIf="!isGeneratingNotificationCode">🔔 Generate Notification Code</span>
+            <span *ngIf="isGeneratingNotificationCode">
+              <span class="spinner-border spinner-border-sm me-2"></span>Generating...
+            </span>
+          </button>
+          <button 
+            class="btn btn-outline-secondary" 
+            (click)="regenerateSystemPrompt()"
+            [disabled]="isGeneratingSystemPrompt">
+            🔄 Regenerate
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Notification Code Result -->
+    <div class="card mb-4" *ngIf="notificationCodeResult">
+      <div class="card-header bg-success text-white">
+        <h5 class="mb-0">✅ Notification Code Generated</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Webhook Code:</label>
+          <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ notificationCodeResult.webhookCode || notificationCodeResult.code?.webhookCode }}</pre>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Pull/Poll Code:</label>
+          <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ notificationCodeResult.pullCode || notificationCodeResult.code?.pullCode }}</pre>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">RPC Code:</label>
+          <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ notificationCodeResult.rpcCode || notificationCodeResult.code?.rpcCode }}</pre>
+        </div>
+        <div class="d-flex gap-2">
+          <button 
+            class="btn btn-primary" 
+            (click)="saveAndCreateIndexer()"
+            [disabled]="isCreating">
+            <span *ngIf="!isCreating">✅ Save & Create Indexer</span>
+            <span *ngIf="isCreating">
+              <span class="spinner-border spinner-border-sm me-2"></span>Creating...
+            </span>
+          </button>
+          <button 
+            class="btn btn-outline-secondary" 
+            (click)="regenerateNotificationCode()"
+            [disabled]="isGeneratingNotificationCode">
+            🔄 Regenerate
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Error Display -->
+    <div class="alert alert-danger" *ngIf="generationError">
+      <strong>❌ Error:</strong> {{ generationError }}
+      <button type="button" class="btn-close" (click)="generationError = null" aria-label="Close"></button>
     </div>
   </div>
   

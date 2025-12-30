@@ -18,7 +18,8 @@
         </div>
         
         <!-- Garden of Eden Main Street - Service Type Cards -->
-        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0">
+        <!-- Only show Main Street if there are service indexers (non-root) available -->
+        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0 && hasServiceIndexers">
           <div class="col-12">
             <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
             <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
@@ -143,7 +144,8 @@
         </div>
         
         <!-- Unified Chat Input with Context Sensing -->
-        <div class="row mb-4">
+        <!-- Only show chat input if there are service indexers available -->
+        <div class="row mb-4" *ngIf="hasServiceIndexers">
           <div class="col-12">
             <div class="card">
               <div class="card-header" [ngClass]="{'bg-primary': selectedServiceType === 'movie', 'bg-info': selectedServiceType === 'dex', 'bg-secondary': !selectedServiceType}">
