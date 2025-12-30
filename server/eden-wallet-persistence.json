@@ -1,7 +1,11 @@
 {
   "walletBalances": {
-    "wallet:balance:bill.draper.auto@gmail.com": "6666658.2",
+    "wallet:balance:bill.draper.auto@gmail.com": "6665316.4",
     "wallet:audit:bill.draper.auto@gmail.com:1767090872688": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"9ee15e46-b04b-4926-8565-f4656dd842df\",\"reason\":\"Stripe payment confirmed: pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767090872688}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767133942207": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":130,\"previousBalance\":6666438.2,\"newBalance\":6666308.2,\"txId\":\"79f18d77-976e-413e-aee9-bd311a5e7834\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133942207}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767133982996": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6666308.2,\"newBalance\":6666198.2,\"txId\":\"c7b3a1c8-e644-431c-bfc9-ff330620d61a\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133982996}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767134052303": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6666198.2,\"newBalance\":6666088.2,\"txId\":\"5e045c6e-e622-45e0-af12-8a47d807be34\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767134052303}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767134062844": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6666088.2,\"newBalance\":6665978.2,\"txId\":\"b488468b-20ad-4660-be52-7390412c372b\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"dex\",\"indexerName\":\"Garden-DEX\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767134062844}",
     "wallet:audit:bill.draper.auto@gmail.com:1767090918658": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":500000,\"newBalance\":499890,\"txId\":\"fcbedff6-5e8f-446b-bf77-7906bb9c6a24\",\"reason\":\"garden_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"gardenName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767090918658}",
     "wallet:audit:bill.draper.auto@gmail.com:1767091237813": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":499890,\"newBalance\":499780,\"txId\":\"82672d15-cf9f-49ae-a755-b144132acba4\",\"reason\":\"garden_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"gardenName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767091237814}",
     "wallet:audit:bill.draper.auto@gmail.com:1767092813147": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":499780,\"newBalance\":499670,\"txId\":\"7c50dcbb-e3f0-4840-9558-2595dc5c43b4\",\"reason\":\"garden_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"gardenName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767092813147}",
@@ -73,154 +77,17 @@
     "wallet:audit:bill.draper.auto@gmail.com:1767132757730": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":493551.00000000006,\"newBalance\":493441.00000000006,\"txId\":\"19344502-58e1-4f81-aded-1d9b858321e3\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767132757730}",
     "wallet:audit:bill.draper.auto@gmail.com:1767133159638": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":499558.2,\"newBalance\":499448.2,\"txId\":\"5351c380-88d4-4a7e-98aa-73a7e5617cd3\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133159638}",
     "wallet:audit:bill.draper.auto@gmail.com:1767133579156": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6666660,\"newBalance\":6666658,\"txId\":\"e23e4c35-aa32-4007-8b74-c427c954ab9f\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767133579156}",
-    "wallet:audit:bill.draper.auto@gmail.com:1767133579162": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6666658,\"newBalance\":6666658.2,\"txId\":\"aac73439-dd67-46c1-a327-eda68cf03e02\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1767133579162}"
+    "wallet:audit:bill.draper.auto@gmail.com:1767133579162": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6666658,\"newBalance\":6666658.2,\"txId\":\"aac73439-dd67-46c1-a327-eda68cf03e02\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1767133579162}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767133822322": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6666658.2,\"newBalance\":6666548.2,\"txId\":\"b99e9619-c8a0-4f92-ab8e-bd2a1e7781ea\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"dex\",\"indexerName\":\"Garden-DEX\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133822322}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767133856404": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6666548.2,\"newBalance\":6666438.2,\"txId\":\"53c2859c-8bee-4094-9cc7-97d73e9cdcf4\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"dex\",\"indexerName\":\"Garden-DEX\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133856404}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767134189792": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6665978.2,\"newBalance\":6665976.2,\"txId\":\"a9a22fe2-976d-4446-8bbb-cb1b2437144c\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1767134189792}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767134189798": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6665976.2,\"newBalance\":6665976.4,\"txId\":\"b775cfac-f9fd-44d8-916d-cf2f9f119ac1\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1767134189798}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767134795326": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665976.4,\"newBalance\":6665866.4,\"txId\":\"0e79a410-be18-4ab6-a7a1-aba253ff3a7c\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767134795326}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767135200364": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665866.4,\"newBalance\":6665756.4,\"txId\":\"eaa768f5-cab5-449b-8a11-665a583336fa\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767135200364}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767135210536": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665756.4,\"newBalance\":6665646.4,\"txId\":\"50a31a0e-747c-4f6f-ac2b-e0717dd9cbae\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"dex\",\"indexerName\":\"Garden-DEX\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767135210536}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767135384451": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665646.4,\"newBalance\":6665536.4,\"txId\":\"c71a014e-5ca9-47e6-81be-a9d0691591c3\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767135384451}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767135550660": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665536.4,\"newBalance\":6665426.4,\"txId\":\"49088486-cadf-428c-a96d-2addf89c7064\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"gardenName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767135550660}",
+    "wallet:audit:bill.draper.auto@gmail.com:1767135869460": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":110,\"previousBalance\":6665426.4,\"newBalance\":6665316.4,\"txId\":\"d0733b56-93b3-4bee-a8ff-d3dc7f93df69\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"gardenName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767135869460}"
   },
-  "ledgerEntries": [],
-  "gardens": [
-    {
-      "id": "indexer-1",
-      "name": "Garden-MOVIE",
-      "stream": "eden:indexer:indexer-1",
-      "active": true,
-      "uuid": "eden:indexer:dcb998a6-056f-4205-9f2e-354a2e012a89",
-      "serverIp": "localhost",
-      "serverDomain": "indexer-movie.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "movie",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:indexer:dcb998a6-056f-4205-9f2e-354a2e012a89",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "indexerId": "indexer-1",
-          "indexerName": "Garden-MOVIE",
-          "stream": "eden:indexer:indexer-1"
-        },
-        "issuedAt": 1767133159641,
-        "expiresAt": 1798669159641,
-        "signature": "3BNRlkajPsPkoryYt9BJcaqweIQyIPtFQ7IO+5Ge+vqx0ucO1opdyNBFfbLNGUde/oM7tm1Y/BRXpfbKa8dOBQ=="
-      }
-    },
-    {
-      "id": "T1",
-      "name": "Garden-DEX",
-      "stream": "eden:token-indexer:T1",
-      "active": true,
-      "uuid": "eden:indexer:3d8de059-0022-4062-9884-396213ef65fc",
-      "serverIp": "localhost",
-      "serverDomain": "indexer-dex.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "dex",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:indexer:3d8de059-0022-4062-9884-396213ef65fc",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "indexerId": "T1",
-          "indexerName": "Garden-DEX",
-          "stream": "eden:token-indexer:T1"
-        },
-        "issuedAt": 1767132744353,
-        "expiresAt": 1798668744353,
-        "signature": "CA0tIqQ2n7aaAFw79+y3ckSt53rvYRmvJhRWTert5rxynpFsFRQg/euntcacsxJkUhuvlKCDjjZta1Y+YW3cAA=="
-      },
-      "tokenServiceType": "dex"
-    }
-  ],
-  "serviceRegistry": [
-    {
-      "id": "stripe-payment-rail-001",
-      "name": "Stripe Payment Rail",
-      "serviceType": "payment-rail",
-      "location": "Global",
-      "bond": 50000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440100",
-      "apiEndpoint": "https://api.stripe.com/v1",
-      "indexerId": "HG"
-    },
-    {
-      "id": "settlement-service-001",
-      "name": "Settlement Service",
-      "serviceType": "settlement",
-      "location": "ROOT CA",
-      "bond": 100000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440101",
-      "apiEndpoint": "internal://settlement",
-      "indexerId": "HG"
-    },
-    {
-      "id": "service-registry-001",
-      "name": "Service Registry",
-      "serviceType": "registry",
-      "location": "ROOT CA",
-      "bond": 50000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440102",
-      "apiEndpoint": "internal://service-registry",
-      "indexerId": "HG"
-    },
-    {
-      "id": "webserver-service-001",
-      "name": "Web Server",
-      "serviceType": "webserver",
-      "location": "ROOT CA",
-      "bond": 10000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440103",
-      "apiEndpoint": "http://localhost:3000",
-      "indexerId": "HG"
-    },
-    {
-      "id": "websocket-service-001",
-      "name": "WebSocket Service",
-      "serviceType": "websocket",
-      "location": "ROOT CA",
-      "bond": 10000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440104",
-      "apiEndpoint": "ws://localhost:3000",
-      "indexerId": "HG"
-    },
-    {
-      "id": "wallet-service-001",
-      "name": "JesusCoin Wallet Service",
-      "serviceType": "wallet",
-      "location": "ROOT CA",
-      "bond": 200000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440105",
-      "apiEndpoint": "internal://wallet",
-      "indexerId": "HG"
-    },
-    {
-      "id": "amc-001",
-      "name": "AMC Theatres",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
-      "bond": 1000,
-      "reputation": 4.8,
-      "uuid": "550e8400-e29b-41d4-a716-446655440001",
-      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
-      "indexerId": "HG"
-    }
-  ],
-  "lastSaved": "2025-12-30T22:26:20.166Z"
+  "lastSaved": "2025-12-30T23:04:30.462Z"
 }

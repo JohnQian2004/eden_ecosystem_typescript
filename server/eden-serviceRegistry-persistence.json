@@ -1,0 +1,100 @@
+{
+  "serviceRegistry": [
+    {
+      "id": "stripe-payment-rail-001",
+      "name": "Stripe Payment Rail",
+      "serviceType": "payment-rail",
+      "location": "Global",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440100",
+      "apiEndpoint": "https://api.stripe.com/v1",
+      "indexerId": "HG"
+    },
+    {
+      "id": "settlement-service-001",
+      "name": "Settlement Service",
+      "serviceType": "settlement",
+      "location": "ROOT CA",
+      "bond": 100000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440101",
+      "apiEndpoint": "internal://settlement",
+      "indexerId": "HG"
+    },
+    {
+      "id": "service-registry-001",
+      "name": "Service Registry",
+      "serviceType": "registry",
+      "location": "ROOT CA",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440102",
+      "apiEndpoint": "internal://service-registry",
+      "indexerId": "HG"
+    },
+    {
+      "id": "webserver-service-001",
+      "name": "Web Server",
+      "serviceType": "webserver",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440103",
+      "apiEndpoint": "http://localhost:3000",
+      "indexerId": "HG"
+    },
+    {
+      "id": "websocket-service-001",
+      "name": "WebSocket Service",
+      "serviceType": "websocket",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440104",
+      "apiEndpoint": "ws://localhost:3000",
+      "indexerId": "HG"
+    },
+    {
+      "id": "wallet-service-001",
+      "name": "JesusCoin Wallet Service",
+      "serviceType": "wallet",
+      "location": "ROOT CA",
+      "bond": 200000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440105",
+      "apiEndpoint": "internal://wallet",
+      "indexerId": "HG"
+    },
+    {
+      "id": "amc-001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "indexerId": "HG"
+    },
+    {
+      "id": "cinemark-001",
+      "name": "Cinemark",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1200,
+      "reputation": 4.7,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440003",
+      "apiEndpoint": "https://api.cinemark.com/movies",
+      "indexerId": "garden-1"
+    }
+  ],
+  "lastSaved": "2025-12-30T23:04:30.462Z"
+}

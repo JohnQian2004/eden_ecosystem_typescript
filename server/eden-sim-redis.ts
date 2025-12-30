@@ -74,9 +74,9 @@ if (!DEPLOYED_AS_ROOT) {
     GARDENS.push({
       id: indexerId,
       name: `Garden-${indexerId}`,
-      stream: `eden:indexer:${indexerId}`,
+      stream: `eden:garden:${indexerId}`,
       active: true,
-      uuid: `eden:indexer:${crypto.randomUUID()}`
+      uuid: `eden:garden:${crypto.randomUUID()}`
     });
   }
 }
@@ -93,9 +93,9 @@ if (!DEPLOYED_AS_ROOT) {
     TOKEN_GARDENS.push({
       id: tokenIndexerId,
       name: `Garden-${tokenIndexerId}`,
-      stream: `eden:token-indexer:${tokenIndexerId}`,
+      stream: `eden:token-garden:${tokenIndexerId}`,
       active: true,
-      uuid: `eden:token-indexer:${crypto.randomUUID()}`,
+      uuid: `eden:garden:${crypto.randomUUID()}`,
       tokenServiceType: 'dex'
     });
   }
@@ -464,16 +464,39 @@ httpServer.on("request", async (req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     
     // Load persisted indexers from file (single source of truth)
+    // REFACTOR: Load from separate gardens file first, fallback to old combined file
     let persistedGardens: GardenConfig[] = [];
     let persistedTokenGardens: TokenGardenConfig[] = [];
     
     try {
-      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-      if (fs.existsSync(persistenceFile)) {
-        const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
-        const persisted = JSON.parse(fileContent);
-        // Backward compatibility: check both 'gardens' and 'indexers' fields
-        const gardensFromFile = persisted.gardens || persisted.indexers;
+      // Try loading from separate gardens file first
+      const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+      let gardensFromFile: any[] = [];
+      
+      if (fs.existsSync(gardensFile)) {
+        try {
+          const fileContent = fs.readFileSync(gardensFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          gardensFromFile = persisted.gardens || persisted.indexers || [];
+          console.log(`📋 [Indexer API] Loaded ${gardensFromFile.length} gardens from separate file: ${gardensFile}`);
+        } catch (err: any) {
+          console.warn(`⚠️  [Indexer API] Failed to load from separate gardens file: ${err.message}`);
+        }
+      }
+      
+      // Fallback to old combined file for backward compatibility
+      if (gardensFromFile.length === 0) {
+        const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+        if (fs.existsSync(persistenceFile)) {
+          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          // Backward compatibility: check both 'gardens' and 'indexers' fields
+          gardensFromFile = persisted.gardens || persisted.indexers || [];
+          console.log(`📋 [Indexer API] Loaded ${gardensFromFile.length} gardens from old combined file (backward compatibility)`);
+        }
+      }
+      
+      if (gardensFromFile && Array.isArray(gardensFromFile) && gardensFromFile.length > 0) {
         if (gardensFromFile && Array.isArray(gardensFromFile)) {
           // CRITICAL: All indexers (regular and token) are now in 'gardens' array
           // Separate them into regular and token indexers
@@ -484,10 +507,10 @@ httpServer.on("request", async (req, res) => {
             idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
           );
           
-          // In ROOT mode: ONLY return indexers created via Angular (format: indexer-1, indexer-2, etc.)
-          // Filter out all other indexers (A, B, C, etc.) - they're defaults from non-ROOT mode
+          // In ROOT mode: ONLY return gardens created via Angular (format: garden-1, garden-2, etc.)
+          // Filter out all other gardens (A, B, C, etc.) - they're defaults from non-ROOT mode
           if (DEPLOYED_AS_ROOT) {
-            persistedGardens = regularIndexersFromArray.filter((idx: any) => idx.id && idx.id.startsWith('indexer-'));
+            persistedGardens = regularIndexersFromArray.filter((idx: any) => idx.id && (idx.id.startsWith('garden-') || idx.id.startsWith('indexer-')));
             // In ROOT mode: all token indexers are created via Angular, so return all
             persistedTokenGardens = tokenIndexersFromArray;
           } else {
@@ -503,16 +526,28 @@ httpServer.on("request", async (req, res) => {
         }
         
         // Backward compatibility: Also check tokenIndexers field if it exists (old files)
-        if (persisted.tokenIndexers && Array.isArray(persisted.tokenIndexers)) {
-          console.log(`📋 [Indexer API] Found tokenIndexers field (backward compatibility) - using it`);
-          if (DEPLOYED_AS_ROOT) {
-            persistedTokenGardens = persisted.tokenIndexers;
-          } else {
-            if (NUM_TOKEN_GARDENS > 0) {
-              const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
-              persistedTokenGardens = persisted.tokenIndexers.filter((idx: any) => !defaultTokenIds.includes(idx.id));
-            } else {
-              persistedTokenGardens = persisted.tokenIndexers;
+        // This is only needed when loading from the old combined file
+        if (gardensFromFile.length === 0) {
+          const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+          if (fs.existsSync(persistenceFile)) {
+            try {
+              const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+              const persisted = JSON.parse(fileContent);
+              if (persisted.tokenIndexers && Array.isArray(persisted.tokenIndexers)) {
+                console.log(`📋 [Indexer API] Found tokenIndexers field (backward compatibility) - using it`);
+                if (DEPLOYED_AS_ROOT) {
+                  persistedTokenGardens = persisted.tokenIndexers;
+                } else {
+                  if (NUM_TOKEN_GARDENS > 0) {
+                    const defaultTokenIds = Array.from({ length: NUM_TOKEN_GARDENS }, (_, i) => `T${i + 1}`);
+                    persistedTokenGardens = persisted.tokenIndexers.filter((idx: any) => !defaultTokenIds.includes(idx.id));
+                  } else {
+                    persistedTokenGardens = persisted.tokenIndexers;
+                  }
+                }
+              }
+            } catch (err: any) {
+              // Ignore errors when checking for backward compatibility
             }
           }
         }
@@ -1297,15 +1332,15 @@ httpServer.on("request", async (req, res) => {
       
       // Clear generated indexers from in-memory arrays
       // Keep only the default indexers (A, B, C, etc. and T1, T2, etc.)
-      // Remove dynamically created indexers (those with IDs starting with 'indexer-')
-      const dynamicIndexers = GARDENS.filter(i => i.id.startsWith('indexer-'));
-      const dynamicTokenIndexers = TOKEN_GARDENS.filter(i => i.id.startsWith('indexer-'));
+      // Remove dynamically created gardens (those with IDs starting with 'garden-' or 'indexer-')
+      const dynamicIndexers = GARDENS.filter(i => i.id.startsWith('garden-') || i.id.startsWith('indexer-'));
+      const dynamicTokenIndexers = TOKEN_GARDENS.filter(i => i.id.startsWith('garden-') || i.id.startsWith('indexer-'));
       
       const clearedIndexersCount = dynamicIndexers.length + dynamicTokenIndexers.length;
       
-      // Remove dynamic indexers from arrays (filter out those starting with 'indexer-')
-      const filteredIndexers = GARDENS.filter(i => !i.id.startsWith('indexer-'));
-      const filteredTokenIndexers = TOKEN_GARDENS.filter(i => !i.id.startsWith('indexer-'));
+      // Remove dynamic gardens from arrays (filter out those starting with 'garden-' or 'indexer-')
+      const filteredIndexers = GARDENS.filter(i => !i.id.startsWith('garden-') && !i.id.startsWith('indexer-'));
+      const filteredTokenIndexers = TOKEN_GARDENS.filter(i => !i.id.startsWith('garden-') && !i.id.startsWith('indexer-'));
       
       // Clear arrays and repopulate with filtered indexers
       GARDENS.length = 0;
@@ -1323,13 +1358,13 @@ httpServer.on("request", async (req, res) => {
       }
       
       // Helper function to get default indexerId for a provider (non-ROOT mode only)
-      function getDefaultIndexerIdForProvider(providerId: string): string | undefined {
+      function getDefaultGardenIdForProvider(providerId: string): string | undefined {
         const defaults: Record<string, string> = {
-          'amc-001': 'indexer-1',
-          'cinemark-001': 'indexer-1',
-          'moviecom-001': 'indexer-2',
-          'snake-premium-cinema-001': 'indexer-1',
-          'snake-shopping-deals-001': 'indexer-2'
+          'amc-001': 'garden-1',
+          'cinemark-001': 'garden-1',
+          'moviecom-001': 'garden-2',
+          'snake-premium-cinema-001': 'garden-1',
+          'snake-shopping-deals-001': 'garden-2'
         };
         return defaults[providerId];
       }
@@ -1346,49 +1381,65 @@ httpServer.on("request", async (req, res) => {
         
         // Reset indexerId based on deployment mode
         if (DEPLOYED_AS_ROOT) {
-          // ROOT mode: In ROOT mode, indexers are created via Angular wizard
+          // ROOT mode: In ROOT mode, gardens are created via Angular wizard
           // We should NOT clear indexerId assignments here - they're managed by the wizard
           // Skip resetting providers in ROOT mode
           continue;
         } else {
           // Non-ROOT mode: restore default assignments
-          const defaultIndexerId = getDefaultIndexerIdForProvider(provider.id);
-          if (provider.indexerId !== defaultIndexerId) {
-            provider.indexerId = defaultIndexerId || "HG"; // Fallback to HG if undefined
+          const defaultGardenId = getDefaultGardenIdForProvider(provider.id);
+          if (provider.indexerId !== defaultGardenId) {
+            provider.indexerId = defaultGardenId || "HG"; // Fallback to HG if undefined
             providersReset++;
           }
         }
       }
       
-      // Update persistence file - keep wallet balances and ledger entries, only clear indexers and serviceRegistry
+      // REFACTOR: Update separate files - keep wallet balances and ledger entries, clear gardens and serviceRegistry
       const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-      let currentPersistence: any = {
-        walletBalances: {},
-        ledgerEntries: [],
-        gardens: []
-      };
+      const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+      const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
       
-      // Load existing persistence to preserve wallet balances and ledger entries
+      // Preserve wallet balances from main file
+      let walletBalances: Record<string, string> = {};
       if (fs.existsSync(persistenceFile)) {
         try {
           const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
-          currentPersistence = JSON.parse(fileContent);
+          const currentPersistence = JSON.parse(fileContent);
+          walletBalances = currentPersistence.walletBalances || {};
         } catch (err: any) {
-          console.warn(`   ⚠️  Could not load existing persistence file:`, err.message);
+          console.warn(`   ⚠️  Could not load existing wallet persistence file:`, err.message);
         }
       }
       
-      // Update persistence file - keep wallet balances and ledger entries, clear gardens and serviceRegistry
+      // Update main persistence file - keep wallet balances only
       const updatedPersistence = {
-        walletBalances: currentPersistence.walletBalances || {},
-        ledgerEntries: LEDGER.length > 0 ? LEDGER : (currentPersistence.ledgerEntries || []),
-        gardens: [], // Clear gardens
-        serviceRegistry: [], // Clear serviceRegistry
+        walletBalances: walletBalances,
         lastSaved: new Date().toISOString(),
         resetAt: new Date().toISOString()
       };
-      
       fs.writeFileSync(persistenceFile, JSON.stringify(updatedPersistence, null, 2), 'utf-8');
+      console.log(`   💾 [Reset] Updated wallet persistence file (preserved ${Object.keys(walletBalances).length} wallet balances)`);
+      
+      // Clear gardens file
+      const emptyGardensData = {
+        gardens: [],
+        lastSaved: new Date().toISOString(),
+        resetAt: new Date().toISOString()
+      };
+      fs.writeFileSync(gardensFile, JSON.stringify(emptyGardensData, null, 2), 'utf-8');
+      console.log(`   💾 [Reset] Cleared gardens file`);
+      
+      // Clear service registry file
+      const emptyServiceRegistryData = {
+        serviceRegistry: [],
+        lastSaved: new Date().toISOString(),
+        resetAt: new Date().toISOString()
+      };
+      fs.writeFileSync(serviceRegistryFile, JSON.stringify(emptyServiceRegistryData, null, 2), 'utf-8');
+      console.log(`   💾 [Reset] Cleared service registry file`);
+      
+      // Note: Ledger entries file is preserved (not cleared on wallet reset)
       
       // NOTE: We do NOT call redis.saveServiceRegistry() here because:
       // 1. We've already written the ServiceRegistry (empty array) to the file above
@@ -2106,12 +2157,14 @@ httpServer.on("request", async (req, res) => {
     req.on("end", async () => {
       try {
         const requestData = JSON.parse(body);
-        const { serviceType, indexerName, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
+        // Accept both gardenName and indexerName for backward compatibility
+        const gardenName = requestData.gardenName || requestData.indexerName;
+        const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
         
         // Log received data for debugging
-        console.log(`   📥 [${requestId}] Received create-indexer request:`, {
+        console.log(`   📥 [${requestId}] Received create-garden request:`, {
           serviceType,
-          indexerName,
+          gardenName,
           selectedProviders: selectedProviders || 'NOT PROVIDED',
           selectedProvidersType: typeof selectedProviders,
           selectedProvidersIsArray: Array.isArray(selectedProviders),
@@ -2119,9 +2172,9 @@ httpServer.on("request", async (req, res) => {
           currentTokenIndexerIds: TOKEN_GARDENS.map(ti => ti.id).join(', ')
         });
         
-        if (!serviceType || !indexerName) {
+        if (!serviceType || !gardenName) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "serviceType and indexerName required" }));
+          res.end(JSON.stringify({ success: false, error: "serviceType and gardenName required" }));
           return;
         }
         
@@ -2160,7 +2213,7 @@ httpServer.on("request", async (req, res) => {
           'indexer_deployment',
           { 
             serviceType: serviceType,
-            indexerName: indexerName,
+            gardenName: gardenName,
             createdBy: email
           }
         );
@@ -2247,16 +2300,20 @@ httpServer.on("request", async (req, res) => {
           indexerId = `T${maxTokenNumber + 1}`;
           console.log(`   🔢 [${requestId}] Generated token indexer ID: ${indexerId} (max existing: ${maxTokenNumber}, total unique token indexers found: ${tokenIndexerIds.length})`);
         } else {
-          // For regular indexers, use format: indexer-1, indexer-2, etc.
+          // For regular gardens, use format: garden-1, garden-2, etc.
           // Check BOTH in-memory GARDENS AND persisted gardens
-          const regularIndexerIds = uniqueExistingIndexers
-            .filter(i => i.id && i.id.startsWith('indexer-'))
+          const regularGardenIds = uniqueExistingIndexers
+            .filter(i => i.id && (i.id.startsWith('garden-') || i.id.startsWith('indexer-'))) // Support both for migration
             .map(i => {
-              const match = i.id.match(/^indexer-(\d+)$/);
-              return match ? parseInt(match[1], 10) : 0;
+              // Support both "garden-N" and "indexer-N" formats for migration
+              const gardenMatch = i.id.match(/^garden-(\d+)$/);
+              const indexerMatch = i.id.match(/^indexer-(\d+)$/);
+              if (gardenMatch) return parseInt(gardenMatch[1], 10);
+              if (indexerMatch) return parseInt(indexerMatch[1], 10);
+              return 0;
             });
-          const maxRegularNumber = regularIndexerIds.length > 0 ? Math.max(...regularIndexerIds) : 0;
-          indexerId = `indexer-${maxRegularNumber + 1}`;
+          const maxRegularNumber = regularGardenIds.length > 0 ? Math.max(...regularGardenIds) : 0;
+          indexerId = `garden-${maxRegularNumber + 1}`;
         }
         
         // Check if indexer ID already exists (prevent duplicates by ID - names can be the same)
@@ -2275,16 +2332,16 @@ httpServer.on("request", async (req, res) => {
         
         const indexerConfig: GardenConfig = {
           id: indexerId,
-          name: indexerName,
+          name: gardenName,
           stream: isSnake ? `eden:snake:${indexerId}` : 
-                 (serviceType === "dex" ? `eden:token-indexer:${indexerId}` : `eden:indexer:${indexerId}`),
+                 (serviceType === "dex" ? `eden:token-garden:${indexerId}` : `eden:garden:${indexerId}`),
           active: true,
-          uuid: `eden:indexer:${crypto.randomUUID()}`,
+          uuid: `eden:garden:${crypto.randomUUID()}`,
         };
         
         // Add network configuration
         (indexerConfig as any).serverIp = serverIp || "localhost";
-        (indexerConfig as any).serverDomain = serverDomain || `indexer-${indexerId.toLowerCase()}.eden.local`;
+        (indexerConfig as any).serverDomain = serverDomain || `garden-${indexerId.toLowerCase().replace('garden-', '').replace('indexer-', '')}.eden.local`;
         (indexerConfig as any).serverPort = finalPort;
         (indexerConfig as any).networkType = networkType || "http";
         (indexerConfig as any).serviceType = serviceType;
@@ -2872,54 +2929,8 @@ httpServer.on("request", async (req, res) => {
           console.log(`📋 [Indexer Persistence] Final deduplicated count: ${finalIndexersToSave.length} indexer(s)`);
           console.log(`📋 [Indexer Persistence] Final indexer IDs: ${finalIndexersToSave.map(i => i.id).join(', ')}`);
           
-          // CRITICAL: Replace existing.gardens with ONLY the deduplicated in-memory data
-          // Do NOT merge with file data - that would reintroduce duplicates
-          existing.gardens = finalIndexersToSave;
-          // Remove old fields for backward compatibility
-          delete existing.indexers;
-          delete existing.tokenIndexers;
-          
-          // Save ServiceRegistry for debugging
-          // CRITICAL: indexerId is REQUIRED - services without indexerId are NOT allowed
-          // In ROOT mode: only save services with an indexerId assigned (not undefined)
-          // In non-ROOT mode: also require indexerId (it's a key context during service)
-          const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-            if (p.indexerId === undefined || p.indexerId === null) {
-              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
-              return false;
-            }
-            return true;
-          });
-          
-          existing.serviceRegistry = servicesToSave.map(p => {
-            const provider: any = {
-              id: p.id,
-              name: p.name,
-              serviceType: p.serviceType,
-              location: p.location,
-              bond: p.bond,
-              reputation: p.reputation,
-              status: p.status,
-              uuid: p.uuid,
-              apiEndpoint: p.apiEndpoint,
-              indexerId: p.indexerId // REQUIRED - always include
-            };
-            // Include Snake-specific fields if present
-            if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
-            if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
-            if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
-            if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
-            if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
-            if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
-            if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
-            return provider;
-          });
-          
-          existing.lastSaved = new Date().toISOString();
-          
           // CRITICAL: Final verification before saving
           console.log(`🔍 [Indexer Persistence] Final check before save:`);
-          console.log(`   - existing.gardens.length: ${existing.gardens ? existing.gardens.length : 'undefined'}`);
           console.log(`   - Regular indexers: ${regularIndexersToSave.length}`);
           console.log(`   - Token indexers: ${tokenIndexersToSave.length}`);
           console.log(`   - Total indexers to save: ${finalIndexersToSave.length}`);
@@ -2946,14 +2957,61 @@ httpServer.on("request", async (req, res) => {
             }
           }
           
-          fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
-          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${finalIndexersToSave.length} total indexer(s) (${regularIndexersToSave.length} regular + ${tokenIndexersToSave.length} token) and ${existing.serviceRegistry.length} service provider(s) to ${persistenceFile}`);
+          // REFACTOR: Save gardens to separate file
+          const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+          const gardensData = {
+            gardens: finalIndexersToSave,
+            lastSaved: new Date().toISOString()
+          };
+          fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${finalIndexersToSave.length} total garden(s) (${regularIndexersToSave.length} regular + ${tokenIndexersToSave.length} token) to ${gardensFile}`);
           if (regularIndexersToSave.length > 0) {
-            console.log(`💾 [Indexer Persistence] Saved regular indexers: ${regularIndexersToSave.map(i => `${i.name} (${i.id})`).join(', ')}`);
+            console.log(`💾 [Indexer Persistence] Saved regular gardens: ${regularIndexersToSave.map(i => `${i.name} (${i.id})`).join(', ')}`);
           }
           if (tokenIndexersToSave.length > 0) {
-            console.log(`💾 [Indexer Persistence] Saved token indexers: ${tokenIndexersToSave.map(i => `${i.name} (${i.id})${i.certificate ? ' ✓cert' : ' ❌no cert'}`).join(', ')}`);
+            console.log(`💾 [Indexer Persistence] Saved token gardens: ${tokenIndexersToSave.map(i => `${i.name} (${i.id})${i.certificate ? ' ✓cert' : ' ❌no cert'}`).join(', ')}`);
           }
+          
+          // Save ServiceRegistry to separate file
+          const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
+            if (p.indexerId === undefined || p.indexerId === null) {
+              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
+              return false;
+            }
+            return true;
+          });
+          
+          const serviceRegistry = servicesToSave.map(p => {
+            const provider: any = {
+              id: p.id,
+              name: p.name,
+              serviceType: p.serviceType,
+              location: p.location,
+              bond: p.bond,
+              reputation: p.reputation,
+              status: p.status,
+              uuid: p.uuid,
+              apiEndpoint: p.apiEndpoint,
+              indexerId: p.indexerId // REQUIRED - always include
+            };
+            // Include Snake-specific fields if present
+            if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
+            if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
+            if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
+            if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
+            if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
+            if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
+            if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+            return provider;
+          });
+          
+          const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
+          const serviceRegistryData = {
+            serviceRegistry: serviceRegistry,
+            lastSaved: new Date().toISOString()
+          };
+          fs.writeFileSync(serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${serviceRegistry.length} service provider(s) to ${serviceRegistryFile}`);
         } catch (err: any) {
           console.error(`❌ [Indexer Persistence] Failed to save immediately: ${err.message}`);
         }
@@ -3052,21 +3110,40 @@ class InMemoryRedisServer extends EventEmitter {
   private consumerGroups: Map<string, Map<string, string>> = new Map(); // stream -> group -> lastId
   private pendingMessages: Map<string, Map<string, Array<{ id: string; fields: Record<string, string> }>>> = new Map(); // stream -> group -> messages
   private isConnected = false;
-  private persistenceFile: string;
+  private persistenceFile: string; // Main wallet persistence file (backward compatibility)
+  private ledgerEntriesFile: string; // Separate file for ledger entries
+  private gardensFile: string; // Separate file for gardens
+  private serviceRegistryFile: string; // Separate file for service registry
   private saveTimeout: NodeJS.Timeout | null = null;
   private readonly SAVE_DELAY_MS = 1000; // Debounce saves by 1 second
 
   constructor() {
     super();
-    // Persistence file in the same directory as the script
+    // Persistence files in the same directory as the script
     this.persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+    this.ledgerEntriesFile = path.join(__dirname, 'eden-ledgerEntries-persistence.json');
+    this.gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+    this.serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
     this.loadPersistence();
   }
 
-  // Load wallet data, ledger entries, and indexers from persistence file
+  // Load wallet data, ledger entries, and indexers from persistence files
+  // REFACTOR: Now uses separate files for each data type, with backward compatibility
   private loadPersistence(): { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } {
     const result: { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } = { walletBalances: {}, ledgerEntries: [], indexers: [] };
+    
+    // Check if we should migrate from old combined file
+    const hasOldFile = fs.existsSync(this.persistenceFile);
+    const hasNewFiles = fs.existsSync(this.ledgerEntriesFile) || fs.existsSync(this.gardensFile) || fs.existsSync(this.serviceRegistryFile);
+    
+    // If old file exists but new files don't, migrate
+    if (hasOldFile && !hasNewFiles) {
+      console.log(`🔄 [Persistence Migration] Detected old combined file, migrating to separate files...`);
+      this.migrateToSeparateFiles();
+    }
+    
     try {
+      // Load wallet balances (always from main file for now, for backward compatibility)
       if (fs.existsSync(this.persistenceFile)) {
         const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
@@ -3085,17 +3162,69 @@ class InMemoryRedisServer extends EventEmitter {
         } else {
           console.log(`📂 [Redis Persistence] No wallet balances found in persistence file (starting with empty wallets)`);
         }
-        
-        // Restore ledger entries
+      }
+      
+      // Load ledger entries from separate file
+      if (fs.existsSync(this.ledgerEntriesFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
+            result.ledgerEntries = persisted.ledgerEntries;
+            console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.ledgerEntriesFile}`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
+        }
+      } else if (hasOldFile) {
+        // Fallback to old file for backward compatibility
+        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
         if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
           result.ledgerEntries = persisted.ledgerEntries;
-          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.persistenceFile}`);
-        } else {
-          console.log(`📂 [Redis Persistence] No ledger entries found in persistence file (starting with empty ledger)`);
+          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from old combined file (will migrate on next save)`);
         }
-        
-        // Restore dynamically created indexers (gardens)
-        // Backward compatibility: check both 'gardens' and 'indexers' fields
+      }
+      
+      // Load gardens from separate file
+      if (fs.existsSync(this.gardensFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.gardensFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          const gardensToLoad = persisted.gardens || persisted.indexers || [];
+          if (gardensToLoad && Array.isArray(gardensToLoad) && gardensToLoad.length > 0) {
+            // CRITICAL: Deduplicate gardens when loading to prevent duplicates in memory
+            const deduplicatedGardens = new Map<string, any>();
+            for (const garden of gardensToLoad) {
+              const existing = deduplicatedGardens.get(garden.id);
+              if (!existing) {
+                deduplicatedGardens.set(garden.id, garden);
+              } else {
+                // Prefer the one with certificate
+                const hasCert = !!(garden as any).certificate;
+                const existingHasCert = !!(existing as any).certificate;
+                if (hasCert && !existingHasCert) {
+                  deduplicatedGardens.set(garden.id, garden);
+                  console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping version with certificate`);
+                } else {
+                  console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping existing version`);
+                }
+              }
+            }
+            const cleanGardens = Array.from(deduplicatedGardens.values());
+            result.indexers = cleanGardens;
+            if (gardensToLoad.length !== cleanGardens.length) {
+              console.warn(`⚠️  [Indexer Persistence] Removed ${gardensToLoad.length - cleanGardens.length} duplicate(s) when loading gardens from persistence file`);
+            }
+            console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from ${this.gardensFile}`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load gardens from separate file: ${err.message}`);
+        }
+      } else if (hasOldFile) {
+        // Fallback to old file for backward compatibility
+        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
         const gardensToLoad = persisted.gardens || persisted.indexers;
         if (gardensToLoad && Array.isArray(gardensToLoad) && gardensToLoad.length > 0) {
           // CRITICAL: Deduplicate gardens when loading to prevent duplicates in memory
@@ -3121,17 +3250,66 @@ class InMemoryRedisServer extends EventEmitter {
           if (gardensToLoad.length !== cleanGardens.length) {
             console.warn(`⚠️  [Indexer Persistence] Removed ${gardensToLoad.length - cleanGardens.length} duplicate(s) when loading gardens from persistence file`);
           }
-          console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from ${this.persistenceFile} (${gardensToLoad.length} in file, ${gardensToLoad.length - cleanGardens.length} duplicates removed)`);
-        } else {
-          console.log(`📂 [Redis Persistence] No gardens found in persistence file (starting with empty gardens - will be populated by Angular wizard)`);
+          console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from old combined file (will migrate on next save)`);
         }
-      } else {
-        console.log(`📂 [Redis Persistence] No persistence file found, starting fresh: ${this.persistenceFile}`);
+      }
+      
+      if (!hasOldFile && !hasNewFiles) {
+        console.log(`📂 [Redis Persistence] No persistence files found, starting fresh`);
       }
     } catch (err: any) {
       console.warn(`⚠️  [Redis Persistence] Failed to load persistence file: ${err.message}`);
     }
     return result;
+  }
+  
+  // Migrate from old combined file to separate files
+  private migrateToSeparateFiles(): void {
+    try {
+      if (!fs.existsSync(this.persistenceFile)) {
+        return; // Nothing to migrate
+      }
+      
+      console.log(`🔄 [Persistence Migration] Reading old combined file: ${this.persistenceFile}`);
+      const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+      const persisted = JSON.parse(fileContent);
+      
+      // Migrate ledger entries
+      if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
+        const ledgerData = {
+          ledgerEntries: persisted.ledgerEntries,
+          lastSaved: persisted.lastSaved || new Date().toISOString()
+        };
+        fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
+        console.log(`✅ [Persistence Migration] Migrated ${persisted.ledgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
+      }
+      
+      // Migrate gardens
+      const gardensToMigrate = persisted.gardens || persisted.indexers;
+      if (gardensToMigrate && Array.isArray(gardensToMigrate) && gardensToMigrate.length > 0) {
+        const gardensData = {
+          gardens: gardensToMigrate,
+          lastSaved: persisted.lastSaved || new Date().toISOString()
+        };
+        fs.writeFileSync(this.gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+        console.log(`✅ [Persistence Migration] Migrated ${gardensToMigrate.length} gardens to ${this.gardensFile}`);
+      }
+      
+      // Migrate service registry
+      if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
+        const serviceRegistryData = {
+          serviceRegistry: persisted.serviceRegistry,
+          lastSaved: persisted.lastSaved || new Date().toISOString()
+        };
+        fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
+        console.log(`✅ [Persistence Migration] Migrated ${persisted.serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
+      }
+      
+      // Keep wallet balances in the main file (for now, can be migrated later if needed)
+      console.log(`✅ [Persistence Migration] Migration complete. Wallet balances remain in ${this.persistenceFile}`);
+    } catch (err: any) {
+      console.error(`❌ [Persistence Migration] Failed to migrate: ${err.message}`);
+    }
   }
 
   // Save wallet data, ledger entries, and indexers to persistence file (debounced)
@@ -3182,20 +3360,49 @@ class InMemoryRedisServer extends EventEmitter {
           }
         }
 
-        // Load existing data to merge (don't overwrite)
+        // Load existing ledger entries from separate file (or old file for backward compatibility)
         let existingLedgerEntries: any[] = [];
-        let existingIndexers: any[] = [];
-        
-        if (fs.existsSync(this.persistenceFile)) {
+        if (fs.existsSync(this.ledgerEntriesFile)) {
+          try {
+            const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
+            const existing = JSON.parse(fileContent);
+            if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
+              existingLedgerEntries = existing.ledgerEntries;
+            }
+          } catch (err: any) {
+            console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
+          }
+        } else if (fs.existsSync(this.persistenceFile)) {
+          // Fallback to old file for backward compatibility
           try {
             const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
             const existing = JSON.parse(fileContent);
             if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
               existingLedgerEntries = existing.ledgerEntries;
             }
-            // CRITICAL: In ROOT mode, DO NOT modify indexers here - they're saved via immediate save
-            // In non-ROOT mode, preserve existing indexers
-            // Backward compatibility: check both 'gardens' and 'indexers' fields
+          } catch (err: any) {
+            console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from old file: ${err.message}`);
+          }
+        }
+        
+        // Load existing gardens from separate file (or old file for backward compatibility)
+        let existingIndexers: any[] = [];
+        if (fs.existsSync(this.gardensFile)) {
+          try {
+            const fileContent = fs.readFileSync(this.gardensFile, 'utf-8');
+            const existing = JSON.parse(fileContent);
+            const gardensFromFile = existing.gardens || existing.indexers;
+            if (gardensFromFile && Array.isArray(gardensFromFile)) {
+              existingIndexers = gardensFromFile;
+            }
+          } catch (err: any) {
+            console.warn(`⚠️  [Redis Persistence] Failed to load gardens from separate file: ${err.message}`);
+          }
+        } else if (fs.existsSync(this.persistenceFile)) {
+          // Fallback to old file for backward compatibility
+          try {
+            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+            const existing = JSON.parse(fileContent);
             const gardensFromFile = existing.gardens || existing.indexers;
             if (gardensFromFile && Array.isArray(gardensFromFile)) {
               existingIndexers = gardensFromFile;
@@ -3211,7 +3418,7 @@ class InMemoryRedisServer extends EventEmitter {
               }
             }
           } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load existing data for merge: ${err.message}`);
+            console.warn(`⚠️  [Redis Persistence] Failed to load gardens from old file: ${err.message}`);
           }
         }
 
@@ -3291,20 +3498,51 @@ class InMemoryRedisServer extends EventEmitter {
           return provider;
         });
 
-        const persisted = {
+        // REFACTOR: Save to separate files
+        const timestamp = new Date().toISOString();
+        
+        // Save wallet balances to main file
+        const walletData = {
           walletBalances,
-          ledgerEntries: finalLedgerEntries,
-          gardens: finalIndexers, // CRITICAL: All indexers (regular and token) are in 'gardens' array
-          serviceRegistry: serviceRegistry,
-          lastSaved: new Date().toISOString()
+          lastSaved: timestamp
         };
-
-        fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
-        const tokenIndexerCount = finalIndexers.filter((idx: any) => 
-          idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
-        ).length;
-        const regularIndexerCount = finalIndexers.length - tokenIndexerCount;
-        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries, ${finalLedgerEntries.length} ledger entries, ${finalIndexers.length} total indexers (${regularIndexerCount} regular + ${tokenIndexerCount} token), and ${serviceRegistry.length} service providers to ${this.persistenceFile}`);
+        fs.writeFileSync(this.persistenceFile, JSON.stringify(walletData, null, 2), 'utf-8');
+        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
+        
+        // Save ledger entries to separate file
+        if (finalLedgerEntries.length > 0 || fs.existsSync(this.ledgerEntriesFile)) {
+          const ledgerData = {
+            ledgerEntries: finalLedgerEntries,
+            lastSaved: timestamp
+          };
+          fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
+          console.log(`💾 [Redis Persistence] Saved ${finalLedgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
+        }
+        
+        // Save gardens to separate file (only if we have gardens or the file exists)
+        // CRITICAL: In ROOT mode, gardens are saved via immediate save, but we still save here for non-ROOT mode
+        if (finalIndexers.length > 0 || fs.existsSync(this.gardensFile)) {
+          const gardensData = {
+            gardens: finalIndexers, // CRITICAL: All indexers (regular and token) are in 'gardens' array
+            lastSaved: timestamp
+          };
+          fs.writeFileSync(this.gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+          const tokenIndexerCount = finalIndexers.filter((idx: any) => 
+            idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
+          ).length;
+          const regularIndexerCount = finalIndexers.length - tokenIndexerCount;
+          console.log(`💾 [Redis Persistence] Saved ${finalIndexers.length} total gardens (${regularIndexerCount} regular + ${tokenIndexerCount} token) to ${this.gardensFile}`);
+        }
+        
+        // Save service registry to separate file
+        if (serviceRegistry.length > 0 || fs.existsSync(this.serviceRegistryFile)) {
+          const serviceRegistryData = {
+            serviceRegistry: serviceRegistry,
+            lastSaved: timestamp
+          };
+          fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
+          console.log(`💾 [Redis Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
+        }
       } catch (err: any) {
         console.error(`❌ [Redis Persistence] Failed to save persistence file: ${err.message}`);
       }
@@ -3339,48 +3577,15 @@ class InMemoryRedisServer extends EventEmitter {
       // The check for whether to save is handled by the caller
     }
     
-    // Force immediate save of ServiceRegistry
+    // REFACTOR: Force immediate save of ServiceRegistry to separate file
     try {
-      const persistenceFile = this.persistenceFile;
-      let existing: any = {
-        walletBalances: {},
-        ledgerEntries: [],
-        gardens: [],
-        serviceRegistry: [],
-        lastSaved: new Date().toISOString()
-      };
-      
-      if (fs.existsSync(persistenceFile)) {
-        try {
-          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
-          existing = JSON.parse(fileContent);
-          // CRITICAL: Preserve existing gardens array (DO NOT modify it)
-          // Backward compatibility: check both 'gardens' and 'indexers' fields
-          if (!existing.gardens || !Array.isArray(existing.gardens)) {
-            // Migrate from indexers if it exists
-            if (existing.indexers && Array.isArray(existing.indexers)) {
-              existing.gardens = existing.indexers;
-              delete existing.indexers;
-            } else {
-              existing.gardens = [];
-            }
-          }
-          // Remove old tokenIndexers field if it exists
-          if (existing.tokenIndexers) {
-            delete existing.tokenIndexers;
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [ServiceRegistry Persistence] Failed to load existing file: ${err.message}`);
-        }
-      }
-      
       // Update ServiceRegistry ONLY (do not touch gardens)
       const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
         // Only save services with indexerId set (required field)
         return p.indexerId !== undefined && p.indexerId !== null;
       });
       
-      existing.serviceRegistry = servicesToSave.map(p => {
+      const serviceRegistry = servicesToSave.map(p => {
         const provider: any = {
           id: p.id,
           name: p.name,
@@ -3404,13 +3609,14 @@ class InMemoryRedisServer extends EventEmitter {
         return provider;
       });
       
-      existing.lastSaved = new Date().toISOString();
+      // REFACTOR: Save to separate file
+      const serviceRegistryData = {
+        serviceRegistry: serviceRegistry,
+        lastSaved: new Date().toISOString()
+      };
       
-      // CRITICAL: Preserve gardens array exactly as it is (DO NOT modify)
-      // Gardens are saved separately via immediate save in /api/wizard/create-indexer
-      
-      fs.writeFileSync(persistenceFile, JSON.stringify(existing, null, 2), 'utf-8');
-      console.log(`💾 [ServiceRegistry Persistence] Saved ${existing.serviceRegistry.length} service providers to ${persistenceFile} (preserved ${existing.gardens?.length || 0} gardens)`);
+      fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
+      console.log(`💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
     } catch (err: any) {
       console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
     }
@@ -4091,7 +4297,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "Baltimore, Maryland",
     bond: 1000,
     reputation: 4.8,
-    indexerId: DEPLOYED_AS_ROOT ? "HG" : "indexer-1", // In ROOT mode, assign to HG temporarily (will be reassigned by wizard)
+    indexerId: DEPLOYED_AS_ROOT ? "HG" : "garden-1", // In ROOT mode, assign to HG temporarily (will be reassigned by wizard)
     apiEndpoint: "https://api.amctheatres.com/v1/listings",
   },
   // In ROOT mode: moviecom-001, cinemark-001, and snake services should NOT exist
@@ -4105,7 +4311,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       location: "Baltimore, Maryland",
       bond: 800,
       reputation: 4.5,
-      indexerId: "indexer-2",
+      indexerId: "garden-2",
       apiEndpoint: "https://api.moviecom.com/showtimes",
     },
     {
@@ -4116,7 +4322,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       location: "Baltimore, Maryland",
       bond: 1200,
       reputation: 4.7,
-      indexerId: "indexer-1",
+      indexerId: "garden-1",
       apiEndpoint: "https://api.cinemark.com/movies",
     },
     // Snake Service Providers (serviceType: "snake", belongs to indexers)
@@ -4129,7 +4335,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       bond: 10000,
       insuranceFee: 10000, // Higher insurance fee for Snake
       reputation: 4.5,
-      indexerId: "indexer-1",
+      indexerId: "garden-1",
       apiEndpoint: "https://ads.premiumcinema.com/api",
       iGasMultiplier: 2.0, // Double iGas
       iTaxMultiplier: 2.0, // Double iTax
@@ -4148,7 +4354,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       bond: 10000,
       insuranceFee: 10000,
       reputation: 4.3,
-      indexerId: "indexer-2",
+      indexerId: "garden-2",
       apiEndpoint: "https://ads.shoppingdeals.com/api",
       iGasMultiplier: 2.0,
       iTaxMultiplier: 2.0,
@@ -6652,8 +6858,8 @@ function issueGardenCertificate(garden: GardenConfig): EdenCertificate {
     subject: garden.uuid,
     capabilities: ["INDEXER", "ISSUE_CERT"],
     constraints: {
-      indexerId: garden.id,
-      indexerName: garden.name,
+      gardenId: garden.id, // Updated from indexerId
+      gardenName: garden.name, // Updated from indexerName
       stream: garden.stream
     },
     ttlSeconds: 365 * 24 * 60 * 60 // 1 year
@@ -8673,7 +8879,7 @@ async function main() {
             // CRITICAL: In ROOT mode, ONLY restore what's in persistence file
             // Persistence file is the SINGLE SOURCE OF TRUTH
             if (DEPLOYED_AS_ROOT) {
-              const isRegularIndexer = persistedIndexer.id && persistedIndexer.id.startsWith('indexer-');
+              const isRegularIndexer = persistedIndexer.id && (persistedIndexer.id.startsWith('garden-') || persistedIndexer.id.startsWith('indexer-'));
               
               if (isRegularIndexer) {
                 indexersToRestore.push(persistedIndexer as GardenConfig);

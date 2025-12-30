@@ -224,7 +224,7 @@ export class SystemConfigComponent implements OnInit {
     this.gardenConfig.gardenName = `${baseName}-${serviceType.type.toUpperCase()}`;
     
     // Auto-generate domain
-    this.gardenConfig.serverDomain = `indexer-${serviceType.type.toLowerCase()}.eden.local`;
+    this.gardenConfig.serverDomain = `garden-${serviceType.type.toLowerCase()}.eden.local`;
     
     // Initialize selected providers for movie service type
     if (serviceType.type === 'movie') {
@@ -290,10 +290,9 @@ export class SystemConfigComponent implements OnInit {
     this.creationSuccess = false;
 
     // Include email and amount in the request
-    // Map gardenName to indexerName for backend API compatibility
     const requestBody: any = {
       serviceType: this.gardenConfig.serviceType,
-      indexerName: this.gardenConfig.gardenName, // Map gardenName to indexerName for API
+      gardenName: this.gardenConfig.gardenName, // Use gardenName (backend accepts both for compatibility)
       serverIp: this.gardenConfig.serverIp,
       serverDomain: this.gardenConfig.serverDomain,
       serverPort: this.gardenConfig.serverPort,
@@ -499,7 +498,7 @@ export class SystemConfigComponent implements OnInit {
       
       this.gardenConfig.serviceType = this.newServiceTypeName.trim();
       this.gardenConfig.gardenName = `Indexer-${this.newServiceTypeName.toUpperCase()}`;
-      this.gardenConfig.serverDomain = `indexer-${this.newServiceTypeName.toLowerCase()}.eden.local`;
+      this.gardenConfig.serverDomain = `garden-${this.newServiceTypeName.toLowerCase()}.eden.local`;
       this.gardenConfig.isSnake = false;
       this.gardenConfig.selectedProviders = [];
       

@@ -187,29 +187,35 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     });
     
-    // Check for service indexers (non-root) - Main Street only shows if there are service indexers
-    this.checkServiceGardens();
-    
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
     // Load Snake providers separately
     this.loadSnakeProviders();
+    
+    // Check for service indexers (non-root) - Main Street only shows if there are service indexers
+    // Call after a short delay to ensure persistence is loaded on server
+    setTimeout(() => {
+      this.checkServiceGardens();
+    }, 500);
   }
   
   checkServiceGardens() {
     // Check if there are any service gardens (non-root gardens)
     // API still uses "indexers" endpoint and response field for backward compatibility
-    this.http.get<{success: boolean, indexers: Array<{id: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/indexers`)
+    this.http.get<{success: boolean, indexers: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/indexers`)
       .subscribe({
         next: (response) => {
           if (response.success && response.indexers) {
             // Check if there are any active non-root gardens (regular or token gardens)
             // A garden is a service garden if it's active and not a root garden
-            this.hasServiceIndexers = response.indexers.some(i => 
+            const hasServices = response.indexers.some(i => 
               i.active && i.type !== 'root'
             );
+            console.log(`🔍 [Main Street] Service gardens check: ${hasServices} (found ${response.indexers.length} total gardens: ${response.indexers.map(i => `${i.name || i.id}(${i.type || 'no-type'})`).join(', ')})`);
+            this.hasServiceIndexers = hasServices;
             this.cdr.detectChanges();
           } else {
+            console.log(`🔍 [Main Street] Service gardens check: false (no gardens in response)`);
             this.hasServiceIndexers = false;
             this.cdr.detectChanges();
           }
@@ -318,6 +324,8 @@ export class AppComponent implements OnInit, OnDestroy {
       if (this.certificateComponent) {
         this.certificateComponent.fetchGardens();
       }
+      // Also refresh service gardens check for Main Street
+      this.checkServiceGardens();
       console.log('🔄 Gardens refreshed after wallet reset');
     }, 100);
     

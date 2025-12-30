@@ -447,10 +447,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
     
     // Check if it's a new garden (format: indexer-*)
-    if (normalized.startsWith('indexer-')) {
+    if (normalized.startsWith('garden-') || normalized.startsWith('indexer-')) { // Support both for migration
       // Dynamically add new gardens
       if (!this.components.has(normalized)) {
-        const gardenName = normalized.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const gardenName = normalized.replace('garden-', 'Garden-').replace('indexer-', 'Garden-').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         this.addComponent(normalized, gardenName, 'indexer');
         this.updateGroups(); // Update groups after adding new component
       }
@@ -891,12 +891,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (gardenId === 'HG') {
       return 'HG'; // Holy Ghost garden
     }
-    if (gardenId.startsWith('indexer-')) {
-      // Extract letter from "indexer-alpha" -> "A", "indexer-beta" -> "B"
+    if (gardenId.startsWith('garden-') || gardenId.startsWith('indexer-')) { // Support both for migration
+      // Extract number from "garden-1" -> "1", "garden-2" -> "2", etc.
       const parts = gardenId.split('-');
       if (parts.length >= 2) {
-        const letter = parts[1].charAt(0).toUpperCase();
-        return letter;
+        // For garden-1, garden-2, etc., return the number
+        const number = parts[1];
+        return `Garden-${number}`;
       }
     }
     // For token gardens, return as-is
