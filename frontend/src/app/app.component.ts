@@ -13,11 +13,12 @@ export interface ServiceProvider {
   location: string;
   bond: number;
   reputation: number;
-  indexerId: string;
+  gardenId: string; // Use gardenId (preferred), indexerId kept for backward compatibility
+  indexerId?: string; // Backward compatibility - prefer gardenId
   status: string;
   // Snake Service Fields
   // Note: Snake is a SERVICE TYPE (serviceType: "snake"), not a provider type
-  // Each Snake service belongs to an indexer (indexerId)
+  // Each Snake service belongs to a garden (gardenId)
   insuranceFee?: number;
   iGasMultiplier?: number;
   iTaxMultiplier?: number;
@@ -91,7 +92,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
   
   isLoadingServices: boolean = false;
-  hasServiceIndexers: boolean = false; // Track if there are any service indexers (non-root)
+  hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
   
   // Snake (Advertising) Service Providers
   snakeProviders: ServiceProvider[] = [];
@@ -99,7 +100,7 @@ export class AppComponent implements OnInit, OnDestroy {
   
   // Stripe payment processing
   isProcessingStripe: boolean = false;
-  isProcessingIndexer: boolean = false;
+  isProcessingGarden: boolean = false;
   
   // Wallet balance
   walletBalance: number = 0;
@@ -139,10 +140,10 @@ export class AppComponent implements OnInit, OnDestroy {
     const sessionId = urlParams.get('session_id');
     const jscCanceled = urlParams.get('jsc_canceled');
     
-    const indexerSuccess = urlParams.get('indexer_success');
-    const indexerCanceled = urlParams.get('indexer_canceled');
+    const gardenSuccess = urlParams.get('indexer_success'); // Keep API param name for backward compatibility
+    const gardenCanceled = urlParams.get('indexer_canceled'); // Keep API param name for backward compatibility
     
-    if ((jscSuccess === 'true' || indexerSuccess === 'true') && sessionId) {
+    if ((jscSuccess === 'true' || gardenSuccess === 'true') && sessionId) {
       console.log(`✅ Stripe payment successful! Session ID: ${sessionId}`);
       // Clear URL parameters to prevent re-triggering
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -151,9 +152,9 @@ export class AppComponent implements OnInit, OnDestroy {
       this.selectedServiceType = null;
       this.inputPlaceholder = 'Select a service type above or type your query...';
       
-      // Check session status and process payment/indexer registration (fallback for local dev)
-      this.checkStripeSession(sessionId, indexerSuccess === 'true');
-    } else if (jscCanceled === 'true' || indexerCanceled === 'true') {
+      // Check session status and process payment/garden registration (fallback for local dev)
+      this.checkStripeSession(sessionId, gardenSuccess === 'true');
+    } else if (jscCanceled === 'true' || gardenCanceled === 'true') {
       console.log(`❌ Stripe payment canceled`);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -192,7 +193,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Load Snake providers separately
     this.loadSnakeProviders();
     
-    // Check for service indexers (non-root) - Main Street only shows if there are service indexers
+    // Check for service gardens (non-root) - Main Street only shows if there are service gardens
     // Call after a short delay to ensure persistence is loaded on server
     setTimeout(() => {
       this.checkServiceGardens();
@@ -201,17 +202,19 @@ export class AppComponent implements OnInit, OnDestroy {
   
   checkServiceGardens() {
     // Check if there are any service gardens (non-root gardens)
-    // API still uses "indexers" endpoint and response field for backward compatibility
-    this.http.get<{success: boolean, indexers: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/indexers`)
+    // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/gardens`)
       .subscribe({
         next: (response) => {
-          if (response.success && response.indexers) {
+          // Support both 'gardens' and 'indexers' response fields for backward compatibility
+          const gardens = response.gardens || response.indexers || [];
+          if (response.success && gardens.length > 0) {
             // Check if there are any active non-root gardens (regular or token gardens)
             // A garden is a service garden if it's active and not a root garden
-            const hasServices = response.indexers.some(i => 
+            const hasServices = gardens.some(i => 
               i.active && i.type !== 'root'
             );
-            console.log(`🔍 [Main Street] Service gardens check: ${hasServices} (found ${response.indexers.length} total gardens: ${response.indexers.map(i => `${i.name || i.id}(${i.type || 'no-type'})`).join(', ')})`);
+            console.log(`🔍 [Main Street] Service gardens check: ${hasServices} (found ${gardens.length} total gardens: ${gardens.map(i => `${i.name || i.id}(${i.type || 'no-type'})`).join(', ')})`);
             this.hasServiceIndexers = hasServices;
             this.cdr.detectChanges();
           } else {
@@ -384,17 +387,17 @@ export class AppComponent implements OnInit, OnDestroy {
           if (response.success && response.providers) {
             // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
             // These belong to Holy Ghost (HG) and should NOT appear in Main Street
-            // Main Street should only show service types that have providers belonging to NON-ROOT indexers
+            // Main Street should only show service types that have providers belonging to NON-ROOT gardens
             const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
             
             // Only include service types that:
             // 1. Have active providers
             // 2. Are NOT infrastructure services
-            // 3. Have at least one provider belonging to a non-root indexer (not HG)
+            // 3. Have at least one provider belonging to a non-root garden (not HG)
             const nonInfrastructureProviders = response.providers.filter(p => 
               p.status === 'active' && 
               !infrastructureServiceTypes.has(p.serviceType) &&
-              p.indexerId !== 'HG' // Exclude Holy Ghost providers
+              (p.gardenId || p.indexerId) !== 'HG' // Exclude Holy Ghost providers (support both gardenId and indexerId)
             );
             
             // Create Set of unique service types from non-infrastructure providers
@@ -465,7 +468,7 @@ export class AppComponent implements OnInit, OnDestroy {
             console.log(`   Available types in registry (non-infrastructure, non-HG): ${Array.from(availableTypes).join(', ')}`);
             console.log(`   Providers by type:`, Array.from(availableTypes).map(type => {
               const providers = nonInfrastructureProviders.filter(p => p.serviceType === type);
-              return `${type}: ${providers.length} provider(s) [${providers.map(p => `${p.name} (${p.indexerId})`).join(', ')}]`;
+              return `${type}: ${providers.length} provider(s) [${providers.map(p => `${p.name} (${p.gardenId || p.indexerId})`).join(', ')}]`;
             }).join(', '));
           } else {
             // If no providers, clear service types
@@ -488,14 +491,14 @@ export class AppComponent implements OnInit, OnDestroy {
   
   loadSnakeProviders() {
     // Query ROOT CA ServiceRegistry for Snake services
-    // Snake is a service type (serviceType: "snake"), each belongs to an indexer
+    // Snake is a service type (serviceType: "snake"), each belongs to a garden
     this.isLoadingSnakeProviders = true;
     this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake`)
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
             this.snakeProviders = response.providers.filter(p => p.status === 'active');
-            console.log(`🐍 Loaded ${this.snakeProviders.length} Snake services:`, this.snakeProviders.map(p => `${p.name} (indexer: ${p.indexerId})`).join(', '));
+            console.log(`🐍 Loaded ${this.snakeProviders.length} Snake services:`, this.snakeProviders.map(p => `${p.name} (garden: ${p.gardenId || p.indexerId})`).join(', '));
           }
           this.isLoadingSnakeProviders = false;
           this.cdr.detectChanges();
@@ -509,8 +512,8 @@ export class AppComponent implements OnInit, OnDestroy {
       });
   }
   
-  checkStripeSession(sessionId: string, isIndexerPurchase: boolean = false) {
-    console.log(`🔍 Checking Stripe session status: ${sessionId} (indexer purchase: ${isIndexerPurchase})`);
+  checkStripeSession(sessionId: string, isGardenPurchase: boolean = false) {
+    console.log(`🔍 Checking Stripe session status: ${sessionId} (garden purchase: ${isGardenPurchase})`);
     this.http.get<{success: boolean, minted?: boolean, alreadyMinted?: boolean, registered?: boolean, alreadyRegistered?: boolean, amount?: number, balance?: number, paymentStatus?: string, indexerId?: string, indexerName?: string, error?: string}>(
       `${this.apiUrl}/api/jsc/check-session/${sessionId}`
     ).subscribe({
@@ -525,11 +528,11 @@ export class AppComponent implements OnInit, OnDestroy {
             this.walletBalance = response.balance || 0;
             alert(`✅ ${response.amount} JSC deposited successfully! Your balance: ${response.balance} JSC`);
           } else if (response.registered || response.alreadyRegistered) {
-            console.log(`✅ Indexer registered: ${response.indexerId || response.indexerName}`);
+            console.log(`✅ Garden registered: ${response.indexerId || response.indexerName}`);
             this.walletBalance = response.balance || 0;
-            this.isProcessingIndexer = false;
-            alert(`✅ Movie indexer installed successfully!\nIndexer: ${response.indexerId || response.indexerName}\nBalance: ${response.balance} JSC`);
-            // Refresh indexer list (sidebar will auto-update via WebSocket)
+            this.isProcessingGarden = false;
+            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nBalance: ${response.balance} JSC`);
+            // Refresh garden list (sidebar will auto-update via WebSocket)
           } else {
             console.log(`⏳ Payment not completed yet. Status: ${response.paymentStatus}`);
             alert(`⏳ Payment processing... Please wait a moment and refresh.`);
@@ -584,32 +587,32 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
     
-    this.isProcessingIndexer = true;
+    this.isProcessingGarden = true;
     
     // First check wallet balance
     if (this.walletBalance >= amount) {
       // User has enough balance - purchase directly from wallet
-      console.log(`💰 Purchasing indexer from wallet balance: ${this.walletBalance} JSC`);
+      console.log(`💰 Purchasing garden from wallet balance: ${this.walletBalance} JSC`);
       this.http.post<{success: boolean, indexerId?: string, indexerName?: string, balance?: number, error?: string}>(
         `${this.apiUrl}/api/indexer/purchase`,
         { email: this.userEmail, amount: amount, indexerType: 'movie' }
       ).subscribe({
         next: (response) => {
           if (response.success) {
-            console.log(`✅ Indexer purchased from wallet: ${response.indexerId || response.indexerName}`);
+            console.log(`✅ Garden purchased from wallet: ${response.indexerId || response.indexerName}`);
             this.walletBalance = response.balance || this.walletBalance - amount;
-            this.isProcessingIndexer = false;
-            alert(`✅ Movie indexer installed successfully!\nIndexer: ${response.indexerId || response.indexerName}\nRemaining balance: ${response.balance} JSC`);
+            this.isProcessingGarden = false;
+            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nRemaining balance: ${response.balance} JSC`);
             this.cdr.detectChanges();
           } else {
-            alert(`Failed to purchase indexer: ${response.error || 'Unknown error'}`);
-            this.isProcessingIndexer = false;
+            alert(`Failed to purchase garden: ${response.error || 'Unknown error'}`);
+            this.isProcessingGarden = false;
           }
         },
         error: (err) => {
-          console.error('Error purchasing indexer from wallet:', err);
-          alert(`Error: ${err.error?.error || err.message || 'Failed to purchase indexer'}`);
-          this.isProcessingIndexer = false;
+          console.error('Error purchasing garden from wallet:', err);
+          alert(`Error: ${err.error?.error || err.message || 'Failed to purchase garden'}`);
+          this.isProcessingGarden = false;
         }
       });
     } else {
@@ -625,13 +628,13 @@ export class AppComponent implements OnInit, OnDestroy {
             window.location.href = response.url;
           } else {
             alert(`Failed to create Stripe checkout: ${response.error || 'Unknown error'}`);
-            this.isProcessingIndexer = false;
+            this.isProcessingGarden = false;
           }
         },
         error: (err) => {
-          console.error('Error creating Stripe checkout for indexer:', err);
+          console.error('Error creating Stripe checkout for garden:', err);
           alert(`Error: ${err.error?.error || err.message || 'Failed to create Stripe checkout'}`);
-          this.isProcessingIndexer = false;
+          this.isProcessingGarden = false;
         }
       });
     }

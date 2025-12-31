@@ -51,7 +51,7 @@
         <div class="row mb-3" *ngIf="!isLoadingSnakeProviders && snakeProviders.length > 0">
           <div class="col-12">
             <h5 class="mb-2">🐍 Snake Services</h5>
-            <p class="text-muted small mb-3">Snake is a service type (serviceType: "snake") - Each service belongs to an indexer. Higher fees, transparent pricing.</p>
+            <p class="text-muted small mb-3">Snake is a service type (serviceType: "snake") - Each service belongs to a garden. Higher fees, transparent pricing.</p>
             <div class="row g-2">
               <div class="col-6 col-md-4 col-lg-3" *ngFor="let snakeProvider of snakeProviders">
                 <div 
@@ -63,7 +63,7 @@
                     <h6 class="card-title mb-1 small fw-bold">{{ snakeProvider.name }}</h6>
                     <div class="small text-muted mb-1">
                       <div><strong>Service Type:</strong> {{ snakeProvider.serviceType }}</div>
-                      <div><strong>Indexer:</strong> {{ snakeProvider.indexerId }}</div>
+                      <div><strong>Garden:</strong> {{ snakeProvider.gardenId || snakeProvider.indexerId }}</div>
                       <div>iGas: {{ (snakeProvider.iGasMultiplier || 1.0) }}x</div>
                       <div>iTax: {{ (snakeProvider.iTaxMultiplier || 1.0) }}x</div>
                       <div>Insurance: {{ snakeProvider.insuranceFee || snakeProvider.bond }}</div>
@@ -98,7 +98,7 @@
                     <button 
                       class="btn btn-light btn-sm w-100 mb-2" 
                       (click)="buyJesusCoin(500); $event.stopPropagation()"
-                      [disabled]="isProcessingStripe || isProcessingIndexer || !userEmail">
+                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
                       <span *ngIf="!isProcessingStripe">BUY 500 JSC</span>
                       <span *ngIf="isProcessingStripe">
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
@@ -108,9 +108,9 @@
                     <button 
                       class="btn btn-warning btn-sm w-100" 
                       (click)="buyMovieIndexer(110); $event.stopPropagation()"
-                      [disabled]="isProcessingStripe || isProcessingIndexer || !userEmail">
-                      <span *ngIf="!isProcessingIndexer">Install Movie Indexer</span>
-                      <span *ngIf="isProcessingIndexer">
+                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
+                      <span *ngIf="!isProcessingGarden">Install Movie Garden</span>
+                      <span *ngIf="isProcessingGarden">
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                         Installing...
                       </span>
@@ -144,7 +144,7 @@
         </div>
         
         <!-- Unified Chat Input with Context Sensing -->
-        <!-- Only show chat input if there are service indexers available -->
+        <!-- Only show chat input if there are service gardens available -->
         <div class="row mb-4" *ngIf="hasServiceIndexers">
           <div class="col-12">
             <div class="card">

@@ -129,7 +129,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   fetchServiceProviders() {
     // Query all service providers from ServiceRegistry
-    this.http.get<{success: boolean, providers: Array<{id: string, name: string, serviceType: string, indexerId: string, status: string}>}>(`${this.apiUrl}/api/root-ca/service-registry`)
+    this.http.get<{success: boolean, providers: Array<{id: string, name: string, serviceType: string, gardenId?: string, indexerId?: string, status: string}>}>(`${this.apiUrl}/api/root-ca/service-registry`)
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
@@ -140,7 +140,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
                   id: provider.id,
                   name: provider.name,
                   serviceType: provider.serviceType,
-                  gardenId: provider.indexerId // API still returns indexerId, map to gardenId
+                  gardenId: provider.gardenId || provider.indexerId || '' // Prefer gardenId, fall back to indexerId for backward compatibility
                 });
                 
                 // Add component for this service provider if it doesn't exist
@@ -212,12 +212,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   fetchGardens() {
-    // API still uses "indexers" endpoint and response field for backward compatibility
-    this.http.get<{success: boolean, indexers: GardenInfo[]}>(`${this.apiUrl}/api/indexers`)
+    // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
+    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens`)
       .subscribe({
         next: (response) => {
-          if (response.success && response.indexers) {
-            this.gardens = response.indexers.filter(i => i.active);
+          // Support both 'gardens' and 'indexers' response fields for backward compatibility
+          const gardens = response.gardens || response.indexers || [];
+          if (response.success && gardens.length > 0) {
+            this.gardens = gardens.filter(i => i.active);
             
             // Select first available garden based on view mode
             const filteredGardens = this.getFilteredGardens();

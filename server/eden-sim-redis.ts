@@ -346,6 +346,12 @@ httpServer.on("request", async (req, res) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
     
+    // Debug: Log provider assignments for movie service type
+    if (!serviceType || serviceType === 'movie') {
+      const movieProviders = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie');
+      console.log(`   🔍 [Service Registry API] Movie providers in memory: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
+    }
+    
     let providers = ROOT_CA_SERVICE_REGISTRY.map(p => ({
       id: p.id,
       name: p.name,
@@ -353,7 +359,7 @@ httpServer.on("request", async (req, res) => {
       location: p.location,
       bond: p.bond,
       reputation: p.reputation,
-      indexerId: p.indexerId, // Each service belongs to an indexer
+      gardenId: p.gardenId, // Use gardenId directly - everything is in sync
       status: p.status || 'active',
       // Snake service fields (transparent in ServiceRegistry)
       insuranceFee: p.insuranceFee,
@@ -368,6 +374,14 @@ httpServer.on("request", async (req, res) => {
     // Filter by service type if provided (e.g., "snake" for Snake services)
     if (serviceType) {
       providers = providers.filter(p => p.serviceType === serviceType);
+    }
+    
+    // Debug: Log movie providers and their gardenId assignments
+    const movieProviders = providers.filter(p => p.serviceType === 'movie');
+    const nonHGProviders = movieProviders.filter(p => p.gardenId !== 'HG');
+    if (movieProviders.length > 0) {
+      console.log(`   🔍 [Service Registry API] Movie providers: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
+      console.log(`   🔍 [Service Registry API] Non-HG movie providers: ${nonHGProviders.length} (${nonHGProviders.map(p => p.name).join(', ')})`);
     }
     
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -390,9 +404,9 @@ httpServer.on("request", async (req, res) => {
         const providerData = JSON.parse(body);
         
         // Validate required fields
-        if (!providerData.id || !providerData.name || !providerData.serviceType || !providerData.indexerId) {
+        if (!providerData.id || !providerData.name || !providerData.serviceType || !providerData.gardenId) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Missing required fields: id, name, serviceType, indexerId" }));
+          res.end(JSON.stringify({ success: false, error: "Missing required fields: id, name, serviceType, gardenId" }));
           return;
         }
         
@@ -405,7 +419,7 @@ httpServer.on("request", async (req, res) => {
           location: providerData.location || "Unknown",
           bond: providerData.bond || 0,
           reputation: providerData.reputation || 5.0,
-          indexerId: providerData.indexerId,
+          gardenId: providerData.gardenId || "HG", // Use gardenId
           apiEndpoint: providerData.apiEndpoint || "",
           status: providerData.status || 'active',
           // Snake service fields (if serviceType is "snake")
@@ -459,8 +473,11 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  if (pathname === "/api/indexers" && req.method === "GET") {
-    console.log(`   ✅ [${requestId}] GET /api/indexers - Sending indexer list`);
+  // GET /api/gardens - Get list of gardens (new endpoint, preferred)
+  // GET /api/indexers - Get list of gardens (backward compatibility, redirects to gardens logic)
+  if ((pathname === "/api/gardens" || pathname === "/api/indexers") && req.method === "GET") {
+    const endpointName = pathname === "/api/gardens" ? "gardens" : "indexers";
+    console.log(`   ✅ [${requestId}] GET /api/${endpointName} - Sending garden list`);
     res.writeHead(200, { "Content-Type": "application/json" });
     
     // Load persisted indexers from file (single source of truth)
@@ -589,11 +606,12 @@ httpServer.on("request", async (req, res) => {
       }))
     ];
     
-    console.log(`   📋 [Indexer API] Returning ${allIndexers.length} indexer(s): ${allIndexers.map(i => i.name).join(', ')}`);
+    console.log(`   📋 [Garden API] Returning ${allIndexers.length} garden(s): ${allIndexers.map(i => i.name).join(', ')}`);
     
+    // Return only 'gardens' - standardized field name (no duplicate 'indexers' field)
     res.end(JSON.stringify({
       success: true,
-      indexers: allIndexers,
+      gardens: allIndexers,
       timestamp: Date.now()
     }));
     return;
@@ -1375,21 +1393,21 @@ httpServer.on("request", async (req, res) => {
       let providersReset = 0;
       for (const provider of ROOT_CA_SERVICE_REGISTRY) {
         // Skip Holy Ghost infrastructure providers (they always belong to HG)
-        if (provider.indexerId === "HG") {
+        if (provider.gardenId === "HG") {
           continue;
         }
         
-        // Reset indexerId based on deployment mode
+        // Reset gardenId based on deployment mode
         if (DEPLOYED_AS_ROOT) {
           // ROOT mode: In ROOT mode, gardens are created via Angular wizard
-          // We should NOT clear indexerId assignments here - they're managed by the wizard
+          // We should NOT clear gardenId assignments here - they're managed by the wizard
           // Skip resetting providers in ROOT mode
           continue;
         } else {
           // Non-ROOT mode: restore default assignments
           const defaultGardenId = getDefaultGardenIdForProvider(provider.id);
-          if (provider.indexerId !== defaultGardenId) {
-            provider.indexerId = defaultGardenId || "HG"; // Fallback to HG if undefined
+          if (provider.gardenId !== defaultGardenId) {
+            provider.gardenId = defaultGardenId || "HG"; // Fallback to HG if undefined
             providersReset++;
           }
         }
@@ -2150,8 +2168,8 @@ httpServer.on("request", async (req, res) => {
   }
 
   if (pathname === "/api/wizard/create-indexer" && req.method === "POST") {
-    console.log(`   🧙 [${requestId}] POST /api/wizard/create-indexer - Creating indexer via wizard`);
-    console.log(`   🔍 [${requestId}] Current state: ${GARDENS.length} regular indexers, ${TOKEN_GARDENS.length} token indexers`);
+    console.log(`   🧙 [${requestId}] POST /api/wizard/create-indexer - Creating garden via wizard`);
+    console.log(`   🔍 [${requestId}] Current state: ${GARDENS.length} regular gardens, ${TOKEN_GARDENS.length} token gardens`);
     let body = "";
     req.on("data", (chunk) => { body += chunk.toString(); });
     req.on("end", async () => {
@@ -2192,7 +2210,7 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
-        // Check wallet balance BEFORE creating indexer
+        // Check wallet balance BEFORE creating garden
         const balance = await getWalletBalance(email);
         if (balance < amount) {
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -2204,7 +2222,7 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
-        // Debit wallet balance BEFORE creating indexer
+        // Debit wallet balance BEFORE creating garden
         const txId = crypto.randomUUID();
         const debitResult = await debitWallet(
           email,
@@ -2460,13 +2478,13 @@ httpServer.on("request", async (req, res) => {
               
               if (existingProvider) {
                 // Provider exists, just assign it to this indexer
-                // Check if provider is already assigned to another indexer
-                if (existingProvider.indexerId && existingProvider.indexerId !== indexerConfig.id) {
-                  console.warn(`   ⚠️  Provider ${existingProvider.name} (${existingProvider.id}) is already assigned to indexer ${existingProvider.indexerId}. Reassigning to ${indexerConfig.id}.`);
+                // Check if provider is already assigned to another garden
+                if (existingProvider.gardenId && existingProvider.gardenId !== indexerConfig.id) {
+                  console.warn(`   ⚠️  Provider ${existingProvider.name} (${existingProvider.id}) is already assigned to garden ${existingProvider.gardenId}. Reassigning to ${indexerConfig.id}.`);
                 }
                 
-                // Update the provider's indexerId to point to this indexer
-                existingProvider.indexerId = indexerConfig.id;
+                // Update the provider's gardenId to point to this garden
+                existingProvider.gardenId = indexerConfig.id;
                 providersCreated++;
                 console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to indexer ${indexerConfig.id} (${indexerConfig.name})`);
                 
@@ -2497,7 +2515,7 @@ httpServer.on("request", async (req, res) => {
                     location: providerConfig.location,
                     bond: providerConfig.bond,
                     reputation: providerConfig.reputation,
-                    indexerId: indexerConfig.id, // Assign to this indexer
+                    gardenId: indexerConfig.id, // Assign to this garden
                     apiEndpoint: providerConfig.apiEndpoint,
                     status: 'active'
                   };
@@ -2587,7 +2605,7 @@ httpServer.on("request", async (req, res) => {
             
             // Create service provider for this pool
             const providerId = `dex-pool-${tokenSymbol.toLowerCase()}`;
-            const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.indexerId === indexerConfig.id);
+            const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === indexerConfig.id);
             
             if (existingProvider) {
               console.log(`   ⚠️  Provider ${providerId} already exists for indexer ${indexerConfig.id}, skipping...`);
@@ -2600,7 +2618,7 @@ httpServer.on("request", async (req, res) => {
                 location: "Eden DEX",
                 bond: 5000,
                 reputation: 5.0,
-                indexerId: indexerConfig.id,
+                gardenId: indexerConfig.id, // Assign to this garden
                 apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
                 status: 'active',
               };
@@ -2704,15 +2722,16 @@ httpServer.on("request", async (req, res) => {
             return !defaultIds.includes(idx.id);
           });
         } else {
-          // ROOT mode: ONLY save indexers created via Angular (format: indexer-1, indexer-2, etc.)
+          // ROOT mode: ONLY save indexers created via Angular (format: garden-1, garden-2, etc. or indexer-1, indexer-2, etc.)
           regularIndexersToSave = cleanRegularIndexers.filter(idx => {
             // Exclude token indexers (defensive check)
             if ((idx as any).tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))) {
               console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
               return false;
             }
-            // Only save indexers with format "indexer-N" (created via Angular)
-            return idx.id.startsWith('indexer-');
+            // Only save indexers with format "garden-N" or "indexer-N" (created via Angular)
+            // Support both formats for backward compatibility
+            return idx.id.startsWith('garden-') || idx.id.startsWith('indexer-');
           });
         }
         
@@ -2974,8 +2993,8 @@ httpServer.on("request", async (req, res) => {
           
           // Save ServiceRegistry to separate file
           const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-            if (p.indexerId === undefined || p.indexerId === null) {
-              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
+            if (p.gardenId === undefined || p.gardenId === null) {
+              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId is required but not set`);
               return false;
             }
             return true;
@@ -2992,7 +3011,7 @@ httpServer.on("request", async (req, res) => {
               status: p.status,
               uuid: p.uuid,
               apiEndpoint: p.apiEndpoint,
-              indexerId: p.indexerId // REQUIRED - always include
+              gardenId: p.gardenId // Use gardenId in persistence file
             };
             // Include Snake-specific fields if present
             if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
@@ -3254,6 +3273,118 @@ class InMemoryRedisServer extends EventEmitter {
         }
       }
       
+      // Load service registry from separate file and merge with ROOT_CA_SERVICE_REGISTRY
+      if (fs.existsSync(this.serviceRegistryFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.serviceRegistryFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
+            console.log(`📂 [Redis Persistence] Loading ${persisted.serviceRegistry.length} service providers from ${this.serviceRegistryFile}`);
+            
+            // Merge persisted service registry with in-memory ROOT_CA_SERVICE_REGISTRY
+            // Update existing providers' indexerId if they exist in both
+            let updatedCount = 0;
+            for (const persistedProvider of persisted.serviceRegistry) {
+              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
+              if (existingProvider) {
+                // Update gardenId from persisted file (this is the source of truth for provider assignments)
+                // Support both indexerId and gardenId for backward compatibility
+                let persistedGardenId = persistedProvider.gardenId || persistedProvider.indexerId;
+                
+                // CRITICAL FIX: Correct incorrect "HG" assignments for movie providers
+                // Movie providers should never be assigned to "HG" - they belong to regular gardens
+                // If file has "HG" but in-memory default is "garden-1", use the correct default instead
+                if (persistedGardenId === "HG" && existingProvider.serviceType === "movie") {
+                  const correctGardenId = existingProvider.gardenId; // Use in-memory default (should be "garden-1")
+                  if (correctGardenId && correctGardenId !== "HG") {
+                    console.log(`🔧 [Service Registry] CORRECTING ${existingProvider.name} (${existingProvider.id}): file has incorrect gardenId="HG" for movie provider, using correct default="${correctGardenId}"`);
+                    persistedGardenId = correctGardenId;
+                  }
+                }
+                
+                console.log(`🔍 [Service Registry Load] Processing ${persistedProvider.id}: file has gardenId="${persistedProvider.gardenId}", resolved="${persistedGardenId}", in-memory has gardenId="${existingProvider.gardenId}"`);
+                if (persistedGardenId) {
+                  // ALWAYS update from file (file is source of truth), even if values appear the same
+                  // This ensures provider assignments are preserved after server restart
+                  // CRITICAL: The in-memory default might be "HG" but the file has "garden-1" - file wins!
+                  const oldValue = existingProvider.gardenId;
+                  existingProvider.gardenId = persistedGardenId;
+                  if (oldValue !== persistedGardenId) {
+                    console.log(`📂 [Service Registry] ✅ UPDATED ${existingProvider.name} (${existingProvider.id}): gardenId from "${oldValue}" to "${persistedGardenId}" (from file)`);
+                    updatedCount++;
+                  } else {
+                    console.log(`📂 [Service Registry] ✓ ${existingProvider.name} (${existingProvider.id}) already has correct gardenId: "${persistedGardenId}"`);
+                  }
+                } else {
+                  console.log(`⚠️  [Service Registry] ${persistedProvider.id} has no gardenId in file, skipping update`);
+                }
+              } else {
+                // Provider doesn't exist in defaults, add it (for dynamically created providers)
+                console.log(`📂 [Service Registry] Adding persisted provider: ${persistedProvider.name} (${persistedProvider.id})`);
+                ROOT_CA_SERVICE_REGISTRY.push(persistedProvider as ServiceProviderWithCert);
+              }
+            }
+            if (updatedCount > 0) {
+              console.log(`📂 [Service Registry] Updated ${updatedCount} provider gardenId assignment(s) from persistence file`);
+              // If we corrected any "HG" assignments for movie providers, save the corrected values back to file
+              const correctedCount = ROOT_CA_SERVICE_REGISTRY.filter(p => {
+                const persistedProvider = persisted.serviceRegistry.find((pp: any) => pp.id === p.id);
+                return persistedProvider && 
+                       persistedProvider.gardenId === "HG" && 
+                       p.serviceType === "movie" && 
+                       p.gardenId !== "HG";
+              }).length;
+              if (correctedCount > 0) {
+                console.log(`🔧 [Service Registry] Corrected ${correctedCount} movie provider(s) from "HG" to correct gardenId - saving corrected values to file`);
+                // Save the corrected values immediately
+                this.saveServiceRegistry();
+              }
+            }
+            // Log final state of movie providers after loading
+            const movieProvidersAfterLoad = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie');
+            if (movieProvidersAfterLoad.length > 0) {
+              console.log(`📂 [Service Registry] After load - Movie providers: ${movieProvidersAfterLoad.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
+            }
+            console.log(`✅ [Service Registry] Merged service registry: ${ROOT_CA_SERVICE_REGISTRY.length} total providers`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load service registry from separate file: ${err.message}`);
+        }
+      } else if (hasOldFile) {
+        // Fallback to old file for backward compatibility
+        try {
+          const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
+            console.log(`📂 [Redis Persistence] Loading ${persisted.serviceRegistry.length} service providers from old combined file (will migrate on next save)`);
+            
+            // Merge persisted service registry with in-memory ROOT_CA_SERVICE_REGISTRY
+            for (const persistedProvider of persisted.serviceRegistry) {
+              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
+              if (existingProvider) {
+                // Update gardenId from persisted file
+                const persistedGardenId = persistedProvider.gardenId;
+                if (persistedGardenId) {
+                  // ALWAYS update from file (file is source of truth)
+                  const oldValue = existingProvider.gardenId;
+                  existingProvider.gardenId = persistedGardenId;
+                  if (oldValue !== persistedGardenId) {
+                    console.log(`📂 [Service Registry] Updating ${existingProvider.name} (${existingProvider.id}): gardenId from "${oldValue}" to "${persistedGardenId}" (from old file)`);
+                  }
+                }
+              } else {
+                // Provider doesn't exist in defaults, add it
+                console.log(`📂 [Service Registry] Adding persisted provider: ${persistedProvider.name} (${persistedProvider.id})`);
+                ROOT_CA_SERVICE_REGISTRY.push(persistedProvider as ServiceProviderWithCert);
+              }
+            }
+            console.log(`✅ [Service Registry] Merged service registry from old file: ${ROOT_CA_SERVICE_REGISTRY.length} total providers`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load service registry from old file: ${err.message}`);
+        }
+      }
+      
       if (!hasOldFile && !hasNewFiles) {
         console.log(`📂 [Redis Persistence] No persistence files found, starting fresh`);
       }
@@ -3467,26 +3598,26 @@ class InMemoryRedisServer extends EventEmitter {
         // CRITICAL: indexerId is REQUIRED - services without indexerId are NOT allowed
         // indexerId is a key context during service - it must always be present
         const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-          if (p.indexerId === undefined || p.indexerId === null) {
-            console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - indexerId is required but not set`);
+          if (p.gardenId === undefined || p.gardenId === null) {
+            console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId is required but not set`);
             return false;
           }
           return true;
         });
         
-        const serviceRegistry = servicesToSave.map(p => {
-          const provider: any = {
-            id: p.id,
-            name: p.name,
-            serviceType: p.serviceType,
-            location: p.location,
-            bond: p.bond,
-            reputation: p.reputation,
-            status: p.status,
-            uuid: p.uuid,
-            apiEndpoint: p.apiEndpoint,
-            indexerId: p.indexerId // REQUIRED - always include
-          };
+          const serviceRegistry = servicesToSave.map(p => {
+            const provider: any = {
+              id: p.id,
+              name: p.name,
+              serviceType: p.serviceType,
+              location: p.location,
+              bond: p.bond,
+              reputation: p.reputation,
+              status: p.status,
+              uuid: p.uuid,
+              apiEndpoint: p.apiEndpoint,
+              gardenId: p.gardenId // Use gardenId in persistence file
+            };
           // Include Snake-specific fields if present
           if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
           if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
@@ -3578,14 +3709,49 @@ class InMemoryRedisServer extends EventEmitter {
     }
     
     // REFACTOR: Force immediate save of ServiceRegistry to separate file
+    // CRITICAL: Preserve existing indexerId assignments from file - don't overwrite with hardcoded defaults
     try {
+      // Load existing service registry from file to preserve indexerId assignments
+      let existingProviders: Map<string, any> = new Map();
+      if (fs.existsSync(this.serviceRegistryFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.serviceRegistryFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry)) {
+            for (const provider of persisted.serviceRegistry) {
+              // Use gardenId (standardized field name)
+              const gardenId = provider.gardenId;
+              if (gardenId) {
+                // Store with gardenId
+                existingProviders.set(provider.id, { ...provider, gardenId: gardenId });
+              }
+            }
+            console.log(`📂 [ServiceRegistry Persistence] Loaded ${existingProviders.size} existing providers from file to preserve assignments`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [ServiceRegistry Persistence] Failed to load existing file: ${err.message}`);
+        }
+      }
+      
       // Update ServiceRegistry ONLY (do not touch gardens)
       const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-        // Only save services with indexerId set (required field)
-        return p.indexerId !== undefined && p.indexerId !== null;
+        // Only save services with gardenId set (required field)
+        return p.gardenId !== undefined && p.gardenId !== null;
       });
       
       const serviceRegistry = servicesToSave.map(p => {
+        // CRITICAL: Preserve gardenId from file if it exists, otherwise use in-memory value
+        // This prevents overwriting provider assignments that were loaded from the file
+        const existingProvider = existingProviders.get(p.id);
+        // File is the source of truth for provider assignments - always prefer file value
+        // Support both gardenId and indexerId in file for backward compatibility
+        const preservedGardenId = existingProvider?.gardenId || p.gardenId;
+        
+        // Log if we're preserving a different value from file
+        if (existingProvider && existingProvider.gardenId && existingProvider.gardenId !== p.gardenId) {
+          console.log(`💾 [ServiceRegistry Persistence] Preserving ${p.name} (${p.id}) gardenId "${preservedGardenId}" from file (in-memory has "${p.gardenId}")`);
+        }
+        
         const provider: any = {
           id: p.id,
           name: p.name,
@@ -3596,16 +3762,29 @@ class InMemoryRedisServer extends EventEmitter {
           status: p.status,
           uuid: p.uuid,
           apiEndpoint: p.apiEndpoint,
-          indexerId: p.indexerId // REQUIRED - always include
+          gardenId: preservedGardenId // Use gardenId in persistence file (indexerId is the in-memory field name)
         };
-        // Include Snake-specific fields if present
-        if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
-        if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
-        if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
-        if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
-        if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
-        if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
-        if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+        
+        // Preserve other fields from file if they exist
+        if (existingProvider) {
+          if (existingProvider.insuranceFee !== undefined) provider.insuranceFee = existingProvider.insuranceFee;
+          if (existingProvider.iGasMultiplier !== undefined) provider.iGasMultiplier = existingProvider.iGasMultiplier;
+          if (existingProvider.iTaxMultiplier !== undefined) provider.iTaxMultiplier = existingProvider.iTaxMultiplier;
+          if (existingProvider.maxInfluence !== undefined) provider.maxInfluence = existingProvider.maxInfluence;
+          if (existingProvider.contextsAllowed !== undefined) provider.contextsAllowed = existingProvider.contextsAllowed;
+          if (existingProvider.contextsForbidden !== undefined) provider.contextsForbidden = existingProvider.contextsForbidden;
+          if (existingProvider.adCapabilities !== undefined) provider.adCapabilities = existingProvider.adCapabilities;
+        } else {
+          // Only include these fields if provider is new (not in file)
+          if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
+          if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
+          if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
+          if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
+          if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
+          if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
+          if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
+        }
+        
         return provider;
       });
       
@@ -3616,7 +3795,7 @@ class InMemoryRedisServer extends EventEmitter {
       };
       
       fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-      console.log(`💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
+      console.log(`💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile} (preserved ${existingProviders.size} existing assignments)`);
     } catch (err: any) {
       console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
     }
@@ -4024,12 +4203,12 @@ type ServiceProvider = {
   location: string;
   bond: number;
   reputation: number;
-  indexerId: string;
+  gardenId: string; // Standardized field name - used everywhere (persistence, memory, API)
   apiEndpoint?: string; // Optional API endpoint for the provider
   status?: 'active' | 'revoked' | 'suspended'; // Provider status
   // Snake Service Fields (serviceType: "snake")
   // Note: Snake is a SERVICE TYPE (like "movie", "dex"), not a provider type
-  // Each Snake service belongs to an indexer (indexerId)
+  // Each Snake service belongs to a garden (gardenId)
   insuranceFee?: number; // Higher insurance fee for Snake services (default: same as bond)
   iGasMultiplier?: number; // iGas multiplier (default: 1.0, Snake: 2.0)
   iTaxMultiplier?: number; // iTax multiplier (default: 1.0, Snake: 2.0)
@@ -4224,7 +4403,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "Global",
     bond: 50000, // High bond for payment infrastructure
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "https://api.stripe.com/v1",
     status: 'active'
   },
@@ -4236,7 +4415,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "ROOT CA",
     bond: 100000, // Very high bond for settlement authority
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "internal://settlement",
     status: 'active'
   },
@@ -4248,7 +4427,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "ROOT CA",
     bond: 50000, // High bond for registry authority
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "internal://service-registry",
     status: 'active'
   },
@@ -4260,7 +4439,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "ROOT CA",
     bond: 10000,
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: `http://localhost:${HTTP_PORT}`,
     status: 'active'
   },
@@ -4272,7 +4451,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "ROOT CA",
     bond: 10000,
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: `ws://localhost:${HTTP_PORT}`,
     status: 'active'
   },
@@ -4284,7 +4463,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "ROOT CA",
     bond: 200000, // Very high bond for wallet authority (single source of truth)
     reputation: 5.0,
-    indexerId: "HG", // Holy Ghost indexer
+    gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "internal://wallet",
     status: 'active'
   },
@@ -4297,7 +4476,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     location: "Baltimore, Maryland",
     bond: 1000,
     reputation: 4.8,
-    indexerId: DEPLOYED_AS_ROOT ? "HG" : "garden-1", // In ROOT mode, assign to HG temporarily (will be reassigned by wizard)
+    gardenId: "garden-1", // Default to garden-1 (will be overridden by persistence file if different)
     apiEndpoint: "https://api.amctheatres.com/v1/listings",
   },
   // In ROOT mode: moviecom-001, cinemark-001, and snake services should NOT exist
@@ -4311,7 +4490,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       location: "Baltimore, Maryland",
       bond: 800,
       reputation: 4.5,
-      indexerId: "garden-2",
+      gardenId: "garden-2",
       apiEndpoint: "https://api.moviecom.com/showtimes",
     },
     {
@@ -4322,7 +4501,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       location: "Baltimore, Maryland",
       bond: 1200,
       reputation: 4.7,
-      indexerId: "garden-1",
+      gardenId: "garden-1",
       apiEndpoint: "https://api.cinemark.com/movies",
     },
     // Snake Service Providers (serviceType: "snake", belongs to indexers)
@@ -4335,7 +4514,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       bond: 10000,
       insuranceFee: 10000, // Higher insurance fee for Snake
       reputation: 4.5,
-      indexerId: "garden-1",
+      gardenId: "garden-1",
       apiEndpoint: "https://ads.premiumcinema.com/api",
       iGasMultiplier: 2.0, // Double iGas
       iTaxMultiplier: 2.0, // Double iTax
@@ -4354,7 +4533,7 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
       bond: 10000,
       insuranceFee: 10000,
       reputation: 4.3,
-      indexerId: "garden-2",
+      gardenId: "garden-2",
       apiEndpoint: "https://ads.shoppingdeals.com/api",
       iGasMultiplier: 2.0,
       iTaxMultiplier: 2.0,
@@ -4373,9 +4552,9 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
   
-  // Get the actual indexerId from the provider registry
+  // Get the actual gardenId from the provider registry
   const amcProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001");
-  const indexerId = amcProvider?.indexerId;
+  const gardenId = amcProvider?.gardenId;
   
   // Mock AMC API response with real-time pricing
   return [
@@ -4389,7 +4568,7 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
       location: location,
       reviewCount: 100,
       rating: 5.0,
-      indexerId: indexerId,
+      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
     },
     {
       providerId: "amc-001",
@@ -4401,7 +4580,7 @@ async function queryAMCAPI(location: string, filters?: { genre?: string; time?: 
       location: location,
       reviewCount: 150,
       rating: 4.9,
-      indexerId: indexerId,
+      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
     },
   ];
 }
@@ -4410,9 +4589,9 @@ async function queryMovieComAPI(location: string, filters?: { genre?: string; ti
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
   
-  // Get the actual indexerId from the provider registry
+  // Get the actual gardenId from the provider registry
   const moviecomProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "moviecom-001");
-  const indexerId = moviecomProvider?.indexerId;
+  const gardenId = moviecomProvider?.gardenId;
   
   // Mock MovieCom API response with real-time pricing
   return [
@@ -4426,7 +4605,7 @@ async function queryMovieComAPI(location: string, filters?: { genre?: string; ti
       location: location,
       reviewCount: 85,
       rating: 4.7,
-      indexerId: indexerId,
+      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
     },
   ];
 }
@@ -4435,9 +4614,9 @@ async function queryCinemarkAPI(location: string, filters?: { genre?: string; ti
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 50));
   
-  // Get the actual indexerId from the provider registry
+  // Get the actual gardenId from the provider registry
   const cinemarkProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "cinemark-001");
-  const indexerId = cinemarkProvider?.indexerId;
+  const gardenId = cinemarkProvider?.gardenId;
   
   // Mock Cinemark API response with real-time pricing
   return [
@@ -4451,7 +4630,7 @@ async function queryCinemarkAPI(location: string, filters?: { genre?: string; ti
       location: location,
       reviewCount: 120,
       rating: 4.8,
-      indexerId: indexerId,
+      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
     },
   ];
 }
@@ -4503,7 +4682,7 @@ async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbo
   
   const listings: TokenListing[] = [];
   
-  console.log(`🔍 [DEX] Querying pools for provider: ${provider.id} (indexerId: ${provider.indexerId})`);
+  console.log(`🔍 [DEX] Querying pools for provider: ${provider.id} (gardenId: ${provider.gardenId})`);
   console.log(`   Filters: ${JSON.stringify(filters)}`);
   
   // Find pools matching the provider
@@ -4514,8 +4693,8 @@ async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbo
     const tokenSymbolLower = pool.tokenSymbol.toLowerCase();
     const providerIdLower = provider.id.toLowerCase();
     
-    // Match by indexer ID (most reliable)
-    const matchesByIndexer = pool.indexerId === provider.indexerId;
+    // Match by garden ID (most reliable)
+    const matchesByGarden = pool.indexerId === provider.gardenId;
     
     // Match by token symbol in provider ID (e.g., "dex-pool-tokena" contains "tokena")
     const matchesBySymbol = providerIdLower.includes(tokenSymbolLower);
@@ -4524,11 +4703,11 @@ async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbo
     const expectedProviderId = `dex-pool-${tokenSymbolLower}`;
     const matchesByPattern = providerIdLower === expectedProviderId;
     
-    const matchesProvider = matchesByIndexer || matchesBySymbol || matchesByPattern;
+    const matchesProvider = matchesByGarden || matchesBySymbol || matchesByPattern;
     
     if (matchesProvider) hasMatch = true;
     
-    console.log(`   Pool ${pool.tokenSymbol} (${pool.indexerId}): matchesByIndexer=${matchesByIndexer}, matchesBySymbol=${matchesBySymbol}, matchesByPattern=${matchesByPattern} (provider.id="${provider.id}", expected="${expectedProviderId}")`);
+    console.log(`   Pool ${pool.tokenSymbol} (${pool.indexerId}): matchesByGarden=${matchesByGarden}, matchesBySymbol=${matchesBySymbol}, matchesByPattern=${matchesByPattern} (provider.id="${provider.id}", expected="${expectedProviderId}")`);
     
     if (!matchesProvider) continue;
     
@@ -4559,15 +4738,15 @@ async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbo
   
   // Debug logging
   if (listings.length === 0) {
-    console.log(`⚠️  [DEX] No pools matched for provider ${provider.id} (indexerId: ${provider.indexerId})`);
+    console.log(`⚠️  [DEX] No pools matched for provider ${provider.id} (gardenId: ${provider.gardenId})`);
     console.log(`   Available pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
     
-    // Fallback: If this is a DEX provider but no pools matched, return all pools for this indexer
+    // Fallback: If this is a DEX provider but no pools matched, return all pools for this garden
     // This handles edge cases where matching logic might fail
     if (!hasMatch && provider.serviceType === "dex") {
-      console.log(`   🔄 Fallback: Returning all pools for indexer ${provider.indexerId}`);
+      console.log(`   🔄 Fallback: Returning all pools for garden ${provider.gardenId}`);
       for (const [poolId, pool] of DEX_POOLS.entries()) {
-        if (pool.indexerId === provider.indexerId) {
+        if (pool.indexerId === provider.gardenId) {
           // Apply filters
           if (filters?.tokenSymbol && pool.tokenSymbol.toUpperCase() !== filters.tokenSymbol.toUpperCase()) continue;
           if (filters?.baseToken && pool.baseToken.toUpperCase() !== filters.baseToken.toUpperCase()) continue;
@@ -4616,7 +4795,7 @@ async function querySnakeAPI(provider: ServiceProvider, filters?: { genre?: stri
       location: "Premium Theater District",
       reviewCount: 1250,
       rating: 4.7,
-      indexerId: provider.indexerId,
+      indexerId: provider.gardenId, // Use gardenId (pool.indexerId will be renamed in future)
     },
     {
       providerId: provider.id,
@@ -4628,7 +4807,7 @@ async function querySnakeAPI(provider: ServiceProvider, filters?: { genre?: stri
       location: "Luxury Cinema Complex",
       reviewCount: 890,
       rating: 4.8,
-      indexerId: provider.indexerId,
+      indexerId: provider.gardenId, // Use gardenId (pool.indexerId will be renamed in future)
     }
   ];
   
@@ -4743,7 +4922,7 @@ function registerServiceProviderWithROOTCA(provider: ServiceProviderWithCert): v
       providerId: provider.id,
       providerName: provider.name,
       serviceType: provider.serviceType,
-      indexerId: provider.indexerId
+      indexerId: provider.gardenId // Legacy field (will be renamed to gardenId in future)
     }
   });
 }
@@ -5455,7 +5634,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
       location: "Baltimore, Maryland",
       reviewCount: 100,
       rating: 5.0,
-      indexerId: ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001")?.indexerId,
+      indexerId: ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001")?.gardenId, // Legacy field (will be renamed to gardenId in future)
     };
     return {
       message: "5 stars movie provider AMC in indexer A, Baltimore, Maryland offers 2 USDC for 'Back to the Future' at 10:30 PM and 100 viewers already reviewed the AMC viewing service",
@@ -5571,7 +5750,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     }
     
     if (queryResult.serviceType === "dex") {
-      console.log(`   DEX Providers: ${providers.map(p => `${p.id} (indexer: ${p.indexerId})`).join(", ")}`);
+      console.log(`   DEX Providers: ${providers.map(p => `${p.id} (garden: ${p.gardenId})`).join(", ")}`);
       console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
     }
     
@@ -5588,7 +5767,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
           name: p.name,
           serviceType: p.serviceType,
           isSnake: p.serviceType === 'snake',
-          indexerId: p.indexerId // Each service belongs to an indexer
+          indexerId: p.gardenId // Each service belongs to a garden (pool.indexerId will be renamed in future)
         })) 
       }
     });
@@ -5634,7 +5813,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
           listings: providerListings,
           serviceType: provider.serviceType,
           isSnake: provider.serviceType === 'snake',
-          indexerId: provider.indexerId // Each service belongs to an indexer
+          indexerId: provider.gardenId // Legacy field (will be renamed to gardenId in future)
         }
       });
     });
@@ -6154,35 +6333,35 @@ async function registerNewMovieGarden(
     }
   }
   
-  const indexerId = `indexer-${nextId.toLowerCase()}`;
-  const indexerName = `Garden-${nextId}`;
-  const streamName = `eden:indexer:${nextId}`;
-  const indexerUuid = `eden:indexer:${crypto.randomUUID()}`;
+  const gardenId = `garden-${nextId.toLowerCase()}`;
+  const gardenName = `Garden-${nextId}`;
+  const streamName = `eden:garden:${nextId}`;
+  const gardenUuid = `eden:garden:${crypto.randomUUID()}`;
   
-  // Create new indexer config
-  const newIndexer: GardenConfig = {
-    id: indexerId,
-    name: indexerName,
+  // Create new garden config
+  const newGarden: GardenConfig = {
+    id: gardenId,
+    name: gardenName,
     stream: streamName,
     active: true,
-    uuid: indexerUuid
+    uuid: gardenUuid
   };
   
   // Add to GARDENS array
-  GARDENS.push(newIndexer);
-  console.log(`✅ [Indexer Registration] Created indexer: ${newIndexer.name} (${newIndexer.id})`);
-  console.warn(`⚠️  [Indexer Registration] WARNING: Movie indexer created via registerNewMovieGarden - this should NOT happen in ROOT mode!`);
+  GARDENS.push(newGarden);
+  console.log(`✅ [Garden Registration] Created garden: ${newGarden.name} (${newGarden.id})`);
+  console.warn(`⚠️  [Garden Registration] WARNING: Movie garden created via registerNewMovieGarden - this should NOT happen in ROOT mode!`);
   
-  // Issue certificate to the new indexer
+  // Issue certificate to the new garden
   // Note: Persistence is handled by the HTTP handler after certificate issuance
   try {
-    issueGardenCertificate(newIndexer);
+    issueGardenCertificate(newGarden);
   } catch (err: any) {
-    console.error(`❌ [Indexer Registration] Failed to issue certificate:`, err.message);
+    console.error(`❌ [Garden Registration] Failed to issue certificate:`, err.message);
     throw err;
   }
   
-  // Create default movie service providers for this indexer
+  // Create default movie service providers for this garden
   const providerNames = ['Regal Cinemas', 'Cineplex', 'MovieMax'];
   const providerIds = ['regal-001', 'cineplex-001', 'moviemax-001'];
   const locations = ['Baltimore, Maryland', 'New York, New York', 'Los Angeles, California'];
@@ -6201,7 +6380,7 @@ async function registerNewMovieGarden(
       location: locations[i],
       bond: bonds[i],
       reputation: reputations[i],
-      indexerId: indexerId,
+      gardenId: gardenId, // Assign to this garden
       apiEndpoint: `https://api.${providerIds[i]}.com/v1/listings`,
       status: 'active'
     };
@@ -6246,8 +6425,8 @@ async function registerNewMovieGarden(
     status: 'completed',
     cashierId: 'stripe-payment-rail-001',
     bookingDetails: {
-      indexerId: indexerId,
-      indexerName: indexerName,
+      indexerId: gardenId, // Legacy field (will be renamed to gardenId in future)
+      indexerName: gardenName,
       stripePaymentIntentId: stripePaymentIntentId,
       stripeCustomerId: stripeCustomerId || undefined,
       stripePaymentMethodId: stripePaymentMethodId || undefined,
@@ -6261,22 +6440,22 @@ async function registerNewMovieGarden(
   
   // Broadcast events
   broadcastEvent({
-    type: "indexer_registered",
+    type: "garden_registered",
     component: "root-ca",
-    message: `New movie indexer registered: ${indexerName}`,
+    message: `New movie garden registered: ${gardenName}`,
     timestamp: Date.now(),
     data: {
-      indexerId: indexerId,
-      indexerName: indexerName,
-      indexerUuid: indexerUuid,
+      indexerId: gardenId, // Legacy field (will be renamed to gardenId in future)
+      indexerName: gardenName,
+      indexerUuid: gardenUuid,
       email: email,
       providersRegistered: providerNames.length
     }
   });
   
-  console.log(`✅ [Indexer Registration] Registration complete: ${indexerName} with ${providerNames.length} providers`);
+  console.log(`✅ [Garden Registration] Registration complete: ${gardenName} with ${providerNames.length} providers`);
   
-  return newIndexer;
+  return newGarden;
 }
 
 async function mintJSC(
@@ -6503,9 +6682,9 @@ async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<vo
     const rootCAFee = entry.fees?.rootCA || (iGas * ROOT_CA_FEE);
     const indexerFee = entry.fees?.indexer || (iGas * INDEXER_FEE);
     
-    // Extract indexer ID from provider (if available)
+    // Extract garden ID from provider (if available)
     const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === entry.providerUuid);
-    const indexerId = provider?.indexerId || 'unknown';
+    const gardenId = provider?.gardenId || 'unknown';
     
     const settlementPayload = {
       entryId: entry.entryId,
@@ -6515,7 +6694,7 @@ async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<vo
       payerId: entry.payerId,
       merchant: entry.merchant,
       providerUuid: entry.providerUuid,
-      indexerId: indexerId,
+      indexerId: gardenId, // Legacy field (will be renamed to gardenId in future)
       serviceType: entry.serviceType,
       amount: entry.amount.toString(),
       iGas: iGas.toString(),
@@ -6547,7 +6726,7 @@ async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<vo
         fees: settlementPayload.fees,
         rootCAFee,
         indexerFee,
-        indexerId
+        indexerId: gardenId // Legacy field (will be renamed to gardenId in future)
       }
     });
   } catch (err: any) {
@@ -7362,13 +7541,13 @@ function verifyRevocationAuthority(revocation: RevocationEvent): boolean {
     }
     
     // Check if issuer certified this service provider
-    // This is determined by checking if the service provider's indexerId matches the issuer's indexerId
+    // This is determined by checking if the service provider's gardenId matches the issuer's garden ID
     const revokedProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
     if (revokedProvider) {
-      // Check if the provider's indexerId matches the issuer's indexerId
-      // This means the indexer certified this provider
-      if (revokedProvider.indexerId === `indexer-${issuerIndexer.id.toLowerCase()}` || 
-          revokedProvider.indexerId === issuerIndexer.id) {
+      // Check if the provider's gardenId matches the issuer's garden ID
+      // This means the garden certified this provider
+      if (revokedProvider.gardenId === `garden-${issuerIndexer.id.toLowerCase()}` || 
+          revokedProvider.gardenId === issuerIndexer.id) {
         return true;
       }
       
@@ -8707,7 +8886,7 @@ async function main() {
           location: "Eden DEX",
           bond: pool.bond,
           reputation: 5.0,
-          indexerId: pool.indexerId,
+          gardenId: pool.indexerId, // Assign to this garden
           apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
           status: 'active',
         };
@@ -8828,13 +9007,22 @@ async function main() {
   }
 
   // In ROOT mode, save service registry and wallets to persistence file after Redis connection
+  // NOTE: Only save if the file doesn't exist or is empty - don't overwrite existing provider assignments
   if (DEPLOYED_AS_ROOT && redisConnected && !SKIP_REDIS) {
-    console.log(`💾 [ROOT Mode] Saving service registry and wallets to persistence file...`);
-    try {
-      redis.saveServiceRegistry();
-      console.log(`   ✅ Service registry saved to persistence file`);
-    } catch (err: any) {
-      console.warn(`   ⚠️  Failed to save service registry: ${err.message}`);
+    const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
+    const shouldSave = !fs.existsSync(serviceRegistryFile) || 
+                       (fs.existsSync(serviceRegistryFile) && fs.statSync(serviceRegistryFile).size < 100);
+    
+    if (shouldSave) {
+      console.log(`💾 [ROOT Mode] Service registry file is empty or missing, saving initial state...`);
+      try {
+        redis.saveServiceRegistry();
+        console.log(`   ✅ Service registry saved to persistence file`);
+      } catch (err: any) {
+        console.warn(`   ⚠️  Failed to save service registry: ${err.message}`);
+      }
+    } else {
+      console.log(`💾 [ROOT Mode] Service registry file exists, skipping save (preserving existing provider assignments)`);
     }
   }
   

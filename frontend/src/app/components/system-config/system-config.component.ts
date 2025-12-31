@@ -172,7 +172,7 @@ export class SystemConfigComponent implements OnInit {
       return this.deploymentFee * 2;
     }
     
-    // For movie service type: base indexer fee (100 JSC) + 10 JSC per selected provider
+    // For movie service type: base garden fee (100 JSC) + 10 JSC per selected provider
     if (this.selectedServiceType?.type === 'movie') {
       const providerCount = this.gardenConfig.selectedProviders?.length || 0;
       return baseGardenFee + (providerCount * 10);
@@ -217,7 +217,7 @@ export class SystemConfigComponent implements OnInit {
     this.gardenConfig.serviceType = serviceType.type;
     this.gardenConfig.isSnake = serviceType.type === 'snake';
     
-    // Auto-generate indexer name
+    // Auto-generate garden name
     const baseName = serviceType.type === 'snake' ? 'Snake' : 
                     serviceType.type === 'dex' ? 'Garden' : 
                     'Garden';
@@ -480,7 +480,7 @@ export class SystemConfigComponent implements OnInit {
     this.generateNotificationCode();
   }
 
-  saveAndCreateIndexer() {
+  saveAndCreateGarden() {
     if (!this.systemPromptResult || !this.notificationCodeResult) {
       this.generationError = 'Please generate both system prompt and notification code first';
       return;
@@ -497,7 +497,7 @@ export class SystemConfigComponent implements OnInit {
       };
       
       this.gardenConfig.serviceType = this.newServiceTypeName.trim();
-      this.gardenConfig.gardenName = `Indexer-${this.newServiceTypeName.toUpperCase()}`;
+      this.gardenConfig.gardenName = `Garden-${this.newServiceTypeName.toUpperCase()}`;
       this.gardenConfig.serverDomain = `garden-${this.newServiceTypeName.toLowerCase()}.eden.local`;
       this.gardenConfig.isSnake = false;
       this.gardenConfig.selectedProviders = [];

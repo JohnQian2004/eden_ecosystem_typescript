@@ -84,12 +84,13 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
   }
   
   fetchGardens() {
-    // API still uses "indexers" endpoint and response field for backward compatibility
-    this.http.get<{success: boolean, indexers: GardenInfo[]}>(`${this.apiUrl}/api/indexers`)
+    // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
+    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens`)
       .subscribe({
         next: (response) => {
+          // Support both 'gardens' and 'indexers' response fields for backward compatibility
           if (response.success) {
-            this.gardens = response.indexers || [];
+            this.gardens = response.gardens || response.indexers || [];
             // Re-fetch certificates to update names
             this.fetchCertificates();
           }
