@@ -85,5 +85,8 @@
       "gardenId": "garden-1"
     }
   ],
-  "lastSaved": "2025-12-31T16:36:45.864Z"
+  "totalProviders": 7,
+  "movieProviders": 1,
+  "dexProviders": 0,
+  "lastSaved": "2025-12-31T17:51:00.183Z"
 }

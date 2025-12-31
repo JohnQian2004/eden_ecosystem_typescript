@@ -22,106 +22,100 @@ import { EventEmitter } from "events";
 import { WebSocketServer, WebSocket } from "ws";
 import { EdenPKI, type EdenCertificate, type EdenIdentity, type RevocationEvent, type Capability } from "./EdenPKI";
 import Stripe from "stripe";
-
-// CLI Flags
-const args = process.argv.slice(2);
-const MOCKED_LLM = args.some(arg => arg.includes("--mocked-llm") && (arg.includes("=true") || !arg.includes("=false")));
-const SKIP_REDIS = args.some(arg => arg.includes("--skip-redis") && (arg.includes("=true") || !arg.includes("=false")));
-const ENABLE_OPENAI = args.some(arg => arg.includes("--enable-openai") && (arg.includes("=true") || !arg.includes("=false")));
-const DEPLOYED_AS_ROOT = args.some(arg => arg.includes("--deployed-as-root") && (arg.includes("=true") || !arg.includes("=false")));
-
-// Parse --indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
-const indexersArg = args.find(arg => arg.startsWith("--indexers"));
-const NUM_GARDENS = DEPLOYED_AS_ROOT ? 0 : (indexersArg ? parseInt(indexersArg.split("=")[1] || "2") : 2);
-
-// Parse --token-indexers flag (default: 2, ignored if DEPLOYED_AS_ROOT)
-const tokenIndexersArg = args.find(arg => arg.startsWith("--token-indexers"));
-const NUM_TOKEN_GARDENS = DEPLOYED_AS_ROOT ? 0 : (tokenIndexersArg ? parseInt(tokenIndexersArg.split("=")[1] || "2") : 2);
-
-const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
-const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, "../frontend/dist/eden-sim-frontend");
-
-// Wallet Service Constants
-const WALLET_BALANCE_PREFIX = "wallet:balance:";
-const WALLET_HOLD_PREFIX = "wallet:hold:";
-const WALLET_AUDIT_PREFIX = "wallet:audit:";
-
-// Stripe Configuration (hardcoded as requested)
-const STRIPE_SECRET_KEY = "sk_test_51RrflYP4h6MOSVxDAFUAr0i7mmsQ8MSGi9Y0atxTsVaeVZsokRn09C9AEc0TWHidYdicNnGBTRpgJsoGz2CsZ0HC009CA5NFCn";
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51RrflYP4h6MOSVxDENdMiwOSbNudvzG8PlrrhslZjfbg9qPvb8YkzVR42ro5bQ8nXUnnbuPQpSlI43SHBuKhiCS000VgCDGNrC";
-const STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"; // Update with actual webhook secret from Stripe dashboard
+import { InMemoryRedisServer } from "./src/redis";
+import { 
+  MOCKED_LLM, 
+  SKIP_REDIS, 
+  ENABLE_OPENAI, 
+  DEPLOYED_AS_ROOT, 
+  NUM_GARDENS, 
+  NUM_TOKEN_GARDENS,
+  HTTP_PORT,
+  FRONTEND_PATH,
+  STRIPE_SECRET_KEY,
+  STRIPE_PUBLISHABLE_KEY,
+  STRIPE_WEBHOOK_SECRET
+} from "./src/config";
+import type { GardenConfig, TokenGardenConfig } from "./src/types";
+import { 
+  GARDENS, 
+  TOKEN_GARDENS, 
+  initializeGardens, 
+  initializeUsers,
+  ROOT_CA,
+  ROOT_CA_IDENTITY,
+  setROOTCA,
+  CERTIFICATE_REGISTRY,
+  REVOCATION_REGISTRY,
+  HOLY_GHOST_GARDEN,
+  LEDGER
+} from "./src/state";
+import { ROOT_CA_UUID, REVOCATION_STREAM, WALLET_BALANCE_PREFIX, WALLET_HOLD_PREFIX, WALLET_AUDIT_PREFIX } from "./src/constants";
+import {
+  initializeWallet,
+  syncWalletBalanceFromUser,
+  getWalletBalance,
+  creditWallet,
+  debitWallet,
+  processWalletIntent
+} from "./src/wallet";
+import {
+  initializeServiceProvider,
+  validateGardenId,
+  registerServiceProviderWithROOTCA,
+  queryROOTCAServiceRegistry,
+  queryServiceProviders,
+  queryProviderAPI,
+  queryAMCAPI,
+  queryMovieComAPI,
+  queryCinemarkAPI,
+  queryDEXPoolAPI,
+  querySnakeAPI,
+  issueServiceProviderCertificate
+} from "./src/serviceProvider";
+import { initializeServiceRegistry2, getServiceRegistry2 } from "./src/serviceRegistry2";
+import {
+  initializeGarden,
+  issueGardenCertificate,
+  registerNewMovieGarden
+} from "./src/garden";
+import {
+  initializeDEX,
+  initializeDEXPools,
+  executeDEXTrade,
+  calculateIGas
+} from "./src/dex";
+import {
+  initializeLedger,
+  addLedgerEntry,
+  pushLedgerEntryToSettlementStream,
+  processPayment,
+  completeBooking,
+  getLedgerEntries,
+  getTransactionByPayer,
+  getTransactionBySnapshot,
+  getLatestSnapshot,
+  deliverWebhook,
+  getCashierStatus
+} from "./src/ledger";
+import {
+  initializeLLM,
+  extractQueryWithOpenAI,
+  formatResponseWithOpenAI,
+  extractQueryWithDeepSeek,
+  formatResponseWithDeepSeek,
+  resolveLLM,
+  callLLM,
+  LLM_QUERY_EXTRACTION_PROMPT,
+  LLM_RESPONSE_FORMATTING_PROMPT
+} from "./src/llm";
+import { initializeLogger, getLogger } from "./src/logger";
+import type { WalletIntent, WalletResult } from "./src/types";
 
 // Initialize Stripe
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16", // Use compatible API version
 });
-
-// Dynamic Indexer Configuration
-interface GardenConfig {
-  id: string;
-  name: string;
-  stream: string;
-  active: boolean;
-  uuid: string;
-  certificate?: EdenCertificate;
-  pki?: EdenPKI; // Store PKI instance for signing revocations
-}
-
-const GARDENS: GardenConfig[] = [];
-if (!DEPLOYED_AS_ROOT) {
-  for (let i = 0; i < NUM_GARDENS; i++) {
-    const gardenId = String.fromCharCode(65 + i); // A, B, C, D, E...
-    GARDENS.push({
-      id: gardenId,
-      name: `Garden-${gardenId}`,
-      stream: `eden:garden:${gardenId}`,
-      active: true,
-      uuid: `eden:garden:${crypto.randomUUID()}`
-    });
-  }
-}
-
-// Token Indexers (specialized indexers providing DEX token/pool services)
-interface TokenGardenConfig extends GardenConfig {
-  tokenServiceType: 'dex'; // Specialized for DEX services
-}
-
-const TOKEN_GARDENS: TokenGardenConfig[] = [];
-if (!DEPLOYED_AS_ROOT) {
-  for (let i = 0; i < NUM_TOKEN_GARDENS; i++) {
-    const tokenIndexerId = `T${i + 1}`; // T1, T2, T3...
-    TOKEN_GARDENS.push({
-      id: tokenIndexerId,
-      name: `Garden-${tokenIndexerId}`,
-      stream: `eden:token-garden:${tokenIndexerId}`,
-      active: true,
-      uuid: `eden:garden:${crypto.randomUUID()}`,
-      tokenServiceType: 'dex'
-    });
-  }
-}
-
-// ROOT CA Identity and PKI
-const ROOT_CA_UUID = "eden:root:ca:00000000-0000-0000-0000-000000000001";
-
-// Holy Ghost - ROOT CA's dedicated indexer for infrastructure services
-// Must be defined AFTER ROOT_CA_UUID
-const HOLY_GHOST_GARDEN: GardenConfig = {
-  id: "HG",
-  name: "Holy Ghost",
-  stream: "eden:holy-ghost",
-  active: true,
-  uuid: ROOT_CA_UUID, // Uses ROOT CA UUID since it's ROOT CA's Garden
-};
-let ROOT_CA: EdenPKI | null = null;
-let ROOT_CA_IDENTITY: EdenIdentity | null = null;
-
-// Certificate Registry
-const CERTIFICATE_REGISTRY = new Map<string, EdenCertificate>(); // UUID -> Certificate
-const REVOCATION_REGISTRY = new Map<string, RevocationEvent>(); // UUID -> Revocation Event
-
-// ENCERT v1 Redis Revocation Stream
-const REVOCATION_STREAM = "eden:encert:revocations";
 
 // HTTP Server for serving Angular and API
 const httpServer = http.createServer();
@@ -160,11 +154,32 @@ wss.on("error", (error: Error) => {
 });
 
 // Broadcast events to all connected clients
-function broadcastEvent(event: any) {
+export function broadcastEvent(event: any) {
   const message = JSON.stringify(event);
-  wsClients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
+  const connectedClients = Array.from(wsClients).filter(client => client.readyState === WebSocket.OPEN);
+  
+  // CRITICAL: Log ALL events being broadcasted, especially ledger/cashier events
+  if (event.type === 'ledger_entry_added' || event.type === 'ledger_entry_created' || 
+      event.type === 'cashier_payment_processed' || event.type === 'cashier_start') {
+    console.log(`📡 [Broadcast] ⭐ LEDGER/CASHIER EVENT: "${event.type}" - ${event.message || 'N/A'}`);
+    console.log(`📡 [Broadcast] Event data:`, JSON.stringify(event.data || {}, null, 2));
+  }
+  
+  if (connectedClients.length === 0) {
+    console.log(`📡 [Broadcast] No WebSocket clients connected, event not sent: ${event.type}`);
+    return;
+  }
+  
+  console.log(`📡 [Broadcast] Sending event "${event.type}" to ${connectedClients.length} WebSocket client(s)`);
+  connectedClients.forEach((client) => {
+    try {
       client.send(message);
+      // Log successful send for critical events
+      if (event.type === 'ledger_entry_added' || event.type === 'cashier_payment_processed') {
+        console.log(`📡 [Broadcast] ✅ Successfully sent "${event.type}" to WebSocket client`);
+      }
+    } catch (err: any) {
+      console.error(`❌ [Broadcast] Failed to send event "${event.type}" to client: ${err.message}`);
     }
   });
 }
@@ -346,18 +361,22 @@ httpServer.on("request", async (req, res) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
     
+    // Use ServiceRegistry2 (new implementation)
+    const serviceRegistry2 = getServiceRegistry2();
+    const allProviders = serviceRegistry2.getAllProviders();
+    
     // Debug: Log provider assignments for movie service type
     if (!serviceType || serviceType === 'movie') {
-      const movieProviders = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie');
+      const movieProviders = allProviders.filter(p => p.serviceType === 'movie');
       console.log(`   🔍 [Service Registry API] Movie providers in memory: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
     }
     if (!serviceType || serviceType === 'dex') {
-      const dexProviders = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex');
+      const dexProviders = allProviders.filter(p => p.serviceType === 'dex');
       console.log(`   🔍 [Service Registry API] DEX providers in memory: ${dexProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
     }
-    console.log(`   📊 [Service Registry API] Total providers in ROOT_CA_SERVICE_REGISTRY: ${ROOT_CA_SERVICE_REGISTRY.length} (by type: movie=${ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie').length}, dex=${ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex').length}, infrastructure=${ROOT_CA_SERVICE_REGISTRY.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
+    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
     
-    let providers = ROOT_CA_SERVICE_REGISTRY.map(p => ({
+    let providers = allProviders.map(p => ({
       id: p.id,
       name: p.name,
       serviceType: p.serviceType, // Snake is a service type (serviceType: "snake")
@@ -578,7 +597,29 @@ httpServer.on("request", async (req, res) => {
       console.warn(`⚠️  [Indexer API] Failed to load persisted indexers: ${err.message}`);
     }
     
-    // Combine all indexers: Holy Ghost (ROOT CA's indexer) + persisted indexers only
+    // Combine all indexers: Holy Ghost (ROOT CA's indexer) + in-memory gardens + persisted gardens
+    // CRITICAL: Use in-memory arrays as source of truth (they include newly created gardens)
+    // Merge with persisted data to ensure we have all gardens (in-memory takes precedence)
+    const inMemoryRegularGardens = GARDENS.filter(g => g.active);
+    const inMemoryTokenGardens = TOKEN_GARDENS.filter(g => g.active);
+    
+    // Merge: in-memory gardens take precedence, but include persisted gardens not in memory
+    const allRegularGardens = new Map<string, GardenConfig>();
+    inMemoryRegularGardens.forEach(g => allRegularGardens.set(g.id, g));
+    persistedGardens.forEach(g => {
+      if (!allRegularGardens.has(g.id)) {
+        allRegularGardens.set(g.id, g);
+      }
+    });
+    
+    const allTokenGardens = new Map<string, TokenGardenConfig>();
+    inMemoryTokenGardens.forEach(g => allTokenGardens.set(g.id, g));
+    persistedTokenGardens.forEach(g => {
+      if (!allTokenGardens.has(g.id)) {
+        allTokenGardens.set(g.id, g);
+      }
+    });
+    
     const allIndexers = [
       // Holy Ghost (ROOT CA's infrastructure indexer) - listed first
       {
@@ -590,8 +631,8 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!HOLY_GHOST_GARDEN.certificate,
         type: 'root' as const
       },
-      // Only return persisted indexers (not in-memory defaults)
-      ...persistedGardens.map(i => ({
+      // Return in-memory gardens (source of truth) + persisted gardens not in memory
+      ...Array.from(allRegularGardens.values()).map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -600,7 +641,7 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!i.certificate,
         type: 'regular' as const
       })),
-      ...persistedTokenGardens.map(i => ({
+      ...Array.from(allTokenGardens.values()).map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -2003,15 +2044,27 @@ httpServer.on("request", async (req, res) => {
   }
 
   if (pathname === "/api/ledger" && req.method === "GET") {
+    console.log(`📡 [API] ⭐ GET /api/ledger endpoint called`);
     const parsedUrl = url.parse(req.url || "/", true);
     const payerEmail = parsedUrl.query.email as string | undefined;
+    console.log(`📡 [API] Query params:`, parsedUrl.query);
     const entries = getLedgerEntries(payerEmail);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
+    console.log(`📡 [API] getLedgerEntries returned ${entries.length} entries${payerEmail ? ` for ${payerEmail}` : ' (all entries)'}`);
+    console.log(`📡 [API] LEDGER array has ${LEDGER.length} entries in memory`);
+    if (LEDGER.length > 0) {
+      console.log(`📡 [API] First entry:`, JSON.stringify(LEDGER[0], null, 2));
+    }
+    const response = {
       success: true,
       entries: entries,
       total: entries.length
-    }));
+    };
+    console.log(`📡 [API] Sending response:`, JSON.stringify(response, null, 2));
+    res.writeHead(200, { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*" // Ensure CORS is allowed
+    });
+    res.end(JSON.stringify(response));
     return;
   }
 
@@ -2429,6 +2482,17 @@ httpServer.on("request", async (req, res) => {
           if ((gardenConfig as any).serviceType === 'movie') {
             console.log(`   🎬 [Movie Garden] Movie garden created via Angular wizard: ${gardenConfig.name} (${gardenConfig.id})`);
           }
+          
+          // Log garden creation
+          const gardenLogData = {
+            gardenId: gardenConfig.id,
+            gardenName: gardenConfig.name,
+            serviceType: (gardenConfig as any).serviceType,
+            hasCertificate: !!gardenConfig.certificate,
+            totalGardens: GARDENS.length
+          };
+          console.log(`📝 [Garden Lifecycle] ✅ Garden added to memory:`, gardenLogData);
+          getLogger().log('garden-lifecycle', 'garden-added-to-memory', gardenLogData);
         }
         
         // Create service providers for movie gardens based on selectedProviders
@@ -2475,11 +2539,12 @@ httpServer.on("request", async (req, res) => {
             // In ROOT mode, providers may not exist yet and need to be created
             console.log(`   🔍 [Provider Assignment] Looking for ${selectedProviders.length} provider(s) in ServiceRegistry...`);
             console.log(`   🔍 [Provider Assignment] Selected provider IDs: ${selectedProviders.join(', ')}`);
-            console.log(`   🔍 [Provider Assignment] ServiceRegistry has ${ROOT_CA_SERVICE_REGISTRY.length} providers`);
+            const serviceRegistry2ForAssignment = getServiceRegistry2();
+            console.log(`   🔍 [Provider Assignment] ServiceRegistry2 has ${serviceRegistry2ForAssignment.getCount()} providers`);
             
             for (const providerId of selectedProviders) {
-              // Find the existing provider in the ServiceRegistry
-              let existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId);
+              // Find the existing provider in ServiceRegistry2
+              let existingProvider = serviceRegistry2ForAssignment.getProvider(providerId);
               
               if (existingProvider) {
                 // CRITICAL: Validate that the garden exists before assigning
@@ -2537,8 +2602,32 @@ httpServer.on("request", async (req, res) => {
                     status: 'active'
                   };
                   
-                  // Add to ServiceRegistry
-                  ROOT_CA_SERVICE_REGISTRY.push(newProvider);
+                  // Add to ServiceRegistry2 (new implementation)
+                  const serviceRegistry2 = getServiceRegistry2();
+                  try {
+                    serviceRegistry2.addProvider(newProvider);
+                    // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility (will be removed later)
+                    ROOT_CA_SERVICE_REGISTRY.push(newProvider);
+                  } catch (err: any) {
+                    console.error(`   ❌ Failed to add provider to ServiceRegistry2: ${err.message}`);
+                    throw err;
+                  }
+                  
+                  // Log provider creation
+                  const providerLogData = {
+                    providerId: newProvider.id,
+                    providerName: newProvider.name,
+                    gardenId: newProvider.gardenId,
+                    serviceType: newProvider.serviceType,
+                    totalProviders: serviceRegistry2.getCount()
+                  };
+                  console.log(`📝 [Garden Lifecycle] ✅ Provider added to ServiceRegistry2:`, providerLogData);
+                  console.log(`📋 [ServiceRegistry2] Current state:`, {
+                    totalProviders: serviceRegistry2.getCount(),
+                    movieProviders: serviceRegistry2.queryProviders('movie').map(p => `${p.id}(${p.gardenId})`),
+                    allProviders: serviceRegistry2.getAllProviders().map(p => `${p.id}(${p.gardenId || 'NO_GARDEN'})`)
+                  });
+                  getLogger().log('garden-lifecycle', 'provider-added-to-memory', providerLogData);
                   
                   // Issue certificate to provider
                   try {
@@ -2565,7 +2654,8 @@ httpServer.on("request", async (req, res) => {
                     }
                   });
                 } else {
-                  console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry and not in providerMap. Available providers: ${ROOT_CA_SERVICE_REGISTRY.map(p => `${p.name} (${p.id})`).join(', ')}`);
+                  const serviceRegistry2 = getServiceRegistry2();
+                  console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry and not in providerMap. Available providers: ${serviceRegistry2.getAllProviders().map(p => `${p.name} (${p.id})`).join(', ')}`);
                 }
               }
             }
@@ -2613,7 +2703,7 @@ httpServer.on("request", async (req, res) => {
                 baseReserve: 100 - (tokenGardenIndex * 10), // 100, 90, 80...
                 price: 0.001, // 1 Token = 0.001 SOL
                 bond: 5000,
-                indexerId: gardenConfig.id, // Assign to this token garden (legacy field name)
+                gardenId: gardenConfig.id, // Assign to this token garden
                 createdAt: Date.now(),
                 totalVolume: 0,
                 totalTrades: 0,
@@ -2625,9 +2715,10 @@ httpServer.on("request", async (req, res) => {
             
             // Create service provider for this pool
             const providerId = `dex-pool-${tokenSymbol.toLowerCase()}`;
-            const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === gardenConfig.id);
+            const serviceRegistry2 = getServiceRegistry2();
+            const existingProvider = serviceRegistry2.getProvider(providerId);
             
-            if (existingProvider) {
+            if (existingProvider && existingProvider.gardenId === gardenConfig.id) {
               console.log(`   ⚠️  Provider ${providerId} already exists for garden ${gardenConfig.id}, skipping...`);
             } else {
               const provider: ServiceProviderWithCert = {
@@ -2643,8 +2734,15 @@ httpServer.on("request", async (req, res) => {
                 status: 'active',
               };
               
-              // Add to ServiceRegistry
-              ROOT_CA_SERVICE_REGISTRY.push(provider);
+              // Add to ServiceRegistry2 (new implementation)
+              try {
+                serviceRegistry2.addProvider(provider);
+                // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility (will be removed later)
+                ROOT_CA_SERVICE_REGISTRY.push(provider);
+              } catch (err: any) {
+                console.error(`   ❌ Failed to add DEX provider to ServiceRegistry2: ${err.message}`);
+                throw err;
+              }
               
               // Issue certificate to provider
               try {
@@ -3011,55 +3109,40 @@ httpServer.on("request", async (req, res) => {
             console.log(`💾 [Indexer Persistence] Saved token gardens: ${tokenIndexersToSave.map(i => `${i.name} (${i.id})${i.certificate ? ' ✓cert' : ' ❌no cert'}`).join(', ')}`);
           }
           
-          // Save ServiceRegistry to separate file
-          // CRITICAL: Only save providers whose gardens actually exist (or are "HG" for infrastructure)
-          const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-            if (p.gardenId === undefined || p.gardenId === null) {
-              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId is required but not set`);
-              return false;
-            }
-            // Validate that the garden exists
-            const gardenExists = p.gardenId === 'HG' || 
-                                GARDENS.some(g => g.id === p.gardenId) || 
-                                TOKEN_GARDENS.some(tg => tg.id === p.gardenId);
-            if (!gardenExists) {
-              console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId "${p.gardenId}" does not exist`);
-              return false;
-            }
-            return true;
-          });
+          // Save ServiceRegistry2 to persistence file
+          // CRITICAL: Use ServiceRegistry2 (new implementation) - it handles persistence correctly
+          const serviceRegistry2 = getServiceRegistry2();
+          const allProviders = serviceRegistry2.getAllProviders();
           
-          const serviceRegistry = servicesToSave.map(p => {
-            const provider: any = {
-              id: p.id,
-              name: p.name,
-              serviceType: p.serviceType,
-              location: p.location,
-              bond: p.bond,
-              reputation: p.reputation,
-              status: p.status,
-              uuid: p.uuid,
-              apiEndpoint: p.apiEndpoint,
-              gardenId: p.gardenId // Use gardenId in persistence file
-            };
-            // Include Snake-specific fields if present
-            if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
-            if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
-            if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
-            if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
-            if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
-            if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
-            if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
-            return provider;
-          });
+          // Console output: Show in-memory service registry
+          console.log(`📋 [ServiceRegistry2] Saving ALL ${allProviders.length} providers (NO FILTERING)`);
+          console.log(`📋 [ServiceRegistry2] All providers:`, allProviders.map(p => ({
+            id: p.id,
+            name: p.name,
+            serviceType: p.serviceType,
+            gardenId: p.gardenId || 'MISSING'
+          })));
+          console.log(`📋 [ServiceRegistry2] Movie providers:`, allProviders.filter(p => p.serviceType === 'movie').map(p => ({
+            id: p.id,
+            name: p.name,
+            gardenId: p.gardenId || 'MISSING'
+          })));
           
-          const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
-          const serviceRegistryData = {
-            serviceRegistry: serviceRegistry,
-            lastSaved: new Date().toISOString()
+          // Log service registry save
+          const saveLogData = {
+            totalInMemory: allProviders.length,
+            totalSaved: allProviders.length,
+            movieProviders: allProviders.filter(p => p.serviceType === 'movie').length,
+            dexProviders: allProviders.filter(p => p.serviceType === 'dex').length,
+            movieProviderIds: allProviders.filter(p => p.serviceType === 'movie').map(p => `${p.id}(${p.gardenId})`),
+            allProviderIds: allProviders.map(p => `${p.id}(${p.gardenId})`)
           };
-          fs.writeFileSync(serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${serviceRegistry.length} service provider(s) to ${serviceRegistryFile}`);
+          console.log(`📝 [Garden Lifecycle] 💾 ServiceRegistry2 save:`, JSON.stringify(saveLogData, null, 2));
+          getLogger().log('garden-lifecycle', 'service-registry-save', saveLogData);
+          
+          // Save using ServiceRegistry2's savePersistence method
+          serviceRegistry2.savePersistence();
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${allProviders.length} service provider(s) via ServiceRegistry2`);
         } catch (err: any) {
           console.error(`❌ [Indexer Persistence] Failed to save immediately: ${err.message}`);
         }
@@ -3151,1090 +3234,7 @@ function getContentType(ext: string): string {
 
 // Embedded In-Memory Redis Server
 
-class InMemoryRedisServer extends EventEmitter {
-  private data: Map<string, any> = new Map();
-  private streams: Map<string, Array<{ id: string; fields: Record<string, string> }>> = new Map();
-  private streamCounters: Map<string, number> = new Map();
-  private consumerGroups: Map<string, Map<string, string>> = new Map(); // stream -> group -> lastId
-  private pendingMessages: Map<string, Map<string, Array<{ id: string; fields: Record<string, string> }>>> = new Map(); // stream -> group -> messages
-  private isConnected = false;
-  private persistenceFile: string; // Main wallet persistence file (backward compatibility)
-  private ledgerEntriesFile: string; // Separate file for ledger entries
-  private gardensFile: string; // Separate file for gardens
-  private serviceRegistryFile: string; // Separate file for service registry
-  private saveTimeout: NodeJS.Timeout | null = null;
-  private readonly SAVE_DELAY_MS = 1000; // Debounce saves by 1 second
-
-  constructor() {
-    super();
-    // Persistence files in the same directory as the script
-    this.persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-    this.ledgerEntriesFile = path.join(__dirname, 'eden-ledgerEntries-persistence.json');
-    this.gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
-    this.serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
-    this.loadPersistence();
-  }
-
-  // Load wallet data, ledger entries, and indexers from persistence files
-  // REFACTOR: Now uses separate files for each data type, with backward compatibility
-  private loadPersistence(): { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } {
-    const result: { walletBalances: Record<string, string>, ledgerEntries: any[], indexers: any[] } = { walletBalances: {}, ledgerEntries: [], indexers: [] };
-    
-    // Check if we should migrate from old combined file
-    const hasOldFile = fs.existsSync(this.persistenceFile);
-    const hasNewFiles = fs.existsSync(this.ledgerEntriesFile) || fs.existsSync(this.gardensFile) || fs.existsSync(this.serviceRegistryFile);
-    
-    // If old file exists but new files don't, migrate
-    if (hasOldFile && !hasNewFiles) {
-      console.log(`🔄 [Persistence Migration] Detected old combined file, migrating to separate files...`);
-      this.migrateToSeparateFiles();
-    }
-    
-    try {
-      // Load wallet balances (always from main file for now, for backward compatibility)
-      if (fs.existsSync(this.persistenceFile)) {
-        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-        const persisted = JSON.parse(fileContent);
-        
-        // Restore wallet balances and audit logs
-        if (persisted.walletBalances && Object.keys(persisted.walletBalances).length > 0) {
-          for (const [key, value] of Object.entries(persisted.walletBalances)) {
-            this.data.set(key, value);
-            // Log balance keys for debugging
-            if (key.startsWith('wallet:balance:')) {
-              console.log(`📂 [Redis Persistence] Loaded wallet balance: ${key} = ${value}`);
-            }
-          }
-          result.walletBalances = persisted.walletBalances;
-          console.log(`📂 [Redis Persistence] Loaded ${Object.keys(persisted.walletBalances).length} wallet balances from ${this.persistenceFile}`);
-        } else {
-          console.log(`📂 [Redis Persistence] No wallet balances found in persistence file (starting with empty wallets)`);
-        }
-      }
-      
-      // Load ledger entries from separate file
-      if (fs.existsSync(this.ledgerEntriesFile)) {
-        try {
-          const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
-          result.ledgerEntries = persisted.ledgerEntries;
-            console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.ledgerEntriesFile}`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
-        }
-      } else if (hasOldFile) {
-        // Fallback to old file for backward compatibility
-        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-        const persisted = JSON.parse(fileContent);
-        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
-          result.ledgerEntries = persisted.ledgerEntries;
-          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from old combined file (will migrate on next save)`);
-        }
-      }
-      
-      // Load gardens from separate file
-      if (fs.existsSync(this.gardensFile)) {
-        try {
-          const fileContent = fs.readFileSync(this.gardensFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          const gardensToLoad = persisted.gardens || persisted.indexers || [];
-          if (gardensToLoad && Array.isArray(gardensToLoad) && gardensToLoad.length > 0) {
-            // CRITICAL: Deduplicate gardens when loading to prevent duplicates in memory
-            const deduplicatedGardens = new Map<string, any>();
-            for (const garden of gardensToLoad) {
-              const existing = deduplicatedGardens.get(garden.id);
-              if (!existing) {
-                deduplicatedGardens.set(garden.id, garden);
-              } else {
-                // Prefer the one with certificate
-                const hasCert = !!(garden as any).certificate;
-                const existingHasCert = !!(existing as any).certificate;
-                if (hasCert && !existingHasCert) {
-                  deduplicatedGardens.set(garden.id, garden);
-                  console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping version with certificate`);
-                } else {
-                  console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping existing version`);
-                }
-              }
-            }
-            const cleanGardens = Array.from(deduplicatedGardens.values());
-            result.indexers = cleanGardens;
-            if (gardensToLoad.length !== cleanGardens.length) {
-              console.warn(`⚠️  [Indexer Persistence] Removed ${gardensToLoad.length - cleanGardens.length} duplicate(s) when loading gardens from persistence file`);
-            }
-            console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from ${this.gardensFile}`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [Redis Persistence] Failed to load gardens from separate file: ${err.message}`);
-        }
-      } else if (hasOldFile) {
-        // Fallback to old file for backward compatibility
-        const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-        const persisted = JSON.parse(fileContent);
-        const gardensToLoad = persisted.gardens || persisted.indexers;
-        if (gardensToLoad && Array.isArray(gardensToLoad) && gardensToLoad.length > 0) {
-          // CRITICAL: Deduplicate gardens when loading to prevent duplicates in memory
-          const deduplicatedGardens = new Map<string, any>();
-          for (const garden of gardensToLoad) {
-            const existing = deduplicatedGardens.get(garden.id);
-            if (!existing) {
-              deduplicatedGardens.set(garden.id, garden);
-      } else {
-              // Prefer the one with certificate
-              const hasCert = !!(garden as any).certificate;
-              const existingHasCert = !!(existing as any).certificate;
-              if (hasCert && !existingHasCert) {
-                deduplicatedGardens.set(garden.id, garden);
-                console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping version with certificate`);
-              } else {
-                console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} when loading - keeping existing version`);
-              }
-            }
-          }
-          const cleanGardens = Array.from(deduplicatedGardens.values());
-          result.indexers = cleanGardens;
-          if (gardensToLoad.length !== cleanGardens.length) {
-            console.warn(`⚠️  [Indexer Persistence] Removed ${gardensToLoad.length - cleanGardens.length} duplicate(s) when loading gardens from persistence file`);
-          }
-          console.log(`📂 [Redis Persistence] Loaded ${cleanGardens.length} persisted gardens from old combined file (will migrate on next save)`);
-        }
-      }
-      
-      // Load service registry from separate file and merge with ROOT_CA_SERVICE_REGISTRY
-      if (fs.existsSync(this.serviceRegistryFile)) {
-        try {
-          const fileContent = fs.readFileSync(this.serviceRegistryFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
-            console.log(`📂 [Redis Persistence] Loading ${persisted.serviceRegistry.length} service providers from ${this.serviceRegistryFile}`);
-            
-            // CRITICAL: Get loaded gardens from result.indexers (they haven't been added to GARDENS/TOKEN_GARDENS yet)
-            // Separate regular and token gardens from the loaded data
-            const loadedRegularGardens = result.indexers.filter((g: any) => 
-              !(g.tokenServiceType === 'dex' || (g.serviceType === 'dex' && g.id && g.id.startsWith('T')))
-            );
-            const loadedTokenGardens = result.indexers.filter((g: any) => 
-              g.tokenServiceType === 'dex' || (g.serviceType === 'dex' && g.id && g.id.startsWith('T'))
-            );
-            
-            // Merge persisted service registry with in-memory ROOT_CA_SERVICE_REGISTRY
-            // Update existing providers' indexerId if they exist in both
-            let updatedCount = 0;
-            for (const persistedProvider of persisted.serviceRegistry) {
-              const persistedGardenId = persistedProvider.gardenId || persistedProvider.indexerId;
-              
-              // CRITICAL: Only load providers whose gardens actually exist (or are "HG" for infrastructure)
-              // Check if the garden exists in loaded gardens (from persistence file) or in-memory arrays
-              const gardenExists = persistedGardenId === 'HG' || 
-                                  loadedRegularGardens.some((g: any) => g.id === persistedGardenId) ||
-                                  loadedTokenGardens.some((g: any) => g.id === persistedGardenId) ||
-                                  GARDENS.some(g => g.id === persistedGardenId) || 
-                                  TOKEN_GARDENS.some(tg => tg.id === persistedGardenId);
-              
-              if (!gardenExists && persistedGardenId) {
-                console.log(`⚠️  [Service Registry] Skipping provider ${persistedProvider.id} (${persistedProvider.name}): gardenId "${persistedGardenId}" does not exist in loaded gardens or GARDENS/TOKEN_GARDENS`);
-                // CRITICAL: If provider exists in ROOT_CA_SERVICE_REGISTRY but its garden doesn't exist, REMOVE it
-                const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
-                if (existingProvider) {
-                  const index = ROOT_CA_SERVICE_REGISTRY.indexOf(existingProvider);
-                  if (index > -1) {
-                    ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
-                    console.log(`🗑️  [Service Registry] Removed provider ${persistedProvider.id} (${persistedProvider.name}) from ROOT_CA_SERVICE_REGISTRY because gardenId "${persistedGardenId}" does not exist`);
-                  }
-                }
-                continue; // Skip this provider
-              }
-              
-              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
-              if (existingProvider) {
-                // Update gardenId from persisted file (this is the source of truth for provider assignments)
-                // Support both indexerId and gardenId for backward compatibility
-                
-                // CRITICAL FIX: Correct incorrect "HG" assignments for movie providers
-                // Movie providers should never be assigned to "HG" - they belong to regular gardens
-                // If file has "HG" but in-memory default is "garden-1", use the correct default instead
-                let resolvedGardenId = persistedGardenId;
-                if (resolvedGardenId === "HG" && existingProvider.serviceType === "movie") {
-                  const correctGardenId = existingProvider.gardenId; // Use in-memory default (should be "garden-1")
-                  if (correctGardenId && correctGardenId !== "HG") {
-                    console.log(`🔧 [Service Registry] CORRECTING ${existingProvider.name} (${existingProvider.id}): file has incorrect gardenId="HG" for movie provider, using correct default="${correctGardenId}"`);
-                    resolvedGardenId = correctGardenId;
-                  }
-                }
-                
-                console.log(`🔍 [Service Registry Load] Processing ${persistedProvider.id}: file has gardenId="${persistedProvider.gardenId}", resolved="${resolvedGardenId}", in-memory has gardenId="${existingProvider.gardenId}"`);
-                if (resolvedGardenId) {
-                  // ALWAYS update from file (file is source of truth), even if values appear the same
-                  // This ensures provider assignments are preserved after server restart
-                  // CRITICAL: The in-memory default might be "HG" but the file has "garden-1" - file wins!
-                  const oldValue = existingProvider.gardenId;
-                  existingProvider.gardenId = resolvedGardenId;
-                  if (oldValue !== resolvedGardenId) {
-                    console.log(`📂 [Service Registry] ✅ UPDATED ${existingProvider.name} (${existingProvider.id}): gardenId from "${oldValue}" to "${resolvedGardenId}" (from file)`);
-                    updatedCount++;
-                  } else {
-                    console.log(`📂 [Service Registry] ✓ ${existingProvider.name} (${existingProvider.id}) already has correct gardenId: "${resolvedGardenId}"`);
-                  }
-                } else {
-                  console.log(`⚠️  [Service Registry] ${persistedProvider.id} has no gardenId in file, skipping update`);
-                }
-              } else {
-                // Provider doesn't exist in defaults, add it (for dynamically created providers)
-                console.log(`📂 [Service Registry] Adding persisted provider: ${persistedProvider.name} (${persistedProvider.id}) with gardenId=${persistedGardenId}`);
-                // Check if provider already exists (by ID or UUID) to avoid duplicates
-                const existingById = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
-                const existingByUuid = persistedProvider.uuid ? ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === persistedProvider.uuid) : null;
-                
-                if (existingById || existingByUuid) {
-                  console.log(`⚠️  [Service Registry] Provider ${persistedProvider.id} already exists in ROOT_CA_SERVICE_REGISTRY, skipping duplicate`);
-                } else {
-                  // Ensure all required fields are present before adding
-                  const providerToAdd: ServiceProviderWithCert = {
-                    id: persistedProvider.id,
-                    uuid: persistedProvider.uuid || crypto.randomUUID(),
-                    name: persistedProvider.name,
-                    serviceType: persistedProvider.serviceType,
-                    location: persistedProvider.location || 'Unknown',
-                    bond: persistedProvider.bond || 0,
-                    reputation: persistedProvider.reputation || 0,
-                    gardenId: persistedGardenId || 'HG',
-                    apiEndpoint: persistedProvider.apiEndpoint,
-                    status: (persistedProvider.status as 'active' | 'revoked' | 'suspended') || 'active',
-                    // Optional fields
-                    insuranceFee: persistedProvider.insuranceFee,
-                    iGasMultiplier: persistedProvider.iGasMultiplier,
-                    iTaxMultiplier: persistedProvider.iTaxMultiplier,
-                    maxInfluence: persistedProvider.maxInfluence,
-                    contextsAllowed: persistedProvider.contextsAllowed,
-                    contextsForbidden: persistedProvider.contextsForbidden,
-                    adCapabilities: persistedProvider.adCapabilities,
-                    certificate: persistedProvider.certificate
-                  };
-                  ROOT_CA_SERVICE_REGISTRY.push(providerToAdd);
-                  console.log(`✅ [Service Registry] Successfully added provider: ${providerToAdd.name} (${providerToAdd.id}) with serviceType=${providerToAdd.serviceType}, gardenId=${providerToAdd.gardenId}`);
-                }
-              }
-            }
-            if (updatedCount > 0) {
-              console.log(`📂 [Service Registry] Updated ${updatedCount} provider gardenId assignment(s) from persistence file`);
-              // If we corrected any "HG" assignments for movie providers, save the corrected values back to file
-              const correctedCount = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-                const persistedProvider = persisted.serviceRegistry.find((pp: any) => pp.id === p.id);
-                return persistedProvider && 
-                       persistedProvider.gardenId === "HG" && 
-                       p.serviceType === "movie" && 
-                       p.gardenId !== "HG";
-              }).length;
-              if (correctedCount > 0) {
-                console.log(`🔧 [Service Registry] Corrected ${correctedCount} movie provider(s) from "HG" to correct gardenId - saving corrected values to file`);
-                // Save the corrected values immediately
-                this.saveServiceRegistry();
-              }
-            }
-            // Log final state of providers after loading
-            const movieProvidersAfterLoad = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie');
-            if (movieProvidersAfterLoad.length > 0) {
-              console.log(`📂 [Service Registry] After load - Movie providers: ${movieProvidersAfterLoad.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
-            }
-            const dexProvidersAfterLoad = ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex');
-            if (dexProvidersAfterLoad.length > 0) {
-              console.log(`📂 [Service Registry] After load - DEX providers: ${dexProvidersAfterLoad.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
-            } else {
-              console.log(`⚠️  [Service Registry] After load - No DEX providers found in ROOT_CA_SERVICE_REGISTRY (total providers: ${ROOT_CA_SERVICE_REGISTRY.length})`);
-            }
-            console.log(`✅ [Service Registry] Merged service registry: ${ROOT_CA_SERVICE_REGISTRY.length} total providers`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [Redis Persistence] Failed to load service registry from separate file: ${err.message}`);
-        }
-      } else if (hasOldFile) {
-        // Fallback to old file for backward compatibility
-        try {
-          const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
-            console.log(`📂 [Redis Persistence] Loading ${persisted.serviceRegistry.length} service providers from old combined file (will migrate on next save)`);
-            
-            // Merge persisted service registry with in-memory ROOT_CA_SERVICE_REGISTRY
-            for (const persistedProvider of persisted.serviceRegistry) {
-              const persistedGardenId = persistedProvider.gardenId || persistedProvider.indexerId;
-              
-              // CRITICAL: Only load providers whose gardens actually exist (or are "HG" for infrastructure)
-              // Check if the garden exists in loaded gardens or in-memory arrays
-              const gardenExists = persistedGardenId === 'HG' || 
-                                  GARDENS.some(g => g.id === persistedGardenId) || 
-                                  TOKEN_GARDENS.some(tg => tg.id === persistedGardenId);
-              
-              if (!gardenExists && persistedGardenId) {
-                console.log(`⚠️  [Service Registry] Skipping provider ${persistedProvider.id} (${persistedProvider.name}): gardenId "${persistedGardenId}" does not exist (from old file)`);
-                continue; // Skip this provider
-              }
-              
-              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
-              if (existingProvider) {
-                // Update gardenId from persisted file
-                if (persistedGardenId) {
-                  // ALWAYS update from file (file is source of truth)
-                  const oldValue = existingProvider.gardenId;
-                  existingProvider.gardenId = persistedGardenId;
-                  if (oldValue !== persistedGardenId) {
-                    console.log(`📂 [Service Registry] Updating ${existingProvider.name} (${existingProvider.id}): gardenId from "${oldValue}" to "${persistedGardenId}" (from old file)`);
-                  }
-                }
-              } else {
-                // Provider doesn't exist in defaults, add it (but only if garden exists)
-                console.log(`📂 [Service Registry] Adding persisted provider: ${persistedProvider.name} (${persistedProvider.id}) with gardenId=${persistedGardenId}`);
-                ROOT_CA_SERVICE_REGISTRY.push(persistedProvider as ServiceProviderWithCert);
-              }
-            }
-            console.log(`✅ [Service Registry] Merged service registry from old file: ${ROOT_CA_SERVICE_REGISTRY.length} total providers`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [Redis Persistence] Failed to load service registry from old file: ${err.message}`);
-        }
-      }
-      
-      if (!hasOldFile && !hasNewFiles) {
-        console.log(`📂 [Redis Persistence] No persistence files found, starting fresh`);
-      }
-    } catch (err: any) {
-      console.warn(`⚠️  [Redis Persistence] Failed to load persistence file: ${err.message}`);
-    }
-    return result;
-  }
-  
-  // Migrate from old combined file to separate files
-  private migrateToSeparateFiles(): void {
-    try {
-      if (!fs.existsSync(this.persistenceFile)) {
-        return; // Nothing to migrate
-      }
-      
-      console.log(`🔄 [Persistence Migration] Reading old combined file: ${this.persistenceFile}`);
-      const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-      const persisted = JSON.parse(fileContent);
-      
-      // Migrate ledger entries
-      if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
-        const ledgerData = {
-          ledgerEntries: persisted.ledgerEntries,
-          lastSaved: persisted.lastSaved || new Date().toISOString()
-        };
-        fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
-        console.log(`✅ [Persistence Migration] Migrated ${persisted.ledgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
-      }
-      
-      // Migrate gardens
-      const gardensToMigrate = persisted.gardens || persisted.indexers;
-      if (gardensToMigrate && Array.isArray(gardensToMigrate) && gardensToMigrate.length > 0) {
-        const gardensData = {
-          gardens: gardensToMigrate,
-          lastSaved: persisted.lastSaved || new Date().toISOString()
-        };
-        fs.writeFileSync(this.gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
-        console.log(`✅ [Persistence Migration] Migrated ${gardensToMigrate.length} gardens to ${this.gardensFile}`);
-      }
-      
-      // Migrate service registry
-      if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
-        const serviceRegistryData = {
-          serviceRegistry: persisted.serviceRegistry,
-          lastSaved: persisted.lastSaved || new Date().toISOString()
-        };
-        fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-        console.log(`✅ [Persistence Migration] Migrated ${persisted.serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
-      }
-      
-      // Keep wallet balances in the main file (for now, can be migrated later if needed)
-      console.log(`✅ [Persistence Migration] Migration complete. Wallet balances remain in ${this.persistenceFile}`);
-    } catch (err: any) {
-      console.error(`❌ [Persistence Migration] Failed to migrate: ${err.message}`);
-    }
-  }
-
-  // Save wallet data, ledger entries, and indexers to persistence file (debounced)
-  // CRITICAL: In ROOT mode, indexers should NOT be saved here - they're saved via immediate save in /api/wizard/create-indexer
-  private savePersistence(ledgerEntries?: any[], indexers?: any[]): void {
-    // Clear existing timeout
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-
-    // Debounce saves to avoid too many file writes
-    this.saveTimeout = setTimeout(() => {
-      try {
-        // CRITICAL: Load existing wallet balances FIRST to preserve them
-        // We must merge wallet balances, not overwrite them
-        let existingWalletBalances: Record<string, string> = {};
-        
-        if (fs.existsSync(this.persistenceFile)) {
-          try {
-            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-            const existing = JSON.parse(fileContent);
-            if (existing.walletBalances && typeof existing.walletBalances === 'object') {
-              existingWalletBalances = existing.walletBalances;
-            }
-          } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load existing wallet balances: ${err.message}`);
-          }
-        }
-        
-        // Start with existing wallet balances from file (preserve them)
-        const walletBalances: Record<string, string> = { ...existingWalletBalances };
-        
-        // CRITICAL: Only update wallet balances from in-memory if they exist AND are valid
-        // Do NOT overwrite with 0 or missing values - preserve existing balances
-        for (const [key, value] of this.data.entries()) {
-          if (key.startsWith('wallet:balance:')) {
-            // Only update balance if it exists in memory and is not 0 or empty
-            const balanceValue = typeof value === 'string' ? value : JSON.stringify(value);
-            const balanceNum = parseFloat(balanceValue);
-            // Only update if balance exists in memory AND is a valid positive number
-            if (!isNaN(balanceNum) && balanceNum > 0) {
-              walletBalances[key] = balanceValue;
-            }
-            // If balance is 0 or invalid in memory, preserve existing from file (don't overwrite)
-          } else if (key.startsWith('wallet:audit:')) {
-            // Always update audit logs (they're append-only)
-            walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
-          }
-        }
-
-        // Load existing ledger entries from separate file (or old file for backward compatibility)
-        let existingLedgerEntries: any[] = [];
-        if (fs.existsSync(this.ledgerEntriesFile)) {
-          try {
-            const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
-            const existing = JSON.parse(fileContent);
-            if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
-              existingLedgerEntries = existing.ledgerEntries;
-            }
-          } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
-          }
-        } else if (fs.existsSync(this.persistenceFile)) {
-          // Fallback to old file for backward compatibility
-          try {
-            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-            const existing = JSON.parse(fileContent);
-            if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
-              existingLedgerEntries = existing.ledgerEntries;
-            }
-          } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from old file: ${err.message}`);
-          }
-        }
-        
-        // Load existing gardens from separate file (or old file for backward compatibility)
-        let existingIndexers: any[] = [];
-        if (fs.existsSync(this.gardensFile)) {
-          try {
-            const fileContent = fs.readFileSync(this.gardensFile, 'utf-8');
-            const existing = JSON.parse(fileContent);
-            const gardensFromFile = existing.gardens || existing.indexers;
-            if (gardensFromFile && Array.isArray(gardensFromFile)) {
-              existingIndexers = gardensFromFile;
-            }
-          } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load gardens from separate file: ${err.message}`);
-          }
-        } else if (fs.existsSync(this.persistenceFile)) {
-          // Fallback to old file for backward compatibility
-          try {
-            const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
-            const existing = JSON.parse(fileContent);
-            const gardensFromFile = existing.gardens || existing.indexers;
-            if (gardensFromFile && Array.isArray(gardensFromFile)) {
-              existingIndexers = gardensFromFile;
-            }
-            // Backward compatibility: Migrate tokenIndexers to gardens array if it exists (non-ROOT only)
-            if (!DEPLOYED_AS_ROOT && existing.tokenIndexers && Array.isArray(existing.tokenIndexers)) {
-              console.log(`📋 [Redis Persistence] Found tokenIndexers field - migrating to gardens array`);
-              const existingTokenIds = new Set(existingIndexers.map((idx: any) => idx.id));
-              for (const tokenIdx of existing.tokenIndexers) {
-                if (!existingTokenIds.has(tokenIdx.id)) {
-                  existingIndexers.push(tokenIdx);
-                }
-              }
-            }
-          } catch (err: any) {
-            console.warn(`⚠️  [Redis Persistence] Failed to load gardens from old file: ${err.message}`);
-          }
-        }
-
-        // Merge: use new data if provided, otherwise keep existing
-        const finalLedgerEntries = ledgerEntries !== undefined ? ledgerEntries : existingLedgerEntries;
-        // CRITICAL: In ROOT mode, use in-memory arrays as source of truth, NOT the file
-        // The file might have duplicates from previous bad saves - we must use current in-memory state
-        let finalIndexers: any[];
-        if (DEPLOYED_AS_ROOT) {
-          // ROOT mode: Use in-memory arrays (GARDENS + TOKEN_GARDENS) as single source of truth
-          // Do NOT read from file - that would reintroduce duplicates
-          const allInMemoryIndexers = [...GARDENS, ...TOKEN_GARDENS];
-          finalIndexers = allInMemoryIndexers;
-        } else {
-          // Non-ROOT mode: use provided or existing from file
-          finalIndexers = indexers !== undefined ? indexers : existingIndexers;
-        }
-        
-        // CRITICAL: Always deduplicate gardens before saving to prevent duplicates
-        // This is essential because saveLedgerEntries() can trigger saves that reload duplicates from file
-        const originalCount = finalIndexers.length;
-        const deduplicatedGardens = new Map<string, any>();
-        for (const garden of finalIndexers) {
-          const existing = deduplicatedGardens.get(garden.id);
-          if (!existing) {
-            deduplicatedGardens.set(garden.id, garden);
-          } else {
-            // Prefer the one with certificate
-            const hasCert = !!(garden as any).certificate;
-            const existingHasCert = !!(existing as any).certificate;
-            if (hasCert && !existingHasCert) {
-              deduplicatedGardens.set(garden.id, garden);
-              console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} in savePersistence - keeping version with certificate`);
-            } else {
-              console.warn(`⚠️  [Indexer Persistence] Found duplicate garden ${garden.id} in savePersistence - keeping existing version`);
-            }
-          }
-        }
-        finalIndexers = Array.from(deduplicatedGardens.values());
-        
-        if (originalCount !== finalIndexers.length) {
-          console.warn(`⚠️  [Indexer Persistence] Removed ${originalCount - finalIndexers.length} duplicate(s) from gardens array before saving`);
-        }
-        
-        // Include ServiceRegistry for debugging (always save current state)
-        // CRITICAL: gardenId is REQUIRED - services without gardenId are NOT allowed
-        // CRITICAL: Only save providers whose gardens actually exist (or are "HG" for infrastructure)
-        const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-          if (p.gardenId === undefined || p.gardenId === null) {
-            console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId is required but not set`);
-            return false;
-          }
-          // Validate that the garden exists
-          const gardenExists = p.gardenId === 'HG' || 
-                              GARDENS.some(g => g.id === p.gardenId) || 
-                              TOKEN_GARDENS.some(tg => tg.id === p.gardenId);
-          if (!gardenExists) {
-            console.warn(`⚠️  [ServiceRegistry] Skipping service ${p.id} (${p.name}) - gardenId "${p.gardenId}" does not exist`);
-            return false;
-          }
-          return true;
-        });
-        
-        const serviceRegistry = servicesToSave.map(p => {
-          const provider: any = {
-            id: p.id,
-            name: p.name,
-            serviceType: p.serviceType,
-            location: p.location,
-            bond: p.bond,
-            reputation: p.reputation,
-            status: p.status,
-            uuid: p.uuid,
-            apiEndpoint: p.apiEndpoint,
-              gardenId: p.gardenId // Use gardenId in persistence file
-          };
-          // Include Snake-specific fields if present
-          if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
-          if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
-          if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
-          if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
-          if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
-          if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
-          if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
-          return provider;
-        });
-
-        // REFACTOR: Save to separate files
-        const timestamp = new Date().toISOString();
-        
-        // Save wallet balances to main file
-        const walletData = {
-          walletBalances,
-          lastSaved: timestamp
-        };
-        fs.writeFileSync(this.persistenceFile, JSON.stringify(walletData, null, 2), 'utf-8');
-        console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
-        
-        // Save ledger entries to separate file
-        if (finalLedgerEntries.length > 0 || fs.existsSync(this.ledgerEntriesFile)) {
-          const ledgerData = {
-          ledgerEntries: finalLedgerEntries,
-            lastSaved: timestamp
-          };
-          fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
-          console.log(`💾 [Redis Persistence] Saved ${finalLedgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
-        }
-        
-        // Save gardens to separate file (only if we have gardens or the file exists)
-        // CRITICAL: In ROOT mode, gardens are saved via immediate save, but we still save here for non-ROOT mode
-        if (finalIndexers.length > 0 || fs.existsSync(this.gardensFile)) {
-          const gardensData = {
-            gardens: finalIndexers, // CRITICAL: All indexers (regular and token) are in 'gardens' array
-            lastSaved: timestamp
-          };
-          fs.writeFileSync(this.gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
-        const tokenIndexerCount = finalIndexers.filter((idx: any) => 
-          idx.tokenServiceType === 'dex' || (idx.serviceType === 'dex' && idx.id && idx.id.startsWith('T'))
-        ).length;
-        const regularIndexerCount = finalIndexers.length - tokenIndexerCount;
-          console.log(`💾 [Redis Persistence] Saved ${finalIndexers.length} total gardens (${regularIndexerCount} regular + ${tokenIndexerCount} token) to ${this.gardensFile}`);
-        }
-        
-        // Save service registry to separate file
-        // CRITICAL: Always save service registry, even if empty, to ensure file exists
-        // But log a warning if it's empty (shouldn't happen - infrastructure providers should always exist)
-        if (serviceRegistry.length === 0) {
-          console.warn(`⚠️  [ServiceRegistry Persistence] WARNING: Service registry is empty! ROOT_CA_SERVICE_REGISTRY has ${ROOT_CA_SERVICE_REGISTRY.length} providers, but none have valid gardenId.`);
-          console.warn(`⚠️  [ServiceRegistry Persistence] Providers in ROOT_CA_SERVICE_REGISTRY: ${ROOT_CA_SERVICE_REGISTRY.map(p => `${p.id} (gardenId: ${p.gardenId || 'MISSING'})`).join(', ')}`);
-        }
-        const serviceRegistryData = {
-          serviceRegistry: serviceRegistry,
-          lastSaved: timestamp
-        };
-        fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-        console.log(`💾 [Redis Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile}`);
-      } catch (err: any) {
-        console.error(`❌ [Redis Persistence] Failed to save persistence file: ${err.message}`);
-      }
-    }, this.SAVE_DELAY_MS);
-  }
-  
-  // Public method to save ledger entries
-  saveLedgerEntries(ledgerEntries: any[]): void {
-    this.savePersistence(ledgerEntries);
-  }
-  
-  // Public method to save indexers
-  // CRITICAL: In ROOT mode, indexers are saved via immediate save in /api/wizard/create-indexer
-  // This method should NOT be used in ROOT mode - persistence file is the single source of truth
-  saveIndexers(indexers: any[]): void {
-    if (DEPLOYED_AS_ROOT) {
-      console.log(`📋 [Indexer Persistence] ROOT mode: Skipping saveIndexers() - indexers are saved via immediate save in /api/wizard/create-indexer`);
-      return;
-    }
-    this.savePersistence(undefined, indexers);
-  }
-  
-  // Public method to save ServiceRegistry (for debugging)
-  // CRITICAL: This should ONLY save ServiceRegistry, NOT indexers
-  // Indexers are saved separately via the immediate save in /api/wizard/create-indexer
-  // In ROOT mode, this can be called during initialization to populate the persistence file
-  saveServiceRegistry(): void {
-    // In ROOT mode, allow saving during initialization to populate empty persistence file
-    // But skip if called during normal operation (indexers are saved separately)
-    if (DEPLOYED_AS_ROOT) {
-      // Allow saving during initialization - this helps populate empty persistence files
-      // The check for whether to save is handled by the caller
-    }
-    
-    // REFACTOR: Force immediate save of ServiceRegistry to separate file
-    // CRITICAL: Preserve existing indexerId assignments from file - don't overwrite with hardcoded defaults
-    try {
-      // Load existing service registry from file to preserve indexerId assignments
-      let existingProviders: Map<string, any> = new Map();
-      if (fs.existsSync(this.serviceRegistryFile)) {
-        try {
-          const fileContent = fs.readFileSync(this.serviceRegistryFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry)) {
-            for (const provider of persisted.serviceRegistry) {
-              // Use gardenId (standardized field name)
-              const gardenId = provider.gardenId;
-              if (gardenId) {
-                // Store with gardenId
-                existingProviders.set(provider.id, { ...provider, gardenId: gardenId });
-              }
-            }
-            console.log(`📂 [ServiceRegistry Persistence] Loaded ${existingProviders.size} existing providers from file to preserve assignments`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠️  [ServiceRegistry Persistence] Failed to load existing file: ${err.message}`);
-        }
-      }
-      
-      // Update ServiceRegistry ONLY (do not touch gardens)
-      // CRITICAL: Only save providers whose gardens actually exist (or are "HG" for infrastructure)
-      const servicesToSave = ROOT_CA_SERVICE_REGISTRY.filter(p => {
-        // Only save services with gardenId set (required field)
-        if (p.gardenId === undefined || p.gardenId === null) {
-          return false;
-        }
-        // Validate that the garden exists
-        const gardenExists = p.gardenId === 'HG' || 
-                            GARDENS.some(g => g.id === p.gardenId) || 
-                            TOKEN_GARDENS.some(tg => tg.id === p.gardenId);
-        if (!gardenExists) {
-          console.warn(`⚠️  [ServiceRegistry Persistence] Skipping service ${p.id} (${p.name}) - gardenId "${p.gardenId}" does not exist`);
-          return false;
-        }
-        return true;
-      });
-      
-      const serviceRegistry = servicesToSave.map(p => {
-        // CRITICAL: Preserve gardenId from file if it exists, otherwise use in-memory value
-        // This prevents overwriting provider assignments that were loaded from the file
-        const existingProvider = existingProviders.get(p.id);
-        // File is the source of truth for provider assignments - always prefer file value
-        // Support both gardenId and indexerId in file for backward compatibility
-        const preservedGardenId = existingProvider?.gardenId || p.gardenId;
-        
-        // Log if we're preserving a different value from file
-        if (existingProvider && existingProvider.gardenId && existingProvider.gardenId !== p.gardenId) {
-          console.log(`💾 [ServiceRegistry Persistence] Preserving ${p.name} (${p.id}) gardenId "${preservedGardenId}" from file (in-memory has "${p.gardenId}")`);
-        }
-        
-        const provider: any = {
-          id: p.id,
-          name: p.name,
-          serviceType: p.serviceType,
-          location: p.location,
-          bond: p.bond,
-          reputation: p.reputation,
-          status: p.status,
-          uuid: p.uuid,
-          apiEndpoint: p.apiEndpoint,
-          gardenId: preservedGardenId // Use gardenId in persistence file (indexerId is the in-memory field name)
-        };
-        
-        // Preserve other fields from file if they exist
-        if (existingProvider) {
-          if (existingProvider.insuranceFee !== undefined) provider.insuranceFee = existingProvider.insuranceFee;
-          if (existingProvider.iGasMultiplier !== undefined) provider.iGasMultiplier = existingProvider.iGasMultiplier;
-          if (existingProvider.iTaxMultiplier !== undefined) provider.iTaxMultiplier = existingProvider.iTaxMultiplier;
-          if (existingProvider.maxInfluence !== undefined) provider.maxInfluence = existingProvider.maxInfluence;
-          if (existingProvider.contextsAllowed !== undefined) provider.contextsAllowed = existingProvider.contextsAllowed;
-          if (existingProvider.contextsForbidden !== undefined) provider.contextsForbidden = existingProvider.contextsForbidden;
-          if (existingProvider.adCapabilities !== undefined) provider.adCapabilities = existingProvider.adCapabilities;
-        } else {
-          // Only include these fields if provider is new (not in file)
-        if (p.insuranceFee !== undefined) provider.insuranceFee = p.insuranceFee;
-        if (p.iGasMultiplier !== undefined) provider.iGasMultiplier = p.iGasMultiplier;
-        if (p.iTaxMultiplier !== undefined) provider.iTaxMultiplier = p.iTaxMultiplier;
-        if (p.maxInfluence !== undefined) provider.maxInfluence = p.maxInfluence;
-        if (p.contextsAllowed !== undefined) provider.contextsAllowed = p.contextsAllowed;
-        if (p.contextsForbidden !== undefined) provider.contextsForbidden = p.contextsForbidden;
-        if (p.adCapabilities !== undefined) provider.adCapabilities = p.adCapabilities;
-        }
-        
-        return provider;
-      });
-      
-      // REFACTOR: Save to separate file
-      // CRITICAL: Always save service registry, even if empty, to ensure file exists
-      // But log a warning if it's empty (shouldn't happen - infrastructure providers should always exist)
-      if (serviceRegistry.length === 0) {
-        console.warn(`⚠️  [ServiceRegistry Persistence] WARNING: Service registry is empty! ROOT_CA_SERVICE_REGISTRY has ${ROOT_CA_SERVICE_REGISTRY.length} providers.`);
-        console.warn(`⚠️  [ServiceRegistry Persistence] Providers in ROOT_CA_SERVICE_REGISTRY: ${ROOT_CA_SERVICE_REGISTRY.map(p => `${p.id} (gardenId: ${p.gardenId || 'MISSING'})`).join(', ')}`);
-        console.warn(`⚠️  [ServiceRegistry Persistence] Providers filtered out: ${ROOT_CA_SERVICE_REGISTRY.filter(p => !p.gardenId || p.gardenId === null || p.gardenId === undefined).map(p => `${p.id}`).join(', ')}`);
-      }
-      const serviceRegistryData = {
-        serviceRegistry: serviceRegistry,
-        lastSaved: new Date().toISOString()
-      };
-      
-      fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-      console.log(`💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile} (preserved ${existingProviders.size} existing assignments)`);
-    } catch (err: any) {
-      console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
-    }
-  }
-
-  async connect(): Promise<void> {
-    if (this.isConnected) return;
-    this.emit("connect");
-    await new Promise(resolve => setTimeout(resolve, 10));
-    this.isConnected = true;
-    this.emit("ready");
-  }
-
-  async ping(): Promise<string> {
-    return "PONG";
-  }
-
-  get isOpen(): boolean {
-    return this.isConnected;
-  }
-
-  // Simple key-value operations (for wallet balances)
-  async get(key: string): Promise<string | null> {
-    const value = this.data.get(key);
-    if (value === undefined) {
-      return null;
-    }
-    // If it's a string, return it directly
-    if (typeof value === 'string') {
-      return value;
-    }
-    // If it's an object (hash), return null (use hGet for hashes)
-    return null;
-  }
-
-  async set(key: string, value: string): Promise<void> {
-    this.data.set(key, value);
-    // Persist wallet-related keys immediately
-    if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
-      this.savePersistence();
-    }
-  }
-
-  async del(key: string): Promise<number> {
-    const existed = this.data.has(key);
-    if (existed) {
-      this.data.delete(key);
-      // Persist wallet-related keys immediately
-      if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:') || key.startsWith('wallet:hold:')) {
-        this.savePersistence();
-      }
-      return 1;
-    }
-    return 0;
-  }
-
-  // Get all keys matching a pattern (for wallet reset)
-  getKeysMatching(pattern: string): string[] {
-    const keys: string[] = [];
-    for (const key of this.data.keys()) {
-      if (key.startsWith(pattern)) {
-        keys.push(key);
-      }
-    }
-    return keys;
-  }
-
-  async hSet(key: string, value: any): Promise<number> {
-    if (typeof value === 'object' && value !== null) {
-      // Convert object to hash
-      const hash: Record<string, string> = {};
-      for (const [k, v] of Object.entries(value)) {
-        hash[k] = String(v);
-      }
-      this.data.set(key, hash);
-      return Object.keys(hash).length;
-    }
-    return 0;
-  }
-
-  async hGet(key: string, field: string): Promise<string | null> {
-    const hash = this.data.get(key);
-    if (hash && typeof hash === 'object') {
-      return hash[field] || null;
-    }
-    return null;
-  }
-
-  async xAdd(streamKey: string, id: string, fields: Record<string, string>): Promise<string> {
-    if (!this.streams.has(streamKey)) {
-      this.streams.set(streamKey, []);
-      this.streamCounters.set(streamKey, 0);
-    }
-
-    const stream = this.streams.get(streamKey)!;
-    let messageId: string;
-
-    if (id === "*") {
-      // Auto-generate ID: milliseconds-time-sequence
-      const counter = this.streamCounters.get(streamKey)!;
-      this.streamCounters.set(streamKey, counter + 1);
-      const timestamp = Date.now();
-      messageId = `${timestamp}-${counter}`;
-    } else {
-      messageId = id;
-    }
-
-    stream.push({ id: messageId, fields });
-    return messageId;
-  }
-
-  async xRead(
-    streams: Array<{ key: string; id: string }>,
-    options?: { BLOCK?: number; COUNT?: number }
-  ): Promise<Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> | null> {
-    const results: Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> = [];
-
-    for (const streamReq of streams) {
-      const stream = this.streams.get(streamReq.key);
-      if (!stream || stream.length === 0) {
-        if (options?.BLOCK) {
-          // Simulate blocking behavior
-          const blockTime = options.BLOCK || 0;
-          await new Promise(resolve => setTimeout(resolve, Math.min(blockTime, 1000)));
-          return null;
-        }
-        continue;
-      }
-
-      const messages: Array<{ id: string; message: Record<string, string> }> = [];
-      let startIndex = 0;
-
-      // Find starting position based on ID
-      if (streamReq.id === "$") {
-        // "$" means read only new messages - start from the end (no messages)
-        startIndex = stream.length;
-      } else if (streamReq.id !== "0") {
-        startIndex = stream.findIndex(msg => msg.id === streamReq.id);
-        if (startIndex === -1) startIndex = 0;
-        else startIndex += 1; // Start after the specified ID
-      }
-
-      const count = options?.COUNT || stream.length;
-      const endIndex = Math.min(startIndex + count, stream.length);
-
-      for (let i = startIndex; i < endIndex; i++) {
-        messages.push({
-          id: stream[i].id,
-          message: { ...stream[i].fields }
-        });
-      }
-
-      if (messages.length > 0) {
-        results.push({
-          name: streamReq.key,
-          messages
-        });
-      }
-    }
-
-    return results.length > 0 ? results : null;
-  }
-
-  async xGroupCreate(
-    streamKey: string,
-    groupName: string,
-    id: string,
-    options?: { MKSTREAM?: boolean }
-  ): Promise<void> {
-    if (!this.streams.has(streamKey)) {
-      if (options?.MKSTREAM) {
-        this.streams.set(streamKey, []);
-        this.streamCounters.set(streamKey, 0);
-      } else {
-        throw new Error("NOGROUP");
-      }
-    }
-    
-    if (!this.consumerGroups.has(streamKey)) {
-      this.consumerGroups.set(streamKey, new Map());
-    }
-    
-    const groups = this.consumerGroups.get(streamKey)!;
-    if (groups.has(groupName)) {
-      throw new Error("BUSYGROUP");
-    }
-    
-    groups.set(groupName, id);
-    this.pendingMessages.set(`${streamKey}:${groupName}`, new Map());
-  }
-
-  async xReadGroup(
-    groupName: string,
-    consumerName: string,
-    streams: Array<{ key: string; id: string }>,
-    options?: { COUNT?: number; BLOCK?: number }
-  ): Promise<Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> | null> {
-    const results: Array<{ name: string; messages: Array<{ id: string; message: Record<string, string> }> }> = [];
-    
-    for (const streamReq of streams) {
-      const stream = this.streams.get(streamReq.key);
-      if (!stream || stream.length === 0) {
-        if (options?.BLOCK) {
-          await new Promise(resolve => setTimeout(resolve, Math.min(options.BLOCK || 0, 1000)));
-          return null;
-        }
-        continue;
-      }
-      
-      // Get consumer group last ID
-      const groups = this.consumerGroups.get(streamReq.key);
-      if (!groups || !groups.has(groupName)) {
-        throw new Error("NOGROUP");
-      }
-      
-      const lastId = groups.get(groupName) || "0";
-      const messages: Array<{ id: string; message: Record<string, string> }> = [];
-      
-      let startIndex = 0;
-      if (streamReq.id === ">") {
-        // Read new messages only
-        const lastIdIndex = stream.findIndex(msg => msg.id === lastId);
-        startIndex = lastIdIndex === -1 ? stream.length : lastIdIndex + 1;
-      } else {
-        startIndex = stream.findIndex(msg => msg.id === streamReq.id);
-        if (startIndex === -1) startIndex = 0;
-        else startIndex += 1;
-      }
-      
-      const count = options?.COUNT || stream.length;
-      const endIndex = Math.min(startIndex + count, stream.length);
-      
-      for (let i = startIndex; i < endIndex; i++) {
-        messages.push({
-          id: stream[i].id,
-          message: { ...stream[i].fields }
-        });
-      }
-      
-      if (messages.length > 0) {
-        results.push({
-          name: streamReq.key,
-          messages
-        });
-      }
-    }
-    
-    return results.length > 0 ? results : null;
-  }
-
-  async xAck(streamKey: string, groupName: string, ...ids: string[]): Promise<number> {
-    const groups = this.consumerGroups.get(streamKey);
-    if (!groups || !groups.has(groupName)) {
-      return 0;
-    }
-    
-    // Update last processed ID
-    if (ids.length > 0) {
-      const lastId = ids[ids.length - 1];
-      groups.set(groupName, lastId);
-    }
-    
-    return ids.length;
-  }
-
-  async quit(): Promise<void> {
-    // Save persistence before quitting
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-    // Force immediate save on quit (ledger entries passed separately)
-    try {
-      const walletBalances: Record<string, string> = {};
-      for (const [key, value] of this.data.entries()) {
-        if (key.startsWith('wallet:balance:') || key.startsWith('wallet:audit:')) {
-          walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
-        }
-      }
-      // Note: Ledger entries will be saved separately via saveLedgerEntries()
-      const persisted = {
-        walletBalances,
-        ledgerEntries: [], // Will be populated by saveLedgerEntries()
-        lastSaved: new Date().toISOString()
-      };
-      fs.writeFileSync(this.persistenceFile, JSON.stringify(persisted, null, 2), 'utf-8');
-      console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries on quit (ledger entries saved separately)`);
-    } catch (err: any) {
-      console.error(`❌ [Redis Persistence] Failed to save on quit: ${err.message}`);
-    }
-    this.isConnected = false;
-    this.emit("end");
-  }
-
-  on(event: string, listener: (...args: any[]) => void): this {
-    return super.on(event, listener);
-  }
-}
+// InMemoryRedisServer class has been moved to src/redis.ts
 
 // Create embedded Redis instance
 const redis = new InMemoryRedisServer();
@@ -4370,7 +3370,7 @@ type MovieListing = {
   location: string;
   reviewCount: number;
   rating: number;
-  indexerId: string;
+  gardenId: string;
 };
 
 type TokenPool = {
@@ -4383,7 +3383,7 @@ type TokenPool = {
   baseReserve: number; // Amount of base token in pool
   price: number; // Current price (baseToken per token)
   bond: number; // Creator bond
-  indexerId: string; // Indexer providing this pool service
+  gardenId: string; // Garden providing this pool service
   createdAt: number;
   totalVolume: number;
   totalTrades: number;
@@ -4504,7 +3504,7 @@ const USERS: User[] = [
 ];
 
 // Ledger Component - Tracks all Eden bookings
-const LEDGER: LedgerEntry[] = [];
+// LEDGER is now imported from ./src/state - removed local declaration
 
 // Provider Webhook Registry (for optional push notifications)
 interface ProviderWebhook {
@@ -4518,13 +3518,7 @@ interface ProviderWebhook {
 const PROVIDER_WEBHOOKS: Map<string, ProviderWebhook> = new Map();
 
 // Dedicated Cashier for processing payments
-const CASHIER: Cashier = {
-  id: "cashier-eden-001",
-  name: "Eden Cashier",
-  processedCount: 0,
-  totalProcessed: 0,
-  status: 'active',
-};
+// (CASHIER moved to main() initialization)
 
 // ROOT CA Service Registry
 // ServiceRegistry is now managed by ROOT CA, not indexers
@@ -4610,20 +3604,20 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     status: 'active'
   },
   // Regular Service Providers
-  {
-    id: "amc-001",
-    uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
-    name: "AMC Theatres",
-    serviceType: "movie",
-    location: "Baltimore, Maryland",
-    bond: 1000,
-    reputation: 4.8,
-    gardenId: "garden-1", // Default to garden-1 (will be overridden by persistence file if different)
-    apiEndpoint: "https://api.amctheatres.com/v1/listings",
-  },
-  // In ROOT mode: moviecom-001, cinemark-001, and snake services should NOT exist
-  // They are only created in non-ROOT mode
+  // In ROOT mode: All service providers (including amc-001) are created dynamically via the wizard
+  // They should NOT exist in hardcoded defaults
   ...(DEPLOYED_AS_ROOT ? [] : [
+    {
+      id: "amc-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440001", // UUID for certificate issuance
+      name: "AMC Theatres",
+      serviceType: "movie",
+      location: "Baltimore, Maryland",
+      bond: 1000,
+      reputation: 4.8,
+      gardenId: "garden-1", // Default to garden-1 (will be overridden by persistence file if different)
+      apiEndpoint: "https://api.amctheatres.com/v1/listings",
+    },
     {
       id: "moviecom-001",
       uuid: "550e8400-e29b-41d4-a716-446655440002", // UUID for certificate issuance
@@ -4690,103 +3684,19 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
 ];
 
 // Mock Service Provider APIs (simulate external API calls)
-async function queryAMCAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  // Get the actual gardenId from the provider registry
-  const amcProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001");
-  const gardenId = amcProvider?.gardenId;
-  
-  // Mock AMC API response with real-time pricing
-  return [
-    {
-      providerId: "amc-001",
-      providerName: "AMC Theatres",
-      movieTitle: "Back to the Future",
-      movieId: "back-to-future-1",
-      price: 2.0, // Real-time price from AMC API
-      showtime: "10:30 PM",
-      location: location,
-      reviewCount: 100,
-      rating: 5.0,
-      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
-    },
-    {
-      providerId: "amc-001",
-      providerName: "AMC Theatres",
-      movieTitle: "The Matrix",
-      movieId: "matrix-001",
-      price: 2.0, // Real-time price from AMC API
-      showtime: "8:00 PM",
-      location: location,
-      reviewCount: 150,
-      rating: 4.9,
-      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
-    },
-  ];
-}
-
-async function queryMovieComAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  // Get the actual gardenId from the provider registry
-  const moviecomProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "moviecom-001");
-  const gardenId = moviecomProvider?.gardenId;
-  
-  // Mock MovieCom API response with real-time pricing
-  return [
-    {
-      providerId: "moviecom-001",
-      providerName: "MovieCom",
-      movieTitle: "Back to the Future",
-      movieId: "back-to-future-1",
-      price: 1.5, // Real-time price from MovieCom API
-      showtime: "9:45 PM",
-      location: location,
-      reviewCount: 85,
-      rating: 4.7,
-      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
-    },
-  ];
-}
-
-async function queryCinemarkAPI(location: string, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  // Get the actual gardenId from the provider registry
-  const cinemarkProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "cinemark-001");
-  const gardenId = cinemarkProvider?.gardenId;
-  
-  // Mock Cinemark API response with real-time pricing
-  return [
-    {
-      providerId: "cinemark-001",
-      providerName: "Cinemark",
-      movieTitle: "The Matrix",
-      movieId: "matrix-001",
-      price: 2.5, // Real-time price from Cinemark API
-      showtime: "11:00 PM",
-      location: location,
-      reviewCount: 120,
-      rating: 4.8,
-      indexerId: gardenId, // Legacy field in MovieListing (will be renamed to gardenId in future) // Legacy field in MovieListing (will be renamed to gardenId in future)
-    },
-  ];
-}
+// (Service provider API functions moved to src/serviceProvider.ts)
 
 // DEX Pool Functions
-function initializeDEXPools(): void {
-  // Initialize DEX pools, assigning them to token indexers
-  // Each token indexer can provide multiple pools
+// (initializeDEXPools moved to src/dex.ts)
+function _initializeDEXPools_DEPRECATED(): void {
+  // Initialize DEX pools, assigning them to token gardens
+  // Each token garden can provide multiple pools
   for (let i = 0; i < TOKEN_GARDENS.length; i++) {
-    const tokenIndexer = TOKEN_GARDENS[i];
-    if (!tokenIndexer) continue;
+    const tokenGarden = TOKEN_GARDENS[i];
+    if (!tokenGarden) continue;
     
-    // Create pools for this token indexer
-    // Token Indexer T1 gets TOKENA, T2 gets TOKENB, etc.
+    // Create pools for this token garden
+    // Token Garden T1 gets TOKENA, T2 gets TOKENB, etc.
     const tokenSymbol = `TOKEN${String.fromCharCode(65 + i)}`; // TOKENA, TOKENB, TOKENC...
     const tokenName = `Token ${String.fromCharCode(65 + i)}`;
     const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
@@ -4801,7 +3711,7 @@ function initializeDEXPools(): void {
       baseReserve: 100 - (i * 10), // 100, 90, 80...
       price: 0.001, // 1 Token = 0.001 SOL
       bond: 5000,
-      indexerId: tokenIndexer.id, // Assign to token indexer
+      gardenId: tokenGarden.id, // Assign to token garden
       createdAt: Date.now(),
       totalVolume: 0,
       totalTrades: 0,
@@ -4811,179 +3721,17 @@ function initializeDEXPools(): void {
 
   console.log(`🌊 Initialized ${DEX_POOLS.size} DEX pools`);
   console.log(`💰 ROOT CA Liquidity Pool: ${rootCALiquidity} SOL`);
-  console.log(`🔷 Token Indexers: ${TOKEN_GARDENS.map(ti => ti.name).join(", ")}`);
+  console.log(`🔷 Token Gardens: ${TOKEN_GARDENS.map(ti => ti.name).join(", ")}`);
   
   // Display pool assignments
   for (const [poolId, pool] of DEX_POOLS.entries()) {
-    console.log(`   ${pool.tokenSymbol} Pool → ${pool.indexerId} (${pool.poolLiquidity} SOL liquidity)`);
-  }
-}
-
-async function queryDEXPoolAPI(provider: ServiceProvider, filters?: { tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<TokenListing[]> {
-  await new Promise(resolve => setTimeout(resolve, 30));
-  
-  const listings: TokenListing[] = [];
-  
-  console.log(`🔍 [DEX] Querying pools for provider: ${provider.id} (gardenId: ${provider.gardenId})`);
-  console.log(`   Filters: ${JSON.stringify(filters)}`);
-  
-  // Find pools matching the provider
-  // Match by: 1) provider.indexerId matches pool.indexerId, OR 2) provider.id contains token symbol
-  // If no specific match, return all pools for DEX providers (fallback)
-  let hasMatch = false;
-  for (const [poolId, pool] of DEX_POOLS.entries()) {
-    const tokenSymbolLower = pool.tokenSymbol.toLowerCase();
-    const providerIdLower = provider.id.toLowerCase();
-    
-    // Match by garden ID (most reliable)
-    const matchesByGarden = pool.indexerId === provider.gardenId;
-    
-    // Match by token symbol in provider ID (e.g., "dex-pool-tokena" contains "tokena")
-    const matchesBySymbol = providerIdLower.includes(tokenSymbolLower);
-    
-    // Also check if provider ID matches the expected pattern "dex-pool-{tokenSymbol}"
-    const expectedProviderId = `dex-pool-${tokenSymbolLower}`;
-    const matchesByPattern = providerIdLower === expectedProviderId;
-    
-    const matchesProvider = matchesByGarden || matchesBySymbol || matchesByPattern;
-    
-    if (matchesProvider) hasMatch = true;
-    
-    console.log(`   Pool ${pool.tokenSymbol} (${pool.indexerId}): matchesByGarden=${matchesByGarden}, matchesBySymbol=${matchesBySymbol}, matchesByPattern=${matchesByPattern} (provider.id="${provider.id}", expected="${expectedProviderId}")`);
-    
-    if (!matchesProvider) continue;
-    
-    // Apply filters
-    if (filters?.tokenSymbol && pool.tokenSymbol.toUpperCase() !== filters.tokenSymbol.toUpperCase()) {
-      console.log(`   Pool ${pool.tokenSymbol} filtered out by tokenSymbol filter: ${pool.tokenSymbol.toUpperCase()} !== ${filters.tokenSymbol.toUpperCase()}`);
-      continue;
-    }
-    if (filters?.baseToken && pool.baseToken.toUpperCase() !== filters.baseToken.toUpperCase()) {
-      console.log(`   Pool ${pool.tokenSymbol} filtered out by baseToken filter: ${pool.baseToken.toUpperCase()} !== ${filters.baseToken.toUpperCase()}`);
-      continue;
-    }
-    
-    console.log(`   ✅ Pool ${pool.tokenSymbol} matched!`);
-    listings.push({
-      poolId: pool.poolId,
-      providerId: provider.id,
-      providerName: provider.name,
-      tokenSymbol: pool.tokenSymbol,
-      tokenName: pool.tokenName,
-      baseToken: pool.baseToken,
-      price: pool.price,
-      liquidity: pool.poolLiquidity,
-      volume24h: pool.totalVolume,
-      indexerId: pool.indexerId,
-    });
-  }
-  
-  // Debug logging
-  if (listings.length === 0) {
-    console.log(`⚠️  [DEX] No pools matched for provider ${provider.id} (gardenId: ${provider.gardenId})`);
-    console.log(`   Available pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
-    
-    // Fallback: If this is a DEX provider but no pools matched, return all pools for this garden
-    // This handles edge cases where matching logic might fail
-    if (!hasMatch && provider.serviceType === "dex") {
-      console.log(`   🔄 Fallback: Returning all pools for garden ${provider.gardenId}`);
-      for (const [poolId, pool] of DEX_POOLS.entries()) {
-        if (pool.indexerId === provider.gardenId) {
-          // Apply filters
-          if (filters?.tokenSymbol && pool.tokenSymbol.toUpperCase() !== filters.tokenSymbol.toUpperCase()) continue;
-          if (filters?.baseToken && pool.baseToken.toUpperCase() !== filters.baseToken.toUpperCase()) continue;
-          
-          listings.push({
-            poolId: pool.poolId,
-            providerId: provider.id,
-            providerName: provider.name,
-            tokenSymbol: pool.tokenSymbol,
-            tokenName: pool.tokenName,
-            baseToken: pool.baseToken,
-            price: pool.price,
-            liquidity: pool.poolLiquidity,
-            volume24h: pool.totalVolume,
-            indexerId: pool.indexerId,
-          });
-        }
-      }
-      if (listings.length > 0) {
-        console.log(`   ✅ Fallback found ${listings.length} pool(s)`);
-      }
-    }
-  } else {
-    console.log(`✅ [DEX] Found ${listings.length} pool(s) for provider ${provider.id}`);
-  }
-  
-  return listings;
-}
-
-// Provider API router
-// Mock Snake (Advertising) Provider API
-async function querySnakeAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string }): Promise<MovieListing[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  // Snake providers return enhanced/advertised listings
-  // For testing: Return movie listings with Snake provider metadata
-  const baseListings: MovieListing[] = [
-    {
-      providerId: provider.id,
-      providerName: provider.name,
-      movieTitle: "Premium Cinema Experience",
-      movieId: "premium-cinema-001",
-      price: 18.99, // Slightly higher price (premium)
-      showtime: filters?.time || "8:00 PM",
-      location: "Premium Theater District",
-      reviewCount: 1250,
-      rating: 4.7,
-      indexerId: provider.gardenId, // Use gardenId (pool.indexerId will be renamed in future)
-    },
-    {
-      providerId: provider.id,
-      providerName: provider.name,
-      movieTitle: "VIP Movie Night",
-      movieId: "vip-movie-001",
-      price: 22.50, // Premium pricing
-      showtime: filters?.time || "9:30 PM",
-      location: "Luxury Cinema Complex",
-      reviewCount: 890,
-      rating: 4.8,
-      indexerId: provider.gardenId, // Use gardenId (pool.indexerId will be renamed in future)
-    }
-  ];
-  
-  console.log(`🐍 [Snake Provider] ${provider.name} returned ${baseListings.length} advertised listings`);
-  return baseListings;
-}
-
-async function queryProviderAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
-  // Handle Snake services (serviceType: "snake")
-  // Snake is a service type, each Snake service belongs to an indexer
-  if (provider.serviceType === "snake") {
-    return await querySnakeAPI(provider, filters);
-  }
-  
-  // Handle DEX providers
-  if (provider.serviceType === "dex") {
-    return await queryDEXPoolAPI(provider, filters);
-  }
-  
-  // Handle regular movie providers
-  switch (provider.id) {
-    case "amc-001":
-      return await queryAMCAPI(provider.location, filters);
-    case "moviecom-001":
-      return await queryMovieComAPI(provider.location, filters);
-    case "cinemark-001":
-      return await queryCinemarkAPI(provider.location, filters);
-    default:
-      throw new Error(`Unknown provider: ${provider.id}`);
+    console.log(`   ${pool.tokenSymbol} Pool → ${pool.gardenId} (${pool.poolLiquidity} SOL liquidity)`);
   }
 }
 
 // LLM System Prompts
-const LLM_QUERY_EXTRACTION_PROMPT = `
+// (LLM prompts moved to src/llm.ts)
+const _LLM_QUERY_EXTRACTION_PROMPT_DEPRECATED = `
 You are Eden Core AI query processor.
 Extract service query from user input.
 Return JSON only with: query (object with serviceType and filters), serviceType, confidence.
@@ -5010,7 +3758,7 @@ IMPORTANT: In phrases like "BUY 2 SOLANA token A":
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
 `;
 
-const LLM_RESPONSE_FORMATTING_PROMPT = `
+const _LLM_RESPONSE_FORMATTING_PROMPT_DEPRECATED = `
 You are Eden Core AI response formatter.
 Format service provider listings into user-friendly chat response.
 
@@ -5041,110 +3789,11 @@ Return JSON with: message (string), listings (array of filtered listings), selec
 
 // ROOT CA Service Registry Functions
 // ROOT CA manages the service registry - indexers query ROOT CA
-
-// Helper function to validate that a gardenId exists
-function validateGardenId(gardenId: string | undefined | null): boolean {
-  if (!gardenId) {
-    return false; // "HG" is allowed for infrastructure services, but undefined/null is not
-  }
-  
-  // "HG" is always valid (infrastructure services)
-  if (gardenId === "HG") {
-    return true;
-  }
-  
-  // Check if garden exists in GARDENS or TOKEN_GARDENS
-  const existsInRegular = GARDENS.some(g => g.id === gardenId);
-  const existsInToken = TOKEN_GARDENS.some(tg => tg.id === gardenId);
-  
-  return existsInRegular || existsInToken;
-}
-
-// Register a service provider with ROOT CA
-function registerServiceProviderWithROOTCA(provider: ServiceProviderWithCert): void {
-  // CRITICAL: Validate that the gardenId exists before registering
-  if (provider.gardenId && !validateGardenId(provider.gardenId)) {
-    throw new Error(`Cannot register service provider ${provider.id}: gardenId "${provider.gardenId}" does not exist. Valid gardens: ${[...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(tg => tg.id), "HG"].join(", ")}`);
-  }
-  
-  // Check if provider already exists
-  const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === provider.id || p.uuid === provider.uuid);
-  if (existing) {
-    throw new Error(`Service provider ${provider.id} already registered`);
-  }
-  
-  // Add to ROOT CA registry
-  ROOT_CA_SERVICE_REGISTRY.push(provider);
-  
-  console.log(`✅ [ROOT CA] Registered service provider: ${provider.name} (${provider.id}) with gardenId: ${provider.gardenId || "HG"}`);
-  
-  broadcastEvent({
-    type: "service_provider_registered",
-    component: "root-ca",
-    message: `Service provider registered: ${provider.name}`,
-    timestamp: Date.now(),
-    data: {
-      providerId: provider.id,
-      providerName: provider.name,
-      serviceType: provider.serviceType,
-      indexerId: provider.gardenId // Legacy field (will be renamed to gardenId in future)
-    }
-  });
-}
-
-// Query ROOT CA Service Registry (used by indexers after LLM extraction)
-// This is a quick post-LLM in-memory lookup
-function queryROOTCAServiceRegistry(query: ServiceRegistryQuery): ServiceProvider[] {
-  return ROOT_CA_SERVICE_REGISTRY.filter((provider) => {
-    // Filter out revoked providers
-    if (REVOCATION_REGISTRY.has(provider.uuid)) {
-      return false;
-    }
-    
-    // Filter by status if set
-    if (provider.status === 'revoked' || provider.status === 'suspended') {
-      return false;
-    }
-    
-    // Filter by service type (if specified)
-    // Snake is a service type (serviceType: "snake"), not a provider type
-    if (query.serviceType && provider.serviceType !== query.serviceType) return false;
-    
-    // Filter by location if provided
-    if (query.filters?.location && !provider.location.toLowerCase().includes(query.filters.location.toLowerCase())) {
-      return false;
-    }
-    
-    // Note: maxPrice filter is applied after querying provider APIs (prices come from APIs, not registry)
-    if (query.filters?.minReputation && provider.reputation < query.filters.minReputation) return false;
-    
-    return true;
-  });
-}
-
-async function queryServiceProviders(providers: ServiceProvider[], filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
-  const allListings: (MovieListing | TokenListing)[] = [];
-  
-  // Query each provider's external API in parallel
-  const providerPromises = providers.map(provider => 
-    queryProviderAPI(provider, filters).catch(err => {
-      console.warn(`⚠️  Failed to query ${provider.name} API:`, err.message);
-      return []; // Return empty array on error
-    })
-  );
-  
-  const results = await Promise.all(providerPromises);
-  
-  // Flatten results
-  for (const listings of results) {
-    allListings.push(...listings);
-  }
-  
-  return allListings;
-}
+// (Service provider functions moved to src/serviceProvider.ts)
 
 // DEX Trading Functions
-function executeDEXTrade(
+// (executeDEXTrade moved to src/dex.ts)
+function _executeDEXTrade_DEPRECATED(
   poolId: string,
   action: 'BUY' | 'SELL',
   tokenAmount: number,
@@ -5278,7 +3927,8 @@ function executeDEXTrade(
 }
 
 // iGas Calculation
-function calculateIGas(llmCalls: number, providersQueried: number, complexity: number = 1): number {
+// (calculateIGas moved to src/dex.ts)
+function _calculateIGas_DEPRECATED(llmCalls: number, providersQueried: number, complexity: number = 1): number {
   const llmCost = LLM_BASE_COST * llmCalls * complexity;
   const routingCost = ROUTING_COST_PER_PROVIDER * providersQueried;
   const reasoningCost = llmCost * REASONING_COST_MULTIPLIER;
@@ -5292,7 +3942,8 @@ const OPENAI_API_KEY = "sk-proj-n8YNS4bvtvKpgTs1k8lpK-25jtvYTTa4OzAaJwu6G1K2Qq68
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 // OpenAI LLM Query Extraction
-async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult> {
+// (extractQueryWithOpenAI moved to src/llm.ts)
+async function _extractQueryWithOpenAI_DEPRECATED(userInput: string): Promise<LLMQueryResult> {
   const messages = [
     { role: "system", content: LLM_QUERY_EXTRACTION_PROMPT },
     { role: "user", content: userInput },
@@ -5799,7 +4450,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
       location: "Baltimore, Maryland",
       reviewCount: 100,
       rating: 5.0,
-      indexerId: ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001")?.gardenId, // Legacy field (will be renamed to gardenId in future)
+      gardenId: ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "amc-001")?.gardenId || "HG"
     };
     return {
       message: "5 stars movie provider AMC in indexer A, Baltimore, Maryland offers 2 USDC for 'Back to the Future' at 10:30 PM and 100 viewers already reviewed the AMC viewing service",
@@ -5916,7 +4567,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     
     if (queryResult.serviceType === "dex") {
       console.log(`   DEX Providers: ${providers.map(p => `${p.id} (garden: ${p.gardenId})`).join(", ")}`);
-      console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.indexerId})`).join(", ")}`);
+      console.log(`   Available DEX Pools: ${Array.from(DEX_POOLS.values()).map(p => `${p.tokenSymbol} (${p.gardenId})`).join(", ")}`);
     }
     
     const allProviders = [...providers, ...snakeProviders];
@@ -5932,7 +4583,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
           name: p.name,
           serviceType: p.serviceType,
           isSnake: p.serviceType === 'snake',
-          indexerId: p.gardenId // Each service belongs to a garden (pool.indexerId will be renamed in future)
+          gardenId: p.gardenId // Each service belongs to a garden
         })) 
       }
     });
@@ -6042,425 +4693,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
 // Wallet is Redis-backed, authoritative, event-sourced
 // EdenCore submits intents, Wallet decides and updates balances
 // Ledger records outcomes but does not define truth
-// (Constants moved to top of file for use in reset endpoint)
-
-interface WalletIntent {
-  intent: "CREDIT" | "DEBIT" | "HOLD" | "RELEASE";
-  email: string;
-  amount: number;
-  txId: string;
-  entryId?: string;
-  reason: string;
-  metadata?: Record<string, any>;
-}
-
-interface WalletResult {
-  success: boolean;
-  balance: number;
-  previousBalance?: number;
-  error?: string;
-}
-
-// Sync wallet balance from USERS array to Redis (one-time initialization)
-async function syncWalletBalanceFromUser(email: string): Promise<void> {
-  if (SKIP_REDIS || !redis.isOpen) {
-    return; // No sync needed if Redis unavailable
-  }
-
-  try {
-    await ensureRedisConnection();
-    const user = USERS.find(u => u.email === email);
-    if (!user) {
-      return; // User doesn't exist
-    }
-
-    const key = `${WALLET_BALANCE_PREFIX}${email}`;
-    const existingBalanceStr = await redis.get(key);
-    
-    // Only sync if wallet doesn't exist in Redis (first-time initialization)
-    if (!existingBalanceStr) {
-      await redis.set(key, user.balance.toString());
-      console.log(`🔄 [Wallet Service] Synced balance from USERS array: ${email} = ${user.balance} JSC`);
-    }
-  } catch (err: any) {
-    console.error(`⚠️  [Wallet] Error syncing balance for ${email}:`, err.message);
-    // Non-fatal error, continue
-  }
-}
-
-// Get wallet balance (authoritative source)
-// NO SYNC - Wallet is the single source of truth, never syncs from USERS array
-async function getWalletBalance(email: string): Promise<number> {
-  if (SKIP_REDIS || !redis.isOpen) {
-    // Fallback to in-memory USERS array if Redis unavailable
-    const user = USERS.find(u => u.email === email);
-    return user ? user.balance : 0;
-  }
-
-  try {
-    await ensureRedisConnection();
-    
-    // Read directly from Redis - NO SYNC from USERS array
-    const key = `${WALLET_BALANCE_PREFIX}${email}`;
-    const balanceStr = await redis.get(key);
-    
-    console.log(`🔍 [Wallet] getWalletBalance for ${email}: key=${key}, balanceStr=${balanceStr}`);
-    
-    if (!balanceStr || balanceStr === '0' || balanceStr === '') {
-      // Balance not found in Redis or is 0 - try to load from persistence file as fallback
-      console.warn(`⚠️  [Wallet] Balance not found or is 0 in Redis for ${email}, checking persistence file...`);
-      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-      if (fs.existsSync(persistenceFile)) {
-        try {
-          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
-          const persisted = JSON.parse(fileContent);
-          if (persisted.walletBalances && persisted.walletBalances[key]) {
-            const fileBalance = persisted.walletBalances[key];
-            const fileBalanceNum = parseFloat(fileBalance);
-            // Only restore if file balance is valid and > 0
-            if (!isNaN(fileBalanceNum) && fileBalanceNum > 0) {
-              // Restore to Redis
-              await redis.set(key, fileBalance);
-              console.log(`🔄 [Wallet] Restored balance from file: ${email} = ${fileBalance} JSC`);
-              return fileBalanceNum;
-            } else {
-              console.warn(`⚠️  [Wallet] File balance is invalid or 0: ${fileBalance}`);
-            }
-          } else {
-            console.warn(`⚠️  [Wallet] Balance key ${key} not found in persistence file`);
-          }
-        } catch (err: any) {
-          console.error(`⚠️  [Wallet] Failed to read persistence file: ${err.message}`);
-        }
-      } else {
-        console.warn(`⚠️  [Wallet] Persistence file not found: ${persistenceFile}`);
-      }
-      return 0;
-    }
-    
-    const balance = parseFloat(balanceStr);
-    if (isNaN(balance)) {
-      console.error(`⚠️  [Wallet] Invalid balance value for ${email}: "${balanceStr}"`);
-      return 0;
-    }
-    
-    console.log(`✅ [Wallet] Balance retrieved: ${email} = ${balance} JSC`);
-    return balance;
-  } catch (err: any) {
-    console.error(`⚠️  [Wallet] Error getting balance for ${email}:`, err.message);
-    // Fallback to in-memory
-    const user = USERS.find(u => u.email === email);
-    return user ? user.balance : 0;
-  }
-}
-
-// Credit wallet (mint JSC, rebates, etc.)
-async function creditWallet(email: string, amount: number, txId: string, reason: string, metadata?: Record<string, any>): Promise<WalletResult> {
-  if (SKIP_REDIS || !redis.isOpen) {
-    // Fallback to in-memory
-    let user = USERS.find(u => u.email === email);
-    if (!user) {
-      user = { id: `u${USERS.length + 1}`, email, balance: 0 };
-      USERS.push(user);
-    }
-    const previousBalance = user.balance;
-    user.balance += amount;
-    
-    console.log(`💰 [Wallet] Credited ${amount} JSC to ${email} (${reason})`);
-    console.log(`   Previous balance: ${previousBalance}, New balance: ${user.balance}`);
-    
-    // Broadcast wallet credit event (fallback mode)
-    broadcastEvent({
-      type: "wallet_credited",
-      component: "wallet-service-001",
-      message: `Wallet credited (fallback): ${amount} JSC to ${email}`,
-      timestamp: Date.now(),
-      data: {
-        email,
-        amount,
-        previousBalance,
-        newBalance: user.balance,
-        txId,
-        reason,
-        metadata,
-        mode: "fallback",
-        indexerId: "HG",
-      }
-    });
-    
-    return { success: true, balance: user.balance, previousBalance };
-  }
-
-  try {
-    await ensureRedisConnection();
-    
-    const key = `${WALLET_BALANCE_PREFIX}${email}`;
-    // Get current balance directly from Redis (don't use getWalletBalance which might sync)
-    const balanceStr = await redis.get(key);
-    const previousBalance = balanceStr ? parseFloat(balanceStr) : 0;
-    const newBalance = previousBalance + amount;
-    
-    // Atomic increment
-    await redis.set(key, newBalance.toString());
-    
-    console.log(`💰 [Wallet Service] Redis balance update: ${email}`);
-    console.log(`   Redis key: ${key}`);
-    console.log(`   Previous balance (from Redis): ${previousBalance}`);
-    console.log(`   Credit amount: ${amount}`);
-    console.log(`   New balance (to Redis): ${newBalance}`);
-    
-    // Audit log
-    const auditKey = `${WALLET_AUDIT_PREFIX}${email}:${Date.now()}`;
-    await redis.set(auditKey, JSON.stringify({
-      intent: "CREDIT",
-      email,
-      amount,
-      previousBalance,
-      newBalance,
-      txId,
-      reason,
-      metadata,
-      timestamp: Date.now(),
-    }));
-    
-    console.log(`💰 [Wallet Service] Credited ${amount} JSC to ${email} (${reason})`);
-    console.log(`   Previous balance: ${previousBalance}, New balance: ${newBalance}`);
-    
-    // Sync to in-memory USERS array for backward compatibility
-    let user = USERS.find(u => u.email === email);
-    if (!user) {
-      user = { id: `u${USERS.length + 1}`, email, balance: 0 };
-      USERS.push(user);
-    }
-    user.balance = newBalance;
-    
-    // Broadcast wallet credit event
-    broadcastEvent({
-      type: "wallet_credited",
-      component: "wallet-service-001",
-      message: `Wallet credited: ${amount} JSC to ${email}`,
-      timestamp: Date.now(),
-      data: {
-        email,
-        amount,
-        previousBalance,
-        newBalance,
-        txId,
-        reason,
-        metadata,
-        indexerId: "HG", // Holy Ghost indexer
-      }
-    });
-    
-    return { success: true, balance: newBalance, previousBalance };
-  } catch (err: any) {
-    console.error(`❌ [Wallet] Error crediting ${amount} JSC to ${email}:`, err.message);
-    return { success: false, balance: 0, error: err.message };
-  }
-}
-
-// Debit wallet (payments, fees, etc.)
-async function debitWallet(email: string, amount: number, txId: string, reason: string, metadata?: Record<string, any>): Promise<WalletResult> {
-  if (SKIP_REDIS || !redis.isOpen) {
-    // Fallback to in-memory
-    const user = USERS.find(u => u.email === email);
-    if (!user) {
-      return { success: false, balance: 0, error: "User not found" };
-    }
-    
-    if (user.balance < amount) {
-      return { success: false, balance: user.balance, error: "Insufficient balance" };
-    }
-    
-    const previousBalance = user.balance;
-    user.balance -= amount;
-    
-    console.log(`💸 [Wallet] Debited ${amount} JSC from ${email} (${reason})`);
-    console.log(`   Previous balance: ${previousBalance}, New balance: ${user.balance}`);
-    
-    // Broadcast wallet debit event (fallback mode)
-    broadcastEvent({
-      type: "wallet_debited",
-      component: "wallet-service-001",
-      message: `Wallet debited (fallback): ${amount} JSC from ${email}`,
-      timestamp: Date.now(),
-      data: {
-        email,
-        amount,
-        previousBalance,
-        newBalance: user.balance,
-        txId,
-        reason,
-        metadata,
-        mode: "fallback",
-        indexerId: "HG",
-      }
-    });
-    
-    return { success: true, balance: user.balance, previousBalance };
-  }
-
-  try {
-    await ensureRedisConnection();
-    
-    const key = `${WALLET_BALANCE_PREFIX}${email}`;
-    const currentBalance = await getWalletBalance(email);
-    
-    if (currentBalance < amount) {
-      return { success: false, balance: currentBalance, error: "Insufficient balance" };
-    }
-    
-    const newBalance = currentBalance - amount;
-    
-    // Atomic decrement
-    await redis.set(key, newBalance.toString());
-    
-    // Audit log
-    const auditKey = `${WALLET_AUDIT_PREFIX}${email}:${Date.now()}`;
-    await redis.set(auditKey, JSON.stringify({
-      intent: "DEBIT",
-      email,
-      amount,
-      previousBalance: currentBalance,
-      newBalance,
-      txId,
-      reason,
-      metadata,
-      timestamp: Date.now(),
-    }));
-    
-    console.log(`💸 [Wallet Service] Debited ${amount} JSC from ${email} (${reason})`);
-    console.log(`   Previous balance: ${currentBalance}, New balance: ${newBalance}`);
-    
-    // Sync to in-memory USERS array for backward compatibility
-    const user = USERS.find(u => u.email === email);
-    if (user) {
-      user.balance = newBalance;
-    }
-    
-    // Broadcast wallet debit event
-    broadcastEvent({
-      type: "wallet_debited",
-      component: "wallet-service-001",
-      message: `Wallet debited: ${amount} JSC from ${email}`,
-      timestamp: Date.now(),
-      data: {
-        email,
-        amount,
-        previousBalance: currentBalance,
-        newBalance,
-        txId,
-        reason,
-        metadata,
-        indexerId: "HG", // Holy Ghost indexer
-      }
-    });
-    
-    return { success: true, balance: newBalance, previousBalance: currentBalance };
-  } catch (err: any) {
-    console.error(`❌ [Wallet] Error debiting ${amount} JSC from ${email}:`, err.message);
-    return { success: false, balance: 0, error: err.message };
-  }
-}
-
-// Process wallet intent (EdenCore submits, Wallet decides)
-async function processWalletIntent(intent: WalletIntent): Promise<WalletResult> {
-  console.log(`🔐 [Wallet Service] Processing intent: ${intent.intent} for ${intent.email}`);
-  
-  // Broadcast intent processing start
-  broadcastEvent({
-    type: "wallet_intent_processing",
-    component: "wallet-service-001",
-    message: `Processing wallet intent: ${intent.intent} for ${intent.email}`,
-    timestamp: Date.now(),
-    data: {
-      intent: intent.intent,
-      email: intent.email,
-      amount: intent.amount,
-      txId: intent.txId,
-      reason: intent.reason,
-      indexerId: "HG", // Holy Ghost indexer
-    }
-  });
-  
-  switch (intent.intent) {
-    case "CREDIT":
-      return await creditWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
-    
-    case "DEBIT":
-      // Verify balance before debiting
-      const balance = await getWalletBalance(intent.email);
-      if (balance < intent.amount) {
-        // Broadcast insufficient balance event
-        broadcastEvent({
-          type: "wallet_insufficient_balance",
-          component: "wallet-service-001",
-          message: `Insufficient balance: ${balance} JSC < ${intent.amount} JSC required`,
-          timestamp: Date.now(),
-          data: {
-            email: intent.email,
-            balance,
-            required: intent.amount,
-            txId: intent.txId,
-            indexerId: "HG",
-          }
-        });
-        return { success: false, balance, error: "Insufficient balance" };
-      }
-      return await debitWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
-    
-    case "HOLD":
-      // Place hold on balance (for pending transactions)
-      // Implementation can be added later if needed
-      const holdBalance = await getWalletBalance(intent.email);
-      broadcastEvent({
-        type: "wallet_hold",
-        component: "wallet-service-001",
-        message: `Hold placed on balance for ${intent.email}`,
-        timestamp: Date.now(),
-        data: {
-          email: intent.email,
-          balance: holdBalance,
-          txId: intent.txId,
-          indexerId: "HG",
-        }
-      });
-      return { success: true, balance: holdBalance };
-    
-    case "RELEASE":
-      // Release hold on balance
-      // Implementation can be added later if needed
-      const releaseBalance = await getWalletBalance(intent.email);
-      broadcastEvent({
-        type: "wallet_release",
-        component: "wallet-service-001",
-        message: `Hold released for ${intent.email}`,
-        timestamp: Date.now(),
-        data: {
-          email: intent.email,
-          balance: releaseBalance,
-          txId: intent.txId,
-          indexerId: "HG",
-        }
-      });
-      return { success: true, balance: releaseBalance };
-    
-    default:
-      broadcastEvent({
-        type: "wallet_error",
-        component: "wallet-service-001",
-        message: `Unknown wallet intent: ${intent.intent}`,
-        timestamp: Date.now(),
-        data: {
-          intent: intent.intent,
-          email: intent.email,
-          error: `Unknown intent: ${intent.intent}`,
-          indexerId: "HG",
-        }
-      });
-      return { success: false, balance: 0, error: `Unknown intent: ${intent.intent}` };
-  }
-}
+// (Wallet functions moved to src/wallet.ts)
 
 // Mint JesusCoin (JSC) - Via Stripe Payment Rail Service Provider (Holy Ghost indexer)
 // This is called when Stripe payment is confirmed via webhook
@@ -6468,160 +4701,7 @@ async function processWalletIntent(intent: WalletIntent): Promise<WalletResult> 
 // Stores Stripe customer ID, payment method ID, and payment intent ID in ledger for webhook querying
 // Register a new movie indexer after Stripe payment
 // CRITICAL: In ROOT mode, this function should NOT be called - all indexers are created via Angular wizard
-async function registerNewMovieGarden(
-  email: string,
-  stripePaymentIntentId: string,
-  stripeCustomerId?: string | null,
-  stripePaymentMethodId?: string | null,
-  stripeSessionId?: string
-): Promise<GardenConfig> {
-  // CRITICAL: In ROOT mode, DO NOT create indexers via this function
-  // All indexers must be created via Angular wizard (/api/wizard/create-indexer)
-  // Persistence file is the single source of truth
-  if (DEPLOYED_AS_ROOT) {
-    throw new Error(`Cannot create indexer via registerNewMovieGarden in ROOT mode. All indexers must be created via Angular wizard (/api/wizard/create-indexer). Persistence file is the single source of truth.`);
-  }
-  
-  console.log(`🎬 [Indexer Registration] Starting registration for ${email}...`);
-  
-  // Generate unique indexer ID (next available letter after existing indexers)
-  const existingIds = GARDENS.map(i => i.id).sort();
-  let nextId = 'A';
-  if (existingIds.length > 0) {
-    const lastId = existingIds[existingIds.length - 1];
-    const lastCharCode = lastId.charCodeAt(0);
-    if (lastCharCode < 90) { // Z is 90
-      nextId = String.fromCharCode(lastCharCode + 1);
-    } else {
-      // If we've exceeded Z, use numbers
-      nextId = `INDEXER-${GARDENS.length + 1}`;
-    }
-  }
-  
-  const gardenId = `garden-${nextId.toLowerCase()}`;
-  const gardenName = `Garden-${nextId}`;
-  const streamName = `eden:garden:${nextId}`;
-  const gardenUuid = `eden:garden:${crypto.randomUUID()}`;
-  
-  // Create new garden config
-  const newGarden: GardenConfig = {
-    id: gardenId,
-    name: gardenName,
-    stream: streamName,
-    active: true,
-    uuid: gardenUuid
-  };
-  
-  // Add to GARDENS array
-  GARDENS.push(newGarden);
-  console.log(`✅ [Garden Registration] Created garden: ${newGarden.name} (${newGarden.id})`);
-  console.warn(`⚠️  [Garden Registration] WARNING: Movie garden created via registerNewMovieGarden - this should NOT happen in ROOT mode!`);
-  
-  // Issue certificate to the new garden
-  // Note: Persistence is handled by the HTTP handler after certificate issuance
-  try {
-    issueGardenCertificate(newGarden);
-  } catch (err: any) {
-    console.error(`❌ [Garden Registration] Failed to issue certificate:`, err.message);
-    throw err;
-  }
-  
-  // Create default movie service providers for this garden
-  const providerNames = ['Regal Cinemas', 'Cineplex', 'MovieMax'];
-  const providerIds = ['regal-001', 'cineplex-001', 'moviemax-001'];
-  const locations = ['Baltimore, Maryland', 'New York, New York', 'Los Angeles, California'];
-  const reputations = [4.6, 4.4, 4.5];
-  const bonds = [1100, 900, 1000];
-  
-  for (let i = 0; i < providerNames.length; i++) {
-    const providerId = `${providerIds[i]}-${nextId.toLowerCase()}`;
-    const providerUuid = `550e8400-e29b-41d4-a716-${crypto.randomUUID().substring(0, 12)}`;
-    
-    const provider: ServiceProviderWithCert = {
-      id: providerId,
-      uuid: providerUuid,
-      name: providerNames[i],
-      serviceType: 'movie',
-      location: locations[i],
-      bond: bonds[i],
-      reputation: reputations[i],
-      gardenId: gardenId, // Assign to this garden
-      apiEndpoint: `https://api.${providerIds[i]}.com/v1/listings`,
-      status: 'active'
-    };
-    
-    // Register provider with ROOT CA
-    registerServiceProviderWithROOTCA(provider);
-    
-    // Issue certificate to provider
-    try {
-      issueServiceProviderCertificate(provider);
-    } catch (err: any) {
-      console.warn(`⚠️  [Garden Registration] Failed to issue certificate to ${provider.name}:`, err.message);
-    }
-    
-    console.log(`✅ [Garden Registration] Registered provider: ${provider.name} (${provider.id})`);
-  }
-  
-  // Create ledger entry for indexer purchase
-  const snapshot: TransactionSnapshot = {
-    chainId: CHAIN_ID,
-    txId: crypto.randomUUID(),
-    slot: Date.now(),
-    blockTime: Date.now(),
-    payer: email,
-    merchant: 'ROOT CA',
-    amount: 110, // 110 JSC for indexer purchase
-    feeSplit: {},
-  };
-  
-  const entry: LedgerEntry = {
-    entryId: crypto.randomUUID(),
-    txId: snapshot.txId,
-    timestamp: snapshot.blockTime,
-    payer: email,
-    payerId: email,
-    merchant: 'ROOT CA',
-    providerUuid: ROOT_CA_UUID,
-    serviceType: 'garden_purchase',
-    amount: 110,
-    iGasCost: 0, // No iGas for indexer purchase
-    fees: {},
-    status: 'completed',
-    cashierId: 'stripe-payment-rail-001',
-    bookingDetails: {
-      indexerId: gardenId, // Legacy field (will be renamed to gardenId in future)
-      indexerName: gardenName,
-      stripePaymentIntentId: stripePaymentIntentId,
-      stripeCustomerId: stripeCustomerId || undefined,
-      stripePaymentMethodId: stripePaymentMethodId || undefined,
-      stripeSessionId: stripeSessionId || undefined,
-      asset: 'JSC'
-    } as any, // Type assertion for indexer-specific fields
-  };
-  
-  LEDGER.push(entry);
-  redis.saveLedgerEntries(LEDGER);
-  
-  // Broadcast events
-  broadcastEvent({
-    type: "garden_registered",
-    component: "root-ca",
-    message: `New movie garden registered: ${gardenName}`,
-    timestamp: Date.now(),
-    data: {
-      indexerId: gardenId, // Legacy field (will be renamed to gardenId in future)
-      indexerName: gardenName,
-      indexerUuid: gardenUuid,
-      email: email,
-      providersRegistered: providerNames.length
-    }
-  });
-  
-  console.log(`✅ [Garden Registration] Registration complete: ${gardenName} with ${providerNames.length} providers`);
-  
-  return newGarden;
-}
+// (registerNewMovieGarden moved to src/garden.ts)
 
 async function mintJSC(
   email: string, 
@@ -6757,7 +4837,8 @@ async function mintJSC(
   });
 }
 
-function addLedgerEntry(
+// (addLedgerEntry moved to src/ledger.ts)
+function _addLedgerEntry_DEPRECATED(
   snapshot: TransactionSnapshot,
   serviceType: string,
   iGasCost: number,
@@ -6796,7 +4877,7 @@ function addLedgerEntry(
     iGasCost: iGasCost,
     fees: snapshot.feeSplit,
     status: 'pending',
-    cashierId: CASHIER.id,
+    cashierId: getCashierStatus().id,
     bookingDetails: bookingDetails,
   };
   
@@ -7167,18 +5248,17 @@ async function deliverWebhook(providerId: string, snapshot: TransactionSnapshot,
   }
 }
 
-function getCashierStatus(): Cashier {
-  return { ...CASHIER };
-}
+// (getCashierStatus moved to src/ledger.ts)
 
 // ROOT CA Certificate Management Functions
 
 function initializeRootCA(): void {
   if (!ROOT_CA) {
-    ROOT_CA = new EdenPKI(ROOT_CA_UUID);
-    ROOT_CA_IDENTITY = ROOT_CA.identity;
+    const rootCA = new EdenPKI(ROOT_CA_UUID);
+    const rootCAIdentity = rootCA.identity;
+    setROOTCA(rootCA, rootCAIdentity);
     console.log(`⚖️  ROOT CA initialized: ${ROOT_CA_UUID}`);
-    console.log(`   Public Key: ${ROOT_CA_IDENTITY.publicKey.substring(0, 50)}...`);
+    console.log(`   Public Key: ${rootCAIdentity.publicKey.substring(0, 50)}...`);
     
     broadcastEvent({
       type: "root_ca_initialized",
@@ -7193,85 +5273,9 @@ function initializeRootCA(): void {
   }
 }
 
-function issueGardenCertificate(garden: GardenConfig): EdenCertificate {
-  if (!ROOT_CA) {
-    throw new Error("ROOT CA not initialized");
-  }
-  
-  const cert = ROOT_CA.issueCertificate({
-    subject: garden.uuid,
-    capabilities: ["INDEXER", "ISSUE_CERT"],
-    constraints: {
-      gardenId: garden.id, // Updated from indexerId
-      gardenName: garden.name, // Updated from indexerName
-      stream: garden.stream
-    },
-    ttlSeconds: 365 * 24 * 60 * 60 // 1 year
-  });
-  
-  CERTIFICATE_REGISTRY.set(garden.uuid, cert);
-  garden.certificate = cert;
-  
-  console.log(`📜 Certificate issued to ${garden.name}: ${garden.uuid}`);
-  console.log(`   Capabilities: ${cert.capabilities.join(", ")}`);
-  console.log(`   Expires: ${new Date(cert.expiresAt).toISOString()}`);
-  
-  broadcastEvent({
-    type: "certificate_issued",
-    component: "root-ca",
-    message: `Certificate issued to ${garden.name}`,
-    timestamp: Date.now(),
-    data: {
-      subject: cert.subject,
-      issuer: cert.issuer,
-      capabilities: cert.capabilities,
-      expiresAt: cert.expiresAt
-    }
-  });
-  
-  return cert;
-}
+// (issueGardenCertificate moved to src/garden.ts)
 
-function issueServiceProviderCertificate(provider: ServiceProviderWithCert): EdenCertificate {
-  if (!ROOT_CA) {
-    throw new Error("ROOT CA not initialized");
-  }
-  
-  const cert = ROOT_CA.issueCertificate({
-    subject: provider.uuid,
-    capabilities: ["SERVICE_PROVIDER", "PRICE_QUOTE", "RECEIVE_PAYMENT"],
-    constraints: {
-      providerId: provider.id,
-      providerName: provider.name,
-      serviceType: provider.serviceType,
-      location: provider.location,
-      bond: provider.bond,
-      reputation: provider.reputation
-    },
-    ttlSeconds: 90 * 24 * 60 * 60 // 90 days
-  });
-  
-  CERTIFICATE_REGISTRY.set(provider.uuid, cert);
-  provider.certificate = cert;
-  
-  console.log(`📜 Certificate issued to ${provider.name}: ${provider.uuid}`);
-  console.log(`   Capabilities: ${cert.capabilities.join(", ")}`);
-  
-  broadcastEvent({
-    type: "certificate_issued",
-    component: "root-ca",
-    message: `Certificate issued to ${provider.name}`,
-    timestamp: Date.now(),
-    data: {
-      subject: cert.subject,
-      issuer: cert.issuer,
-      capabilities: cert.capabilities,
-      expiresAt: cert.expiresAt
-    }
-  });
-  
-  return cert;
-}
+// (issueServiceProviderCertificate moved to src/serviceProvider.ts)
 
 function revokeCertificate(
   uuid: string, 
@@ -8558,6 +6562,8 @@ async function processChatInput(input: string, email: string) {
   }
 
   // Add ledger entry for this booking
+  // NOTE: addLedgerEntry() in src/ledger.ts should broadcast "ledger_entry_added" event
+  // But we also broadcast here to ensure it happens (fallback)
   const ledgerEntry = addLedgerEntry(
     snapshot,
     llmResponse.listings[0]?.providerName ? 'movie' : 'service',
@@ -8572,10 +6578,23 @@ async function processChatInput(input: string, email: string) {
     }
   );
 
+  // CRITICAL: Broadcast ledger_entry_created event (matches old codebase pattern exactly)
+  // Old codebase only broadcasted "ledger_entry_created", not "ledger_entry_added"
+  console.log(`📡 [Broadcast] ⭐ Sending ledger_entry_created event from processChatInput: ${ledgerEntry.entryId}`);
   broadcastEvent({
     type: "ledger_entry_created",
     component: "ledger",
     message: `Ledger entry created for booking: ${ledgerEntry.entryId}`,
+    timestamp: Date.now(),
+    data: { entry: ledgerEntry }
+  });
+  
+  // Also broadcast ledger_entry_added for backward compatibility (Angular listens for both)
+  console.log(`📡 [Broadcast] ⭐ Sending ledger_entry_added event from processChatInput: ${ledgerEntry.entryId}`);
+  broadcastEvent({
+    type: "ledger_entry_added",
+    component: "ledger",
+    message: `Ledger entry created: ${ledgerEntry.entryId}`,
     timestamp: Date.now(),
     data: { entry: ledgerEntry }
   });
@@ -8584,17 +6603,50 @@ async function processChatInput(input: string, email: string) {
   broadcastEvent({
     type: "cashier_start",
     component: "cashier",
-    message: `${CASHIER.name} processing payment...`,
+    message: `${getCashierStatus().name} processing payment...`,
     timestamp: Date.now(),
-    data: { cashier: CASHIER }
+    data: { cashier: getCashierStatus() }
   });
 
-  const paymentSuccess = await processPayment(CASHIER, ledgerEntry, user);
+  const paymentSuccess = await processPayment(getCashierStatus(), ledgerEntry, user);
   if (!paymentSuccess) {
     const errorMsg = `Payment failed. Balance: ${user.balance}, Required: ${moviePrice}`;
     console.error(`❌ ${errorMsg}`);
     throw new Error(errorMsg);
   }
+  
+  // CRITICAL: Broadcast cashier_payment_processed here (matches old codebase pattern exactly)
+  // Old codebase: processPayment() broadcasts "cashier_payment_processed" internally,
+  // then processChatInput broadcasts "purchase" here (we broadcast both for compatibility)
+  const updatedCashier = getCashierStatus();
+  const updatedBalance = user.balance; // Updated by processPayment
+  console.log(`📡 [Broadcast] ⭐ Sending cashier_payment_processed event from processChatInput: ${ledgerEntry.amount} JSC`);
+  console.log(`📡 [Broadcast] Event details: cashier=${updatedCashier.name}, entryId=${ledgerEntry.entryId}, amount=${ledgerEntry.amount}, balance=${updatedBalance}`);
+  broadcastEvent({
+    type: "cashier_payment_processed",
+    component: "cashier",
+    message: `${updatedCashier.name} processed payment: ${ledgerEntry.amount} JSC`,
+    timestamp: Date.now(),
+    data: { 
+      entry: ledgerEntry, 
+      cashier: updatedCashier, 
+      userBalance: updatedBalance, 
+      walletService: "wallet-service-001" 
+    }
+  });
+  
+  // Also broadcast purchase event (matches old codebase pattern)
+  console.log(`📡 [Broadcast] ⭐ Sending purchase event from processChatInput: ${selectedListing.movieTitle || 'service'}`);
+  broadcastEvent({
+    type: "purchase",
+    component: "transaction",
+    message: `Purchased ${selectedListing.movieTitle || 'service'} for ${moviePrice} JSC`,
+    timestamp: Date.now(),
+    data: { listing: selectedListing, price: moviePrice, ledgerEntry: ledgerEntry.entryId }
+  });
+  
+  // Small delay to ensure WebSocket events are sent before function continues
+  await new Promise(resolve => setImmediate(resolve));
 
   broadcastEvent({
     type: "purchase",
@@ -9033,30 +7085,208 @@ async function main() {
         }
       }
     }
-    
-    // Initialize DEX Pools (must be after token indexers are created and certified)
+  }
+  
+  // Initialize logger FIRST (needed for tracing garden lifecycle)
+  initializeLogger();
+  
+  // Initialize all modules (required for both ROOT and non-ROOT modes)
+  console.log("\n🔧 Initializing modules...");
+  
+  // Initialize wallet module with dependencies
+  initializeWallet(redis, SKIP_REDIS, ensureRedisConnection, broadcastEvent);
+  
+  // Initialize service provider module with dependencies
+  initializeServiceProvider(broadcastEvent);
+  
+  // Initialize garden module with dependencies
+  initializeGarden(broadcastEvent, redis);
+  
+  // Initialize DEX module with dependencies
+  initializeDEX(broadcastEvent);
+  
+  // Initialize ledger module with dependencies
+  const CASHIER: Cashier = {
+    id: "cashier-eden-001",
+    name: "Eden Cashier",
+    processedCount: 0,
+    totalProcessed: 0,
+    status: 'active',
+  };
+  initializeLedger(broadcastEvent, redis, ensureRedisConnection, SKIP_REDIS, CASHIER);
+  
+  // Initialize LLM module with dependencies
+  initializeLLM(broadcastEvent);
+  
+  // Initialize ServiceRegistry2 (new implementation)
+  console.log("\n📋 Initializing ServiceRegistry2...");
+  initializeServiceRegistry2();
+  const serviceRegistry2 = getServiceRegistry2();
+  console.log(`   ✅ ServiceRegistry2 initialized with ${serviceRegistry2.getCount()} provider(s) from persistence`);
+  
+  // CRITICAL: Add infrastructure providers to ServiceRegistry2 if they don't exist
+  // These are the default infrastructure providers that should always be present
+  const infrastructureProviders: ServiceProviderWithCert[] = [
+    {
+      id: "stripe-payment-rail-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440100",
+      name: "Stripe Payment Rail",
+      serviceType: "payment-rail",
+      location: "Global",
+      bond: 50000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "https://api.stripe.com/v1",
+      status: 'active'
+    },
+    {
+      id: "settlement-service-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440101",
+      name: "Settlement Service",
+      serviceType: "settlement",
+      location: "ROOT CA",
+      bond: 100000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "internal://settlement",
+      status: 'active'
+    },
+    {
+      id: "service-registry-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440102",
+      name: "Service Registry",
+      serviceType: "registry",
+      location: "ROOT CA",
+      bond: 50000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "internal://service-registry",
+      status: 'active'
+    },
+    {
+      id: "webserver-service-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440103",
+      name: "Web Server",
+      serviceType: "webserver",
+      location: "ROOT CA",
+      bond: 10000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: `http://localhost:${HTTP_PORT}`,
+      status: 'active'
+    },
+    {
+      id: "websocket-service-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440104",
+      name: "WebSocket Service",
+      serviceType: "websocket",
+      location: "ROOT CA",
+      bond: 10000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: `ws://localhost:${HTTP_PORT}`,
+      status: 'active'
+    },
+    {
+      id: "wallet-service-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440105",
+      name: "JesusCoin Wallet Service",
+      serviceType: "wallet",
+      location: "ROOT CA",
+      bond: 200000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "internal://wallet",
+      status: 'active'
+    }
+  ];
+  
+  // Add infrastructure providers to ServiceRegistry2 if they don't exist
+  let infrastructureAdded = 0;
+  for (const provider of infrastructureProviders) {
+    if (!serviceRegistry2.hasProvider(provider.id)) {
+      try {
+        serviceRegistry2.addProvider(provider);
+        infrastructureAdded++;
+        console.log(`   ✅ Added infrastructure provider: ${provider.name} (${provider.id})`);
+      } catch (err: any) {
+        console.warn(`   ⚠️  Failed to add infrastructure provider ${provider.id}: ${err.message}`);
+      }
+    }
+  }
+  
+  if (infrastructureAdded > 0) {
+    console.log(`   ✅ Added ${infrastructureAdded} infrastructure provider(s) to ServiceRegistry2`);
+    // Save immediately to persist infrastructure providers
+    serviceRegistry2.savePersistence();
+  }
+  
+  console.log(`   ✅ ServiceRegistry2 ready with ${serviceRegistry2.getCount()} total provider(s)`);
+  
+  console.log("   ✅ All modules initialized");
+  
+  // DEBUG: Save in-memory service registry to debug file every second
+  // This helps track what's actually in memory vs what's in persistence
+  setInterval(() => {
+    try {
+      const memoryFile = path.join(__dirname, 'eden-serviceRegistry-memory.json');
+      const memoryData = {
+        serviceRegistry: ROOT_CA_SERVICE_REGISTRY.map(p => ({
+          id: p.id,
+          name: p.name,
+          serviceType: p.serviceType,
+          location: p.location,
+          bond: p.bond,
+          reputation: p.reputation,
+          status: p.status,
+          uuid: p.uuid,
+          apiEndpoint: p.apiEndpoint,
+          gardenId: p.gardenId
+        })),
+        totalProviders: ROOT_CA_SERVICE_REGISTRY.length,
+        movieProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie').length,
+        dexProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex').length,
+        lastSaved: new Date().toISOString()
+      };
+      fs.writeFileSync(memoryFile, JSON.stringify(memoryData, null, 2), 'utf-8');
+    } catch (err: any) {
+      // Silently fail - this is just for debugging
+    }
+  }, 1000);
+  console.log("   🔍 [DEBUG] Started saving in-memory service registry to eden-serviceRegistry-memory.json every second");
+  
+  // Initialize DEX Pools (must be after token indexers are created and certified)
+  // Initialize pools for all existing token gardens (both ROOT and non-ROOT mode)
+  if (TOKEN_GARDENS.length > 0) {
     console.log("\n🌊 Initializing DEX Pools...");
     initializeDEXPools();
     
-    // Create DEX pool service providers dynamically from pools
+    // Create DEX pool service providers dynamically from pools (only if they don't already exist)
     console.log("\n📋 Registering DEX Pool Service Providers...");
     for (const [poolId, pool] of DEX_POOLS.entries()) {
-      const tokenIndexer = TOKEN_GARDENS.find(ti => ti.id === pool.indexerId);
-      if (tokenIndexer) {
-        const provider: ServiceProviderWithCert = {
-          id: `dex-pool-${pool.tokenSymbol.toLowerCase()}`,
-          uuid: crypto.randomUUID(),
-          name: `${pool.tokenSymbol} Pool (${tokenIndexer.name})`,
-          serviceType: "dex",
-          location: "Eden DEX",
-          bond: pool.bond,
-          reputation: 5.0,
-          gardenId: pool.indexerId, // Assign to this garden
-          apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
-          status: 'active',
-        };
-        registerServiceProviderWithROOTCA(provider);
-        console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenIndexer.name}`);
+      const tokenGarden = TOKEN_GARDENS.find(ti => ti.id === pool.gardenId);
+      if (tokenGarden) {
+        const providerId = `dex-pool-${pool.tokenSymbol.toLowerCase()}`;
+        const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === pool.gardenId);
+        
+        if (!existingProvider) {
+          const provider: ServiceProviderWithCert = {
+            id: providerId,
+            uuid: crypto.randomUUID(),
+            name: `${pool.tokenSymbol} Pool (${tokenGarden.name})`,
+            serviceType: "dex",
+            location: "Eden DEX",
+            bond: pool.bond,
+            reputation: 5.0,
+            gardenId: pool.gardenId, // Assign to this garden
+            apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
+            status: 'active',
+          };
+          registerServiceProviderWithROOTCA(provider);
+          console.log(`   ✅ Registered DEX pool provider: ${provider.name} (${provider.id}) → ${tokenGarden.name}`);
+        } else {
+          console.log(`   ✓ DEX pool provider ${providerId} already exists for garden ${pool.gardenId}`);
+        }
       }
     }
     
@@ -9330,6 +7560,88 @@ async function main() {
       }
     } catch (err: any) {
       console.error(`❌ [Indexer Persistence] Failed to restore indexers: ${err.message}`);
+    }
+    
+    // CRITICAL: After gardens are loaded, ensure all hardcoded providers are present if their gardens exist
+    // This fixes the issue where providers are removed during initial load before gardens exist
+    if (redisConnected && !SKIP_REDIS) {
+      try {
+        // In ROOT mode: All providers are created dynamically via the wizard, not hardcoded
+        // Only reload from persistence file to get providers that were created via the wizard
+        let reloadedCount = 0;
+        const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
+        if (fs.existsSync(serviceRegistryFile)) {
+          const fileContent = fs.readFileSync(serviceRegistryFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry) && persisted.serviceRegistry.length > 0) {
+            console.log(`🔍 [Service Registry Reload] Checking ${persisted.serviceRegistry.length} providers from persistence file`);
+            console.log(`🔍 [Service Registry Reload] Current GARDENS: ${GARDENS.map(g => g.id).join(', ')}`);
+            console.log(`🔍 [Service Registry Reload] Current TOKEN_GARDENS: ${TOKEN_GARDENS.map(tg => tg.id).join(', ')}`);
+            console.log(`🔍 [Service Registry Reload] Current ROOT_CA_SERVICE_REGISTRY: ${ROOT_CA_SERVICE_REGISTRY.map(p => `${p.id}(${p.serviceType})`).join(', ')}`);
+            
+            for (const persistedProvider of persisted.serviceRegistry) {
+              const persistedGardenId = persistedProvider.gardenId || persistedProvider.indexerId;
+              
+              console.log(`🔍 [Service Registry Reload] Processing provider: ${persistedProvider.id} (${persistedProvider.name}), serviceType: ${persistedProvider.serviceType}, gardenId: ${persistedGardenId}`);
+              
+              // Now that gardens are loaded, check if garden exists
+              const gardenExists = persistedGardenId === 'HG' || 
+                                  GARDENS.some(g => g.id === persistedGardenId) || 
+                                  TOKEN_GARDENS.some(tg => tg.id === persistedGardenId);
+              
+              console.log(`🔍 [Service Registry Reload] Garden ${persistedGardenId} exists: ${gardenExists}`);
+              
+              if (!gardenExists && persistedGardenId) {
+                console.log(`⚠️  [Service Registry Reload] Skipping provider ${persistedProvider.id}: gardenId "${persistedGardenId}" does not exist`);
+                console.log(`   Available gardens: ${GARDENS.map(g => g.id).join(', ') || 'none'}`);
+                console.log(`   Available token gardens: ${TOKEN_GARDENS.map(tg => tg.id).join(', ') || 'none'}`);
+                continue;
+              }
+              
+              // Check if provider already exists
+              const existingProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === persistedProvider.id);
+              if (!existingProvider) {
+                // Provider doesn't exist, add it
+                const providerToAdd: any = {
+                  id: persistedProvider.id,
+                  uuid: persistedProvider.uuid || crypto.randomUUID(),
+                  name: persistedProvider.name,
+                  serviceType: persistedProvider.serviceType,
+                  location: persistedProvider.location || 'Unknown',
+                  bond: persistedProvider.bond || 0,
+                  reputation: persistedProvider.reputation || 0,
+                  gardenId: persistedGardenId || 'HG',
+                  apiEndpoint: persistedProvider.apiEndpoint,
+                  status: (persistedProvider.status as 'active' | 'revoked' | 'suspended') || 'active',
+                };
+                ROOT_CA_SERVICE_REGISTRY.push(providerToAdd);
+                reloadedCount++;
+                console.log(`   ✅ Reloaded provider: ${providerToAdd.name} (${providerToAdd.id}) with gardenId: ${providerToAdd.gardenId}, serviceType: ${providerToAdd.serviceType}`);
+              } else {
+                // Update gardenId if it's different
+                if (existingProvider.gardenId !== persistedGardenId && persistedGardenId) {
+                  existingProvider.gardenId = persistedGardenId;
+                  console.log(`   🔄 Updated provider ${existingProvider.name}: gardenId to "${persistedGardenId}"`);
+                } else {
+                  console.log(`   ✓ Provider ${existingProvider.name} already exists with correct gardenId: ${existingProvider.gardenId}`);
+                }
+              }
+            }
+            console.log(`✅ [Service Registry] Reloaded ${reloadedCount} provider(s) from persistence file`);
+          }
+        } else {
+          console.log(`✅ [Service Registry] No persistence file to reload (providers will be created via wizard)`);
+        }
+        
+        // CRITICAL: After reloading providers from persistence, save the service registry to persistence file
+        // This ensures that any providers loaded from persistence are saved back (in case of validation fixes)
+        if (reloadedCount > 0) {
+          console.log(`💾 [Service Registry] Saving updated service registry to persistence file...`);
+          redis.saveServiceRegistry();
+        }
+      } catch (err: any) {
+        console.warn(`⚠️  [Service Registry] Failed to reload service registry: ${err.message}`);
+      }
     }
   }
   

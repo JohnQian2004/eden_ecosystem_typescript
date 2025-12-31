@@ -1,0 +1,711 @@
+{
+  "lastSaved": "2025-12-31T17:50:58.489Z",
+  "logs": {
+    "garden-lifecycle": [
+      {
+        "timestamp": 1767165199606,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767165199609,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767165199621,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767166284039,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767166284247,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767166284569,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767167173277,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767167173400,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767167173440,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767167431470,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767167431506,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767167431698,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767167973950,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767167973992,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767167974196,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767168153702,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767168153712,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767168153739,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767168550788,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767168550791,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767168550799,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767186327762,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767186327765,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767186327863,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767186430963,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767186430969,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767186430979,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767187100976,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767187100980,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767187100991,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767189598709,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767189598919,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767189599190,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767190343057,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767190343064,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767190343075,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767190583700,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767190583704,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767190583713,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767191090750,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767191090764,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767191090796,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767192558365,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767192558374,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "moviecom-001",
+          "providerName": "MovieCom",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767192559016,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "moviecom-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "moviecom-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767196020982,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767196020987,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "cinemark-001",
+          "providerName": "Cinemark",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1767196021003,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)"
+          ]
+        }
+      }
+    ]
+  }
+}

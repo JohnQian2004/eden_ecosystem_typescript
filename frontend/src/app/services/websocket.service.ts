@@ -40,6 +40,13 @@ export class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data: SimulatorEvent = JSON.parse(event.data);
+          // Log all ledger/cashier events for debugging
+          if (data.type === 'ledger_entry_added' || 
+              data.type === 'ledger_entry_created' ||
+              data.type === 'cashier_payment_processed' ||
+              data.type === 'ledger_booking_completed') {
+            console.log(`📡 [WebSocket] ⭐ Received ${data.type} event:`, data);
+          }
           this.eventSubject.next(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);

@@ -1,35 +1,34 @@
 {
   "gardens": [
     {
-      "id": "T1",
-      "name": "Garden-DEX",
-      "stream": "eden:token-garden:T1",
+      "id": "garden-1",
+      "name": "Garden-MOVIE",
+      "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:edf1b902-6b38-4581-b601-0b9007c43e0a",
+      "uuid": "eden:garden:b5bb6986-9ed1-418e-b24f-037e9bc2fccb",
       "serverIp": "localhost",
-      "serverDomain": "garden-dex.eden.local",
+      "serverDomain": "garden-movie.eden.local",
       "serverPort": 3001,
       "networkType": "http",
-      "serviceType": "dex",
+      "serviceType": "movie",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:edf1b902-6b38-4581-b601-0b9007c43e0a",
+        "subject": "eden:garden:b5bb6986-9ed1-418e-b24f-037e9bc2fccb",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
           "ISSUE_CERT"
         ],
         "constraints": {
-          "gardenId": "T1",
-          "gardenName": "Garden-DEX",
-          "stream": "eden:token-garden:T1"
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1767148208004,
-        "expiresAt": 1798684208004,
-        "signature": "d91568Ljj9BQV43mbCed4bJSuf/96mzS/5Z1tlv0wDNPZhxczGnDnokl+MZaXZIGIAJydNOnbe9+gl8BRFVECQ=="
-      },
-      "tokenServiceType": "dex"
+        "issuedAt": 1767196020977,
+        "expiresAt": 1798732020977,
+        "signature": "36c6p2CqP7TKv4wNS4wQrsq7DaA73A12nELFj3mm0mOhXQUnd+XWaOkJsqgLvG28s4Ydod3kq22VUPSPT82aBg=="
+      }
     }
   ],
-  "lastSaved": "2025-12-31T02:30:08.944Z"
+  "lastSaved": "2025-12-31T16:36:45.864Z"
 }

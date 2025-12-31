@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
@@ -52,19 +52,24 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
 
   constructor(
     private http: HttpClient,
-    private wsService: WebSocketService
+    private wsService: WebSocketService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
+    console.log(`📡 [LedgerDisplay] ⭐ Component initialized - ngOnInit() called`);
+    console.log(`📡 [LedgerDisplay] Initial state - ledgerEntries.length: ${this.ledgerEntries.length}, cashier: ${this.cashier ? 'exists' : 'null'}`);
     this.loadLedger();
     this.loadCashierStatus();
     
     // Subscribe to WebSocket events for real-time updates
     this.wsSubscription = this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      console.log(`📡 [LedgerDisplay] Received WebSocket event: ${event.type}`, event);
       if (event.type === 'ledger_entry_added' || 
           event.type === 'ledger_entry_created' ||
           event.type === 'ledger_booking_completed' ||
           event.type === 'cashier_payment_processed') {
+        console.log(`📡 [LedgerDisplay] ⭐ Processing ${event.type} event - reloading ledger and cashier`);
         this.loadLedger();
         this.loadCashierStatus();
       }
@@ -82,14 +87,25 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       ? 'http://localhost:3000/api/ledger' 
       : '/api/ledger';
     
+    console.log(`📡 [LedgerDisplay] ⭐ Loading ledger from: ${apiUrl}`);
+    console.log(`📡 [LedgerDisplay] Making HTTP GET request...`);
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {
+        console.log(`📡 [LedgerDisplay] ✅ HTTP response received:`, response);
         if (response.success) {
-          this.ledgerEntries = response.entries || [];
+          const entries = response.entries || [];
+          console.log(`📡 [LedgerDisplay] ✅ Loaded ${entries.length} ledger entries`);
+          console.log(`📡 [LedgerDisplay] Entry data:`, entries);
+          this.ledgerEntries = entries;
+          this.cdr.detectChanges(); // Force change detection
+          console.log(`📡 [LedgerDisplay] After assignment, ledgerEntries.length = ${this.ledgerEntries.length}`);
+        } else {
+          console.warn(`📡 [LedgerDisplay] ⚠️ Ledger API returned success=false:`, response);
         }
       },
       error: (error) => {
-        console.error('Error loading ledger:', error);
+        console.error('📡 [LedgerDisplay] ❌ Error loading ledger:', error);
+        console.error('📡 [LedgerDisplay] Error details:', error.message, error.status, error.url);
       }
     });
   }
@@ -99,14 +115,18 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       ? 'http://localhost:3000/api/cashier' 
       : '/api/cashier';
     
+    console.log(`📡 [LedgerDisplay] Loading cashier status from: ${apiUrl}`);
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {
         if (response.success) {
+          console.log(`📡 [LedgerDisplay] ✅ Loaded cashier status:`, response.cashier);
           this.cashier = response.cashier;
+        } else {
+          console.warn(`📡 [LedgerDisplay] ⚠️ Cashier API returned success=false:`, response);
         }
       },
       error: (error) => {
-        console.error('Error loading cashier status:', error);
+        console.error('📡 [LedgerDisplay] ❌ Error loading cashier status:', error);
       }
     });
   }
