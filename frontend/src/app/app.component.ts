@@ -381,31 +381,53 @@ export class AppComponent implements OnInit, OnDestroy {
     // This is a quick in-memory lookup - no LLM needed
     // Only show service types that are actually registered in the ServiceRegistry
     this.isLoadingServices = true;
-    this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+    
+    // First, load gardens to validate gardenId
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/gardens`)
       .subscribe({
-        next: (response) => {
-          if (response.success && response.providers) {
-            // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
-            // These belong to Holy Ghost (HG) and should NOT appear in Main Street
-            // Main Street should only show service types that have providers belonging to NON-ROOT gardens
-            const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
+        next: (gardensResponse) => {
+          // Support both 'gardens' and 'indexers' response fields for backward compatibility
+          const gardens = gardensResponse.gardens || gardensResponse.indexers || [];
+          const validGardenIds = new Set<string>(['HG']); // HG is always valid (infrastructure)
+          gardens.forEach(g => {
+            if (g.active && g.id) {
+              validGardenIds.add(g.id);
+            }
+          });
+          
+          console.log(`🔍 [Main Street] Valid garden IDs: ${Array.from(validGardenIds).join(', ')}`);
+          
+          // Now load service registry
+          this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+            .subscribe({
+              next: (response) => {
+                if (response.success && response.providers) {
+                  // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
+                  // These belong to Holy Ghost (HG) and should NOT appear in Main Street
+                  // Main Street should only show service types that have providers belonging to NON-ROOT gardens
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
+                  
+                  // CRITICAL: Only include providers whose gardenId exists in the loaded gardens
+                  // This ensures we don't show providers assigned to non-existent gardens
+                  const nonInfrastructureProviders = response.providers.filter(p => {
+                    // Check if provider has a valid gardenId
+                    const providerGardenId = p.gardenId || p.indexerId; // Support both for backward compatibility
+                    const hasValidGardenId = providerGardenId && validGardenIds.has(providerGardenId);
+                    if (!hasValidGardenId && providerGardenId) {
+                      console.warn(`⚠️  [Main Street] Filtering out provider ${p.name} (${p.id}): gardenId "${providerGardenId}" does not exist in loaded gardens`);
+                    }
+                    return p.status === 'active' && 
+                           !infrastructureServiceTypes.has(p.serviceType) &&
+                           providerGardenId !== 'HG' && // Exclude Holy Ghost providers
+                           hasValidGardenId; // CRITICAL: Only include if gardenId is valid
+                  });
+                  
+                  // Create Set of unique service types from non-infrastructure providers
+                  const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
             
-            // Only include service types that:
-            // 1. Have active providers
-            // 2. Are NOT infrastructure services
-            // 3. Have at least one provider belonging to a non-root garden (not HG)
-            const nonInfrastructureProviders = response.providers.filter(p => 
-              p.status === 'active' && 
-              !infrastructureServiceTypes.has(p.serviceType) &&
-              (p.gardenId || p.indexerId) !== 'HG' // Exclude Holy Ghost providers (support both gardenId and indexerId)
-            );
-            
-            // Create Set of unique service types from non-infrastructure providers
-            const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
-            
-            // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
-            // This ensures we don't lose service types that were filtered out previously
-            const allServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+                  // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
+                  // This ensures we don't lose service types that were filtered out previously
+                  const allServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
               {
                 type: 'movie',
                 icon: '🎬',
@@ -442,49 +464,82 @@ export class AppComponent implements OnInit, OnDestroy {
                 adText: 'Restaurant Reservations',
                 sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
               }
-            ];
-            
-            // Only show service types that are actually available in the ServiceRegistry
-            const filteredServiceTypes = allServiceTypes.filter(st => 
-              availableTypes.has(st.type)
-            );
-            
-            // CRITICAL: Deduplicate by service type to prevent duplicates
-            // This prevents duplicates from race conditions or multiple rapid calls
-            const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string}>();
-            for (const st of filteredServiceTypes) {
-              if (!serviceTypeMap.has(st.type)) {
-                serviceTypeMap.set(st.type, st);
+                  ];
+                  
+                  // Only show service types that are actually available in the ServiceRegistry
+                  const filteredServiceTypes = allServiceTypes.filter(st => 
+                    availableTypes.has(st.type)
+                  );
+                  
+                  // CRITICAL: Deduplicate by service type to prevent duplicates
+                  // This prevents duplicates from race conditions or multiple rapid calls
+                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string}>();
+                  for (const st of filteredServiceTypes) {
+                    if (!serviceTypeMap.has(st.type)) {
+                      serviceTypeMap.set(st.type, st);
+                    }
+                  }
+                  this.serviceTypes = Array.from(serviceTypeMap.values());
+                  
+                  // Log if duplicates were found
+                  if (filteredServiceTypes.length !== this.serviceTypes.length) {
+                    console.warn(`⚠️  [Main Street] Removed ${filteredServiceTypes.length - this.serviceTypes.length} duplicate service type(s)`);
+                  }
+                  
+                  console.log(`✅ Loaded service types: ${this.serviceTypes.map(st => `${st.type} (${st.adText})`).join(', ')}`);
+                  console.log(`   Available types in registry (non-infrastructure, non-HG, valid gardenId): ${Array.from(availableTypes).join(', ')}`);
+                  console.log(`   Providers by type:`, Array.from(availableTypes).map(type => {
+                    const providers = nonInfrastructureProviders.filter(p => p.serviceType === type);
+                    return `${type}: ${providers.length} provider(s) [${providers.map(p => `${p.name} (${p.gardenId || p.indexerId})`).join(', ')}]`;
+                  }).join(', '));
+                } else {
+                  // If no providers, clear service types
+                  this.serviceTypes = [];
+                }
+                this.isLoadingServices = false;
+                // Refresh service gardens check in case gardens were created
+                this.checkServiceGardens();
+                this.cdr.detectChanges();
+              },
+              error: (err) => {
+                console.error('Failed to load services:', err);
+                // If API fails, don't show any service types
+                this.serviceTypes = [];
+                this.isLoadingServices = false;
+                this.cdr.detectChanges();
               }
-            }
-            this.serviceTypes = Array.from(serviceTypeMap.values());
-            
-            // Log if duplicates were found
-            if (filteredServiceTypes.length !== this.serviceTypes.length) {
-              console.warn(`⚠️  [Main Street] Removed ${filteredServiceTypes.length - this.serviceTypes.length} duplicate service type(s)`);
-            }
-            
-            console.log(`✅ Loaded service types: ${this.serviceTypes.map(st => `${st.type} (${st.adText})`).join(', ')}`);
-            console.log(`   Available types in registry (non-infrastructure, non-HG): ${Array.from(availableTypes).join(', ')}`);
-            console.log(`   Providers by type:`, Array.from(availableTypes).map(type => {
-              const providers = nonInfrastructureProviders.filter(p => p.serviceType === type);
-              return `${type}: ${providers.length} provider(s) [${providers.map(p => `${p.name} (${p.gardenId || p.indexerId})`).join(', ')}]`;
-            }).join(', '));
-          } else {
-            // If no providers, clear service types
-            this.serviceTypes = [];
-          }
-          this.isLoadingServices = false;
-          // Refresh service gardens check in case gardens were created
-          this.checkServiceGardens();
-          this.cdr.detectChanges();
+            });
         },
         error: (err) => {
-          console.error('Failed to load services:', err);
-          // If API fails, don't show any service types
-          this.serviceTypes = [];
-          this.isLoadingServices = false;
-          this.cdr.detectChanges();
+          console.error('Failed to load gardens for validation:', err);
+          // If gardens API fails, still try to load services but without validation
+          this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+            .subscribe({
+              next: (response) => {
+                // Fallback: use original logic without gardenId validation
+                if (response.success && response.providers) {
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
+                  const nonInfrastructureProviders = response.providers.filter(p => 
+                    p.status === 'active' && 
+                    !infrastructureServiceTypes.has(p.serviceType) &&
+                    (p.gardenId || p.indexerId) !== 'HG'
+                  );
+                  const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
+                  // Use existing service types logic
+                  this.serviceTypes = this.serviceTypes.filter(st => availableTypes.has(st.type));
+                } else {
+                  this.serviceTypes = [];
+                }
+                this.isLoadingServices = false;
+                this.cdr.detectChanges();
+              },
+              error: (err2) => {
+                console.error('Failed to load services:', err2);
+                this.serviceTypes = [];
+                this.isLoadingServices = false;
+                this.cdr.detectChanges();
+              }
+            });
         }
       });
   }
