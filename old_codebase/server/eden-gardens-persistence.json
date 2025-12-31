@@ -1,0 +1,34 @@
+{
+  "gardens": [
+    {
+      "id": "garden-1",
+      "name": "Garden-MOVIE",
+      "stream": "eden:garden:garden-1",
+      "active": true,
+      "uuid": "eden:garden:8d2362d9-adc0-4244-9d67-99ae561c3412",
+      "serverIp": "localhost",
+      "serverDomain": "garden-movie.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "movie",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:8d2362d9-adc0-4244-9d67-99ae561c3412",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "stream": "eden:garden:garden-1"
+        },
+        "issuedAt": 1767140521943,
+        "expiresAt": 1798676521943,
+        "signature": "/F27owAdV2eMqlPzaDbihT6cug7cxjRVEZSvm7+mFJ3s77IY978nMQETqDx6TqG+1a81qgi36KySoNRPiXqODQ=="
+      }
+    }
+  ],
+  "lastSaved": "2025-12-31T00:22:02.948Z"
+}

@@ -1,0 +1,93 @@
+<div class="card">
+  <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">📖 Ledger - All Eden Bookings</h5>
+    <div *ngIf="cashier" class="cashier-status">
+      <span class="badge bg-light text-dark">
+        💰 {{ cashier.name }}: {{ cashier.processedCount }} processed | Total: {{ cashier.totalProcessed.toFixed(2) }} JSC
+      </span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div *ngIf="ledgerEntries.length === 0" class="text-center text-muted py-4">
+      <p>No bookings yet. Make a purchase to see ledger entries.</p>
+    </div>
+    
+    <div *ngIf="ledgerEntries.length > 0" class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Entry ID</th>
+            <th>Transaction ID</th>
+            <th>Payer (Email)</th>
+            <th>Payer ID</th>
+            <th>Merchant</th>
+            <th>Provider UUID</th>
+            <th>Service</th>
+            <th>Amount</th>
+            <th>iGas</th>
+            <th>iTax</th>
+            <th>Status</th>
+            <th>Timestamp</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let entry of ledgerEntries">
+            <td><small class="text-muted">{{ entry.entryId.substring(0, 8) }}...</small></td>
+            <td><small class="text-muted">{{ entry.txId.substring(0, 8) }}...</small></td>
+            <td>{{ entry.payer }}</td>
+            <td><code>{{ entry.payerId }}</code></td>
+            <td>{{ entry.merchant }}</td>
+            <td><small class="text-muted">{{ entry.providerUuid }}</small></td>
+            <td>{{ entry.serviceType }}</td>
+            <td><strong>{{ entry.amount.toFixed(2) }} JSC</strong></td>
+            <td>{{ entry.iGasCost.toFixed(6) }}</td>
+            <td>
+              <span *ngIf="entry.bookingDetails?.iTax" class="text-info fw-bold">
+                {{ entry.bookingDetails?.iTax?.toFixed(6) }} {{ (entry.bookingDetails?.baseToken || 'SOL') }}
+              </span>
+              <span *ngIf="!entry.bookingDetails?.iTax" class="text-muted">-</span>
+            </td>
+            <td>
+              <span [ngClass]="getStatusClass(entry.status)">
+                {{ entry.status }}
+              </span>
+            </td>
+            <td><small>{{ formatDate(entry.timestamp) }}</small></td>
+            <td>
+              <div *ngIf="entry.bookingDetails">
+                <!-- Movie details -->
+                <small *ngIf="entry.bookingDetails.movieTitle">
+                  🎬 {{ entry.bookingDetails.movieTitle }}
+                </small><br>
+                <small *ngIf="entry.bookingDetails.showtime" class="text-muted">
+                  ⏰ {{ entry.bookingDetails.showtime }}
+                </small><br>
+                <small *ngIf="entry.bookingDetails.location" class="text-muted">
+                  📍 {{ entry.bookingDetails.location }}
+                </small>
+                
+                <!-- DEX trade details -->
+                <div *ngIf="entry.bookingDetails.tokenSymbol" class="mt-1">
+                  <small class="text-info fw-bold">
+                    🔷 {{ entry.bookingDetails.action }} {{ entry.bookingDetails.tokenAmount }} {{ entry.bookingDetails.tokenSymbol }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.baseAmount" class="text-muted">
+                    💰 {{ entry.bookingDetails.baseAmount.toFixed(6) }} {{ entry.bookingDetails.baseToken }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.price" class="text-muted">
+                    📊 Price: {{ entry.bookingDetails.price.toFixed(6) }} {{ entry.bookingDetails.baseToken }}/{{ entry.bookingDetails.tokenSymbol }}
+                  </small><br>
+                  <small *ngIf="entry.bookingDetails.iTax" class="text-success">
+                    ⚡ iTax: {{ entry.bookingDetails.iTax.toFixed(6) }} {{ entry.bookingDetails.baseToken }}
+                  </small>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
