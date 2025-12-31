@@ -73,28 +73,17 @@
       "gardenId": "HG"
     },
     {
-      "id": "amc-001",
-      "name": "AMC Theatres",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
-      "bond": 1000,
-      "reputation": 4.8,
-      "uuid": "550e8400-e29b-41d4-a716-446655440001",
-      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
-      "gardenId": "HG"
-    },
-    {
-      "id": "cinemark-001",
-      "name": "Cinemark",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
-      "bond": 1200,
-      "reputation": 4.7,
+      "id": "dex-pool-tokena",
+      "name": "TOKENA Pool (Garden-DEX)",
+      "serviceType": "dex",
+      "location": "Eden DEX",
+      "bond": 5000,
+      "reputation": 5,
       "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440003",
-      "apiEndpoint": "https://api.cinemark.com/movies",
-      "gardenId": "garden-1"
+      "uuid": "52ccaa94-bcf4-4aec-a044-b3fcd4051bee",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokena",
+      "gardenId": "T1"
     }
   ],
-  "lastSaved": "2025-12-31T00:22:02.948Z"
+  "lastSaved": "2025-12-31T02:30:08.944Z"
 }

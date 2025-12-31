@@ -312,7 +312,7 @@ export class SystemConfigComponent implements OnInit {
     console.log('📤 Creating garden with selectedProviders:', requestBody.selectedProviders);
     
     this.http.post<{success: boolean, garden?: any, balance?: number, error?: string}>(
-      `${this.apiUrl}/api/wizard/create-indexer`,
+      `${this.apiUrl}/api/wizard/create-garden`,
       requestBody
     ).subscribe({
       next: (response) => {
