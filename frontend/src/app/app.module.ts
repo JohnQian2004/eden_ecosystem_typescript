@@ -13,6 +13,7 @@ import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService } from './services/flowwise.service';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
+import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 
 @NgModule({
   declarations: [
@@ -23,7 +24,8 @@ import { SystemConfigComponent } from './components/system-config/system-config.
     LedgerDisplayComponent,
     CertificateDisplayComponent,
     WorkflowDisplayComponent,
-    SystemConfigComponent
+    SystemConfigComponent,
+    MovieTheaterComponent
   ],
   imports: [
     BrowserModule,

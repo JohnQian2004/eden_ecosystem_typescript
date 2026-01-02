@@ -611,7 +611,7 @@ httpServer.on("request", async (req, res) => {
                   break;
 
                 case 'query_service_registry':
-                  const mockListings = [{
+                  const mockListings = [                  {
                     id: 'amc-001',
                     name: 'AMC Theatres',
                     serviceType: 'movie',
@@ -624,7 +624,9 @@ httpServer.on("request", async (req, res) => {
                     rating: 4.8,
                     genre: 'Action',
                     duration: '152 min',
-                    format: 'IMAX'
+                    format: 'IMAX',
+                    videoUrl: '/videos/2025-12-09-144801890.mp4',
+                    thumbnailUrl: '/api/placeholder-thumbnail/dark-knight.jpg'
                   }, {
                     id: 'cineplex-001',
                     name: 'Cineplex Odeon',
@@ -638,7 +640,9 @@ httpServer.on("request", async (req, res) => {
                     rating: 4.6,
                     genre: 'Sci-Fi',
                     duration: '148 min',
-                    format: '3D'
+                    format: '3D',
+                    videoUrl: '/videos/2025-12-09-144801890.mp4',
+                    thumbnailUrl: '/api/placeholder-thumbnail/inception.jpg'
                   }, {
                     id: 'regal-001',
                     name: 'Regal Cinemas',
@@ -652,7 +656,9 @@ httpServer.on("request", async (req, res) => {
                     rating: 4.9,
                     genre: 'Adventure',
                     duration: '162 min',
-                    format: '4DX'
+                    format: '4DX',
+                    videoUrl: '/videos/2025-12-09-144801890.mp4',
+                    thumbnailUrl: '/api/placeholder-thumbnail/avatar.jpg'
                   }];
                   actionResult = {
                     listings: mockListings,
@@ -793,6 +799,82 @@ httpServer.on("request", async (req, res) => {
                     newBalance: debitResult.newBalance,
                     ledgerEntry: paymentResult
                   };
+                  break;
+
+                case 'start_movie_watching':
+                  console.log(`🎬 [Movie Theater] Starting movie watching simulation`);
+                  const movieTitle = processedAction.movieTitle || updatedContext.selectedListing?.movieTitle || 'Unknown Movie';
+                  const duration = processedAction.duration || 10;
+
+                  // Simulate movie watching with scene transitions
+                  actionResult = {
+                    movieStarted: true,
+                    movieTitle,
+                    duration,
+                    currentScene: 'garden',
+                    movieProgress: 0
+                  };
+
+                  // Emit movie started event
+                  processedEvent = {
+                    type: "movie_started",
+                    component: "movie_theater",
+                    message: `Now playing: ${movieTitle}`,
+                    timestamp: Date.now(),
+                    data: {
+                      movieTitle,
+                      duration,
+                      currentScene: 'garden'
+                    }
+                  };
+
+                  // Simulate movie progress with scene transitions
+                  setTimeout(() => {
+                    // 30% - Cross scene
+                    setTimeout(() => {
+                      broadcastEvent({
+                        type: "scene_transition",
+                        component: "movie_theater",
+                        message: "Transitioning to the Cross scene",
+                        timestamp: Date.now(),
+                        data: { scene: 'cross', progress: 30 }
+                      });
+                    }, duration * 1000 * 0.3);
+
+                    // 60% - Utah Action scene
+                    setTimeout(() => {
+                      broadcastEvent({
+                        type: "scene_transition",
+                        component: "movie_theater",
+                        message: "Initiating Utah Action Consensus",
+                        timestamp: Date.now(),
+                        data: { scene: 'utah_action', progress: 60 }
+                      });
+                    }, duration * 1000 * 0.6);
+
+                    // 90% - Garden Return scene
+                    setTimeout(() => {
+                      broadcastEvent({
+                        type: "scene_transition",
+                        component: "movie_theater",
+                        message: "Fading to white for the Garden return",
+                        timestamp: Date.now(),
+                        data: { scene: 'garden_return', progress: 90 }
+                      });
+                    }, duration * 1000 * 0.9);
+
+                    // 100% - Movie finished
+                    setTimeout(() => {
+                      broadcastEvent({
+                        type: "movie_finished",
+                        component: "movie_theater",
+                        message: "Movie finished. Returning to Garden Genesis state.",
+                        timestamp: Date.now(),
+                        data: { completed: true, finalScene: 'genesis_garden' }
+                      });
+                    }, duration * 1000);
+                  }, 100);
+
                   break;
 
                 case 'complete_booking':
@@ -945,7 +1027,7 @@ httpServer.on("request", async (req, res) => {
       
       try {
         const parsedBody = JSON.parse(body);
-        const { workflowId, decision, selectionData } = parsedBody;
+        const { workflowId, decision, selectionData, stepId } = parsedBody;
 
         if (!workflowId || !decision) {
           sendResponse(400, { success: false, error: "workflowId and decision are required" });
@@ -1252,19 +1334,19 @@ httpServer.on("request", async (req, res) => {
 
         if (selectionData) {
           // This was a selection (user_select_listing step)
-          completedStepId = 'user_select_listing';
+          completedStepId = stepId || 'user_select_listing';
           contextUpdates = {
             userSelection: selectionData,
             selectedListing: selectionData
           };
-          console.log(`   🎬 [${requestId}] User selected movie:`, selectionData);
+          console.log(`   🎬 [${requestId}] User selected movie:`, selectionData, `from step: ${completedStepId}`);
         } else {
-          // This was a decision (user_confirm_listing step)
-          completedStepId = 'user_confirm_listing';
+          // This was a decision
+          completedStepId = stepId || 'user_confirm_listing'; // fallback for backward compatibility
           contextUpdates = {
             userDecision: decision
           };
-          console.log(`   🤔 [${requestId}] User made decision: ${decision}`);
+          console.log(`   🤔 [${requestId}] User made decision: ${decision} for step: ${completedStepId}`);
         }
 
         // Continue workflow execution with context updates
@@ -4279,6 +4361,71 @@ httpServer.on("request", async (req, res) => {
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Serve video files from data directory
+  if (pathname.startsWith("/videos/")) {
+    const videoFile = pathname.substring(8); // Remove "/videos/" prefix
+    const videoPath = path.join(__dirname, "data", videoFile);
+
+    // Security: prevent directory traversal
+    const resolvedPath = path.resolve(videoPath);
+    const resolvedDataDir = path.resolve(path.join(__dirname, "data"));
+    if (!resolvedPath.startsWith(resolvedDataDir)) {
+      console.log(`   🚫 [${requestId}] Forbidden video access attempt: ${pathname}`);
+      res.writeHead(403);
+      res.end("Forbidden");
+      return;
+    }
+
+    fs.access(videoPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.log(`   ❌ [${requestId}] Video file not found: ${videoPath}`);
+        res.writeHead(404);
+        res.end("Video not found");
+        return;
+      }
+
+      // Check if it's actually a video file (not a placeholder text file)
+      const stat = fs.statSync(videoPath);
+      if (stat.size < 1000 || videoPath.endsWith('.txt')) {
+        console.log(`   ⚠️ [${requestId}] Video file appears to be a placeholder: ${videoFile} (${stat.size} bytes)`);
+        res.writeHead(404);
+        res.end("Video file is a placeholder - please provide a real video file");
+        return;
+      }
+
+      console.log(`   🎬 [${requestId}] Serving video file: ${videoFile} (${stat.size} bytes)`);
+
+      // Set appropriate headers for video streaming
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        // Handle range requests for video seeking
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+
+        res.writeHead(206, {
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunksize,
+          "Content-Type": "video/mp4",
+        });
+        file.pipe(res);
+      } else {
+        // Serve entire file
+        res.writeHead(200, {
+          "Content-Length": fileSize,
+          "Content-Type": "video/mp4",
+        });
+        fs.createReadStream(videoPath).pipe(res);
       }
     });
     return;
@@ -8731,17 +8878,51 @@ async function main() {
               console.log(`🔍 [Service Registry Reload] Processing provider: ${persistedProvider.id} (${persistedProvider.name}), serviceType: ${persistedProvider.serviceType}, gardenId: ${persistedGardenId}`);
               
               // Now that gardens are loaded, check if garden exists
-              const gardenExists = persistedGardenId === 'HG' || 
-                                  GARDENS.some(g => g.id === persistedGardenId) || 
-                                  TOKEN_GARDENS.some(tg => tg.id === persistedGardenId);
+              let gardenExists = persistedGardenId === 'HG' ||
+                                GARDENS.some(g => g.id === persistedGardenId) ||
+                                TOKEN_GARDENS.some(tg => tg.id === persistedGardenId);
               
               console.log(`🔍 [Service Registry Reload] Garden ${persistedGardenId} exists: ${gardenExists}`);
               
               if (!gardenExists && persistedGardenId) {
-                console.log(`⚠️  [Service Registry Reload] Skipping provider ${persistedProvider.id}: gardenId "${persistedGardenId}" does not exist`);
-                console.log(`   Available gardens: ${GARDENS.map(g => g.id).join(', ') || 'none'}`);
-                console.log(`   Available token gardens: ${TOKEN_GARDENS.map(tg => tg.id).join(', ') || 'none'}`);
-                continue;
+                // Special handling for ROOT mode: create default gardens for movie providers
+                if (DEPLOYED_AS_ROOT && persistedProvider.serviceType === 'movie' && persistedGardenId !== 'HG') {
+                  console.log(`🏗️  [Service Registry Reload] Creating default garden "${persistedGardenId}" for movie provider ${persistedProvider.id}`);
+
+                  // Create a default garden for the movie provider
+                  const defaultGarden: GardenConfig = {
+                    id: persistedGardenId,
+                    uuid: crypto.randomUUID(),
+                    name: `Movie Garden (${persistedGardenId})`,
+                    serviceType: 'movie',
+                    active: true,
+                    location: persistedProvider.location || 'Default Location',
+                    bond: 1000,
+                    reputation: 100,
+                    certificate: null,
+                    createdAt: new Date().toISOString(),
+                    lastActive: new Date().toISOString()
+                  };
+
+                  // Add to GARDENS array
+                  GARDENS.push(defaultGarden);
+
+                  // Issue certificate to the new garden
+                  try {
+                    issueGardenCertificate(defaultGarden);
+                    console.log(`   ✅ Certificate issued to new garden: ${defaultGarden.name}`);
+                  } catch (certError: any) {
+                    console.warn(`   ⚠️  Failed to issue certificate to new garden: ${certError.message}`);
+                  }
+
+                  console.log(`   ✅ Created and registered garden: ${defaultGarden.name} (${defaultGarden.id})`);
+                  gardenExists = true; // Now the garden exists
+                } else {
+                  console.log(`⚠️  [Service Registry Reload] Skipping provider ${persistedProvider.id}: gardenId "${persistedGardenId}" does not exist`);
+                  console.log(`   Available gardens: ${GARDENS.map(g => g.id).join(', ') || 'none'}`);
+                  console.log(`   Available token gardens: ${TOKEN_GARDENS.map(tg => tg.id).join(', ') || 'none'}`);
+                  continue;
+                }
               }
               
               // Check if provider already exists

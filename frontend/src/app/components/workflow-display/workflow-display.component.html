@@ -121,6 +121,10 @@
     </div>
 
     <div *ngIf="!isLoading && movieWorkflow">
+      <!-- Debug: Template condition met -->
+      <div style="background: #f0f0f0; padding: 5px; margin-bottom: 10px; font-size: 12px;">
+        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, movieWorkflow: {{!!movieWorkflow}}, steps: {{movieWorkflow?.steps?.length || 0}}
+      </div>
       <!-- Workflow Control -->
       <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center">
@@ -198,17 +202,21 @@
             <div
               class="progress-bar"
               role="progressbar"
-              [style.width.%]="((currentStepIndex + 1) / movieWorkflow.steps.length) * 100"
+              [style.width.%]="debugWorkflowSteps.length > 0 ? ((currentStepIndex + 1) / debugWorkflowSteps.length) * 100 : 0"
               [attr.aria-valuenow]="currentStepIndex + 1"
               aria-valuemin="0"
-              [attr.aria-valuemax]="movieWorkflow.steps.length">
-              Step {{ currentStepIndex + 1 }} of {{ movieWorkflow.steps.length }}
+              [attr.aria-valuemax]="debugWorkflowSteps.length">
+              Step {{ currentStepIndex + 1 }} of {{ debugWorkflowSteps.length }}
             </div>
           </div>
 
           <div class="list-group">
+            <!-- Debug: Steps iteration -->
+            <div style="background: #ffe0e0; padding: 5px; margin-bottom: 5px; font-size: 11px;" *ngIf="debugWorkflowSteps.length > 0">
+              🔍 DEBUG: Iterating {{debugWorkflowSteps.length}} steps
+            </div>
             <div
-              *ngFor="let step of movieWorkflow.steps; let i = index"
+              *ngFor="let step of debugWorkflowSteps; let i = index; trackBy: trackByStepId"
               class="list-group-item"
               [ngClass]="getStepStatusClass(step.id)">
               <div class="d-flex align-items-start">
@@ -219,6 +227,7 @@
                   <h6 class="mb-1">
                     {{ step.name }}
                     <span [ngClass]="getStepTypeClass(step.type)" class="ms-2 small">{{ step.type }}</span>
+                    <small class="ms-2 text-info">[{{ getStepStatus(step.id) }}]</small>
                   </h6>
                   <p class="mb-1 small">{{ step.description }}</p>
 
@@ -258,7 +267,7 @@
                 {{ getStepIcon(currentStep.type) }} {{ currentStep.name }}
                 <span [ngClass]="getStepTypeClass(currentStep.type)" class="ms-2">{{ currentStep.type }}</span>
               </h6>
-              <small class="text-muted">Step {{ currentStepIndex + 1 }} of {{ movieWorkflow.steps.length }}</small>
+              <small class="text-muted">Step {{ currentStepIndex + 1 }} of {{ debugWorkflowSteps.length }}</small>
             </div>
             <div class="card-body">
               <p class="lead">{{ currentStep.description }}</p>
@@ -356,6 +365,17 @@
                     </li>
                   </ul>
                 </div>
+              </div>
+
+              <!-- Movie Theater Step UI -->
+              <div *ngIf="currentStep.type === 'process' && currentStep.component === 'movie_theater'" class="movie-theater-wrapper">
+                <app-movie-theater
+                  [movieTitle]="selectedListing?.movieTitle || 'Unknown Movie'"
+                  [duration]="10"
+                  [selectedListing]="selectedListing"
+                  (movieProgress)="onMovieProgress($event)"
+                  (movieFinished)="onMovieFinished($event)">
+                </app-movie-theater>
               </div>
 
               <!-- Output Step UI -->

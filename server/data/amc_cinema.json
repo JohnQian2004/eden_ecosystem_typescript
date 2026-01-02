@@ -452,6 +452,82 @@
         "onTimeout": "error_handler"
       },
       {
+        "id": "watch_movie",
+        "name": "🎭 Watch Movie: Theater Experience",
+        "type": "process",
+        "component": "movie_theater",
+        "description": "Simulate watching the movie with progress tracking and scene transitions",
+        "actions": [
+          {
+            "type": "start_movie_watching",
+            "movieTitle": "{{selectedListing.movieTitle}}",
+            "duration": 10,
+            "sceneTransitions": [
+              {"percent": 30, "scene": "cross", "message": "Transitioning to the Cross scene"},
+              {"percent": 60, "scene": "utah_action", "message": "Initiating Utah Action Consensus"},
+              {"percent": 90, "scene": "garden_return", "message": "Fading to white for the Garden return"}
+            ]
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🎭 Watch Movie",
+            "data": {
+              "stepId": "watch_movie",
+              "stepName": "🎭 Watch Movie: Theater Experience",
+              "component": "movie_theater"
+            }
+          },
+          {
+            "type": "movie_started",
+            "component": "movie_theater",
+            "message": "Now playing: {{selectedListing.movieTitle}}",
+            "data": {
+              "movieTitle": "{{selectedListing.movieTitle}}",
+              "duration": 10,
+              "currentScene": "garden"
+            }
+          },
+          {
+            "type": "movie_progress",
+            "component": "movie_theater",
+            "message": "Movie progress: {{movieProgress}}%",
+            "data": {
+              "progress": "{{movieProgress}}",
+              "currentScene": "{{currentScene}}"
+            }
+          },
+          {
+            "type": "scene_transition",
+            "component": "movie_theater",
+            "message": "{{sceneMessage}}",
+            "data": {
+              "scene": "{{currentScene}}",
+              "progress": "{{movieProgress}}"
+            }
+          },
+          {
+            "type": "movie_finished",
+            "component": "movie_theater",
+            "message": "Movie finished. Returning to Garden Genesis state.",
+            "data": {
+              "completed": true,
+              "finalScene": "genesis_garden"
+            }
+          }
+        ],
+        "outputs": {
+          "movieWatched": true,
+          "movieDuration": 10,
+          "finalScene": "genesis_garden"
+        },
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
         "id": "ledger_create_entry",
         "name": "3️⃣ Ledger: Create Booking Entry",
         "type": "process",
@@ -803,13 +879,23 @@
       },
       {
         "from": "user_confirm_listing",
-        "to": "ledger_create_entry",
+        "to": "watch_movie",
         "condition": "{{userDecision}} === 'YES'"
       },
       {
         "from": "user_confirm_listing",
         "to": "error_handler",
         "condition": "{{userDecision}} === 'NO'"
+      },
+      {
+        "from": "watch_movie",
+        "to": "ledger_create_entry",
+        "condition": "{{movieWatched}}"
+      },
+      {
+        "from": "watch_movie",
+        "to": "error_handler",
+        "condition": "!{{movieWatched}}"
       },
       {
         "from": "ledger_create_entry",

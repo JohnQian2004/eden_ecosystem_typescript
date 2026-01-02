@@ -273,16 +273,21 @@ export class FlowWiseService {
   /**
    * Submit user decision and continue workflow
    */
-  submitDecision(executionId: string, decision: string): Promise<boolean> {
-    console.log(`✅ [FlowWise] Submitting decision: ${decision} for execution: ${executionId}`);
+  submitDecision(executionId: string, decision: string, stepId?: string): Promise<boolean> {
+    console.log(`✅ [FlowWise] Submitting decision: ${decision} for execution: ${executionId}, step: ${stepId || 'unknown'}`);
 
     // Send decision to server for processing
     const baseUrl = window.location.port === '4200' ? 'http://localhost:3000' : '';
-    const payload = {
+    const payload: any = {
       workflowId: executionId,
       decision: decision,
       selectionData: null // Will be set if this is a selection
     };
+
+    // Include stepId if provided
+    if (stepId) {
+      payload.stepId = stepId;
+    }
 
     // Check if this is a selection (has userSelection in context)
     const execution = this.activeExecutions.get(executionId);
@@ -308,6 +313,41 @@ export class FlowWiseService {
    */
   getDecisionRequests(): Observable<UserDecisionRequest> {
     return this.decisionRequest$.asObservable();
+  }
+
+  /**
+   * Execute a specific workflow step on the server by step ID
+   */
+  async executeWorkflowStep(executionId: string, stepId: string, context?: any): Promise<string | null> {
+    console.log(`🔄 [FlowWise] Executing workflow step: ${stepId} for execution: ${executionId}`);
+
+    // Find the active execution
+    const execution = this.activeExecutions.get(executionId);
+    if (!execution) {
+      console.error(`❌ [FlowWise] Execution not found: ${executionId}`);
+      return null;
+    }
+
+    // Find the workflow and step
+    const workflow = this.workflows.get(execution.serviceType === 'movie' ? 'movie' : 'dex');
+    if (!workflow) {
+      console.error(`❌ [FlowWise] Workflow not found for service type: ${execution.serviceType}`);
+      return null;
+    }
+
+    const step = workflow.steps.find(s => s.id === stepId);
+    if (!step) {
+      console.error(`❌ [FlowWise] Step not found: ${stepId}`);
+      return null;
+    }
+
+    // Update context if provided
+    if (context) {
+      Object.assign(execution.context, context);
+    }
+
+    // Execute the step using the private method
+    return this.executeStepOnServer(step, execution);
   }
 
   /**
