@@ -141,7 +141,8 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  formatDate(timestamp: number): string {
+  formatDate(timestamp: number | undefined): string {
+    if (!timestamp) return 'N/A';
     return new Date(timestamp).toLocaleString();
   }
 }

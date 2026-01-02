@@ -65,7 +65,7 @@ Return JSON with: message (string), listings (array of filtered listings), selec
 `;
 
 // OpenAI API Configuration
-const OPENAI_API_KEY = "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";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 // Dependencies that need to be injected

@@ -8,8 +8,10 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { IgasDisplayComponent } from './components/igas-display/igas-display.component';
 import { LedgerDisplayComponent } from './components/ledger-display/ledger-display.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
+import { WorkflowDisplayComponent } from './components/workflow-display/workflow-display.component';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
+import { FlowWiseService } from './services/flowwise.service';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 
 @NgModule({
@@ -20,6 +22,7 @@ import { SystemConfigComponent } from './components/system-config/system-config.
     IgasDisplayComponent,
     LedgerDisplayComponent,
     CertificateDisplayComponent,
+    WorkflowDisplayComponent,
     SystemConfigComponent
   ],
   imports: [
@@ -27,7 +30,7 @@ import { SystemConfigComponent } from './components/system-config/system-config.
     HttpClientModule,
     FormsModule
   ],
-  providers: [WebSocketService, ChatService],
+  providers: [WebSocketService, ChatService, FlowWiseService],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

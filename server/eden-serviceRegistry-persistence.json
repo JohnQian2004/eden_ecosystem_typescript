@@ -73,18 +73,6 @@
       "gardenId": "HG"
     },
     {
-      "id": "cinemark-001",
-      "name": "Cinemark",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
-      "bond": 1200,
-      "reputation": 4.7,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440003",
-      "apiEndpoint": "https://api.cinemark.com/movies",
-      "gardenId": "garden-1"
-    },
-    {
       "id": "amc-001",
       "name": "AMC Theatres",
       "serviceType": "movie",
@@ -97,5 +85,5 @@
       "gardenId": "garden-1"
     }
   ],
-  "lastSaved": "2026-01-02T02:20:29.978Z"
+  "lastSaved": "2026-01-02T04:33:31.233Z"
 }

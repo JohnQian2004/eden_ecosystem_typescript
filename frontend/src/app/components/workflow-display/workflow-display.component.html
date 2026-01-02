@@ -1,0 +1,308 @@
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">🎬 AMC Cinema Workflow Control</h5>
+    <small class="text-white-50">🤖 LLM Self-Play + 💰 Server Autopay</small>
+  </div>
+  <div class="card-body">
+    <!-- Debug Info -->
+    <div class="alert alert-info small mb-3">
+      <strong>Debug Info:</strong><br>
+      Loading: {{ isLoading }} | Movie Workflow: {{ movieWorkflow ? 'Loaded' : 'Not loaded' }} | DEX Workflow: {{ dexWorkflow ? 'Loaded' : 'Not loaded' }}<br>
+      API URL: {{ apiUrl }}
+    </div>
+
+    <div *ngIf="isLoading" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading AMC workflow...</span>
+      </div>
+      <p class="mt-2">Loading AMC Cinema workflow...</p>
+      <p class="text-muted small">Check browser console for API request details</p>
+    </div>
+
+    <div *ngIf="!isLoading && movieWorkflow">
+      <!-- Workflow Control -->
+      <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0">{{ movieWorkflow.name }}</h6>
+          <button
+            type="button"
+            class="btn btn-success"
+            (click)="startWorkflow()"
+            [disabled]="activeExecution !== null">
+            <i class="fas fa-play"></i> Start AMC Workflow
+          </button>
+
+          <!-- Manual Step Controls -->
+          <div *ngIf="activeExecution" class="mt-3">
+            <h6 class="text-muted small">🎮 Manual Step Controls</h6>
+            <p class="text-muted small mb-2">Click the play button next to any step to execute it manually</p>
+          </div>
+        </div>
+        <small class="text-muted">{{ movieWorkflow.description }}</small>
+      </div>
+
+      <!-- Active Decision Prompt -->
+      <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-4" role="alert">
+        <h6 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h6>
+        <hr>
+        <div class="d-flex gap-2">
+          <button
+            *ngFor="let option of pendingDecision.options"
+            class="btn btn-primary"
+            (click)="submitDecision(option.value)">
+            {{ option.label }}
+          </button>
+        </div>
+        <small class="text-muted mt-2 d-block">
+          Timeout: {{ pendingDecision.timeout }}ms
+        </small>
+      </div>
+
+      <!-- Workflow Progress -->
+      <div class="row">
+        <div class="col-md-4">
+          <h6>Workflow Progress</h6>
+          <div class="progress mb-3">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              [style.width.%]="((currentStepIndex + 1) / movieWorkflow.steps.length) * 100"
+              [attr.aria-valuenow]="currentStepIndex + 1"
+              aria-valuemin="0"
+              [attr.aria-valuemax]="movieWorkflow.steps.length">
+              Step {{ currentStepIndex + 1 }} of {{ movieWorkflow.steps.length }}
+            </div>
+          </div>
+
+          <div class="list-group">
+            <div
+              *ngFor="let step of movieWorkflow.steps; let i = index"
+              class="list-group-item"
+              [ngClass]="getStepStatusClass(step.id)">
+              <div class="d-flex align-items-start">
+                <div class="me-3">
+                  <span [class]="getStepIcon(step.type) + ' fs-5'"></span>
+                </div>
+                <div class="flex-grow-1">
+                  <h6 class="mb-1">
+                    {{ step.name }}
+                    <span [ngClass]="getStepTypeClass(step.type)" class="ms-2 small">{{ step.type }}</span>
+                  </h6>
+                  <p class="mb-1 small">{{ step.description }}</p>
+
+                  <!-- Status indicators -->
+                  <div class="small">
+                    <span *ngIf="getStepStatus(step.id) === 'completed'" class="text-success">
+                      ✅ Completed
+                    </span>
+                    <span *ngIf="getStepStatus(step.id) === 'current'" class="text-primary fw-bold">
+                      🔄 In Progress
+                    </span>
+                    <span *ngIf="getStepStatus(step.id) === 'pending'" class="text-muted">
+                      ⏳ Pending
+                    </span>
+                  </div>
+                </div>
+                <div class="ms-auto">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    (click)="executeStepManually(step)"
+                    [disabled]="!activeExecution"
+                    title="Execute this step manually (requires active workflow)">
+                    <i class="fas fa-play"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current Step Details -->
+        <div class="col-md-8">
+          <div *ngIf="currentStep" class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                {{ getStepIcon(currentStep.type) }} {{ currentStep.name }}
+                <span [ngClass]="getStepTypeClass(currentStep.type)" class="ms-2">{{ currentStep.type }}</span>
+              </h6>
+              <small class="text-muted">Step {{ currentStepIndex + 1 }} of {{ movieWorkflow.steps.length }}</small>
+            </div>
+            <div class="card-body">
+              <p class="lead">{{ currentStep.description }}</p>
+
+              <!-- Decision Step Interactive UI -->
+              <div *ngIf="currentStep.type === 'decision' && currentStep.requiresUserDecision" class="alert alert-warning">
+                <h6>🎯 Interactive Decision Required</h6>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">{{ currentStep.decisionPrompt }}</label>
+                  <div class="row g-2">
+                    <div class="col-6" *ngFor="let option of currentStep.decisionOptions">
+                      <button
+                        class="btn btn-outline-primary w-100"
+                        (click)="submitDecision(option.value)">
+                        <strong>{{ option.label }}</strong><br>
+                        <small class="text-muted">{{ option.action }}</small>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="small text-muted">
+                  <i class="fas fa-clock"></i> Auto-timeout in {{ currentStep.timeout || 30000 }}ms
+                  <span *ngIf="currentStep.onTimeout"> → {{ currentStep.onTimeout }}</span>
+                </div>
+              </div>
+
+              <!-- Process Step UI -->
+              <div *ngIf="currentStep.type === 'process'" class="alert alert-info">
+                <h6>⚙️ Processing...</h6>
+                <div class="d-flex align-items-center">
+                  <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                  </div>
+                  <span>{{ currentStep.description }}</span>
+                </div>
+
+                <!-- Show actions being executed -->
+                <div *ngIf="currentStep.actions && currentStep.actions.length > 0" class="mt-3">
+                  <h6>Actions Executing:</h6>
+                  <ul class="list-group list-group-flush">
+                    <li *ngFor="let action of currentStep.actions" class="list-group-item px-0">
+                      <div class="d-flex align-items-center">
+                        <span class="badge me-2" [ngClass]="getActionBadgeClass(action.type)">
+                          {{ getActionBadgeIcon(action.type) }}
+                        </span>
+                        <span><strong>{{ action.type }}</strong></span>
+                        <small class="text-muted ms-auto">{{ getActionStatusText(action.type) }}</small>
+                      </div>
+                      <small class="text-muted ms-4" *ngIf="action['field']">{{ action['field'] }}</small>
+                    </li>
+                  </ul>
+                  <div class="alert alert-light mt-2 small">
+                    <strong>🤖 LLM Self-Play</strong> + <strong>💰 Server Autopay:</strong> AI processing mocked, payments handled automatically on server.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Input Step UI -->
+              <div *ngIf="currentStep.type === 'input'" class="alert alert-primary">
+                <h6>📝 {{ currentStep.component === 'eden_chat' ? 'Eden Chat Input Required' : 'Input Required' }}</h6>
+                <p>{{ currentStep.description }}</p>
+
+                <!-- Eden Chat specific UI -->
+                <div *ngIf="currentStep.component === 'eden_chat'" class="mt-3">
+                  <div class="card bg-light">
+                    <div class="card-body">
+                      <h6 class="card-title">💬 Eden Chat Interface</h6>
+                      <p class="card-text small text-muted">
+                        Please use the chat input below to describe your movie preferences.
+                        The Eden Chat system will process your request and guide you through the movie booking process.
+                      </p>
+                      <div class="alert alert-info small">
+                        <strong>Expected Input:</strong> Movie preferences, show times, ticket requests, etc.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Show validation rules -->
+                <div *ngIf="currentStep.actions" class="mt-3">
+                  <h6>Validation Rules:</h6>
+                  <ul class="list-group list-group-flush">
+                    <li *ngFor="let action of currentStep.actions" class="list-group-item px-0">
+                      <strong>{{ action['field'] }}</strong>
+                      <span *ngIf="action['required']" class="badge bg-danger ms-2">Required</span>
+                      <span *ngIf="action['format']" class="badge bg-info ms-2">{{ action['format'] }}</span>
+                      <span *ngIf="action['serviceType']" class="badge bg-success ms-2">{{ action['serviceType'] }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Output Step UI -->
+              <div *ngIf="currentStep.type === 'output'" class="alert alert-success">
+                <h6>✅ Output Generated</h6>
+                <p>{{ currentStep.description }}</p>
+
+                <!-- Show websocket events -->
+                <div *ngIf="currentStep.websocketEvents && currentStep.websocketEvents.length > 0" class="mt-3">
+                  <h6>Events Broadcast:</h6>
+                  <ul class="list-group list-group-flush">
+                    <li *ngFor="let event of currentStep.websocketEvents" class="list-group-item px-0">
+                      <div class="d-flex align-items-center">
+                        <span class="badge bg-secondary me-2">{{ event.type }}</span>
+                        <span>{{ event.message }}</span>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Error Step UI -->
+              <div *ngIf="currentStep.type === 'error'" class="alert alert-danger">
+                <h6>❌ Error Occurred</h6>
+                <p>{{ currentStep.description }}</p>
+
+                <div *ngIf="currentStep.errorHandling" class="mt-3">
+                  <h6>Error Handling:</h6>
+                  <p><strong>Next Step:</strong> {{ currentStep.errorHandling.onError }}</p>
+                </div>
+              </div>
+
+              <!-- Step Metadata -->
+              <div class="mt-4 pt-3 border-top">
+                <div class="row text-muted small">
+                  <div class="col-md-4">
+                    <strong>Component:</strong> {{ currentStep.component }}
+                  </div>
+                  <div class="col-md-4">
+                    <strong>Step ID:</strong> <code>{{ currentStep.id }}</code>
+                  </div>
+                  <div class="col-md-4">
+                    <strong>Execution:</strong> {{ activeExecution ? activeExecution.executionId.substring(0, 8) + '...' : 'Not started' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Workflow Not Started -->
+          <div *ngIf="!activeExecution" class="text-center py-5">
+            <div class="mb-4">
+              <i class="fas fa-play-circle fs-1 text-muted"></i>
+            </div>
+            <h5 class="text-muted">AMC Cinema Workflow Ready</h5>
+            <p class="text-muted">Click "Start AMC Workflow" to begin the interactive workflow demonstration</p>
+            <button
+              type="button"
+              class="btn btn-primary btn-lg"
+              (click)="startWorkflow()">
+              <i class="fas fa-play"></i> Start AMC Cinema Workflow
+            </button>
+          </div>
+
+          <!-- Workflow Completed -->
+          <div *ngIf="activeExecution && movieWorkflow.finalSteps.includes(activeExecution.currentStep)" class="text-center py-5">
+            <div class="mb-4">
+              <i class="fas fa-check-circle fs-1 text-success"></i>
+            </div>
+            <h5 class="text-success">AMC Cinema Workflow Completed!</h5>
+            <p class="text-muted">The workflow has reached a final step.</p>
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              (click)="startWorkflow()">
+              <i class="fas fa-redo"></i> Run Again
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEX Workflow (Future) -->
+    <div *ngIf="!isLoading && !movieWorkflow" class="text-center py-5">
+      <p class="text-muted">AMC Cinema workflow not loaded. Please check server connection.</p>
+    </div>
+  </div>
+</div>
+

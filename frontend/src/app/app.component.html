@@ -40,6 +40,9 @@
                   <div class="card-body text-center p-2">
                     <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
                     <h6 class="card-title mb-0 small">{{ serviceType.adText }}</h6>
+                    <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
+                      <span class="badge bg-success small">Active</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -217,6 +220,17 @@
               <li class="nav-item" role="presentation">
                 <button 
                   class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow'}"
+                  id="workflow-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow'"
+                  role="tab">
+                  🔄 FlowWise Workflows
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
                   [ngClass]="{'active': activeTab === 'ledger'}"
                   id="ledger-tab" 
                   type="button" 
@@ -261,6 +275,15 @@
             </ul>
             
             <div class="tab-content" id="mainTabContent">
+              <!-- Workflow Tab (First Tab) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow'}"
+                id="workflow-pane" 
+                role="tabpanel">
+                <app-workflow-display></app-workflow-display>
+              </div>
+              
               <!-- Ledger Tab -->
               <div 
                 class="tab-pane fade" 
@@ -280,11 +303,77 @@
               </div>
               
               <!-- Chat Tab -->
-              <div 
-                class="tab-pane fade" 
+              <div
+                class="tab-pane fade"
                 [ngClass]="{'show active': activeTab === 'chat'}"
-                id="chat-pane" 
+                id="chat-pane"
                 role="tabpanel">
+                <!-- AMC Workflow Active Indicator -->
+                <div *ngIf="amcWorkflowActive" class="alert alert-success mb-3">
+                  <h6>🎬 AMC Cinema Workflow Active (LLM Self-Play Mode)</h6>
+                  <p class="mb-2">Your movie request is being processed through the AMC Cinema workflow.</p>
+                  <div class="alert alert-info small mb-2">
+                    <strong>🤖 LLM Self-Play:</strong> All LLM processing is automated. Focus on the decision points below.
+                    <br><strong>💬 Eden Chat:</strong> Use the input field to provide movie preferences.
+                  </div>
+                  <div class="progress mb-2">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                         role="progressbar" style="width: 100%">
+                      Processing...
+                    </div>
+                  </div>
+                </div>
+
+                <!-- FlowWise Decision Prompt -->
+                <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-3" role="alert">
+                  <h5 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h5>
+                  <hr>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button
+                      *ngFor="let option of pendingDecision.options"
+                      class="btn btn-primary"
+                      (click)="submitDecision(option.value)">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <small class="text-muted mt-2 d-block">
+                    This decision will advance the AMC workflow
+                  </small>
+                </div>
+
+                <!-- Workflow Messages (when AMC workflow is active) -->
+                <div *ngIf="amcWorkflowActive && workflowMessages.length > 0" class="mb-3">
+                  <div class="card">
+                    <div class="card-header">
+                      <h6 class="mb-0">🎬 AMC Workflow Messages</h6>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                      <div *ngFor="let msg of workflowMessages" class="mb-2">
+                        <div [ngClass]="{
+                          'text-primary fw-bold': msg.type === 'user_message',
+                          'text-success': msg.type === 'llm_response',
+                          'text-info': msg.type === 'ledger_entry_added',
+                          'text-warning': msg.type === 'cashier_payment_processed',
+                          'text-danger': msg.type === 'error'
+                        }">
+                          <small class="text-muted">[{{ msg.type }}]</small>
+                          {{ msg.message }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Stop AMC Workflow Button -->
+                <div *ngIf="amcWorkflowActive" class="mb-3 text-center">
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm"
+                    (click)="stopAmcWorkflow()">
+                    <i class="fas fa-stop"></i> Stop AMC Workflow
+                  </button>
+                </div>
+
                 <app-chat-box></app-chat-box>
               </div>
               <!-- System Configuration Tab -->

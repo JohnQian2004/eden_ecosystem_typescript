@@ -1,258 +1,16 @@
 {
   "serviceType": "AMC Cinema",
-  "location": {
-    "address": {
-      "street": "123 Main Street",
-      "city": "Springfield",
-      "state": "IL",
-      "zipCode": "62701",
-      "country": "USA"
-    },
-    "openingHours": {
-      "monday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "tuesday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "wednesday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "thursday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "friday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "saturday": {
-        "open": "10:00",
-        "close": "14:00"
-      },
-      "sunday": {
-        "closed": true
-      }
-    },
-    "phone": "(555) 000-0000"
-  },
-  "management": {
-    "owner": {
-      "ownerId": "owner_001",
-      "name": "Business Owner",
-      "email": "owner@business.com",
-      "phone": "(555) 000-0000",
-      "role": "owner",
-      "ownershipPercentage": 100,
-      "joinedDate": "2020-01-01"
-    },
-    "businessMetrics": {
-      "monthlyRevenue": 30000,
-      "monthlyExpenses": 20000,
-      "totalCustomers": 100,
-      "activeStaff": 5,
-      "inventoryValue": 15000
-    },
-    "inventory": [
-      {
-        "id": "inv_001",
-        "name": "Item 1",
-        "quantity": 50,
-        "unitPrice": 10,
-        "category": "General"
-      }
-    ],
-    "recentTransactions": [
-      {
-        "id": "txn_001",
-        "date": "2024-01-15",
-        "type": "sale",
-        "amount": 100,
-        "description": "Service provided"
-      }
-    ],
-    "forms": {
-      "addInventory": {
-        "fields": [
-          {
-            "name": "name",
-            "type": "text",
-            "label": "Item Name",
-            "required": true
-          },
-          {
-            "name": "quantity",
-            "type": "number",
-            "label": "Quantity",
-            "required": true
-          },
-          {
-            "name": "unitPrice",
-            "type": "number",
-            "label": "Unit Price",
-            "required": true
-          },
-          {
-            "name": "category",
-            "type": "select",
-            "label": "Category",
-            "required": true,
-            "options": [
-              "General",
-              "Equipment",
-              "Supplies"
-            ]
-          }
-        ]
-      },
-      "recordTransaction": {
-        "fields": [
-          {
-            "name": "date",
-            "type": "date",
-            "label": "Date",
-            "required": true
-          },
-          {
-            "name": "type",
-            "type": "select",
-            "label": "Type",
-            "required": true,
-            "options": [
-              "sale",
-              "purchase",
-              "expense"
-            ]
-          },
-          {
-            "name": "amount",
-            "type": "number",
-            "label": "Amount",
-            "required": true
-          },
-          {
-            "name": "description",
-            "type": "textarea",
-            "label": "Description",
-            "required": true
-          }
-        ]
-      },
-      "updateMetrics": {
-        "fields": [
-          {
-            "name": "monthlyRevenue",
-            "type": "number",
-            "label": "Monthly Revenue",
-            "required": true
-          },
-          {
-            "name": "monthlyExpenses",
-            "type": "number",
-            "label": "Monthly Expenses",
-            "required": true
-          },
-          {
-            "name": "totalCustomers",
-            "type": "number",
-            "label": "Total Customers",
-            "required": false
-          },
-          {
-            "name": "activeStaff",
-            "type": "number",
-            "label": "Active Staff",
-            "required": false
-          }
-        ]
-      },
-      "editOwner": {
-        "fields": [
-          {
-            "name": "name",
-            "type": "text",
-            "label": "Owner Name",
-            "required": true
-          },
-          {
-            "name": "email",
-            "type": "text",
-            "label": "Email",
-            "required": true
-          },
-          {
-            "name": "phone",
-            "type": "text",
-            "label": "Phone",
-            "required": false
-          }
-        ]
-      }
-    },
-    "ui": {
-      "layout": "grid",
-      "sections": [
-        {
-          "id": "owner",
-          "title": "Owner Information",
-          "type": "owner",
-          "fields": [
-            {
-              "name": "name",
-              "type": "text",
-              "label": "Owner Name",
-              "required": true
-            },
-            {
-              "name": "email",
-              "type": "text",
-              "label": "Email",
-              "required": true
-            },
-            {
-              "name": "phone",
-              "type": "text",
-              "label": "Phone",
-              "required": false
-            }
-          ]
-        },
-        {
-          "id": "metrics",
-          "title": "Business Metrics",
-          "type": "metrics",
-          "fields": [
-            {
-              "name": "monthlyRevenue",
-              "type": "number",
-              "label": "Monthly Revenue",
-              "required": true
-            },
-            {
-              "name": "monthlyExpenses",
-              "type": "number",
-              "label": "Monthly Expenses",
-              "required": true
-            }
-          ]
-        }
-      ]
-    }
-  },
   "flowwiseWorkflow": {
     "name": "Movie Garden Chat Lifecycle",
     "version": "1.0.0",
     "description": "Complete FlowWise workflow for movie garden chat interactions with ledger, cashier, LLM, payment, and notification control",
     "steps": [
       {
-        "id": "eden_chat_input",
-        "name": "📝 Eden Chat Input",
+        "id": "user_input",
+        "name": "1️⃣ User Input",
         "type": "input",
-        "component": "eden_chat",
-        "description": "Receive and validate user chat input through Eden Chat interface",
+        "component": "user",
+        "description": "Receive and validate user chat input",
         "actions": [
           {
             "type": "validate",
@@ -264,54 +22,45 @@
             "field": "email",
             "required": true,
             "format": "email"
-          },
-          {
-            "type": "eden_chat_init",
-            "serviceType": "movie"
           }
         ],
         "websocketEvents": [
           {
-            "type": "eden_chat_input",
-            "component": "eden_chat",
-            "message": "Eden Chat input received",
+            "type": "user_input",
+            "component": "user",
+            "message": "User query received",
             "data": {
               "input": "{{input}}",
-              "email": "{{email}}",
-              "serviceType": "movie"
+              "email": "{{email}}"
             }
           }
         ],
         "outputs": {
           "input": "{{input}}",
           "email": "{{email}}",
-          "user": "{{user}}",
-          "edenChatSession": "{{edenChatSession}}"
+          "user": "{{user}}"
         }
       },
       {
         "id": "llm_resolution",
-        "name": "2️⃣ LLM Resolution (Self-Play)",
+        "name": "2️⃣ LLM Resolution",
         "type": "process",
         "component": "llm",
-        "description": "Automated LLM processing - extracts query, finds providers, formats response",
+        "description": "Extract query, query service registry, get providers, format response",
         "actions": [
           {
             "type": "llm_extract_query",
-            "provider": "self_play",
+            "provider": "openai",
             "input": "{{input}}"
           },
           {
             "type": "query_service_registry",
-            "serviceType": "movie",
-            "filters": {
-              "genre": "any",
-              "time": "evening"
-            }
+            "serviceType": "{{queryResult.serviceType}}",
+            "filters": "{{queryResult.query.filters}}"
           },
           {
             "type": "llm_format_response",
-            "provider": "self_play",
+            "provider": "openai",
             "listings": "{{listings}}",
             "userQuery": "{{input}}"
           }
@@ -470,11 +219,59 @@
         }
       },
       {
+        "id": "user_confirm_payment",
+        "name": "🤔 User Decision: Confirm Payment",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm payment before processing",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Your balance is {{user.balance}} JSC. Total cost: {{totalCost}} JSC ({{moviePrice}} + {{iGasCost}} iGas). Proceed with payment?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, pay now",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm payment",
+            "data": {
+              "decisionId": "confirm_payment",
+              "prompt": "Your balance is {{user.balance}} JSC. Total cost: {{totalCost}} JSC ({{moviePrice}} + {{iGasCost}} iGas). Proceed with payment?",
+              "options": [
+                {"value": "YES", "label": "Yes, pay now"},
+                {"value": "NO", "label": "No, cancel"}
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
         "id": "cashier_process_payment",
         "name": "4️⃣ Cashier: Process Payment",
         "type": "process",
         "component": "cashier",
         "description": "Process payment through cashier and wallet service",
+        "conditions": [
+          {
+            "if": "{{userDecision}} === 'YES'",
+            "then": "continue"
+          }
+        ],
         "actions": [
           {
             "type": "check_balance",
@@ -724,13 +521,13 @@
     ],
     "transitions": [
       {
-        "from": "eden_chat_input",
+        "from": "user_input",
         "to": "llm_resolution",
         "condition": "always"
       },
       {
         "from": "llm_resolution",
-        "to": "ledger_create_entry",
+        "to": "user_confirm_listing",
         "condition": "{{llmResponse.selectedListing}}"
       },
       {
@@ -739,9 +536,29 @@
         "condition": "!{{llmResponse.selectedListing}}"
       },
       {
+        "from": "user_confirm_listing",
+        "to": "ledger_create_entry",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
+      },
+      {
         "from": "ledger_create_entry",
-        "to": "cashier_process_payment",
+        "to": "user_confirm_payment",
         "condition": "always"
+      },
+      {
+        "from": "user_confirm_payment",
+        "to": "cashier_process_payment",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_payment",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
       },
       {
         "from": "cashier_process_payment",
@@ -774,143 +591,8 @@
         "condition": "always"
       }
     ],
-    "initialStep": "eden_chat_input",
+    "initialStep": "user_input",
     "finalSteps": ["summary", "error_handler"]
-  },
-  "workflow": {
-    "steps": [
-      {
-        "id": "start",
-        "name": "Start",
-        "type": "input",
-        "description": "Service request initiated"
-      },
-      {
-        "id": "process",
-        "name": "Process",
-        "type": "process",
-        "description": "Processing request"
-      },
-      {
-        "id": "complete",
-        "name": "Complete",
-        "type": "output",
-        "description": "Service completed"
-      }
-    ],
-    "transitions": [
-      {
-        "from": "start",
-        "to": "process"
-      },
-      {
-        "from": "process",
-        "to": "complete"
-      }
-    ]
-  },
-  "dataStructures": {
-    "Request": {
-      "id": "string",
-      "type": "string",
-      "status": "string",
-      "timestamp": "date"
-    }
-  },
-  "forms": {
-    "requestForm": {
-      "fields": [
-        {
-          "name": "type",
-          "type": "text",
-          "label": "Request Type",
-          "required": true
-        },
-        {
-          "name": "description",
-          "type": "textarea",
-          "label": "Description",
-          "required": true
-        }
-      ]
-    }
-  },
-  "lifecycle": {
-    "states": [
-      "pending",
-      "processing",
-      "completed"
-    ],
-    "transitions": {
-      "pending": [
-        "processing"
-      ],
-      "processing": [
-        "completed"
-      ]
-    },
-    "initial": "pending",
-    "final": [
-      "completed"
-    ]
-  },
-  "users": [
-    {
-      "userId": "user_001",
-      "email": "bill.draper.auto@gmail.com",
-      "name": "Bill Draper",
-      "phone": "+1-555-0101",
-      "address": "123 Madison Avenue, New York, NY 10022",
-      "dateOfBirth": "1965-03-15",
-      "role": "primary",
-      "status": "active",
-      "createdAt": "2026-01-02T02:17:26.901Z"
-    }
-  ],
-  "primaryUser": {
-    "userId": "user_001",
-    "email": "bill.draper.auto@gmail.com",
-    "name": "Bill Draper",
-    "phone": "+1-555-0101",
-    "address": "123 Madison Avenue, New York, NY 10022",
-    "dateOfBirth": "1965-03-15",
-    "role": "primary",
-    "status": "active",
-    "createdAt": "2026-01-02T02:17:26.901Z"
-  },
-  "employees": [
-    {
-      "id": "emp_001",
-      "name": "Manager",
-      "role": "Manager",
-      "position": {
-        "area": "office",
-        "x": 50,
-        "y": 30
-      },
-      "status": "available"
-    },
-    {
-      "id": "emp_002",
-      "name": "Server",
-      "role": "Server",
-      "position": {
-        "area": "counter",
-        "x": 40,
-        "y": 40
-      },
-      "status": "available"
-    },
-    {
-      "id": "emp_003",
-      "name": "Cashier",
-      "role": "Cashier",
-      "position": {
-        "area": "counter",
-        "x": 60,
-        "y": 40
-      },
-      "status": "busy"
-    }
-  ]
+  }
 }
+

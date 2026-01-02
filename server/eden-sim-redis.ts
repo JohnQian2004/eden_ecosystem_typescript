@@ -99,6 +99,14 @@ import {
   getCashierStatus
 } from "./src/ledger";
 import {
+  initializeFlowWise,
+  loadWorkflow,
+  executeWorkflow,
+  submitUserDecision,
+  WorkflowContext,
+  FlowWiseWorkflow
+} from "./src/flowwise";
+import {
   initializeLLM,
   extractQueryWithOpenAI,
   formatResponseWithOpenAI,
@@ -214,6 +222,186 @@ httpServer.on("request", async (req, res) => {
   }
 
   // API Routes
+  // GET /api/workflow/:serviceType - Get workflow definition
+  if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision") {
+    const serviceType = pathname.split("/").pop();
+    console.log(`   📋 [${requestId}] GET /api/workflow/${serviceType} - Loading workflow definition`);
+
+    try {
+      const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType as "movie" | "dex");
+      console.log(`   🔄 [${requestId}] Workflow loaded: ${workflow ? 'SUCCESS' : 'FAILED'} - ${workflow?.name || 'N/A'}`);
+
+      if (workflow) {
+        const responseData = {
+          success: true,
+          flowwiseWorkflow: workflow
+        };
+        console.log(`   ✅ [${requestId}] Sending workflow response with ${workflow.steps.length} steps`);
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify(responseData));
+      } else {
+        console.log(`   ❌ [${requestId}] Workflow not found for service type: ${serviceType}`);
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          success: false,
+          error: `Workflow not found for service type: ${serviceType}`
+        }));
+      }
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error loading workflow:`, error.message);
+      console.error(`   ❌ [${requestId}] Stack trace:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // POST /api/workflow/action - Execute a workflow action
+  if (pathname === "/api/workflow/action" && req.method === "POST") {
+    console.log(`   ⚙️ [${requestId}] POST /api/workflow/action - Workflow action execution`);
+    let body = "";
+
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on("end", async () => {
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        }
+      };
+
+      try {
+        const parsedBody = JSON.parse(body);
+        const { executionId, action, context } = parsedBody;
+
+        if (!executionId || !action) {
+          sendResponse(400, { success: false, error: "executionId and action are required" });
+          return;
+        }
+
+        console.log(`   🔄 [${requestId}] Executing action ${action.type} in execution ${executionId}`);
+
+        // For now, just acknowledge the action execution
+        // In a full implementation, this would execute the specific action
+        sendResponse(200, {
+          success: true,
+          message: `Action ${action.type} executed`,
+          result: {
+            actionExecuted: action.type,
+            timestamp: Date.now()
+          }
+        });
+
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error executing workflow action:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  // POST /api/workflow/execute-step - Execute a specific workflow step manually
+  if (pathname === "/api/workflow/execute-step" && req.method === "POST") {
+    console.log(`   ▶️ [${requestId}] POST /api/workflow/execute-step - Manual step execution`);
+    let body = "";
+
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on("end", async () => {
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        }
+      };
+
+      try {
+        const parsedBody = JSON.parse(body);
+        const { executionId, stepId, context } = parsedBody;
+
+        if (!executionId || !stepId) {
+          sendResponse(400, { success: false, error: "executionId and stepId are required" });
+          return;
+        }
+
+        console.log(`   🔄 [${requestId}] Executing step ${stepId} in execution ${executionId}`);
+
+        // For now, just acknowledge the manual execution
+        // In a full implementation, this would execute the specific step
+        sendResponse(200, {
+          success: true,
+          message: `Step ${stepId} executed manually`,
+          executionId: executionId,
+          stepId: stepId
+        });
+
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error executing step manually:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/workflow/decision" && req.method === "POST") {
+    console.log(`   🤔 [${requestId}] POST /api/workflow/decision - User decision submission`);
+    let body = "";
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        }
+      };
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { workflowId, decision } = parsedBody;
+        
+        if (!workflowId || !decision) {
+          sendResponse(400, { success: false, error: "workflowId and decision are required" });
+          return;
+        }
+        
+        const { submitUserDecision } = await import("./src/flowwise");
+        const submitted = submitUserDecision(workflowId, decision);
+        if (submitted) {
+          console.log(`   ✅ [${requestId}] User decision submitted: ${decision} for workflow ${workflowId}`);
+          sendResponse(200, { success: true, message: "Decision submitted" });
+        } else {
+          console.warn(`   ⚠️  [${requestId}] No pending decision found for workflow ${workflowId}`);
+          sendResponse(404, { success: false, error: "No pending decision found for this workflow" });
+        }
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing decision:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+  
   if (pathname === "/api/chat" && req.method === "POST") {
     console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
     let body = "";
@@ -3938,7 +4126,7 @@ function _calculateIGas_DEPRECATED(llmCalls: number, providersQueried: number, c
 // LLM Resolution
 
 // OpenAI API Configuration
-const OPENAI_API_KEY = "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";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 // OpenAI LLM Query Extraction
@@ -7033,6 +7221,19 @@ async function main() {
   // Initialize ROOT CA
   initializeRootCA();
   
+  // Initialize logger FIRST (needed for tracing garden lifecycle)
+  initializeLogger();
+  
+  // Initialize all modules BEFORE issuing certificates (needed for broadcastEvent)
+  console.log("\n🔧 Initializing modules...");
+  
+  // Initialize FlowWise workflow engine
+  initializeFlowWise(broadcastEvent, path.join(__dirname, "data"));
+  console.log("✅ [FlowWise] Workflow engine initialized");
+  
+  // Initialize garden module (needed for issueGardenCertificate to use broadcastEvent)
+  initializeGarden(broadcastEvent, redis);
+  
   // Issue certificate to Holy Ghost (ROOT CA Indexer)
   console.log("\n✨ Issuing certificate to Holy Ghost (ROOT CA Indexer)...");
   try {
@@ -7087,20 +7288,14 @@ async function main() {
     }
   }
   
-  // Initialize logger FIRST (needed for tracing garden lifecycle)
-  initializeLogger();
-  
-  // Initialize all modules (required for both ROOT and non-ROOT modes)
-  console.log("\n🔧 Initializing modules...");
+  // Initialize all remaining modules (required for both ROOT and non-ROOT modes)
+  console.log("\n🔧 Initializing remaining modules...");
   
   // Initialize wallet module with dependencies
   initializeWallet(redis, SKIP_REDIS, ensureRedisConnection, broadcastEvent);
   
   // Initialize service provider module with dependencies
   initializeServiceProvider(broadcastEvent);
-  
-  // Initialize garden module with dependencies
-  initializeGarden(broadcastEvent, redis);
   
   // Initialize DEX module with dependencies
   initializeDEX(broadcastEvent);

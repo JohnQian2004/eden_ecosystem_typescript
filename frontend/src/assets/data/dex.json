@@ -1,247 +1,5 @@
 {
   "serviceType": "DEX",
-  "location": {
-    "address": {
-      "street": "123 Main Street",
-      "city": "Springfield",
-      "state": "IL",
-      "zipCode": "62701",
-      "country": "USA"
-    },
-    "openingHours": {
-      "monday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "tuesday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "wednesday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "thursday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "friday": {
-        "open": "09:00",
-        "close": "17:00"
-      },
-      "saturday": {
-        "open": "10:00",
-        "close": "14:00"
-      },
-      "sunday": {
-        "closed": true
-      }
-    },
-    "phone": "(555) 000-0000"
-  },
-  "management": {
-    "owner": {
-      "ownerId": "owner_001",
-      "name": "Business Owner",
-      "email": "owner@business.com",
-      "phone": "(555) 000-0000",
-      "role": "owner",
-      "ownershipPercentage": 100,
-      "joinedDate": "2020-01-01"
-    },
-    "businessMetrics": {
-      "monthlyRevenue": 30000,
-      "monthlyExpenses": 20000,
-      "totalCustomers": 100,
-      "activeStaff": 5,
-      "inventoryValue": 15000
-    },
-    "inventory": [
-      {
-        "id": "inv_001",
-        "name": "Item 1",
-        "quantity": 50,
-        "unitPrice": 10,
-        "category": "General"
-      }
-    ],
-    "recentTransactions": [
-      {
-        "id": "txn_001",
-        "date": "2024-01-15",
-        "type": "sale",
-        "amount": 100,
-        "description": "Service provided"
-      }
-    ],
-    "forms": {
-      "addInventory": {
-        "fields": [
-          {
-            "name": "name",
-            "type": "text",
-            "label": "Item Name",
-            "required": true
-          },
-          {
-            "name": "quantity",
-            "type": "number",
-            "label": "Quantity",
-            "required": true
-          },
-          {
-            "name": "unitPrice",
-            "type": "number",
-            "label": "Unit Price",
-            "required": true
-          },
-          {
-            "name": "category",
-            "type": "select",
-            "label": "Category",
-            "required": true,
-            "options": [
-              "General",
-              "Equipment",
-              "Supplies"
-            ]
-          }
-        ]
-      },
-      "recordTransaction": {
-        "fields": [
-          {
-            "name": "date",
-            "type": "date",
-            "label": "Date",
-            "required": true
-          },
-          {
-            "name": "type",
-            "type": "select",
-            "label": "Type",
-            "required": true,
-            "options": [
-              "sale",
-              "purchase",
-              "expense"
-            ]
-          },
-          {
-            "name": "amount",
-            "type": "number",
-            "label": "Amount",
-            "required": true
-          },
-          {
-            "name": "description",
-            "type": "textarea",
-            "label": "Description",
-            "required": true
-          }
-        ]
-      },
-      "updateMetrics": {
-        "fields": [
-          {
-            "name": "monthlyRevenue",
-            "type": "number",
-            "label": "Monthly Revenue",
-            "required": true
-          },
-          {
-            "name": "monthlyExpenses",
-            "type": "number",
-            "label": "Monthly Expenses",
-            "required": true
-          },
-          {
-            "name": "totalCustomers",
-            "type": "number",
-            "label": "Total Customers",
-            "required": false
-          },
-          {
-            "name": "activeStaff",
-            "type": "number",
-            "label": "Active Staff",
-            "required": false
-          }
-        ]
-      },
-      "editOwner": {
-        "fields": [
-          {
-            "name": "name",
-            "type": "text",
-            "label": "Owner Name",
-            "required": true
-          },
-          {
-            "name": "email",
-            "type": "text",
-            "label": "Email",
-            "required": true
-          },
-          {
-            "name": "phone",
-            "type": "text",
-            "label": "Phone",
-            "required": false
-          }
-        ]
-      }
-    },
-    "ui": {
-      "layout": "grid",
-      "sections": [
-        {
-          "id": "owner",
-          "title": "Owner Information",
-          "type": "owner",
-          "fields": [
-            {
-              "name": "name",
-              "type": "text",
-              "label": "Owner Name",
-              "required": true
-            },
-            {
-              "name": "email",
-              "type": "text",
-              "label": "Email",
-              "required": true
-            },
-            {
-              "name": "phone",
-              "type": "text",
-              "label": "Phone",
-              "required": false
-            }
-          ]
-        },
-        {
-          "id": "metrics",
-          "title": "Business Metrics",
-          "type": "metrics",
-          "fields": [
-            {
-              "name": "monthlyRevenue",
-              "type": "number",
-              "label": "Monthly Revenue",
-              "required": true
-            },
-            {
-              "name": "monthlyExpenses",
-              "type": "number",
-              "label": "Monthly Expenses",
-              "required": true
-            }
-          ]
-        }
-      ]
-    }
-  },
   "flowwiseWorkflow": {
     "name": "DEX Garden Chat Lifecycle",
     "version": "1.0.0",
@@ -351,11 +109,59 @@
         }
       },
       {
+        "id": "user_confirm_trade",
+        "name": "🤔 User Decision: Confirm DEX Trade",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm the DEX trade",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Would you like to {{action}} {{tokenAmount}} {{tokenSymbol}} at {{price}} {{baseToken}}/{{tokenSymbol}}?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, proceed",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm your DEX trade",
+            "data": {
+              "decisionId": "confirm_dex_trade",
+              "prompt": "Would you like to {{action}} {{tokenAmount}} {{tokenSymbol}} at {{price}} {{baseToken}}/{{tokenSymbol}}?",
+              "options": [
+                {"value": "YES", "label": "Yes, proceed"},
+                {"value": "NO", "label": "No, cancel"}
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
         "id": "execute_dex_trade",
         "name": "3️⃣ Execute DEX Trade",
         "type": "process",
         "component": "dex",
         "description": "Execute DEX trade and check balance",
+        "conditions": [
+          {
+            "if": "{{userDecision}} === 'YES'",
+            "then": "continue"
+          }
+        ],
         "actions": [
           {
             "type": "check_balance",
@@ -547,13 +353,23 @@
       },
       {
         "from": "llm_resolution",
-        "to": "execute_dex_trade",
+        "to": "user_confirm_trade",
         "condition": "{{llmResponse.selectedListing}}"
       },
       {
         "from": "llm_resolution",
         "to": "error_handler",
         "condition": "!{{llmResponse.selectedListing}}"
+      },
+      {
+        "from": "user_confirm_trade",
+        "to": "execute_dex_trade",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_trade",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
       },
       {
         "from": "execute_dex_trade",
@@ -578,141 +394,6 @@
     ],
     "initialStep": "user_input",
     "finalSteps": ["summary", "error_handler"]
-  },
-  "workflow": {
-    "steps": [
-      {
-        "id": "start",
-        "name": "Start",
-        "type": "input",
-        "description": "Service request initiated"
-      },
-      {
-        "id": "process",
-        "name": "Process",
-        "type": "process",
-        "description": "Processing request"
-      },
-      {
-        "id": "complete",
-        "name": "Complete",
-        "type": "output",
-        "description": "Service completed"
-      }
-    ],
-    "transitions": [
-      {
-        "from": "start",
-        "to": "process"
-      },
-      {
-        "from": "process",
-        "to": "complete"
-      }
-    ]
-  },
-  "dataStructures": {
-    "Request": {
-      "id": "string",
-      "type": "string",
-      "status": "string",
-      "timestamp": "date"
-    }
-  },
-  "forms": {
-    "requestForm": {
-      "fields": [
-        {
-          "name": "type",
-          "type": "text",
-          "label": "Request Type",
-          "required": true
-        },
-        {
-          "name": "description",
-          "type": "textarea",
-          "label": "Description",
-          "required": true
-        }
-      ]
-    }
-  },
-  "lifecycle": {
-    "states": [
-      "pending",
-      "processing",
-      "completed"
-    ],
-    "transitions": {
-      "pending": [
-        "processing"
-      ],
-      "processing": [
-        "completed"
-      ]
-    },
-    "initial": "pending",
-    "final": [
-      "completed"
-    ]
-  },
-  "users": [
-    {
-      "userId": "user_001",
-      "email": "bill.draper.auto@gmail.com",
-      "name": "Bill Draper",
-      "phone": "+1-555-0101",
-      "address": "123 Madison Avenue, New York, NY 10022",
-      "dateOfBirth": "1965-03-15",
-      "role": "primary",
-      "status": "active",
-      "createdAt": "2026-01-02T02:13:09.992Z"
-    }
-  ],
-  "primaryUser": {
-    "userId": "user_001",
-    "email": "bill.draper.auto@gmail.com",
-    "name": "Bill Draper",
-    "phone": "+1-555-0101",
-    "address": "123 Madison Avenue, New York, NY 10022",
-    "dateOfBirth": "1965-03-15",
-    "role": "primary",
-    "status": "active",
-    "createdAt": "2026-01-02T02:13:09.992Z"
-  },
-  "employees": [
-    {
-      "id": "emp_001",
-      "name": "Manager",
-      "role": "Manager",
-      "position": {
-        "area": "office",
-        "x": 50,
-        "y": 30
-      },
-      "status": "available"
-    },
-    {
-      "id": "emp_002",
-      "name": "Server",
-      "role": "Server",
-      "position": {
-        "area": "counter",
-        "x": 40,
-        "y": 40
-      },
-      "status": "available"
-    },
-    {
-      "id": "emp_003",
-      "name": "Cashier",
-      "role": "Cashier",
-      "position": {
-        "area": "counter",
-        "x": 60,
-        "y": 40
-      },
-      "status": "busy"
-    }
-  ]
+  }
 }
+

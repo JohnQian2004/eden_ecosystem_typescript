@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@ang
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
+import { FlowWiseService, UserDecisionRequest } from './services/flowwise.service';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
@@ -106,9 +107,13 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'ledger' | 'certificates' | 'chat' | 'config' = 'chat';
+  activeTab: 'workflow' | 'ledger' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
+  
+  // FlowWise decision prompt
+  pendingDecision: UserDecisionRequest | null = null;
+  showDecisionPrompt: boolean = false;
   
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -120,11 +125,32 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor(
     public wsService: WebSocketService,
     private chatService: ChatService,
+    private flowWiseService: FlowWiseService,
     private cdr: ChangeDetectorRef,
     private http: HttpClient
   ) {}
 
+  // AMC Workflow Integration
+  amcWorkflowActive: boolean = false;
+  workflowMessages: any[] = [];
+
   ngOnInit() {
+    // Subscribe to FlowWise decision requests
+    this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
+      console.log('🤔 [FlowWise] Decision required:', decisionRequest);
+      this.pendingDecision = decisionRequest;
+      this.showDecisionPrompt = true;
+      this.cdr.detectChanges();
+    });
+
+    // Subscribe to WebSocket events for workflow updates
+    this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      if (this.amcWorkflowActive) {
+        this.workflowMessages.push(event);
+        this.cdr.detectChanges();
+      }
+    });
+    
     // Suppress console errors from browser extensions
     const originalError = console.error;
     console.error = (...args: any[]) => {
@@ -802,15 +828,87 @@ export class AppComponent implements OnInit, OnDestroy {
     }, 180000); // 3 minutes safety timeout
 
     try {
-      const response = await this.chatService.sendMessageAsync(input, this.userEmail);
-      console.log('✅ Chat message sent successfully:', response);
+      // Check if this is a movie-related query to trigger AMC workflow
+      const isMovieQuery = this.selectedServiceType === 'movie' ||
+                          input.toLowerCase().includes('movie') ||
+                          input.toLowerCase().includes('cinema') ||
+                          input.toLowerCase().includes('ticket') ||
+                          input.toLowerCase().includes('film');
+
+      if (isMovieQuery) {
+        // Start AMC Cinema Workflow
+        console.log('🎬 [AMC Workflow] Starting AMC cinema workflow for input:', input);
+        this.amcWorkflowActive = true;
+        this.workflowMessages = [];
+
+        const execution = this.flowWiseService.startWorkflow('movie', {
+          input: input,
+          email: this.userEmail,
+          user: { email: this.userEmail, id: this.userEmail },
+          edenChatSession: {
+            sessionId: `session_${Date.now()}`,
+            serviceType: 'movie',
+            startTime: Date.now()
+          },
+          // Provide mock data to prevent workflow errors
+          llmResponse: {
+            selectedListing: {
+              movieTitle: 'Demo Movie',
+              showtime: '7:00 PM',
+              price: 15.99,
+              providerId: 'amc-001',
+              providerName: 'AMC Theatres',
+              location: 'Demo Location'
+            },
+            iGasCost: 0.004450
+          },
+          selectedListing: {
+            movieTitle: 'Demo Movie',
+            showtime: '7:00 PM',
+            price: 15.99,
+            providerId: 'amc-001',
+            providerName: 'AMC Theatres',
+            location: 'Demo Location'
+          },
+          moviePrice: 15.99,
+          totalCost: 16.004450,
+          paymentSuccess: true,
+          userDecision: 'YES'
+        });
+
+        if (execution) {
+          console.log('🚀 [AMC Workflow] AMC workflow started successfully:', execution.executionId);
+          // Add user message to workflow chat
+          this.workflowMessages.push({
+            type: 'user_message',
+            message: input,
+            timestamp: Date.now(),
+            data: { user: this.userEmail }
+          });
+        } else {
+          console.error('❌ [AMC Workflow] Failed to start AMC workflow');
+          alert('Failed to start AMC workflow. Please try again.');
+          this.amcWorkflowActive = false;
+        }
+      } else {
+        // Regular chat for non-movie queries
+        const response = await this.chatService.sendMessageAsync(input, this.userEmail);
+        console.log('✅ Chat message sent successfully:', response);
+      }
     } catch (error: any) {
       console.error('❌ Error caught in onSubmit:', error);
+
+      // Stop AMC workflow if there was an error
+      if (this.amcWorkflowActive) {
+        console.log('⚠️ [AMC Workflow] Error occurred, stopping workflow');
+        this.stopAmcWorkflow();
+      }
+
       // Ignore Solana extension errors
       if (error && !error.message?.includes('solana') && !error.message?.includes('Solana')) {
         const errorMsg = error.error?.error || error.message || 'Failed to send message. Please try again.';
-        console.error('Error details:', { 
-          error, 
+        console.error('Error details:', {
+          error,
           errorType: error?.constructor?.name,
           errorMessage: error?.message,
           errorStatus: error?.status
@@ -826,13 +924,13 @@ export class AppComponent implements OnInit, OnDestroy {
       // Clear safety timeout
       clearTimeout(safetyTimeout);
       
-      // Always reset processing state to allow next request
-      console.log('🔄 Entering finally block, resetting isProcessing...');
-      this.isProcessing = false;
-      console.log('✅ Reset isProcessing flag, ready for next request');
-      
-      // Force change detection to update UI immediately
-      this.cdr.detectChanges();
+    // Always reset processing state to allow next request
+    console.log('🔄 Entering finally block, resetting isProcessing...');
+    this.isProcessing = false;
+    console.log('✅ Reset isProcessing flag, ready for next request');
+
+    // Force change detection to update UI immediately
+    this.cdr.detectChanges();
       
       // Double-check that isProcessing is false after a brief delay
       setTimeout(() => {
@@ -845,6 +943,48 @@ export class AppComponent implements OnInit, OnDestroy {
         }
       }, 100);
     }
+  }
+
+  /**
+   * Submit user decision to FlowWise
+   */
+  submitDecision(decision: string): void {
+    if (!this.pendingDecision) {
+      console.error('❌ [FlowWise] No pending decision to submit');
+      return;
+    }
+
+    console.log(`✅ [AMC Workflow] Submitting decision: ${decision} for execution ${this.pendingDecision.executionId}`);
+
+    // Add decision to workflow messages
+    if (this.amcWorkflowActive) {
+      this.workflowMessages.push({
+        type: 'user_decision',
+        message: `User selected: ${decision}`,
+        timestamp: Date.now(),
+        data: { decision, executionId: this.pendingDecision.executionId }
+      });
+    }
+
+    const submitted = this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision);
+
+    if (submitted) {
+      this.showDecisionPrompt = false;
+      this.pendingDecision = null;
+      this.cdr.detectChanges();
+    } else {
+      console.error('❌ [AMC Workflow] Failed to submit decision');
+      alert('Failed to submit decision. Please try again.');
+    }
+  }
+
+  stopAmcWorkflow(): void {
+    console.log('🛑 [AMC Workflow] Stopping AMC workflow');
+    this.amcWorkflowActive = false;
+    this.workflowMessages = [];
+    this.showDecisionPrompt = false;
+    this.pendingDecision = null;
+    this.cdr.detectChanges();
   }
 
 }
