@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2025-12-31T17:50:58.489Z",
+  "lastSaved": "2026-01-02T02:22:43.711Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -703,6 +703,52 @@
             "websocket-service-001(HG)",
             "wallet-service-001(HG)",
             "cinemark-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1767320425493,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1767320425496,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 8
+        }
+      },
+      {
+        "timestamp": 1767320425514,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 8,
+          "totalSaved": 8,
+          "movieProviders": 2,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "cinemark-001(garden-1)",
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "cinemark-001(garden-1)",
+            "amc-001(garden-1)"
           ]
         }
       }
