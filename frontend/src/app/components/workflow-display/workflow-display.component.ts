@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FlowWiseService, FlowWiseWorkflow, WorkflowStep, WorkflowExecution, UserDecisionRequest } from '../../services/flowwise.service';
+import { WebSocketService } from '../../services/websocket.service';
+import { SimulatorEvent } from '../../app.component';
 
 @Component({
   selector: 'app-workflow-display',
@@ -19,10 +21,31 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   pendingDecision: UserDecisionRequest | null = null;
   showDecisionPrompt: boolean = false;
 
+  // Selection support
+  pendingSelection: any = null;
+  showSelectionPrompt: boolean = false;
+
   // UI State
   workflowSteps: WorkflowStep[] = [];
   completedSteps: string[] = [];
   currentStepIndex: number = 0;
+
+  // LLM Response State
+  llmResponses: any[] = [];
+  latestLlmResponse: any = null;
+  iGasCost: number | null = null;
+
+  // Computed properties for template bindings (avoiding filter() in templates)
+  get processingCount(): number {
+    return this.llmResponses.filter(r => r.type === 'start').length;
+  }
+
+  get responseCount(): number {
+    return this.llmResponses.filter(r => r.type === 'response').length;
+  }
+
+  private readonly LLM_HISTORY_KEY = 'eden_llm_history';
+  private readonly MAX_HISTORY_ITEMS = 50; // Keep last 50 responses
 
   public apiUrl = window.location.port === '4200'
     ? 'http://localhost:3000'
@@ -31,6 +54,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   constructor(
     private http: HttpClient,
     private flowWiseService: FlowWiseService,
+    private webSocketService: WebSocketService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -39,6 +63,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     console.log('🔗 [WorkflowDisplay] API URL:', this.apiUrl);
 
     this.loadWorkflows();
+    this.loadLlmHistory();
 
     // Listen for workflow decision requests
     this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
@@ -46,6 +71,11 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       this.pendingDecision = decisionRequest;
       this.showDecisionPrompt = true;
       this.cdr.detectChanges();
+    });
+
+    // Listen for WebSocket events (LLM responses, etc.)
+    this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
+      this.handleWebSocketEvent(event);
     });
   }
 
@@ -234,21 +264,27 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  submitDecision(decision: string) {
+  async submitDecision(decision: string) {
     if (!this.pendingDecision) {
       console.error('❌ [WorkflowDisplay] No pending decision to submit');
       return;
     }
 
     console.log(`✅ [WorkflowDisplay] Submitting decision: ${decision}`);
-    const submitted = this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision);
 
-    if (submitted) {
-      this.showDecisionPrompt = false;
-      this.pendingDecision = null;
-      this.updateCurrentStep();
-    } else {
-      console.error('❌ [WorkflowDisplay] Failed to submit decision');
+    try {
+      const submitted = await this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision);
+
+      if (submitted) {
+        this.showDecisionPrompt = false;
+        this.pendingDecision = null;
+        this.updateCurrentStep();
+      } else {
+        console.error('❌ [WorkflowDisplay] Failed to submit decision');
+        alert('Failed to submit decision. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ [WorkflowDisplay] Error submitting decision:', error);
       alert('Failed to submit decision. Please try again.');
     }
   }
@@ -355,6 +391,321 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     } else {
       return 'Processing';
     }
+  }
+
+  // Dynamic data structure handling methods
+  getDisplayTitle(option: any): string {
+    // Try common title fields
+    return option.data?.movieTitle ||
+           option.data?.name ||
+           option.data?.title ||
+           option.label ||
+           'Option';
+  }
+
+  getDisplayFields(option: any): any[] {
+    if (!option.data) return [];
+
+    const fields = [];
+    const excludeFields = ['id', 'movieTitle', 'name', 'title']; // Fields already used in title
+
+    for (const [key, value] of Object.entries(option.data)) {
+      if (!excludeFields.includes(key) && value !== null && value !== undefined && value !== '') {
+        fields.push({ key, value, last: false });
+      }
+    }
+
+    // Mark the last field
+    if (fields.length > 0) {
+      fields[fields.length - 1].last = true;
+    }
+
+    return fields;
+  }
+
+  getFieldLabel(key: string): string {
+    // Human-readable labels for common fields
+    const labels: { [key: string]: string } = {
+      'showtime': 'Showtime',
+      'price': 'Price',
+      'providerName': 'Theater',
+      'providerId': 'Provider ID',
+      'movieId': 'Movie ID',
+      'rating': 'Rating',
+      'genre': 'Genre',
+      'duration': 'Duration',
+      'location': 'Location',
+      'serviceType': 'Type'
+    };
+
+    return labels[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+  }
+
+  formatFieldValue(value: any): string {
+    if (typeof value === 'number' && value.toString().includes('.')) {
+      // Format prices
+      if (value < 100) {
+        return `$${value.toFixed(2)}`;
+      }
+      return value.toString();
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+
+    return String(value);
+  }
+
+  getSelectButtonText(option: any): string {
+    const title = this.getDisplayTitle(option);
+    if (title.includes('Movie') || title.includes('movie')) {
+      return 'Select This Movie';
+    }
+    return 'Select This Option';
+  }
+
+  // LLM History Management
+  private loadLlmHistory(): void {
+    try {
+      const savedHistory = localStorage.getItem(this.LLM_HISTORY_KEY);
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        // Validate that it's an array and contains valid response objects
+        if (Array.isArray(parsedHistory) && parsedHistory.every(item =>
+          item && typeof item === 'object' && item.timestamp
+        )) {
+          this.llmResponses = parsedHistory;
+          console.log(`📚 [WorkflowDisplay] Loaded ${this.llmResponses.length} LLM responses from history`);
+        } else {
+          console.warn('📚 [WorkflowDisplay] Invalid LLM history format, starting fresh');
+          this.llmResponses = [];
+        }
+      }
+    } catch (error) {
+      console.error('📚 [WorkflowDisplay] Error loading LLM history:', error);
+      this.llmResponses = [];
+    }
+  }
+
+  private saveLlmHistory(): void {
+    try {
+      // Keep only the most recent responses
+      const recentResponses = this.llmResponses.slice(-this.MAX_HISTORY_ITEMS);
+      localStorage.setItem(this.LLM_HISTORY_KEY, JSON.stringify(recentResponses));
+    } catch (error) {
+      console.error('📚 [WorkflowDisplay] Error saving LLM history:', error);
+    }
+  }
+
+  private addLlmResponse(response: any): void {
+    this.llmResponses.push(response);
+    this.latestLlmResponse = response;
+    this.saveLlmHistory(); // Persist after each addition
+  }
+
+  // Toggle visibility of raw LLM data for a response
+  toggleRawData(response: any): void {
+    response.showRawData = !response.showRawData;
+  }
+
+  clearLlmHistory(): void {
+    this.llmResponses = [];
+    this.latestLlmResponse = null;
+    localStorage.removeItem(this.LLM_HISTORY_KEY);
+    console.log('🗑️ [WorkflowDisplay] LLM history cleared');
+  }
+
+  exportLlmHistory(): void {
+    try {
+      const exportData = {
+        exportTimestamp: new Date().toISOString(),
+        totalResponses: this.llmResponses.length,
+        responses: this.llmResponses,
+        summary: {
+          startEvents: this.llmResponses.filter(r => r.type === 'start').length,
+          responseEvents: this.llmResponses.filter(r => r.type === 'response').length,
+          timeRange: this.llmResponses.length > 0 ? {
+            first: new Date(this.llmResponses[0].timestamp).toISOString(),
+            last: new Date(this.llmResponses[this.llmResponses.length - 1].timestamp).toISOString()
+          } : null
+        }
+      };
+
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `llm-history-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log('📤 [WorkflowDisplay] LLM history exported');
+    } catch (error) {
+      console.error('❌ [WorkflowDisplay] Error exporting LLM history:', error);
+    }
+  }
+
+  // Table display methods
+  getDataFields(data: any): any[] {
+    if (!data || typeof data !== 'object') return [];
+
+    const fields = [];
+    for (const [key, value] of Object.entries(data)) {
+      fields.push({ key, value });
+    }
+    return fields;
+  }
+
+  formatTableValue(value: any): string {
+    if (value === null || value === undefined) {
+      return '<em class="text-muted">null</em>';
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? '<span class="badge bg-success">true</span>' : '<span class="badge bg-secondary">false</span>';
+    }
+
+    if (typeof value === 'number') {
+      if (value < 1 && value > 0) {
+        return value.toFixed(6); // For iGas costs
+      }
+      if (value % 1 !== 0) {
+        return value.toFixed(2); // For prices
+      }
+      return value.toString();
+    }
+
+    if (this.isArray(value)) {
+      if (value.length === 0) {
+        return '<em class="text-muted">Empty array</em>';
+      }
+      return `<span class="badge bg-info">${value.length} items</span>`;
+    }
+
+    if (this.isObject(value)) {
+      return '<em class="text-primary">Object →</em>';
+    }
+
+    if (typeof value === 'string' && value.length > 50) {
+      return value.substring(0, 50) + '...';
+    }
+
+    return String(value);
+  }
+
+  isObject(value: any): boolean {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  isArray(value: any): boolean {
+    return Array.isArray(value);
+  }
+
+  submitMovieSelection(selectedOption: any) {
+    if (!this.pendingSelection) {
+      console.error('❌ [WorkflowDisplay] No pending selection to submit');
+      return;
+    }
+
+    console.log(`✅ [WorkflowDisplay] Submitting movie selection:`, selectedOption);
+
+    // Send the selection to the server
+    const baseUrl = window.location.port === '4200'
+      ? 'http://localhost:3000'
+      : '';
+
+    // Store the selection data for the FlowWise service
+    if (this.activeExecution) {
+      this.activeExecution.context['userSelection'] = selectedOption.data;
+    }
+
+    this.http.post(`${baseUrl}/api/workflow/decision`, {
+      workflowId: this.pendingSelection.executionId,
+      decision: selectedOption.value,
+      selectionData: selectedOption.data
+    }).subscribe({
+      next: (response: any) => {
+        console.log('✅ [WorkflowDisplay] Movie selection submitted successfully');
+
+        // Clear the selection UI
+        this.showSelectionPrompt = false;
+        this.pendingSelection = null;
+
+        // The server will automatically continue the workflow
+        // No need to manually trigger the next step
+      },
+      error: (error) => {
+        console.error('❌ [WorkflowDisplay] Failed to submit movie selection:', error);
+      }
+    });
+  }
+
+  private handleWebSocketEvent(event: SimulatorEvent): void {
+    console.log('📡 [WorkflowDisplay] Received event:', event.type, event);
+
+    switch (event.type) {
+      case 'llm_start':
+        console.log('🤖 [WorkflowDisplay] LLM processing started');
+        this.addLlmResponse({
+          type: 'start',
+          message: event.message,
+          timestamp: event.timestamp,
+          originalEvent: event // Preserve original event data
+        });
+        break;
+
+      case 'llm_response':
+        console.log('🤖 [WorkflowDisplay] LLM response received:', event.data);
+        const llmResponse = {
+          type: 'response',
+          message: event.message,
+          data: event.data?.response,
+          timestamp: event.timestamp,
+          originalEvent: event, // Preserve complete original event
+          // Extract key LLM data for easy access
+          llmData: {
+            response: event.data?.response,
+            iGasCost: event.data?.igas,
+            serviceType: event.data?.serviceType,
+            rawData: event.data
+          }
+        };
+        this.addLlmResponse(llmResponse);
+        break;
+
+      case 'igas':
+        console.log('⛽ [WorkflowDisplay] iGas cost:', event.data?.igas);
+        this.iGasCost = event.data?.igas || null;
+        break;
+
+      case 'user_decision_required':
+        // This is handled by the FlowWise service subscription above
+        break;
+
+      case 'user_selection_required':
+        console.log('🎬 [WorkflowDisplay] Movie selection required:', event.data);
+        this.pendingSelection = {
+          executionId: event.data.workflowId,
+          stepId: event.data.stepId,
+          prompt: event.data.prompt,
+          options: event.data.options || [],
+          timeout: event.data.timeout || 60000
+        };
+        this.showSelectionPrompt = true;
+        this.cdr.detectChanges();
+        break;
+
+      default:
+        // Other events (ledger, payment, etc.) can be handled here if needed
+        break;
+    }
+
+    this.cdr.detectChanges();
   }
 }
 

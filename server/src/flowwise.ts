@@ -290,7 +290,7 @@ async function executeStep(
 /**
  * Replace template variables in strings/objects
  */
-function replaceTemplateVariables(template: any, context: WorkflowContext): any {
+export function replaceTemplateVariables(template: any, context: WorkflowContext): any {
   if (typeof template === "string") {
     return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
       const value = getNestedValue(context, path);
@@ -318,9 +318,17 @@ function getNestedValue(obj: any, path: string): any {
 /**
  * Evaluate condition
  */
-function evaluateCondition(condition: string, context: WorkflowContext): boolean {
+export function evaluateCondition(condition: string, context: WorkflowContext): boolean {
   // Simple condition evaluation - can be enhanced
   if (condition === "always") return true;
+
+  // Handle template syntax {{variable}}
+  const templateMatch = condition.match(/\{\{(\w+(?:\.\w+)*)\}\}/);
+  if (templateMatch) {
+    const path = templateMatch[1];
+    return !!getNestedValue(context, path);
+  }
+
   if (condition.startsWith("!")) {
     const path = condition.substring(1);
     return !getNestedValue(context, path);

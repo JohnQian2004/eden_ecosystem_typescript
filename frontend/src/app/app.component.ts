@@ -145,6 +145,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Subscribe to WebSocket events for workflow updates
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      console.log(`📨 [App] Received event: ${event.type}`, event);
+
       if (this.amcWorkflowActive) {
         this.workflowMessages.push(event);
         this.cdr.detectChanges();
@@ -828,40 +830,22 @@ export class AppComponent implements OnInit, OnDestroy {
     }, 180000); // 3 minutes safety timeout
 
     try {
-      // Check if this is a movie-related query to trigger AMC workflow
-      const isMovieQuery = this.selectedServiceType === 'movie' ||
-                          input.toLowerCase().includes('movie') ||
-                          input.toLowerCase().includes('cinema') ||
-                          input.toLowerCase().includes('ticket') ||
-                          input.toLowerCase().includes('film');
+      // Automatically start AMC Cinema Workflow for ANY chat input
+      console.log('🎬 [AMC Workflow] Automatically starting AMC cinema workflow for chat input:', input);
+      this.amcWorkflowActive = true;
+      this.workflowMessages = [];
 
-      if (isMovieQuery) {
-        // Start AMC Cinema Workflow
-        console.log('🎬 [AMC Workflow] Starting AMC cinema workflow for input:', input);
-        this.amcWorkflowActive = true;
-        this.workflowMessages = [];
-
-        const execution = this.flowWiseService.startWorkflow('movie', {
-          input: input,
-          email: this.userEmail,
-          user: { email: this.userEmail, id: this.userEmail },
-          edenChatSession: {
-            sessionId: `session_${Date.now()}`,
-            serviceType: 'movie',
-            startTime: Date.now()
-          },
-          // Provide mock data to prevent workflow errors
-          llmResponse: {
-            selectedListing: {
-              movieTitle: 'Demo Movie',
-              showtime: '7:00 PM',
-              price: 15.99,
-              providerId: 'amc-001',
-              providerName: 'AMC Theatres',
-              location: 'Demo Location'
-            },
-            iGasCost: 0.004450
-          },
+      const execution = this.flowWiseService.startWorkflow('movie', {
+        input: input,
+        email: this.userEmail,
+        user: { email: this.userEmail, id: this.userEmail },
+        edenChatSession: {
+          sessionId: `session_${Date.now()}`,
+          serviceType: 'movie',
+          startTime: Date.now()
+        },
+        // Provide mock data to prevent workflow errors
+        llmResponse: {
           selectedListing: {
             movieTitle: 'Demo Movie',
             showtime: '7:00 PM',
@@ -870,30 +854,35 @@ export class AppComponent implements OnInit, OnDestroy {
             providerName: 'AMC Theatres',
             location: 'Demo Location'
           },
-          moviePrice: 15.99,
-          totalCost: 16.004450,
-          paymentSuccess: true,
-          userDecision: 'YES'
-        });
+          iGasCost: 0.004450
+        },
+        selectedListing: {
+          movieTitle: 'Demo Movie',
+          showtime: '7:00 PM',
+          price: 15.99,
+          providerId: 'amc-001',
+          providerName: 'AMC Theatres',
+          location: 'Demo Location'
+        },
+        moviePrice: 15.99,
+        totalCost: 16.004450,
+        paymentSuccess: true,
+        userDecision: 'YES'
+      });
 
-        if (execution) {
-          console.log('🚀 [AMC Workflow] AMC workflow started successfully:', execution.executionId);
-          // Add user message to workflow chat
-          this.workflowMessages.push({
-            type: 'user_message',
-            message: input,
-            timestamp: Date.now(),
-            data: { user: this.userEmail }
-          });
-        } else {
-          console.error('❌ [AMC Workflow] Failed to start AMC workflow');
-          alert('Failed to start AMC workflow. Please try again.');
-          this.amcWorkflowActive = false;
-        }
+      if (execution) {
+        console.log('🚀 [AMC Workflow] AMC workflow started successfully:', execution.executionId);
+        // Add user message to workflow chat
+        this.workflowMessages.push({
+          type: 'user_message',
+          message: input,
+          timestamp: Date.now(),
+          data: { user: this.userEmail }
+        });
       } else {
-        // Regular chat for non-movie queries
-        const response = await this.chatService.sendMessageAsync(input, this.userEmail);
-        console.log('✅ Chat message sent successfully:', response);
+        console.error('❌ [AMC Workflow] Failed to start AMC workflow');
+        alert('Failed to start AMC workflow. Please try again.');
+        this.amcWorkflowActive = false;
       }
     } catch (error: any) {
       console.error('❌ Error caught in onSubmit:', error);
@@ -948,7 +937,7 @@ export class AppComponent implements OnInit, OnDestroy {
   /**
    * Submit user decision to FlowWise
    */
-  submitDecision(decision: string): void {
+  async submitDecision(decision: string): Promise<void> {
     if (!this.pendingDecision) {
       console.error('❌ [FlowWise] No pending decision to submit');
       return;
@@ -966,14 +955,19 @@ export class AppComponent implements OnInit, OnDestroy {
       });
     }
 
-    const submitted = this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision);
+    try {
+      const submitted = await this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision);
 
-    if (submitted) {
-      this.showDecisionPrompt = false;
-      this.pendingDecision = null;
-      this.cdr.detectChanges();
-    } else {
-      console.error('❌ [AMC Workflow] Failed to submit decision');
+      if (submitted) {
+        this.showDecisionPrompt = false;
+        this.pendingDecision = null;
+        this.cdr.detectChanges();
+      } else {
+        console.error('❌ [AMC Workflow] Failed to submit decision');
+        alert('Failed to submit decision. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ [AMC Workflow] Error submitting decision:', error);
       alert('Failed to submit decision. Please try again.');
     }
   }

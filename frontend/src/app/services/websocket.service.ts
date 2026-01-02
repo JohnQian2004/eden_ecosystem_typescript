@@ -40,11 +40,14 @@ export class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data: SimulatorEvent = JSON.parse(event.data);
-          // Log all ledger/cashier events for debugging
-          if (data.type === 'ledger_entry_added' || 
+          // Log all ledger/cashier events and LLM events for debugging
+          if (data.type === 'ledger_entry_added' ||
               data.type === 'ledger_entry_created' ||
               data.type === 'cashier_payment_processed' ||
-              data.type === 'ledger_booking_completed') {
+              data.type === 'ledger_booking_completed' ||
+              data.type === 'llm_start' ||
+              data.type === 'llm_response' ||
+              data.type === 'igas') {
             console.log(`📡 [WebSocket] ⭐ Received ${data.type} event:`, data);
           }
           this.eventSubject.next(data);

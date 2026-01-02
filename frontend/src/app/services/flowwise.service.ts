@@ -6,6 +6,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
+import { WebSocketService } from './websocket.service';
 
 export interface WorkflowStep {
   id: string;
@@ -70,6 +71,7 @@ export interface WorkflowContext {
 export interface WorkflowExecution {
   workflowId: string;
   executionId: string;
+  serviceType: 'movie' | 'dex';
   currentStep: string;
   context: WorkflowContext;
   history: Array<{
@@ -95,8 +97,29 @@ export class FlowWiseService {
   private activeExecutions: Map<string, WorkflowExecution> = new Map();
   private decisionRequest$ = new Subject<UserDecisionRequest>();
   
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private wsService: WebSocketService) {
     this.loadWorkflows();
+
+    // Listen for WebSocket events to handle server-side workflow decisions
+    this.wsService.events$.subscribe((event: any) => {
+      if (event.type === 'user_decision_required') {
+        console.log('🤔 [FlowWise] Server-side decision required:', event);
+
+        // Convert WebSocket event to decision request format
+        const decisionRequest: UserDecisionRequest = {
+          executionId: event.data.workflowId || event.data.decisionId || 'server_decision',
+          stepId: event.data.stepId || 'unknown',
+          prompt: event.data.prompt || event.message || 'Please make a decision',
+          options: event.data.options || [
+            { value: 'YES', label: 'Yes' },
+            { value: 'NO', label: 'No' }
+          ],
+          timeout: event.data.timeout || 60000
+        };
+
+        this.decisionRequest$.next(decisionRequest);
+      }
+    });
   }
 
   /**
@@ -160,6 +183,7 @@ export class FlowWiseService {
     const execution: WorkflowExecution = {
       workflowId: workflow.name,
       executionId: executionId,
+      serviceType: serviceType,
       currentStep: workflow.initialStep,
       context: { ...initialContext },
       history: []
@@ -201,10 +225,13 @@ export class FlowWiseService {
 
       console.log(`🔄 [FlowWise] Executing step: ${step.name} (${step.id})`);
 
-      // Handle decision steps - pause and wait for user
+      // For decision steps, we need to execute the step first to get to the decision point
       if (step.type === 'decision' && step.requiresUserDecision) {
+        // Execute the step atomically on server first (handles any pre-decision actions)
+        await this.executeStepOnServer(step, execution);
+
         console.log(`🤔 [FlowWise] Waiting for user decision: ${step.decisionPrompt}`);
-        
+
         // Request user decision
         const decisionRequest: UserDecisionRequest = {
           executionId: execution.executionId,
@@ -223,23 +250,9 @@ export class FlowWiseService {
         return; // Pause execution until decision is submitted
       }
 
-      // Execute server actions for non-decision steps
-      if (step.actions) {
-        for (const action of step.actions) {
-          await this.executeAction(action, execution);
-        }
-      }
-
-      // Find next step
-      const transitions = workflow.transitions.filter(t => t.from === currentStepId);
-      let nextStepId: string | null = null;
-
-      for (const transition of transitions) {
-        if (!transition.condition || this.evaluateCondition(transition.condition, execution.context)) {
-          nextStepId = transition.to;
-          break;
-        }
-      }
+      // Execute entire step atomically on server (handles all actions, events, outputs)
+      // Server determines next step based on transition conditions and returns it
+      const nextStepId = await this.executeStepOnServer(step, execution);
 
       // Check if we've reached a final step
       if (workflow.finalSteps.includes(currentStepId)) {
@@ -248,7 +261,7 @@ export class FlowWiseService {
       }
 
       if (!nextStepId) {
-        console.warn(`⚠️ [FlowWise] No valid transition from step: ${currentStepId}`);
+        console.warn(`⚠️ [FlowWise] No next step returned by server from step: ${currentStepId}`);
         break;
       }
 
@@ -260,29 +273,34 @@ export class FlowWiseService {
   /**
    * Submit user decision and continue workflow
    */
-  submitDecision(executionId: string, decision: string): boolean {
+  submitDecision(executionId: string, decision: string): Promise<boolean> {
+    console.log(`✅ [FlowWise] Submitting decision: ${decision} for execution: ${executionId}`);
+
+    // Send decision to server for processing
+    const baseUrl = window.location.port === '4200' ? 'http://localhost:3000' : '';
+    const payload = {
+      workflowId: executionId,
+      decision: decision,
+      selectionData: null // Will be set if this is a selection
+    };
+
+    // Check if this is a selection (has userSelection in context)
     const execution = this.activeExecutions.get(executionId);
-    if (!execution) {
-      console.error(`❌ [FlowWise] Execution not found: ${executionId}`);
-      return false;
+    if (execution && execution.context['userSelection']) {
+      payload.selectionData = execution.context['userSelection'];
+      console.log(`🎬 [FlowWise] Submitting movie selection:`, payload.selectionData);
     }
 
-    const workflow = this.workflows.get(execution.workflowId === 'Movie Garden Chat Lifecycle' ? 'movie' : 'dex');
-    if (!workflow) {
-      console.error(`❌ [FlowWise] Workflow not found: ${execution.workflowId}`);
-      return false;
-    }
-
-    // Store decision in context
-    execution.context['userDecision'] = decision;
-    console.log(`✅ [FlowWise] User decision received: ${decision} for execution ${executionId}`);
-
-    // Continue workflow execution asynchronously
-    this.executeWorkflow(execution, workflow).catch(error => {
-      console.error(`❌ [FlowWise] Error continuing workflow after decision:`, error);
-    });
-    
-    return true;
+    return this.http.post(`${baseUrl}/api/workflow/decision`, payload)
+      .toPromise()
+      .then((response: any) => {
+        console.log(`✅ [FlowWise] Decision submitted successfully:`, response);
+        return true;
+      })
+      .catch((error) => {
+        console.error(`❌ [FlowWise] Failed to submit decision:`, error);
+        return false;
+      });
   }
 
   /**
@@ -293,74 +311,47 @@ export class FlowWiseService {
   }
 
   /**
-   * Execute action on server - LLM actions mocked, payment actions handled server-side for autopay
+   * Execute entire step atomically on server - prevents sync issues and enables proper autopay
    */
-  private async executeAction(action: any, execution: WorkflowExecution): Promise<void> {
-    // Replace template variables in action
-    const processedAction = this.replaceTemplateVariables(action, execution.context);
-
-    console.log(`⚙️ [FlowWise] Executing action: ${action.type}`, processedAction);
-
-    // Check if this is an LLM action - mock it immediately for self-play
-    if (this.isLLMAction(action.type)) {
-      console.log(`🤖 [FlowWise] LLM Self-Play: Mocking ${action.type} for decision-focused workflow`);
-      const mockResults = this.getMockLLMResults(action.type, execution.context);
-      Object.assign(execution.context, mockResults);
-      console.log(`✅ [FlowWise] LLM mocked successfully: ${action.type}`, mockResults);
-      return;
-    }
-
-    // Check if this is a payment action - send to server for autopay processing
-    if (this.isPaymentAction(action.type)) {
-      console.log(`💰 [FlowWise] Server-Side Autopay: Processing ${action.type} on server`);
-      // Continue to server processing below
-    } else {
-      console.log(`🔧 [FlowWise] Processing action on server: ${action.type}`);
-    }
+  private async executeStepOnServer(step: WorkflowStep, execution: WorkflowExecution): Promise<string | null> {
+    console.log(`🔄 [FlowWise] Executing step atomically on server: ${step.name} (${step.id})`);
 
     const baseUrl = window.location.port === '4200'
       ? 'http://localhost:3000'
       : '';
 
-    // Send action to server via workflow action API
+    // Send entire step to server for atomic execution
     try {
-      const response = await this.http.post<any>(`${baseUrl}/api/workflow/action`, {
+      const response = await this.http.post<any>(`${baseUrl}/api/workflow/execute-step`, {
         executionId: execution.executionId,
-        action: processedAction,
-        context: execution.context
+        stepId: step.id,
+        context: execution.context,
+        serviceType: execution.serviceType
       }).toPromise();
 
       if (response.success && response.result) {
-        // Merge result into execution context
-        Object.assign(execution.context, response.result);
-        console.log(`✅ [FlowWise] Action executed: ${action.type}`, response.result);
+        // Server has executed all actions atomically and updated context
+        Object.assign(execution.context, response.result.updatedContext);
+        console.log(`✅ [FlowWise] Step executed atomically: ${step.id}`, response.result);
 
-        // Special handling for payment success
-        if (this.isPaymentAction(action.type) && response.result.paymentSuccess) {
-          console.log(`💰 [FlowWise] Autopay successful: ${action.type}`);
+        // Handle WebSocket events that server should have broadcast
+        if (response.result.events) {
+          console.log(`📡 [FlowWise] Server broadcast ${response.result.events.length} events`);
         }
+
+        // Return the next step ID determined by the server
+        return response.result.nextStepId;
       } else {
-        console.error(`❌ [FlowWise] Action failed: ${action.type}`, response.error);
-        // For payment actions, this is critical - don't use fallback
-        if (this.isPaymentAction(action.type)) {
-          throw new Error(`Payment action failed: ${action.type} - ${response.error}`);
-        }
-        // For other actions, provide fallback mock data
-        const fallbackResults = this.getFallbackActionResults(action.type);
-        Object.assign(execution.context, fallbackResults);
-        console.log(`⚠️ [FlowWise] Using fallback data for: ${action.type}`, fallbackResults);
+        console.error(`❌ [FlowWise] Step execution failed: ${step.id}`, response.error);
+        throw new Error(`Step execution failed: ${response.error}`);
       }
     } catch (error: any) {
-      console.error(`❌ [FlowWise] Action execution error: ${action.type}`, error);
-      // For payment actions, re-throw the error - autopay must work
-      if (this.isPaymentAction(action.type)) {
-        throw error;
-      }
-      // For other actions, provide fallback mock data
-      const fallbackResults = this.getFallbackActionResults(action.type);
-      Object.assign(execution.context, fallbackResults);
-      console.log(`🔄 [FlowWise] Using fallback data after error: ${action.type}`, fallbackResults);
+      console.error(`❌ [FlowWise] Step execution error: ${step.id}`, error);
+      throw error;
     }
+
+    // Should not reach here, but TypeScript requires a return
+    return null;
   }
 
   /**
@@ -656,22 +647,8 @@ export class FlowWiseService {
   }
 
   /**
-   * Evaluate condition
+   * Transition evaluation is now handled server-side for atomic execution
    */
-  private evaluateCondition(condition: string, context: WorkflowContext): boolean {
-    if (condition === 'always') return true;
-    if (condition.startsWith('!')) {
-      const path = condition.substring(1);
-      return !this.getNestedValue(context, path);
-    }
-    // Handle === comparisons
-    if (condition.includes('===')) {
-      const [left, right] = condition.split('===').map(s => s.trim());
-      const leftValue = this.getNestedValue(context, left);
-      return leftValue === right.replace(/['"]/g, '');
-    }
-    return !!this.getNestedValue(context, condition);
-  }
 
   /**
    * Get active execution

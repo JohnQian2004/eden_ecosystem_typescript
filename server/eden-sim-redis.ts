@@ -195,9 +195,8 @@ export function broadcastEvent(event: any) {
 // HTTP Server Routes
 httpServer.on("request", async (req, res) => {
   const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  // Verbose logging disabled - uncomment below for debugging
-  // console.log(`\n📥 [${requestId}] Incoming ${req.method} request: ${req.url}`);
-  // console.log(`   Headers:`, JSON.stringify(req.headers, null, 2));
+  // Basic request logging enabled for debugging
+  console.log(`📥 [${requestId}] ${req.method} ${req.url}`);
   
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
@@ -237,6 +236,7 @@ httpServer.on("request", async (req, res) => {
           flowwiseWorkflow: workflow
         };
         console.log(`   ✅ [${requestId}] Sending workflow response with ${workflow.steps.length} steps`);
+        console.log(`   📤 [${requestId}] Response: 200 OK (workflow definition)`);
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*"
@@ -280,6 +280,7 @@ httpServer.on("request", async (req, res) => {
     req.on("end", async () => {
       const sendResponse = (statusCode: number, data: any) => {
         if (!res.headersSent) {
+          console.log(`   📤 [${requestId}] Response: ${statusCode} ${statusCode === 200 ? 'OK' : 'ERROR'} (${JSON.stringify(data).length} bytes)`);
           res.writeHead(statusCode, { "Content-Type": "application/json" });
           res.end(JSON.stringify(data));
         }
@@ -296,16 +297,105 @@ httpServer.on("request", async (req, res) => {
 
         console.log(`   🔄 [${requestId}] Executing action ${action.type} in execution ${executionId}`);
 
-        // For now, just acknowledge the action execution
-        // In a full implementation, this would execute the specific action
-        sendResponse(200, {
-          success: true,
-          message: `Action ${action.type} executed`,
-          result: {
-            actionExecuted: action.type,
-            timestamp: Date.now()
+        // Handle different action types
+        let result: any = {
+          actionExecuted: action.type,
+          timestamp: Date.now()
+        };
+
+        try {
+          switch (action.type) {
+            case 'check_balance':
+              // Check if user has sufficient balance
+              const userEmail = action.email || context?.user?.email;
+              const requiredAmount = action.required || context?.totalCost || action.amount;
+
+              if (!userEmail || !requiredAmount) {
+                throw new Error('Missing user email or amount for balance check');
+              }
+
+              const balance = getWalletBalance(userEmail);
+              const hasBalance = balance >= requiredAmount;
+
+              result = {
+                ...result,
+                balanceChecked: true,
+                userEmail,
+                requiredAmount,
+                currentBalance: balance,
+                sufficientFunds: hasBalance
+              };
+              break;
+
+            case 'process_payment':
+              // Process the actual payment
+              const paymentUser = action.user || context?.user;
+              const paymentAmount = action.amount || context?.totalCost || context?.moviePrice;
+              const ledgerEntry = action.ledgerEntry || context?.ledgerEntry;
+
+              if (!paymentUser?.email || !paymentAmount || !ledgerEntry) {
+                throw new Error('Missing payment details');
+              }
+
+              // Debit the user wallet
+              const debitResult = debitWallet(paymentUser.email, paymentAmount);
+              if (!debitResult.success) {
+                throw new Error(`Payment failed: ${debitResult.error}`);
+              }
+
+              // Process the payment through cashier
+              const paymentResult = processPayment(ledgerEntry, paymentUser);
+
+              result = {
+                ...result,
+                paymentProcessed: true,
+                paymentSuccess: true,
+                amount: paymentAmount,
+                newBalance: debitResult.newBalance,
+                ledgerEntry: paymentResult
+              };
+              break;
+
+            case 'complete_booking':
+              // Complete the booking
+              const bookingEntry = action.ledgerEntry || context?.ledgerEntry;
+              if (!bookingEntry) {
+                throw new Error('Missing ledger entry for booking completion');
+              }
+
+              const bookingResult = completeBooking(bookingEntry);
+
+              result = {
+                ...result,
+                bookingCompleted: true,
+                bookingResult
+              };
+              break;
+
+            default:
+              // Default action acknowledgment
+              console.log(`   ⚙️ [${requestId}] Action ${action.type} acknowledged (no specific handler)`);
           }
-        });
+
+          sendResponse(200, {
+            success: true,
+            message: `Action ${action.type} executed successfully`,
+            result
+          });
+
+        } catch (actionError: any) {
+          console.error(`   ❌ [${requestId}] Action execution error for ${action.type}:`, actionError.message);
+          sendResponse(500, {
+            success: false,
+            error: `Action ${action.type} failed: ${actionError.message}`,
+            result: {
+              actionExecuted: action.type,
+              success: false,
+              error: actionError.message,
+              timestamp: Date.now()
+            }
+          });
+        }
 
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error executing workflow action:`, error.message);
@@ -315,9 +405,9 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  // POST /api/workflow/execute-step - Execute a specific workflow step manually
+  // POST /api/workflow/execute-step - Execute a specific workflow step atomically on server
   if (pathname === "/api/workflow/execute-step" && req.method === "POST") {
-    console.log(`   ▶️ [${requestId}] POST /api/workflow/execute-step - Manual step execution`);
+    console.log(`   ▶️ [${requestId}] POST /api/workflow/execute-step - Atomic step execution`);
     let body = "";
 
     req.on("data", (chunk) => {
@@ -327,6 +417,7 @@ httpServer.on("request", async (req, res) => {
     req.on("end", async () => {
       const sendResponse = (statusCode: number, data: any) => {
         if (!res.headersSent) {
+          console.log(`   📤 [${requestId}] Response: ${statusCode} ${statusCode === 200 ? 'OK' : 'ERROR'} (${JSON.stringify(data).length} bytes)`);
           res.writeHead(statusCode, { "Content-Type": "application/json" });
           res.end(JSON.stringify(data));
         }
@@ -334,26 +425,501 @@ httpServer.on("request", async (req, res) => {
 
       try {
         const parsedBody = JSON.parse(body);
-        const { executionId, stepId, context } = parsedBody;
+        const { executionId, stepId, context, serviceType } = parsedBody;
 
-        if (!executionId || !stepId) {
-          sendResponse(400, { success: false, error: "executionId and stepId are required" });
+        if (!executionId || !stepId || !serviceType) {
+          sendResponse(400, { success: false, error: "executionId, stepId, and serviceType are required" });
           return;
         }
 
-        console.log(`   🔄 [${requestId}] Executing step ${stepId} in execution ${executionId}`);
+        console.log(`   🔄 [${requestId}] Executing step ${stepId} atomically for ${serviceType} workflow`);
 
-        // For now, just acknowledge the manual execution
-        // In a full implementation, this would execute the specific step
+        // Import template variable replacement function
+        const { replaceTemplateVariables } = await import("./src/flowwise");
+
+        // Load the appropriate workflow definition
+        const fs = require('fs');
+        const path = require('path');
+        const workflowPath = serviceType === 'movie'
+          ? path.join(__dirname, 'data', 'amc_cinema.json')
+          : path.join(__dirname, 'data', 'dex.json');
+
+        if (!fs.existsSync(workflowPath)) {
+          sendResponse(404, { success: false, error: `Workflow definition not found: ${workflowPath}` });
+          return;
+        }
+
+        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+        const workflow = workflowData.flowwiseWorkflow;
+
+        if (!workflow) {
+          sendResponse(400, { success: false, error: "Invalid workflow definition" });
+          return;
+        }
+
+        // Find the step to execute
+        const step = workflow.steps.find((s: any) => s.id === stepId);
+        if (!step) {
+          sendResponse(404, { success: false, error: `Step not found: ${stepId}` });
+          return;
+        }
+
+        console.log(`   ⚙️ [${requestId}] Executing step: ${step.name} with ${step.actions?.length || 0} actions`);
+
+        // Initialize updatedContext from the provided context
+        const updatedContext = { ...context };
+        const executedActions: any[] = [];
+        const events: any[] = [];
+
+        // Handle decision steps specially - they require user interaction
+        if (step.type === "decision" && step.requiresUserDecision) {
+          console.log(`   🤔 [${requestId}] Decision step detected: ${step.id}`);
+
+          // For decision steps, we don't execute actions yet - we broadcast the decision request
+          // Process WebSocket events for decision request
+          if (step.websocketEvents) {
+            for (const event of step.websocketEvents) {
+              const processedEvent = replaceTemplateVariables(event, updatedContext);
+              events.push(processedEvent);
+
+              // Add workflow and step identification to the event data
+              processedEvent.data = {
+                ...processedEvent.data,
+                workflowId: executionId,
+                stepId: step.id
+              };
+
+              // Special handling for user_select_listing - build options from listings
+              if (step.id === "user_select_listing" && updatedContext.listings) {
+                console.log(`   📋 [${requestId}] Building movie selection options from ${updatedContext.listings.length} listings`);
+                processedEvent.data.options = updatedContext.listings.map((listing: any) => ({
+                  value: listing.id,
+                  label: `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`,
+                  data: {
+                    // Include all listing fields dynamically
+                    ...listing,
+                    // Ensure key fields are present
+                    id: listing.id,
+                    movieTitle: listing.movieTitle || listing.name,
+                    showtime: listing.showtime,
+                    price: listing.price,
+                    providerId: listing.providerId,
+                    providerName: listing.providerName || listing.provider
+                  }
+                }));
+              }
+
+              console.log(`   📡 [${requestId}] Broadcasting decision event: ${event.type}`);
+              try {
+                broadcastEvent(processedEvent);
+              } catch (broadcastError) {
+                console.warn(`   ⚠️ [${requestId}] Failed to broadcast event: ${event.type}`, broadcastError);
+              }
+            }
+          }
+
+          // For decision steps, return early without nextStepId - execution pauses for user input
+          console.log(`   ⏸️ [${requestId}] Step ${stepId} paused for user ${step.id.includes('select') ? 'selection' : 'decision'}`);
+
+          sendResponse(200, {
+            success: true,
+            message: `Step ${stepId} paused for user interaction`,
+            result: {
+              stepId,
+              pausedForDecision: true,
+              decisionType: step.id.includes('select') ? 'selection' : 'decision',
+              events,
+              updatedContext
+            }
+          });
+          return;
+        }
+
+        console.log(`   📋 [${requestId}] Initial context has listings:`, !!updatedContext.listings);
+
+        // Process LLM actions (mocked)
+        if (step.actions) {
+          for (const action of step.actions) {
+            const processedAction = replaceTemplateVariables(action, updatedContext);
+            console.log(`   🤖 [${requestId}] Processing action: ${action.type}`);
+
+            try {
+              let actionResult: any = {};
+
+              switch (action.type) {
+                case 'validate':
+                  actionResult = {
+                    validationPassed: true,
+                    errors: [],
+                    input: updatedContext.input,
+                    email: updatedContext.email
+                  };
+                  break;
+
+                case 'create_snapshot':
+                  console.log(`📸 [${requestId}] Creating transaction snapshot`);
+                  try {
+                    const snapshot = {
+                      txId: `tx_${Date.now()}`,
+                      blockTime: Date.now(),
+                      payer: processedAction.payer || updatedContext.user?.email || 'unknown@example.com',
+                      amount: processedAction.amount || updatedContext.moviePrice || updatedContext.selectedListing?.price || 0,
+                      feeSplit: {
+                        indexer: 0,
+                        cashier: 0.1,
+                        provider: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.05,
+                        eden: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.02
+                      }
+                    };
+                    actionResult = { snapshot };
+                    // Store snapshot in context for next actions
+                    updatedContext.snapshot = snapshot;
+                    console.log(`📸 [${requestId}] Snapshot created:`, {
+                      txId: snapshot.txId,
+                      payer: snapshot.payer,
+                      amount: snapshot.amount
+                    });
+                  } catch (snapshotError) {
+                    console.error(`❌ [${requestId}] Error creating snapshot:`, snapshotError);
+                    actionResult = { error: snapshotError.message };
+                  }
+                  break;
+
+                case 'validate_certificate':
+                  console.log(`🔐 [${requestId}] Validating certificate for provider:`, processedAction.providerUuid || updatedContext.selectedListing?.providerId);
+                  // For now, always pass certificate validation in mock mode
+                  actionResult = {
+                    certificateValid: true,
+                    providerUuid: processedAction.providerUuid || updatedContext.selectedListing?.providerId,
+                    validationTimestamp: Date.now()
+                  };
+                  console.log(`🔐 [${requestId}] Certificate validation passed`);
+                  break;
+
+                case 'llm_extract_query':
+                  actionResult = {
+                    queryResult: {
+                      serviceType: 'movie',
+                      query: {
+                        filters: {
+                          genre: 'sci-fi',
+                          time: 'evening'
+                        }
+                      }
+                    }
+                  };
+                  break;
+
+                case 'query_service_registry':
+                  const mockListings = [{
+                    id: 'amc-001',
+                    name: 'AMC Theatres',
+                    serviceType: 'movie',
+                    location: 'Downtown Plaza',
+                    providerId: 'amc-001',
+                    providerName: 'AMC Theatres',
+                    movieTitle: 'The Dark Knight',
+                    showtime: '7:00 PM',
+                    price: 15.99,
+                    rating: 4.8,
+                    genre: 'Action',
+                    duration: '152 min',
+                    format: 'IMAX'
+                  }, {
+                    id: 'cineplex-001',
+                    name: 'Cineplex Odeon',
+                    serviceType: 'movie',
+                    location: 'Mall Central',
+                    providerId: 'cineplex-001',
+                    providerName: 'Cineplex Odeon',
+                    movieTitle: 'Inception',
+                    showtime: '8:30 PM',
+                    price: 13.50,
+                    rating: 4.6,
+                    genre: 'Sci-Fi',
+                    duration: '148 min',
+                    format: '3D'
+                  }, {
+                    id: 'regal-001',
+                    name: 'Regal Cinemas',
+                    serviceType: 'movie',
+                    location: 'Riverside Center',
+                    providerId: 'regal-001',
+                    providerName: 'Regal Cinemas',
+                    movieTitle: 'Avatar',
+                    showtime: '6:15 PM',
+                    price: 17.25,
+                    rating: 4.9,
+                    genre: 'Adventure',
+                    duration: '162 min',
+                    format: '4DX'
+                  }];
+                  actionResult = {
+                    listings: mockListings,
+                    providers: [{
+                      id: 'amc-001',
+                      name: 'AMC Theatres',
+                      serviceType: 'movie',
+                      location: 'Demo Location'
+                    }]
+                  };
+                  console.log(`   📋 [${requestId}] Set ${mockListings.length} listings in context`);
+                  break;
+
+                case 'llm_format_response':
+                  const availableListings = updatedContext.listings || [];
+                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} movie options for user selection`);
+
+                  actionResult = {
+                    llmResponse: {
+                      message: 'Found great movie options! Here are the best matches for your request.',
+                      iGasCost: 0.004450,
+                      queryProcessed: true,
+                      optionsFound: availableListings.length,
+                      serviceType: 'movie',
+                      recommendations: availableListings.map((listing: any, index: number) => ({
+                        rank: index + 1,
+                        movieTitle: listing.movieTitle,
+                        showtime: listing.showtime,
+                        price: listing.price,
+                        provider: listing.providerName,
+                        rating: listing.rating
+                      }))
+                    },
+                    listings: availableListings, // Keep for selection step
+                    iGasCost: 0.004450,
+                    currentIGas: 0.004450
+                  };
+                  console.log(`   📋 [${requestId}] Set structured llmResponse:`, actionResult.llmResponse);
+                  break;
+
+                case 'add_ledger_entry':
+                  console.log(`🔍 [${requestId}] Executing add_ledger_entry action - START`);
+                  try {
+                    // Use snapshot from context (created by create_snapshot action)
+                    const snapshot = processedAction.snapshot || updatedContext.snapshot;
+                    if (!snapshot) {
+                      throw new Error('No snapshot available for ledger entry creation');
+                    }
+
+                    console.log(`📝 [${requestId}] Adding ledger entry for movie booking:`, {
+                      amount: snapshot.amount,
+                      payer: snapshot.payer,
+                      merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName,
+                      movieTitle: updatedContext.selectedListing?.movieTitle
+                    });
+
+                    console.log(`📝 [${requestId}] Calling addLedgerEntry with:`, {
+                      snapshotTxId: snapshot.txId,
+                      serviceType: processedAction.serviceType || 'movie',
+                      payerId: processedAction.payerId || updatedContext.user?.email,
+                      merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName
+                    });
+
+                    const ledgerEntry = await addLedgerEntry(
+                      snapshot,
+                      processedAction.serviceType || 'movie',
+                      processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
+                      processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
+                      processedAction.merchantName || updatedContext.selectedListing?.providerName || 'AMC Theatres',
+                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || 'amc-001',
+                      {
+                        movieTitle: updatedContext.selectedListing?.movieTitle,
+                        showtime: updatedContext.selectedListing?.showtime,
+                        location: updatedContext.selectedListing?.location
+                      }
+                    );
+
+                    console.log(`📝 [${requestId}] addLedgerEntry returned:`, {
+                      entryId: ledgerEntry.entryId,
+                      txId: ledgerEntry.txId,
+                      payer: ledgerEntry.payer,
+                      merchant: ledgerEntry.merchant,
+                      amount: ledgerEntry.amount
+                    });
+                    console.log(`📝 [${requestId}] LEDGER array now has ${LEDGER.length} entries`);
+
+                    actionResult = { ledgerEntry };
+                    // Store ledgerEntry in context for websocketEvents template replacement
+                    updatedContext.ledgerEntry = ledgerEntry;
+                  } catch (ledgerError) {
+                    console.error(`❌ [${requestId}] Error adding ledger entry:`, ledgerError);
+                    actionResult = { error: ledgerError.message };
+                  }
+                  break;
+
+                case 'check_balance':
+                  const userEmail = processedAction.email || updatedContext.user?.email;
+                  const requiredAmount = processedAction.required || updatedContext.totalCost || processedAction.amount;
+
+                  if (!userEmail || !requiredAmount) {
+                    throw new Error('Missing user email or amount for balance check');
+                  }
+
+                  const balance = getWalletBalance(userEmail);
+                  const hasBalance = balance >= requiredAmount;
+
+                  actionResult = {
+                    balanceChecked: true,
+                    userEmail,
+                    requiredAmount,
+                    currentBalance: balance,
+                    sufficientFunds: hasBalance
+                  };
+                  break;
+
+                case 'process_payment':
+                  const paymentUser = processedAction.user || updatedContext.user;
+                  const paymentAmount = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice;
+
+                  if (!paymentUser?.email || !paymentAmount) {
+                    throw new Error('Missing payment details');
+                  }
+
+                  // Debit the user wallet
+                  const debitResult = debitWallet(paymentUser.email, paymentAmount);
+                  if (!debitResult.success) {
+                    throw new Error(`Payment failed: ${debitResult.error}`);
+                  }
+
+                  // Process the payment through cashier
+                  const ledgerEntryForPayment = processedAction.ledgerEntry || updatedContext.ledgerEntry;
+                  const paymentResult = processPayment(ledgerEntryForPayment, paymentUser);
+
+                  actionResult = {
+                    paymentProcessed: true,
+                    paymentSuccess: true,
+                    amount: paymentAmount,
+                    newBalance: debitResult.newBalance,
+                    ledgerEntry: paymentResult
+                  };
+                  break;
+
+                case 'complete_booking':
+                  const bookingEntry = processedAction.ledgerEntry || updatedContext.ledgerEntry;
+                  if (!bookingEntry) {
+                    throw new Error('Missing ledger entry for booking completion');
+                  }
+
+                  const bookingResult = completeBooking(bookingEntry);
+                  actionResult = {
+                    bookingCompleted: true,
+                    bookingResult
+                  };
+                  break;
+
+                default:
+                  actionResult = {
+                    success: true,
+                    message: `Action ${action.type} executed`,
+                    timestamp: Date.now()
+                  };
+              }
+
+              // Merge action result into context
+              Object.assign(updatedContext, actionResult);
+              console.log(`   📋 [${requestId}] After ${action.type}: listings=${updatedContext.listings?.length || 0}, llmResponse=${!!updatedContext.llmResponse}, selectedListing=${!!updatedContext.selectedListing}`);
+
+              executedActions.push({
+                type: action.type,
+                success: true,
+                result: actionResult
+              });
+
+            } catch (actionError: any) {
+              console.error(`   ❌ [${requestId}] Action failed: ${action.type}`, actionError.message);
+              executedActions.push({
+                type: action.type,
+                success: false,
+                error: actionError.message
+              });
+              throw actionError; // Fail the entire step if any action fails
+            }
+          }
+        }
+
+        // Process WebSocket events
+        if (step.websocketEvents) {
+          for (const event of step.websocketEvents) {
+            const processedEvent = replaceTemplateVariables(event, updatedContext);
+            events.push(processedEvent);
+
+            // Debug logging for iGas events
+            if (processedEvent.type === 'igas') {
+              console.log(`   ⛽ [${requestId}] iGas event data:`, processedEvent.data);
+              console.log(`   ⛽ [${requestId}] iGas value type:`, typeof processedEvent.data?.igas);
+              console.log(`   ⛽ [${requestId}] Full processed iGas event:`, JSON.stringify(processedEvent, null, 2));
+            }
+
+            // Broadcast the event via WebSocket
+            try {
+              broadcastEvent(processedEvent);
+              console.log(`   📡 [${requestId}] Broadcast event: ${event.type}`);
+            } catch (broadcastError) {
+              console.warn(`   ⚠️ [${requestId}] Failed to broadcast event: ${event.type}`, broadcastError);
+            }
+          }
+        }
+
+        // Apply step outputs
+        if (step.outputs) {
+          const processedOutputs = replaceTemplateVariables(step.outputs, updatedContext);
+          Object.assign(updatedContext, processedOutputs);
+        }
+
+        // Determine next step based on transitions
+        let nextStepId: string | null = null;
+        const transitions = workflow.transitions.filter((t: any) => t.from === stepId);
+
+        console.log(`   🔍 [${requestId}] Context keys:`, Object.keys(updatedContext));
+        console.log(`   🔍 [${requestId}] llmResponse exists:`, !!updatedContext.llmResponse);
+        console.log(`   🔍 [${requestId}] llmResponse.selectedListing:`, updatedContext.llmResponse?.selectedListing);
+
+        for (const transition of transitions) {
+          // Evaluate condition
+          let conditionMet = false;
+          if (transition.condition === "always") {
+            conditionMet = true;
+          } else if (transition.condition) {
+            // Replace template variables in condition
+            const processedCondition = replaceTemplateVariables(transition.condition, updatedContext);
+
+            // Check if the processed condition is different from the original
+            // If it still contains {{ }}, the variable doesn't exist
+            if (processedCondition === transition.condition && processedCondition.includes('{{')) {
+              // Template variable doesn't exist in context
+              conditionMet = false;
+            } else {
+              // Template was replaced, check if result is truthy
+              // For conditions like "{{llmResponse.selectedListing}}", check if the result exists
+              conditionMet = !!processedCondition;
+            }
+          }
+
+          console.log(`   🔀 [${requestId}] Transition condition "${transition.condition}" -> "${transition.condition === "always" ? "always" : replaceTemplateVariables(transition.condition, updatedContext)}" = ${conditionMet ? "TRUE" : "FALSE"} -> ${transition.to}`);
+
+          if (conditionMet) {
+            nextStepId = transition.to;
+            break;
+          }
+        }
+
+        console.log(`   ✅ [${requestId}] Step ${stepId} executed atomically with ${executedActions.length} actions, next step: ${nextStepId}`);
+
         sendResponse(200, {
           success: true,
-          message: `Step ${stepId} executed manually`,
-          executionId: executionId,
-          stepId: stepId
+          message: `Step ${stepId} executed atomically`,
+          result: {
+            stepId,
+            executedActions,
+            events,
+            updatedContext,
+            nextStepId
+          }
         });
 
       } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error executing step manually:`, error.message);
+        console.error(`   ❌ [${requestId}] Error executing step atomically:`, error.message);
         sendResponse(500, { success: false, error: error.message });
       }
     });
@@ -371,6 +937,7 @@ httpServer.on("request", async (req, res) => {
     req.on("end", async () => {
       const sendResponse = (statusCode: number, data: any) => {
         if (!res.headersSent) {
+          console.log(`   📤 [${requestId}] Response: ${statusCode} ${statusCode === 200 ? 'OK' : 'ERROR'} (${JSON.stringify(data).length} bytes)`);
           res.writeHead(statusCode, { "Content-Type": "application/json" });
           res.end(JSON.stringify(data));
         }
@@ -378,21 +945,357 @@ httpServer.on("request", async (req, res) => {
       
       try {
         const parsedBody = JSON.parse(body);
-        const { workflowId, decision } = parsedBody;
-        
+        const { workflowId, decision, selectionData } = parsedBody;
+
         if (!workflowId || !decision) {
           sendResponse(400, { success: false, error: "workflowId and decision are required" });
           return;
         }
-        
-        const { submitUserDecision } = await import("./src/flowwise");
-        const submitted = submitUserDecision(workflowId, decision);
-        if (submitted) {
-          console.log(`   ✅ [${requestId}] User decision submitted: ${decision} for workflow ${workflowId}`);
-          sendResponse(200, { success: true, message: "Decision submitted" });
+
+        console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
+
+        // Load workflow definition to continue execution
+        const fs = require('fs');
+        const path = require('path');
+        // For now, default to 'movie' since we're using AMC workflow for all inputs
+        const serviceType = 'movie';
+        const workflowPath = serviceType === 'movie'
+          ? path.join(__dirname, 'data', 'amc_cinema.json')
+          : path.join(__dirname, 'data', 'dex.json');
+
+        if (!fs.existsSync(workflowPath)) {
+          sendResponse(500, { success: false, error: `Workflow definition not found` });
+          return;
+        }
+
+        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+        const workflow = workflowData.flowwiseWorkflow;
+
+        console.log(`   📋 [${requestId}] Loaded workflow: ${workflow?.name}, steps: ${workflow?.steps?.length}, transitions: ${workflow?.transitions?.length}`);
+        console.log(`   📋 [${requestId}] Workflow keys:`, Object.keys(workflow || {}));
+        console.log(`   📋 [${requestId}] Workflow transitions type:`, typeof workflow?.transitions);
+        if (workflow?.transitions) {
+          console.log(`   📋 [${requestId}] First few transitions:`, workflow.transitions.slice(0, 3));
+        }
+
+        // Import FlowWise functions for workflow execution
+        const { replaceTemplateVariables, evaluateCondition } = await import("./src/flowwise");
+
+        // Function to continue workflow execution after decision
+        const continueWorkflowExecution = async (
+          workflow: any,
+          executionId: string,
+          contextUpdates: any,
+          currentStepId: string
+        ): Promise<{ nextStepId: string | null, events: any[] }> => {
+          console.log(`   🔄 [${requestId}] Continuing workflow execution after decision from step: ${currentStepId}`);
+
+          // We need to maintain context across workflow execution
+          // For now, create a basic context with the updates - in a full implementation,
+          // this would load the existing context from storage
+          const fullContext = {
+            // Include basic context that transitions might need
+            listings: [], // This would be loaded from previous steps
+            input: 'movie request', // Mock input
+            email: 'user@example.com', // Mock email
+            user: { email: 'user@example.com' },
+            ...contextUpdates // Add the updates - this should include userSelection
+          };
+
+          console.log(`   📋 [${requestId}] Context for transition evaluation:`, {
+            hasUserSelection: !!fullContext.userSelection,
+            userSelection: fullContext.userSelection?.id,
+            userDecision: fullContext.userDecision
+          });
+
+          // Find and evaluate transitions from the current step
+          console.log(`   🔍 [${requestId}] All transitions:`, workflow.transitions?.map((t: any) => `${t.from} -> ${t.to}`));
+          const transitions = workflow.transitions.filter((t: any) => t.from === currentStepId);
+          let nextStepId: string | null = null;
+
+          console.log(`   🔍 [${requestId}] Found ${transitions.length} transitions from ${currentStepId}`);
+
+          for (const transition of transitions) {
+            try {
+              const conditionMet = evaluateCondition(transition.condition, fullContext);
+              console.log(`   🔍 [${requestId}] Evaluating transition: ${transition.from} -> ${transition.to}, condition: ${transition.condition} = ${conditionMet}`);
+
+              if (conditionMet) {
+                nextStepId = transition.to;
+                console.log(`   ✅ [${requestId}] Transition condition met, next step: ${nextStepId}`);
+                break;
+              }
+            } catch (error) {
+              console.warn(`   ⚠️ [${requestId}] Error evaluating condition: ${transition.condition}`, error);
+            }
+          }
+
+          if (!nextStepId) {
+            console.log(`   ⏹️ [${requestId}] No valid transition found, workflow paused`);
+            return { nextStepId: null, events: [] };
+          }
+
+          // Execute the next step atomically
+          console.log(`   🚀 [${requestId}] Executing next step: ${nextStepId}`);
+          return await executeStepAtomically(workflow, executionId, nextStepId, fullContext);
+        };
+
+        // Function to execute a step atomically (extracted from the execute-step endpoint)
+        const executeStepAtomically = async (
+          workflow: any,
+          executionId: string,
+          stepId: string,
+          fullContext: any
+        ): Promise<{ nextStepId: string | null, events: any[] }> => {
+          const events: any[] = [];
+          const updatedContext = { ...fullContext };
+
+          const step = workflow.steps.find((s: any) => s.id === stepId);
+          if (!step) {
+            throw new Error(`Step not found: ${stepId}`);
+          }
+
+          console.log(`   ⚙️ [${requestId}] Executing step: ${step.name} with ${step.actions?.length || 0} actions`);
+
+          // Handle decision steps specially
+          if (step.type === "decision" && step.requiresUserDecision) {
+            // Add workflow and step identification to the event data
+            const processedEvent = replaceTemplateVariables(step.websocketEvents[0], updatedContext);
+            processedEvent.data = {
+              ...processedEvent.data,
+              workflowId: executionId,
+              stepId: step.id
+            };
+
+            // Special handling for user_select_listing
+            if (step.id === "user_select_listing" && updatedContext.listings) {
+              processedEvent.data.options = updatedContext.listings.map((listing: any) => ({
+                value: listing.id,
+                label: `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`,
+                data: {
+                  ...listing,
+                  id: listing.id,
+                  movieTitle: listing.movieTitle || listing.name,
+                  showtime: listing.showtime,
+                  price: listing.price,
+                  providerId: listing.providerId,
+                  providerName: listing.providerName || listing.provider
+                }
+              }));
+            }
+
+            events.push(processedEvent);
+            broadcastEvent(processedEvent);
+
+            return { nextStepId: null, events }; // Decision steps pause execution
+          }
+
+          // Execute all actions in this step atomically
+          const executedActions: any[] = [];
+
+          if (step.actions) {
+            for (const action of step.actions) {
+              const processedAction = replaceTemplateVariables(action, updatedContext);
+              console.log(`   🤖 [${requestId}] Processing action: ${action.type}`, {
+                originalType: action.type,
+                hasSnapshot: !!processedAction.snapshot,
+                snapshotFromContext: !!updatedContext.snapshot
+              });
+
+              try {
+                let actionResult: any = {};
+
+                switch (action.type) {
+                  case 'validate':
+                    actionResult = {
+                      validationPassed: true,
+                      errors: [],
+                      input: updatedContext.input,
+                      email: updatedContext.email
+                    };
+                    break;
+
+                  case 'llm_extract_query':
+                    actionResult = {
+                      queryResult: {
+                        serviceType: 'movie',
+                        query: {
+                          filters: {
+                            genre: 'sci-fi',
+                            time: 'evening'
+                          }
+                        }
+                      }
+                    };
+                    break;
+
+                  case 'query_service_registry':
+                    const mockListings = [{
+                      id: 'amc-001',
+                      name: 'AMC Theatres',
+                      serviceType: 'movie',
+                      location: 'Downtown Plaza',
+                      providerId: 'amc-001',
+                      providerName: 'AMC Theatres',
+                      movieTitle: 'The Dark Knight',
+                      showtime: '7:00 PM',
+                      price: 15.99,
+                      rating: 4.8,
+                      genre: 'Action',
+                      duration: '152 min',
+                      format: 'IMAX'
+                    }, {
+                      id: 'cineplex-001',
+                      name: 'Cineplex Odeon',
+                      serviceType: 'movie',
+                      location: 'Mall Central',
+                      providerId: 'cineplex-001',
+                      providerName: 'Cineplex Odeon',
+                      movieTitle: 'Inception',
+                      showtime: '8:30 PM',
+                      price: 13.50,
+                      rating: 4.6,
+                      genre: 'Sci-Fi',
+                      duration: '148 min',
+                      format: '3D'
+                    }];
+                    actionResult = { listings: mockListings };
+                    updatedContext.listings = mockListings;
+                    break;
+
+                  case 'llm_format_response':
+                    actionResult = {
+                      message: 'Found great movie options! Here are the best matches for your request.',
+                      selectedListing: null, // Let user choose
+                      iGasCost: 0.001
+                    };
+                    updatedContext.llmResponse = actionResult;
+                    break;
+
+                  case 'check_balance':
+                    actionResult = {
+                      hasBalance: true,
+                      currentBalance: 100.0,
+                      requiredAmount: updatedContext.selectedListing?.price || 15.99
+                    };
+                    break;
+
+                  case 'process_payment':
+                    actionResult = {
+                      success: true,
+                      transactionId: `txn-${Date.now()}`,
+                      amount: updatedContext.selectedListing?.price || 15.99
+                    };
+                    updatedContext.paymentSuccess = true;
+                    break;
+
+                  case 'complete_booking':
+                    actionResult = {
+                      bookingId: `booking-${Date.now()}`,
+                      status: 'confirmed',
+                      details: {
+                        movieTitle: updatedContext.selectedListing?.movieTitle,
+                        showtime: updatedContext.selectedListing?.showtime,
+                        price: updatedContext.selectedListing?.price
+                      }
+                    };
+                    break;
+
+                  default:
+                    actionResult = { success: true };
+                }
+
+                executedActions.push({
+                  type: action.type,
+                  result: actionResult,
+                  timestamp: Date.now()
+                });
+
+              } catch (actionError) {
+                console.error(`   ❌ [${requestId}] Action execution error: ${action.type}`, actionError);
+                return { nextStepId: null, events: [] };
+              }
+            }
+          }
+
+          // Process WebSocket events
+          if (step.websocketEvents) {
+            for (const event of step.websocketEvents) {
+              const processedEvent = replaceTemplateVariables(event, updatedContext);
+              events.push(processedEvent);
+              broadcastEvent(processedEvent);
+            }
+          }
+
+          // Continue to next step if this step completed successfully
+          const transitions = workflow.transitions.filter((t: any) => t.from === stepId);
+          let nextStepId: string | null = null;
+
+          for (const transition of transitions) {
+            try {
+              const conditionMet = evaluateCondition(transition.condition, updatedContext);
+              if (conditionMet) {
+                nextStepId = transition.to;
+                break;
+              }
+            } catch (error) {
+              console.warn(`   ⚠️ [${requestId}] Error evaluating transition condition: ${transition.condition}`, error);
+            }
+          }
+
+          return { nextStepId, events };
+        };
+
+        // Determine which step just completed based on the decision type
+        let completedStepId: string;
+        let contextUpdates: any = {};
+
+        if (selectionData) {
+          // This was a selection (user_select_listing step)
+          completedStepId = 'user_select_listing';
+          contextUpdates = {
+            userSelection: selectionData,
+            selectedListing: selectionData
+          };
+          console.log(`   🎬 [${requestId}] User selected movie:`, selectionData);
         } else {
-          console.warn(`   ⚠️  [${requestId}] No pending decision found for workflow ${workflowId}`);
-          sendResponse(404, { success: false, error: "No pending decision found for this workflow" });
+          // This was a decision (user_confirm_listing step)
+          completedStepId = 'user_confirm_listing';
+          contextUpdates = {
+            userDecision: decision
+          };
+          console.log(`   🤔 [${requestId}] User made decision: ${decision}`);
+        }
+
+        // Continue workflow execution with context updates
+        try {
+          const result = await continueWorkflowExecution(workflow, workflowId, contextUpdates, completedStepId);
+
+          // Broadcast any events from the continued workflow execution
+          if (result.events && result.events.length > 0) {
+            console.log(`   📡 [${requestId}] Broadcasting ${result.events.length} workflow continuation events`);
+            for (const event of result.events) {
+              try {
+                broadcastEvent(event);
+                console.log(`   📡 [${requestId}] Broadcast event: ${event.type}`);
+              } catch (broadcastError) {
+                console.warn(`   ⚠️ [${requestId}] Failed to broadcast continuation event: ${event.type}`, broadcastError);
+              }
+            }
+          }
+
+          // Send success response
+          sendResponse(200, {
+            success: true,
+            message: `${selectionData ? 'Selection' : 'Decision'} submitted successfully`,
+            decision,
+            selectionData,
+            nextStepId: result.nextStepId,
+            events: result.events.length
+          });
+        } catch (broadcastError) {
+          console.warn(`   ⚠️ [${requestId}] Failed to broadcast decision event`, broadcastError);
+          sendResponse(200, { success: true, message: "Decision submitted (broadcast failed)" });
         }
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error processing decision:`, error.message);
@@ -852,8 +1755,7 @@ httpServer.on("request", async (req, res) => {
   }
 
   if (pathname === "/api/certificates" && req.method === "GET") {
-    // Verbose logging disabled - uncomment below for debugging
-    // console.log(`   ✅ [${requestId}] GET /api/certificates - Sending certificate list`);
+    console.log(`   ✅ [${requestId}] GET /api/certificates - Sending certificate list`);
     const parsedUrl = url.parse(req.url || "/", true);
     const uuid = parsedUrl.query.uuid as string | undefined;
     
@@ -2224,11 +3126,11 @@ httpServer.on("request", async (req, res) => {
     return;
   }
   
-  // Log unhandled routes for debugging (disabled for less verbose output)
+  // Log unhandled routes for debugging
   if (!pathname.startsWith("/api/")) {
-    // console.log(`   📁 [${requestId}] Serving static file: ${pathname}`);
+    console.log(`   📁 [${requestId}] Serving static file: ${pathname}`);
   } else {
-    // console.log(`   ⚠️  [${requestId}] Unhandled API route: ${req.method} ${pathname}`);
+    console.log(`   ⚠️  [${requestId}] Unhandled API route: ${req.method} ${pathname}`);
   }
 
   if (pathname === "/api/ledger" && req.method === "GET") {
@@ -2236,6 +3138,25 @@ httpServer.on("request", async (req, res) => {
     const parsedUrl = url.parse(req.url || "/", true);
     const payerEmail = parsedUrl.query.email as string | undefined;
     console.log(`📡 [API] Query params:`, parsedUrl.query);
+    console.log(`📡 [API] Checking LEDGER array before getLedgerEntries call: ${LEDGER.length} entries`);
+    console.log(`📡 [API] LEDGER array reference check:`, typeof LEDGER);
+
+    LEDGER.forEach((entry, index) => {
+      if (index < 5) { // Log first 5 entries
+        console.log(`📡 [API] Entry ${index}:`, {
+          entryId: entry.entryId,
+          txId: entry.txId,
+          payer: entry.payer,
+          merchant: entry.merchant,
+          amount: entry.amount,
+          serviceType: entry.serviceType,
+          status: entry.status,
+          movieTitle: entry.bookingDetails?.movieTitle,
+          timestamp: entry.timestamp ? new Date(entry.timestamp).toISOString() : 'no timestamp'
+        });
+      }
+    });
+
     const entries = getLedgerEntries(payerEmail);
     console.log(`📡 [API] getLedgerEntries returned ${entries.length} entries${payerEmail ? ` for ${payerEmail}` : ' (all entries)'}`);
     console.log(`📡 [API] LEDGER array has ${LEDGER.length} entries in memory`);
@@ -2248,7 +3169,8 @@ httpServer.on("request", async (req, res) => {
       total: entries.length
     };
     console.log(`📡 [API] Sending response:`, JSON.stringify(response, null, 2));
-    res.writeHead(200, { 
+    console.log(`📤 [${requestId}] Response: 200 OK (${entries.length} ledger entries)`);
+    res.writeHead(200, {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*" // Ensure CORS is allowed
     });
@@ -2395,8 +3317,7 @@ httpServer.on("request", async (req, res) => {
   // CERTIFICATION PROVISION WIZARD API
   // ============================================
   if (pathname === "/api/wizard/service-types" && req.method === "GET") {
-    // Verbose logging disabled - uncomment below for debugging
-    // console.log(`   🧙 [${requestId}] GET /api/wizard/service-types - Getting service types`);
+    console.log(`   🧙 [${requestId}] GET /api/wizard/service-types - Getting service types`);
     
     const serviceTypes = [
       { type: "movie", icon: "🎬", name: "Movie Tickets", description: "Movie ticket booking service" },
@@ -7616,28 +8537,58 @@ async function main() {
     }
   }
   
-  // Load ledger entries and persisted indexers from persistence file
+  // Load ledger entries from separate persistence file (new system)
+  if (redisConnected && !SKIP_REDIS) {
+    const ledgerEntriesFile = path.join(__dirname, 'eden-ledgerEntries-persistence.json');
+    if (fs.existsSync(ledgerEntriesFile)) {
+      try {
+        const fileContent = fs.readFileSync(ledgerEntriesFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+
+        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
+          // Restore ledger entries from separate file
+          LEDGER.push(...persisted.ledgerEntries);
+          console.log(`📂 [Ledger Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${ledgerEntriesFile}`);
+        }
+      } catch (err: any) {
+        console.error(`❌ [Ledger Persistence] Failed to load ledger entries: ${err.message}`);
+      }
+    } else {
+      // Fallback: Load from old combined persistence file for backward compatibility
+      const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(persistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+
+          if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
+            // Restore ledger entries from old combined file
+            LEDGER.push(...persisted.ledgerEntries);
+            console.log(`📂 [Ledger Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from old combined file ${persistenceFile}`);
+          }
+        } catch (err: any) {
+          console.error(`❌ [Ledger Persistence] Failed to load ledger entries from old file: ${err.message}`);
+        }
+      }
+    }
+  }
+
+  // Load persisted indexers from persistence file
   if (redisConnected && !SKIP_REDIS) {
     try {
       const persistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
       if (fs.existsSync(persistenceFile)) {
         const fileContent = fs.readFileSync(persistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
-        
-        if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries)) {
-          // Restore ledger entries
-          LEDGER.push(...persisted.ledgerEntries);
-          console.log(`📂 [Ledger Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${persistenceFile}`);
-        }
-        
+
         // CRITICAL: In ROOT mode, persistence file is the SINGLE SOURCE OF TRUTH
         // We should ONLY restore what's in the persistence file, nothing else
         // Collect all indexers to restore FIRST, then reset memory arrays and populate
-        
+
         // Temporary arrays to collect indexers to restore
         const indexersToRestore: GardenConfig[] = [];
         const tokenIndexersToRestore: TokenGardenConfig[] = [];
-        
+
         // Backward compatibility: check both 'gardens' and 'indexers' fields
         const gardensFromFile = persisted.gardens || persisted.indexers;
         if (gardensFromFile && Array.isArray(gardensFromFile)) {
@@ -7645,7 +8596,7 @@ async function main() {
           // In ROOT mode: persistence file is the SINGLE SOURCE OF TRUTH
           let restoredCount = 0;
           let skippedCount = 0;
-          
+
           for (const persistedIndexer of gardensFromFile) {
             // Skip token indexers (they're restored separately)
             if (persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'))) {
@@ -7653,12 +8604,12 @@ async function main() {
               console.log(`📂 [Indexer Persistence] Skipping token indexer ${persistedIndexer.id} (will be restored as token indexer)`);
               continue;
             }
-            
+
             // CRITICAL: In ROOT mode, ONLY restore what's in persistence file
             // Persistence file is the SINGLE SOURCE OF TRUTH
             if (DEPLOYED_AS_ROOT) {
               const isRegularIndexer = persistedIndexer.id && (persistedIndexer.id.startsWith('garden-') || persistedIndexer.id.startsWith('indexer-'));
-              
+
               if (isRegularIndexer) {
                 indexersToRestore.push(persistedIndexer as GardenConfig);
                 restoredCount++;
@@ -7674,11 +8625,11 @@ async function main() {
               }
             }
           }
-          
+
           // Restore token indexers separately
           for (const persistedIndexer of gardensFromFile) {
             const isTokenIndexer = persistedIndexer.tokenServiceType === 'dex' || (persistedIndexer.serviceType === 'dex' && persistedIndexer.id && persistedIndexer.id.startsWith('T'));
-            
+
             if (isTokenIndexer) {
               if (DEPLOYED_AS_ROOT) {
                 // ROOT mode: restore all token indexers
@@ -7696,9 +8647,9 @@ async function main() {
               }
             }
           }
-          
+
           console.log(`📂 [Indexer Persistence] Collected ${indexersToRestore.length} regular indexer(s) and ${tokenIndexersToRestore.length} token indexer(s) to restore`);
-          
+
           // Clear existing arrays (except defaults in non-ROOT mode)
           if (DEPLOYED_AS_ROOT) {
             // ROOT mode: clear all (no defaults)
@@ -7715,7 +8666,7 @@ async function main() {
             GARDENS.push(...filteredGardens);
             TOKEN_GARDENS.push(...filteredTokenGardens);
           }
-          
+
           // CRITICAL: Deduplicate BEFORE adding to arrays to prevent duplicates in memory
           // This is the ROOT CAUSE fix - prevent duplicates at the source, not after creation
           const deduplicatedRegular = new Map<string, GardenConfig>();
@@ -7726,7 +8677,7 @@ async function main() {
               console.warn(`⚠️  [Indexer Persistence] Skipping duplicate regular indexer ${idx.id} when restoring from file`);
             }
           }
-          
+
           const deduplicatedToken = new Map<string, TokenGardenConfig>();
           for (const idx of tokenIndexersToRestore) {
             if (!deduplicatedToken.has(idx.id)) {
@@ -7735,21 +8686,21 @@ async function main() {
               console.warn(`⚠️  [Indexer Persistence] Skipping duplicate token indexer ${idx.id} when restoring from file`);
             }
           }
-          
+
           // Only add deduplicated indexers to arrays
           const cleanRegularIndexers = Array.from(deduplicatedRegular.values());
           const cleanTokenIndexers = Array.from(deduplicatedToken.values());
-          
+
           GARDENS.push(...cleanRegularIndexers);
           TOKEN_GARDENS.push(...cleanTokenIndexers);
-          
+
           const regularDupsRemoved = indexersToRestore.length - cleanRegularIndexers.length;
           const tokenDupsRemoved = tokenIndexersToRestore.length - cleanTokenIndexers.length;
-          
+
           if (regularDupsRemoved > 0 || tokenDupsRemoved > 0) {
             console.warn(`⚠️  [Indexer Persistence] Removed ${regularDupsRemoved} duplicate regular indexer(s) and ${tokenDupsRemoved} duplicate token indexer(s) when loading from file`);
           }
-          
+
           console.log(`✅ [Indexer Persistence] Restored ${cleanRegularIndexers.length} regular indexer(s) and ${cleanTokenIndexers.length} token indexer(s) from persistence file`);
         }
       }
@@ -7850,8 +8801,54 @@ async function main() {
     } else {
       console.log(`🌳 Non-ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
     }
+
+    // Periodic service registry save (every 5 minutes)
+    setInterval(() => {
+      try {
+        if (redis && ROOT_CA_SERVICE_REGISTRY.length > 0) {
+          console.log(`⏰ [Periodic Save] Auto-saving service registry (${ROOT_CA_SERVICE_REGISTRY.length} providers)...`);
+          redis.saveServiceRegistry();
+        }
+      } catch (error) {
+        console.error('❌ [Periodic Save] Failed to save service registry:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
   });
 }
+
+// Shutdown handlers to save service registry on exit
+const saveServiceRegistryOnShutdown = () => {
+  try {
+    console.log('💾 [Shutdown] Saving service registry to persistence file...');
+    if (redis) {
+      redis.saveServiceRegistry();
+      console.log('✅ [Shutdown] Service registry saved successfully');
+    } else {
+      console.warn('⚠️  [Shutdown] Redis not available, skipping service registry save');
+    }
+  } catch (error) {
+    console.error('❌ [Shutdown] Failed to save service registry:', error);
+  }
+};
+
+// Register shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('🛑 [Shutdown] Received SIGTERM, saving service registry...');
+  saveServiceRegistryOnShutdown();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 [Shutdown] Received SIGINT (Ctrl+C), saving service registry...');
+  saveServiceRegistryOnShutdown();
+  process.exit(0);
+});
+
+// Note: beforeExit handler removed due to Node.js event listener conflicts
+// SIGTERM and SIGINT handlers provide sufficient shutdown coverage
+
+// Note: uncaughtException and unhandledRejection handlers removed due to Node.js event listener conflicts
+// SIGTERM and SIGINT handlers provide sufficient shutdown coverage for normal operations
 
 // Start the server
 main().catch((err) => {

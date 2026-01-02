@@ -243,9 +243,9 @@
     }
   },
   "flowwiseWorkflow": {
-    "name": "Movie Garden Chat Lifecycle",
+    "name": "AMC Cinema Booking Workflow (Decision + Autopay)",
     "version": "1.0.0",
-    "description": "Complete FlowWise workflow for movie garden chat interactions with ledger, cashier, LLM, payment, and notification control",
+    "description": "Movie booking workflow with user decision points and server-side automatic payments",
     "steps": [
       {
         "id": "eden_chat_input",
@@ -355,6 +355,59 @@
             }
           ]
         }
+      },
+      {
+        "id": "user_select_listing",
+        "name": "🎬 User Selection: Choose Movie",
+        "type": "decision",
+        "component": "user",
+        "description": "Present movie options and let user select one",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Please select a movie option:",
+        "decisionOptions": [],
+        "dynamicOptions": {
+          "source": "listings",
+          "valueField": "id",
+          "labelTemplate": "{{movieTitle}} at {{showtime}} - ${{price}}",
+          "dataTemplate": {
+            "id": "{{id}}",
+            "movieTitle": "{{movieTitle}}",
+            "showtime": "{{showtime}}",
+            "price": "{{price}}",
+            "providerId": "{{providerId}}",
+            "providerName": "{{providerName}}"
+          }
+        },
+        "websocketEvents": [
+          {
+            "type": "user_selection_required",
+            "component": "user",
+            "message": "Please select a movie option",
+            "data": {
+              "selectionId": "movie_selection",
+              "prompt": "Please select a movie option:",
+              "options": "{{listings}}",
+              "optionTemplate": {
+                "value": "{{id}}",
+                "label": "{{movieTitle}} at {{showtime}} - ${{price}}",
+                "data": {
+                  "id": "{{id}}",
+                  "movieTitle": "{{movieTitle}}",
+                  "showtime": "{{showtime}}",
+                  "price": "{{price}}",
+                  "providerId": "{{providerId}}",
+                  "providerName": "{{providerName}}"
+                }
+              },
+              "timeout": 60000
+            }
+          }
+        ],
+        "outputs": {
+          "selectedListing": "{{userSelection}}"
+        },
+        "timeout": 60000,
+        "onTimeout": "error_handler"
       },
       {
         "id": "user_confirm_listing",
@@ -730,13 +783,33 @@
       },
       {
         "from": "llm_resolution",
-        "to": "ledger_create_entry",
-        "condition": "{{llmResponse.selectedListing}}"
+        "to": "user_select_listing",
+        "condition": "{{listings}} && {{listings.length}} > 0"
       },
       {
         "from": "llm_resolution",
         "to": "error_handler",
-        "condition": "!{{llmResponse.selectedListing}}"
+        "condition": "!{{listings}} || {{listings.length}} === 0"
+      },
+      {
+        "from": "user_select_listing",
+        "to": "user_confirm_listing",
+        "condition": "{{userSelection}}"
+      },
+      {
+        "from": "user_select_listing",
+        "to": "error_handler",
+        "condition": "!{{userSelection}}"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "ledger_create_entry",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
       },
       {
         "from": "ledger_create_entry",

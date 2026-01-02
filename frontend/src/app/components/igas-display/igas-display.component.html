@@ -3,11 +3,11 @@
     <div class="row text-center">
       <div class="col-md-6">
         <h6 class="text-muted mb-2">Current iGas</h6>
-        <div class="igas-display">{{ currentIGas.toFixed(6) }}</div>
+        <div class="igas-display">{{ (currentIGas || 0).toFixed(6) }}</div>
       </div>
       <div class="col-md-6">
         <h6 class="text-muted mb-2">Total iGas</h6>
-        <div class="igas-display">{{ totalIGas.toFixed(6) }}</div>
+        <div class="igas-display">{{ (totalIGas || 0).toFixed(6) }}</div>
       </div>
     </div>
   </div>

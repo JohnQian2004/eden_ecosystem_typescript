@@ -310,10 +310,12 @@
                 role="tabpanel">
                 <!-- AMC Workflow Active Indicator -->
                 <div *ngIf="amcWorkflowActive" class="alert alert-success mb-3">
-                  <h6>🎬 AMC Cinema Workflow Active (LLM Self-Play Mode)</h6>
+                  <h6>🎬 AMC Cinema Workflow Active (Atomic Server Execution)</h6>
                   <p class="mb-2">Your movie request is being processed through the AMC Cinema workflow.</p>
                   <div class="alert alert-info small mb-2">
-                    <strong>🤖 LLM Self-Play:</strong> All LLM processing is automated. Focus on the decision points below.
+                    <strong>🔄 Atomic Execution:</strong> Steps processed entirely on server |
+                    <strong>🤖 LLM Self-Play:</strong> AI processing automated |
+                    <strong>💰 Server Autopay:</strong> Payments processed automatically
                     <br><strong>💬 Eden Chat:</strong> Use the input field to provide movie preferences.
                   </div>
                   <div class="progress mb-2">
