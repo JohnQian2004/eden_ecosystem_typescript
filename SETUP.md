@@ -29,8 +29,18 @@ cd ../server
 ```
 
 4. Run the simulator server:
+
+**Recommended: Use npm run dev (automatically kills port 3000 first)**
 ```bash
-# With OpenAI
+npm run dev
+```
+
+**Or run directly with tsx:**
+```bash
+# With OpenAI and deployed as root
+npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true
+
+# With OpenAI (standard mode)
 npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 
 # With DeepSeek (legacy)
@@ -39,6 +49,8 @@ npx tsx eden-sim-redis.ts --mocked-llm=false
 # Mock mode (no API calls)
 npx tsx eden-sim-redis.ts --mocked-llm=true
 ```
+
+**Note:** If port 3000 is already in use, the `npm run dev` command will automatically kill the process on that port before starting the server.
 
 The server will:
 - Start HTTP server on port 3000

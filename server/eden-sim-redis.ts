@@ -828,10 +828,18 @@ httpServer.on("request", async (req, res) => {
                     }
                   };
 
+                  // Set initial movie state in context
+                  updatedContext.movieStarted = true;
+                  updatedContext.movieTitle = movieTitle;
+                  updatedContext.movieProgress = 0;
+                  updatedContext.currentScene = 'garden';
+
                   // Simulate movie progress with scene transitions
                   setTimeout(() => {
                     // 30% - Cross scene
                     setTimeout(() => {
+                      updatedContext.movieProgress = 30;
+                      updatedContext.currentScene = 'cross';
                       broadcastEvent({
                         type: "scene_transition",
                         component: "movie_theater",
@@ -843,6 +851,8 @@ httpServer.on("request", async (req, res) => {
 
                     // 60% - Utah Action scene
                     setTimeout(() => {
+                      updatedContext.movieProgress = 60;
+                      updatedContext.currentScene = 'utah_action';
                       broadcastEvent({
                         type: "scene_transition",
                         component: "movie_theater",
@@ -854,6 +864,8 @@ httpServer.on("request", async (req, res) => {
 
                     // 90% - Garden Return scene
                     setTimeout(() => {
+                      updatedContext.movieProgress = 90;
+                      updatedContext.currentScene = 'garden_return';
                       broadcastEvent({
                         type: "scene_transition",
                         component: "movie_theater",
@@ -865,6 +877,11 @@ httpServer.on("request", async (req, res) => {
 
                     // 100% - Movie finished
                     setTimeout(() => {
+                      // Set movieWatched in context for workflow transition
+                      updatedContext.movieWatched = true;
+                      updatedContext.movieProgress = 100;
+                      updatedContext.finalScene = 'genesis_garden';
+                      
                       broadcastEvent({
                         type: "movie_finished",
                         component: "movie_theater",
@@ -872,6 +889,13 @@ httpServer.on("request", async (req, res) => {
                         timestamp: Date.now(),
                         data: { completed: true, finalScene: 'genesis_garden' }
                       });
+                      
+                      // Auto-continue workflow after movie finishes by triggering transition check
+                      console.log(`🎬 [Movie Theater] Movie finished, context updated with movieWatched: true`);
+                      console.log(`🎬 [Movie Theater] Context keys:`, Object.keys(updatedContext));
+                      
+                      // Note: The workflow will continue automatically when the frontend calls executeWorkflowStep
+                      // with the updated context containing movieWatched: true
                     }, duration * 1000);
                   }, 100);
 
@@ -924,6 +948,10 @@ httpServer.on("request", async (req, res) => {
         if (step.websocketEvents) {
           for (const event of step.websocketEvents) {
             const processedEvent = replaceTemplateVariables(event, updatedContext);
+            // Ensure timestamp is always a valid number
+            if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
+              processedEvent.timestamp = Date.now();
+            }
             events.push(processedEvent);
 
             // Debug logging for iGas events
@@ -5738,6 +5766,32 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     let queryResult = await extractQueryFn(userInput);
     console.log(`📋 [LLM] Extracted query:`, queryResult);
     
+    // VALIDATION: Check for misclassification (movie queries incorrectly classified as DEX)
+    const userInputLower = userInput.toLowerCase();
+    const movieKeywords = ['movie', 'ticket', 'tickets', 'cinema', 'theater', 'theatre', 'film', 'watch', 'showtime', 'show', 'amc', 'cinemark', 'moviecom'];
+    const dexKeywords = ['token', 'tokena', 'tokenb', 'tokenc', 'tokend', 'dex', 'pool', 'trade'];
+    
+    const hasMovieKeywords = movieKeywords.some(keyword => userInputLower.includes(keyword));
+    const hasDexKeywords = dexKeywords.some(keyword => userInputLower.includes(keyword));
+    
+    // If classified as DEX but has movie keywords and NO explicit token/DEX keywords, correct to movie
+    let wasCorrected = false;
+    if (queryResult.serviceType === "dex" && hasMovieKeywords && !hasDexKeywords) {
+      console.log(`⚠️  [VALIDATION] Correcting misclassification: DEX → MOVIE`);
+      console.log(`   User input: "${userInput}"`);
+      console.log(`   Detected movie keywords but was classified as DEX`);
+      queryResult.serviceType = "movie";
+      queryResult.query.serviceType = "movie";
+      wasCorrected = true;
+      // Clear DEX-specific filters
+      if (queryResult.query.filters) {
+        delete queryResult.query.filters.tokenSymbol;
+        delete queryResult.query.filters.baseToken;
+        delete queryResult.query.filters.action;
+        delete queryResult.query.filters.tokenAmount;
+      }
+    }
+    
     // Normalize DEX query extraction (fix common LLM mistakes)
     if (queryResult.serviceType === "dex" && queryResult.query.filters) {
       const filters = queryResult.query.filters;
@@ -5897,11 +5951,55 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
       throw new Error(errorMsg);
     }
 
+    // VALIDATION: Filter listings to match serviceType (prevent DEX listings when serviceType is "movie")
+    let filteredListings = listings;
+    if (queryResult.serviceType === "movie") {
+      // Remove any DEX listings (TokenListings) - only keep MovieListings
+      filteredListings = listings.filter((listing: any) => {
+        const isTokenListing = 'poolId' in listing || 'tokenSymbol' in listing;
+        if (isTokenListing) {
+          console.log(`⚠️  [VALIDATION] Filtering out DEX listing from movie query: ${listing.providerId || listing.poolId}`);
+        }
+        return !isTokenListing; // Keep only non-DEX listings
+      });
+      
+      if (filteredListings.length === 0 && listings.length > 0) {
+        throw new Error("No movie listings found - all results were DEX token listings. This indicates a classification error.");
+      }
+      
+      console.log(`✅ [VALIDATION] Filtered to ${filteredListings.length} movie listings (removed ${listings.length - filteredListings.length} DEX listings)`);
+    } else if (queryResult.serviceType === "dex") {
+      // Remove any MovieListings - only keep TokenListings
+      filteredListings = listings.filter((listing: any) => {
+        const isTokenListing = 'poolId' in listing || 'tokenSymbol' in listing;
+        return isTokenListing; // Keep only DEX listings
+      });
+      
+      if (filteredListings.length === 0 && listings.length > 0) {
+        throw new Error("No DEX listings found - all results were movie listings. This indicates a classification error.");
+      }
+    }
+
     // Step 4: Format response using LLM (LLM will handle filtering based on query filters)
     llmCalls++;
-    console.log(`🤖 [LLM] Starting response formatting for ${listings.length} listings`);
-    const formattedResponse = await formatResponseFn(listings as MovieListing[], userInput, queryResult.query.filters);
+    console.log(`🤖 [LLM] Starting response formatting for ${filteredListings.length} listings (serviceType: ${queryResult.serviceType})`);
+    const formattedResponse = await formatResponseFn(filteredListings as MovieListing[], userInput, queryResult.query.filters);
     console.log(`✅ [LLM] Response formatted: ${formattedResponse.message.substring(0, 100)}${formattedResponse.message.length > 100 ? '...' : ''}`);
+
+    // VALIDATION: Ensure selectedListing matches serviceType
+    if (formattedResponse.selectedListing) {
+      const isTokenListing = 'poolId' in formattedResponse.selectedListing || 'tokenSymbol' in formattedResponse.selectedListing;
+      if (queryResult.serviceType === "movie" && isTokenListing) {
+        const errorMsg = `❌ [VALIDATION ERROR] LLM formatter returned DEX listing for movie query. User input: "${userInput}"`;
+        console.error(errorMsg);
+        throw new Error("LLM formatter error: Selected DEX token listing for movie query. Please try again.");
+      }
+      if (queryResult.serviceType === "dex" && !isTokenListing) {
+        const errorMsg = `❌ [VALIDATION ERROR] LLM formatter returned movie listing for DEX query. User input: "${userInput}"`;
+        console.error(errorMsg);
+        throw new Error("LLM formatter error: Selected movie listing for DEX query. Please try again.");
+      }
+    }
 
     // Step 5: Calculate iGas
     let iGas = calculateIGas(llmCalls, allProviders.length, queryResult.confidence);
@@ -7581,6 +7679,30 @@ async function processChatInput(input: string, email: string) {
   
   // Check if this is a DEX trade (TokenListing has poolId, MovieListing has movieTitle)
   const isDEXTrade = selectedListing && ('poolId' in selectedListing || 'tokenSymbol' in selectedListing);
+  
+  // VALIDATION: Double-check that DEX classification matches user intent
+  if (isDEXTrade) {
+    const inputLower = input.toLowerCase();
+    const movieKeywords = ['movie', 'ticket', 'tickets', 'cinema', 'theater', 'theatre', 'film', 'watch', 'showtime', 'show', 'amc', 'cinemark', 'moviecom'];
+    const dexKeywords = ['token', 'tokena', 'tokenb', 'tokenc', 'tokend', 'dex', 'pool', 'trade'];
+    
+    const hasMovieKeywords = movieKeywords.some(keyword => inputLower.includes(keyword));
+    const hasDexKeywords = dexKeywords.some(keyword => inputLower.includes(keyword));
+    
+    // If user input has movie keywords but NO DEX keywords, this is a misclassification
+    if (hasMovieKeywords && !hasDexKeywords) {
+      const errorMsg = `❌ [VALIDATION ERROR] LLM returned DEX listing but user query is clearly for movies. User input: "${input}"`;
+      console.error(errorMsg);
+      broadcastEvent({
+        type: "error",
+        component: "validation",
+        message: "Classification error: Movie request was incorrectly processed as DEX trade",
+        timestamp: Date.now(),
+        data: { userInput: input, selectedListing }
+      });
+      throw new Error(`Invalid classification: User requested movie tickets but system selected DEX token. Please try again with: "I want to buy movie tickets" or "find movies".`);
+    }
+  }
   
   if (isDEXTrade) {
     // Handle DEX trade

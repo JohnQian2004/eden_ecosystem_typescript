@@ -294,7 +294,13 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
   if (typeof template === "string") {
     return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
       const value = getNestedValue(context, path);
-      return value !== undefined ? String(value) : match;
+      if (value !== undefined && value !== null) {
+        return String(value);
+      }
+      // If template variable not found, return empty string instead of keeping the template
+      // This prevents showing "{{variableName}}" in the UI
+      console.warn(`⚠️  [Template] Variable not found in context: ${path}`);
+      return '';
     });
   } else if (Array.isArray(template)) {
     return template.map(item => replaceTemplateVariables(item, context));

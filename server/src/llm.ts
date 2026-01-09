@@ -15,8 +15,25 @@ Return JSON only with: query (object with serviceType and filters), serviceType,
 
 Service types: "movie" or "dex"
 
+CRITICAL: Classify queries based on these rules:
+
+MOVIE SERVICE (serviceType: "movie"):
+- Keywords: "movie", "ticket", "tickets", "cinema", "theater", "theatre", "film", "watch", "showtime", "show", "AMC", "Cinemark", "MovieCom", "cinema", "theater"
+- Examples: "buy movie tickets", "I want to watch a movie", "find movies", "movie tickets", "cinema tickets", "2 tickets", "buy 2 tickets"
+- If user mentions "ticket" or "tickets" WITHOUT mentioning "token", "TOKENA", "TOKENB", "DEX", "pool", "trade", it's ALWAYS a movie query
+- If user says "buy 2 tickets" or "I want 2 tickets", it means 2 MOVIE TICKETS, not tokens
+- Extract filters: location, maxPrice, genre, time, showtime
+
+DEX TOKEN SERVICE (serviceType: "dex"):
+- Keywords: "token", "TOKENA", "TOKENB", "TOKENC", "DEX", "pool", "trade", "buy token", "sell token", "token A", "token B"
+- Examples: "buy TOKENA", "buy 2 TOKENA", "sell token A", "buy token with SOL", "DEX trade"
+- If user explicitly mentions "token" AND a token symbol (TOKENA, TOKENB, etc.) OR mentions "DEX" or "pool", it's a DEX query
+- Extract: tokenSymbol, baseToken, action (BUY/SELL), tokenAmount, maxPrice
+
 For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
+Example: {"query": {"serviceType": "movie", "filters": {"maxPrice": "best"}}, "serviceType": "movie", "confidence": 0.95}
+Example: {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
 
 For DEX token trading queries (BUY/SELL tokens):
 - tokenSymbol: The token being bought/sold (e.g., "TOKENA", "TOKENB", "Token A")
@@ -33,6 +50,8 @@ IMPORTANT: In phrases like "BUY 2 SOLANA token A":
 - baseToken = "SOL" (SOLANA/SOL is the currency used to buy)
 
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
+
+REMEMBER: "buy tickets" or "buy 2 tickets" = MOVIE, not DEX. Only classify as DEX if user explicitly mentions "token" with a token symbol.
 `;
 
 export const LLM_RESPONSE_FORMATTING_PROMPT = `

@@ -280,8 +280,15 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
     return event.message;
   }
 
-  formatTimestamp(timestamp: number): string {
-    return new Date(timestamp).toLocaleTimeString();
+  formatTimestamp(timestamp: number | undefined): string {
+    if (!timestamp || isNaN(timestamp)) {
+      return new Date().toLocaleTimeString(); // Fallback to current time if invalid
+    }
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return new Date().toLocaleTimeString(); // Fallback if date is invalid
+    }
+    return date.toLocaleTimeString();
   }
 }
 

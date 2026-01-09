@@ -218,6 +218,13 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     console.log('🎬 [Movie Theater] Component initialized');
+    // Auto-start movie if movieTitle is provided (workflow-driven)
+    if (this.movieTitle && this.movieTitle !== 'Unknown Movie') {
+      console.log('🎬 [Movie Theater] Auto-starting movie:', this.movieTitle);
+      setTimeout(() => {
+        this.startWatching();
+      }, 500); // Small delay to ensure component is fully rendered
+    }
   }
 
   ngOnDestroy(): void {

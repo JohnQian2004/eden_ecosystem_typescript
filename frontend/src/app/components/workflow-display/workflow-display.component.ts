@@ -39,6 +39,9 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   // Movie theater state
   selectedListing: any = null;
 
+  // Cache for step statuses to avoid repeated calculations
+  private stepStatusCache: Map<string, string> = new Map();
+
   // Computed properties for template bindings (avoiding filter() in templates)
   get processingCount(): number {
     return this.llmResponses.filter(r => r.type === 'start').length;
@@ -51,10 +54,8 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   // Debug getter for template
   get debugWorkflowSteps(): any[] {
     if (this.movieWorkflow && this.movieWorkflow.steps) {
-      console.log('🔍 [Template] Debug workflow steps called, count:', this.movieWorkflow.steps.length);
       return this.movieWorkflow.steps;
     }
-    console.log('🔍 [Template] Debug workflow steps called, no steps available');
     return [];
   }
 
@@ -199,6 +200,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     this.activeExecution = null;
     this.pendingDecision = null;
     this.showDecisionPrompt = false;
+    this.clearStatusCache(); // Clear cache when workflow is initialized
   }
 
   startWorkflow() {
@@ -331,6 +333,9 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
     // Find current step index
     this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
+    
+    // Clear status cache when step changes
+    this.clearStatusCache();
 
     // Special handling for Eden Chat input step
     if (this.currentStep?.component === 'eden_chat' && this.currentStep?.type === 'input') {
@@ -396,17 +401,33 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   }
 
   getStepStatus(stepId: string): string {
-    // Simple debug - remove complex logic temporarily
-    console.log(`📊 [WorkflowDisplay] getStepStatus called for: ${stepId}`);
-
-    // For now, hardcode the Eden Chat Input step as current
-    if (stepId === 'eden_chat_input') {
-      console.log(`📊 [WorkflowDisplay] Step ${stepId}: CURRENT (hardcoded)`);
-      return 'current';
+    // Check cache first to avoid repeated calculations
+    if (this.stepStatusCache.has(stepId)) {
+      return this.stepStatusCache.get(stepId)!;
     }
 
-    console.log(`📊 [WorkflowDisplay] Step ${stepId}: PENDING (hardcoded)`);
-    return 'pending';
+    // Calculate status
+    let status: string;
+    
+    // For now, hardcode the Eden Chat Input step as current
+    if (stepId === 'eden_chat_input') {
+      status = 'current';
+    } else if (this.completedSteps.includes(stepId)) {
+      status = 'completed';
+    } else if (this.activeExecution && this.activeExecution.currentStep === stepId) {
+      status = 'current';
+    } else {
+      status = 'pending';
+    }
+
+    // Cache the result
+    this.stepStatusCache.set(stepId, status);
+    return status;
+  }
+
+  // Clear status cache when workflow state changes
+  private clearStatusCache(): void {
+    this.stepStatusCache.clear();
   }
 
   getStepStatusClass(stepId: string): string {
@@ -710,6 +731,11 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     if (this.activeExecution) {
       this.activeExecution.context['movieWatched'] = true;
       this.activeExecution.context['finalScene'] = event.finalScene;
+      
+      // Automatically continue workflow after movie finishes
+      setTimeout(async () => {
+        await this.continueWorkflowAfterMovie();
+      }, 1000); // Wait 1 second after movie finishes
     }
   }
 
@@ -722,19 +748,22 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
     try {
       console.log('🎬 [WorkflowDisplay] Continuing workflow after movie completion');
+      console.log('🎬 [WorkflowDisplay] Context movieWatched:', this.activeExecution.context['movieWatched']);
 
-      // Execute the next step on the server (transition from watch_movie to final_output)
+      // Trigger workflow continuation by executing the next step transition
+      // The server will check the transition condition {{movieWatched}} and move to ledger_create_entry
       const nextStepId = await this.flowWiseService.executeWorkflowStep(
         this.activeExecution.executionId,
-        'watch_movie' // Execute the current watch_movie step to completion
+        'watch_movie', // Current step
+        this.activeExecution.context // Pass updated context with movieWatched: true
       );
 
       if (nextStepId) {
         // Update to the next step
         this.updateCurrentStep();
-        console.log('✅ [WorkflowDisplay] Workflow continued to next step');
+        console.log('✅ [WorkflowDisplay] Workflow continued to next step:', nextStepId);
       } else {
-        console.log('🏁 [WorkflowDisplay] Workflow completed');
+        console.log('🏁 [WorkflowDisplay] Workflow completed or no next step found');
       }
     } catch (error: any) {
       console.error('❌ [WorkflowDisplay] Failed to continue workflow after movie:', error);
@@ -841,6 +870,19 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         // Only update if workflow is loaded
         if (this.selectedWorkflow && ((this.selectedWorkflow === 'movie' && this.movieWorkflow) || (this.selectedWorkflow === 'dex' && this.dexWorkflow))) {
           this.updateCurrentStep();
+          
+          // Auto-start movie when watch_movie step is reached
+          if (event.data?.stepId === 'watch_movie' && event.data?.component === 'movie_theater') {
+            console.log('🎬 [WorkflowDisplay] Watch movie step reached, will auto-start movie');
+            setTimeout(() => {
+              // Trigger movie start after a short delay to ensure component is rendered
+              const movieTheaterComponent = document.querySelector('app-movie-theater');
+              if (movieTheaterComponent) {
+                // The movie theater component should auto-start via its ngOnInit or we can trigger it
+                console.log('🎬 [WorkflowDisplay] Movie theater component found, movie should start');
+              }
+            }, 500);
+          }
         } else {
           console.log('🔄 [WorkflowDisplay] Workflow not loaded yet, skipping step update');
         }
