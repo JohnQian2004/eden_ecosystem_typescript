@@ -119,7 +119,31 @@
       "uuid": "bf3a570b-e72b-4b19-9e51-ad0c8711a9b9",
       "apiEndpoint": "https://api.autoparts.com/v1",
       "gardenId": "garden-3"
+    },
+    {
+      "id": "hotel-09641828",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "95e85351-09af-48a5-abde-0c4a35f25fe7",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-4"
+    },
+    {
+      "id": "restaurant-c354dad5",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "87ad75ee-9052-4c68-be70-def48ebd954b",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-5"
     }
   ],
-  "lastSaved": "2026-01-17T17:11:20.317Z"
+  "lastSaved": "2026-01-17T23:16:09.114Z"
 }

@@ -86,7 +86,65 @@
         "expiresAt": 1800205190354,
         "signature": "mfzfqfEACcPShsuT+jl3YEETnHOgYnRY8lSuDNisiQTImqLCY1bgUMm69NFtzjQAvH+A9W1nE2DHXSSkkFcTAw=="
       }
+    },
+    {
+      "id": "garden-4",
+      "name": "Garden-HOTEL",
+      "stream": "eden:garden:garden-4",
+      "active": true,
+      "uuid": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+      "serverIp": "localhost",
+      "serverDomain": "garden-hotel.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "hotel",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-HOTEL",
+          "stream": "eden:garden:garden-4"
+        },
+        "issuedAt": 1768670548957,
+        "expiresAt": 1800206548957,
+        "signature": "MDmI/rZYZF/lqKYHDi3ktzsjbvZwUT14Un7qhZfOcVU8kuAhCwgxoy5QoV+gAZwAi4zb4pKFMFJllbGGrXbMAQ=="
+      }
+    },
+    {
+      "id": "garden-5",
+      "name": "Garden-RESTAURANT",
+      "stream": "eden:garden:garden-5",
+      "active": true,
+      "uuid": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
+      "serverIp": "localhost",
+      "serverDomain": "garden-restaurant.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "restaurant",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-5",
+          "gardenName": "Garden-RESTAURANT",
+          "stream": "eden:garden:garden-5"
+        },
+        "issuedAt": 1768691767872,
+        "expiresAt": 1800227767872,
+        "signature": "l0YMXKVS94FcSWAGnEhkxx7bP6Z4zte2JUE+hGnDQC6r3JYpp0eWaonrXq9bLXPohiE1KhOo1rRJuDedXoOFDQ=="
+      }
     }
   ],
-  "lastSaved": "2026-01-17T16:59:51.367Z"
+  "lastSaved": "2026-01-17T23:16:09.114Z"
 }

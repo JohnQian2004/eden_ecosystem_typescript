@@ -238,7 +238,65 @@
         "partNumber": "BP-1000",
         "category": "Brakes"
       }
+    },
+    {
+      "entryId": "0cf68ab3-85a1-4d5b-9f2b-edc6d3d57a7d",
+      "txId": "tx_1768691730071",
+      "timestamp": 1768691730071,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-HOTEL Provider",
+      "providerUuid": "hotel-09641828",
+      "serviceType": "hotel",
+      "amount": 50,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 2.5,
+        "eden": 1
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "hotelName": "Grand Plaza Hotel",
+        "checkIn": "2026-01-20",
+        "location": "Downtown",
+        "providerName": "Garden-HOTEL Provider",
+        "checkOut": "2026-01-22",
+        "roomType": "Standard"
+      }
+    },
+    {
+      "entryId": "7cd34dba-cbd6-412a-a55c-0bf99089c01e",
+      "txId": "tx_1768691787942",
+      "timestamp": 1768691787942,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 50,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 2.5,
+        "eden": 1
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2
+      }
     }
   ],
-  "lastSaved": "2026-01-17T17:12:08.095Z"
+  "lastSaved": "2026-01-17T23:16:28.021Z"
 }

@@ -42,6 +42,16 @@ interface LedgerEntry {
     category?: string;
     availability?: string;
     warehouse?: string;
+    // Hotel details
+    hotelName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    roomType?: string;
+    // Restaurant details
+    restaurantName?: string;
+    reservationTime?: string;
+    cuisine?: string;
+    partySize?: number;
     // Generic fields
     [key: string]: any;
   };
@@ -211,6 +221,39 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       }
       if (details.availability) {
         parts.push(`Availability: ${details.availability}`);
+      }
+    }
+    
+    // Hotel details
+    if (details.hotelName) {
+      parts.push(`Hotel: ${details.hotelName}`);
+      if (details.roomType) {
+        parts.push(`Room: ${details.roomType}`);
+      }
+      if (details.checkIn && details.checkOut) {
+        parts.push(`Stay: ${details.checkIn} - ${details.checkOut}`);
+      } else if (details.checkIn) {
+        parts.push(`Check-in: ${details.checkIn}`);
+      }
+      if (details.location) {
+        parts.push(`Location: ${details.location}`);
+      }
+    }
+    
+    // Restaurant details
+    if (details.restaurantName) {
+      parts.push(`Restaurant: ${details.restaurantName}`);
+      if (details.cuisine) {
+        parts.push(`Cuisine: ${details.cuisine}`);
+      }
+      if (details.reservationTime) {
+        parts.push(`Time: ${details.reservationTime}`);
+      }
+      if (details.partySize) {
+        parts.push(`Party Size: ${details.partySize}`);
+      }
+      if (details.location) {
+        parts.push(`Location: ${details.location}`);
       }
     }
     

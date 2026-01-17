@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-17T17:04:12.218Z",
+  "lastSaved": "2026-01-17T23:18:42.893Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -5047,6 +5047,81 @@
             "airline-e954d555(garden-1)",
             "amc-001(garden-2)",
             "autoparts-b63a26ef(garden-3)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768670548963,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-HOTEL",
+          "serviceType": "hotel",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768670549039,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)",
+            "amc-001(garden-2)",
+            "autoparts-b63a26ef(garden-3)",
+            "hotel-09641828(garden-4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768691767877,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-5",
+          "gardenName": "Garden-RESTAURANT",
+          "serviceType": "restaurant",
+          "hasCertificate": true,
+          "totalGardens": 5
+        }
+      },
+      {
+        "timestamp": 1768691767950,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 12,
+          "totalSaved": 12,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)",
+            "amc-001(garden-2)",
+            "autoparts-b63a26ef(garden-3)",
+            "hotel-09641828(garden-4)",
+            "restaurant-c354dad5(garden-5)"
           ]
         }
       }
