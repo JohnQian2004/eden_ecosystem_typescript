@@ -729,18 +729,10 @@ async function executeStepActions(
           const bookingDetails = extractBookingDetails(ledgerServiceType, context.selectedListing || {});
           bookingDetails.price = entryAmount; // Ensure price is set
           
-          // Get default provider info based on service type
-          const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
-                                      ledgerServiceType === 'airline' ? 'Airline Provider' :
-                                      ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
-                                      ledgerServiceType === 'hotel' ? 'Hotel Provider' :
-                                      ledgerServiceType === 'restaurant' ? 'Restaurant Provider' :
-                                      `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
-          const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
-                                   ledgerServiceType === 'airline' ? 'airline-001' :
-                                   ledgerServiceType === 'hotel' ? 'hotel-001' :
-                                   ledgerServiceType === 'restaurant' ? 'restaurant-001' :
-                                   `${ledgerServiceType}-001`;
+          // Get default provider info based on service type (dynamic)
+          const { getDefaultProviderName, getDefaultProviderId } = await import("../serviceTypeFields");
+          const defaultProviderName = getDefaultProviderName(ledgerServiceType);
+          const defaultProviderId = getDefaultProviderId(ledgerServiceType);
           
           const ledgerEntry = addLedgerEntry(
             context.snapshot,

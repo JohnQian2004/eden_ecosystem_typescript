@@ -58,21 +58,9 @@ export function addLedgerEntry(
   serviceType: string,
   iGasCost: number,
   payerId: string,
-  merchantName: string, // Provider name (e.g., "AMC Theatres")
+  merchantName: string, // Provider name (e.g., "AMC Theatres", "Airline Provider", etc.)
   providerUuid: string, // Service provider UUID for certificate issuance
-  bookingDetails?: { 
-    movieTitle?: string; 
-    showtime?: string; 
-    location?: string;
-    // DEX trade details
-    tokenSymbol?: string;
-    baseToken?: string;
-    action?: 'BUY' | 'SELL';
-    tokenAmount?: number;
-    baseAmount?: number;
-    price?: number;
-    iTax?: number;
-  }
+  bookingDetails?: Record<string, any> // Generic booking details - service-type agnostic
 ): LedgerEntry {
   // payerId should be the email address (same as payer)
   if (!providerUuid) {

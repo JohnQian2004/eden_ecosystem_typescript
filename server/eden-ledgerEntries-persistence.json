@@ -296,7 +296,40 @@
         "cuisine": "Italian",
         "partySize": 2
       }
+    },
+    {
+      "entryId": "9068bc2e-3026-48b5-b239-0caf31cb7d87",
+      "txId": "tx_1768692571211",
+      "timestamp": 1768692571211,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 50,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 2.5,
+        "eden": 1
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.567240768357315
+      }
     }
   ],
-  "lastSaved": "2026-01-17T23:16:28.021Z"
+  "lastSaved": "2026-01-17T23:29:31.345Z"
 }

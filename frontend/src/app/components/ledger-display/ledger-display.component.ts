@@ -179,95 +179,135 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     return num.toFixed(6);
   }
 
+  /**
+   * Get service type field configuration for dynamic formatting
+   */
+  private getServiceTypeFields(serviceType: string): {
+    primary: string;
+    primaryLabel: string;
+    fields: Array<{ key: string; label: string; format?: (value: any, details: any) => string }>;
+  } {
+    const fieldConfigs: Record<string, any> = {
+      movie: {
+        primary: 'movieTitle',
+        primaryLabel: 'Movie',
+        fields: [
+          { key: 'movieTitle', label: 'Movie' },
+          { key: 'showtime', label: 'Showtime' },
+          { key: 'location', label: 'Location' },
+          { key: 'genre', label: 'Genre' }
+        ]
+      },
+      airline: {
+        primary: 'flightNumber',
+        primaryLabel: 'Flight',
+        fields: [
+          { key: 'flightNumber', label: 'Flight' },
+          { key: 'destination', label: 'To', format: (val: any) => val },
+          { key: 'date', label: 'Date' },
+          { 
+            key: 'departure', 
+            label: 'Time', 
+            format: (val: any, details: any) => 
+              details.arrival ? `${val} - ${details.arrival}` : val 
+          }
+        ]
+      },
+      autoparts: {
+        primary: 'partName',
+        primaryLabel: 'Part',
+        fields: [
+          { key: 'partName', label: 'Part' },
+          { key: 'partNumber', label: 'Part #' },
+          { key: 'category', label: 'Category' },
+          { key: 'warehouse', label: 'Warehouse' },
+          { key: 'availability', label: 'Availability' }
+        ]
+      },
+      hotel: {
+        primary: 'hotelName',
+        primaryLabel: 'Hotel',
+        fields: [
+          { key: 'hotelName', label: 'Hotel' },
+          { key: 'roomType', label: 'Room' },
+          { 
+            key: 'checkIn', 
+            label: 'Stay', 
+            format: (val: any, details: any) => 
+              details.checkOut ? `${val} - ${details.checkOut}` : `Check-in: ${val}` 
+          },
+          { key: 'location', label: 'Location' }
+        ]
+      },
+      restaurant: {
+        primary: 'restaurantName',
+        primaryLabel: 'Restaurant',
+        fields: [
+          { key: 'restaurantName', label: 'Restaurant' },
+          { key: 'cuisine', label: 'Cuisine' },
+          { key: 'reservationTime', label: 'Time' },
+          { key: 'partySize', label: 'Party Size' },
+          { key: 'location', label: 'Location' }
+        ]
+      },
+      dex: {
+        primary: 'tokenSymbol',
+        primaryLabel: 'DEX',
+        fields: [
+          { 
+            key: 'tokenSymbol', 
+            label: 'DEX', 
+            format: (val: any, details: any) => {
+              const action = details.action || 'TRADE';
+              const amount = details.tokenAmount || 0;
+              return `${action} ${amount} ${val}`;
+            }
+          }
+        ]
+      }
+    };
+
+    return fieldConfigs[serviceType] || {
+      primary: 'name',
+      primaryLabel: 'Service',
+      fields: []
+    };
+  }
+
   formatBookingDetails(entry: LedgerEntry): string {
     if (!entry.bookingDetails) return '';
     
     const details = entry.bookingDetails;
+    const serviceType = entry.serviceType || 'unknown';
+    const fieldConfig = this.getServiceTypeFields(serviceType);
     const parts: string[] = [];
     
-    // Movie details
-    if (details.movieTitle) {
-      parts.push(`Movie: ${details.movieTitle}`);
-      if (details.showtime) {
-        parts.push(`Showtime: ${details.showtime}`);
+    // Format fields based on service type configuration
+    for (const field of fieldConfig.fields) {
+      const value = details[field.key];
+      if (value !== undefined && value !== null && value !== '') {
+        if (field.format) {
+          // Use custom formatter if provided
+          const formatted = field.format(value, details);
+          if (formatted) {
+            parts.push(`${field.label}: ${formatted}`);
+          }
+        } else {
+          parts.push(`${field.label}: ${value}`);
+        }
       }
     }
     
-    // Airline details
-    if (details.flightNumber) {
-      parts.push(`Flight: ${details.flightNumber}`);
-      if (details.destination) {
-        parts.push(`To: ${details.destination}`);
-      }
-      if (details.date) {
-        parts.push(`Date: ${details.date}`);
-      }
-      if (details.departure && details.arrival) {
-        parts.push(`Time: ${details.departure} - ${details.arrival}`);
-      }
-    }
-    
-    // Autoparts details
-    if (details.partName) {
-      parts.push(`Part: ${details.partName}`);
-      if (details.partNumber) {
-        parts.push(`Part #: ${details.partNumber}`);
-      }
-      if (details.category) {
-        parts.push(`Category: ${details.category}`);
-      }
-      if (details.warehouse) {
-        parts.push(`Warehouse: ${details.warehouse}`);
-      }
-      if (details.availability) {
-        parts.push(`Availability: ${details.availability}`);
-      }
-    }
-    
-    // Hotel details
-    if (details.hotelName) {
-      parts.push(`Hotel: ${details.hotelName}`);
-      if (details.roomType) {
-        parts.push(`Room: ${details.roomType}`);
-      }
-      if (details.checkIn && details.checkOut) {
-        parts.push(`Stay: ${details.checkIn} - ${details.checkOut}`);
-      } else if (details.checkIn) {
-        parts.push(`Check-in: ${details.checkIn}`);
-      }
-      if (details.location) {
-        parts.push(`Location: ${details.location}`);
-      }
-    }
-    
-    // Restaurant details
-    if (details.restaurantName) {
-      parts.push(`Restaurant: ${details.restaurantName}`);
-      if (details.cuisine) {
-        parts.push(`Cuisine: ${details.cuisine}`);
-      }
-      if (details.reservationTime) {
-        parts.push(`Time: ${details.reservationTime}`);
-      }
-      if (details.partySize) {
-        parts.push(`Party Size: ${details.partySize}`);
-      }
-      if (details.location) {
-        parts.push(`Location: ${details.location}`);
-      }
-    }
-    
-    // DEX trade details
-    if (details.tokenSymbol) {
-      const action = details.action || 'TRADE';
-      const amount = details.tokenAmount || 0;
-      parts.push(`DEX: ${action} ${amount} ${details.tokenSymbol}`);
-    }
-    
-    // Generic fallback - show any other fields
+    // Generic fallback - show any other fields that weren't already displayed
     if (parts.length === 0) {
+      const displayedKeys = new Set(fieldConfig.fields.map(f => f.key));
       Object.keys(details).forEach(key => {
-        if (key !== 'price' && key !== 'providerName' && details[key]) {
+        if (!displayedKeys.has(key) && 
+            key !== 'price' && 
+            key !== 'providerName' && 
+            details[key] !== undefined && 
+            details[key] !== null && 
+            details[key] !== '') {
           const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
           parts.push(`${label}: ${details[key]}`);
         }
