@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-17T02:37:54.529Z",
+  "lastSaved": "2026-01-17T13:39:43.537Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -4469,6 +4469,481 @@
             "websocket-service-001(HG)",
             "wallet-service-001(HG)",
             "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768648228318,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768648228447,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768650148934,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768650148945,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768650528058,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768650528068,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768651619330,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768651619543,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768652358668,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768652358688,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768652801689,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768652801700,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768653825317,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768653825330,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768654252333,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768654252347,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768654742594,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768654742605,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768655484293,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768655484311,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768655723110,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768655723127,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768656161235,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768656161258,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768656410853,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768656410865,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768656782973,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768656782984,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 6,
+          "totalSaved": 6,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768657148531,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768657148627,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)"
           ]
         }
       }

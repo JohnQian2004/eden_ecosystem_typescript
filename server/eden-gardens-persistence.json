@@ -2,18 +2,18 @@
   "gardens": [
     {
       "id": "garden-1",
-      "name": "Garden-MOVIE",
+      "name": "Garden-AIRLINE",
       "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:a8a686a4-b051-440c-b0c8-b6c03a9c673b",
+      "uuid": "eden:garden:3c5641a7-6173-49cc-a107-23cde753bade",
       "serverIp": "localhost",
-      "serverDomain": "garden-movie.eden.local",
+      "serverDomain": "garden-airline.eden.local",
       "serverPort": 3001,
       "networkType": "http",
-      "serviceType": "movie",
+      "serviceType": "airline",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:a8a686a4-b051-440c-b0c8-b6c03a9c673b",
+        "subject": "eden:garden:3c5641a7-6173-49cc-a107-23cde753bade",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -21,14 +21,14 @@
         ],
         "constraints": {
           "gardenId": "garden-1",
-          "gardenName": "Garden-MOVIE",
+          "gardenName": "Garden-AIRLINE",
           "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1768617234447,
-        "expiresAt": 1800153234447,
-        "signature": "cIFLFWa0DZjYcEFz1IansDW6t5t83NlhKLkR3faHgbdXXlKFm4kLjbuCh8EcvcfDz1OomHWEFX8vePurheT3AQ=="
+        "issuedAt": 1768657148527,
+        "expiresAt": 1800193148527,
+        "signature": "BOkH+KKKCuZL3maBTGF0e+GKAbDZBaMqFFSvvuZkuiqLZA0aJkUoDcJkDhZ/Ey8mZOQOfHceduyr9VcuvQltBw=="
       }
     }
   ],
-  "lastSaved": "2026-01-17T02:33:55.449Z"
+  "lastSaved": "2026-01-17T13:39:09.532Z"
 }

@@ -241,28 +241,131 @@
             </div>
           </div>
           
-          <!-- Movie Theater Providers Multi-Select (only for movie service type) -->
-          <div class="row mb-3" *ngIf="selectedServiceType?.type === 'movie'">
+          <!-- Service Provider Configuration (for all service types) -->
+          <div class="row mb-3">
             <div class="col-12">
-              <label class="form-label">Target Movie Theater Providers</label>
-              <select 
-                class="form-select" 
-                [(ngModel)]="gardenConfig.selectedProviders"
-                name="selectedProviders"
-                multiple
-                size="3"
-                style="min-height: 100px;">
-                <option *ngFor="let provider of movieProviders" [value]="provider.id">
-                  {{ provider.name }}
-                </option>
-              </select>
-              <small class="text-muted">
-                Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
-                Selected: {{ gardenConfig.selectedProviders?.length || 0 }} provider(s)
-              </small>
-              <div *ngIf="!hasSelectedProviders() && selectedServiceType?.type === 'movie'" class="mt-2">
-                <small class="text-danger">
-                  ⚠️ Please select at least one movie theater provider to continue
+              <label class="form-label fw-bold">Service Providers</label>
+              <p class="text-muted small mb-2">Configure service providers for this garden. You can select predefined providers or add custom ones.</p>
+              
+              <!-- Predefined Providers (for movie service type) -->
+              <div *ngIf="selectedServiceType?.type === 'movie'" class="mb-3">
+                <label class="form-label small">Predefined Movie Theater Providers</label>
+                <select 
+                  class="form-select" 
+                  [(ngModel)]="gardenConfig.selectedProviders"
+                  name="selectedProviders"
+                  multiple
+                  size="3"
+                  style="min-height: 100px;">
+                  <option *ngFor="let provider of movieProviders" [value]="provider.id">
+                    {{ provider.name }}
+                  </option>
+                </select>
+                <small class="text-muted">
+                  Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
+                  Selected: {{ gardenConfig.selectedProviders?.length || 0 }} provider(s)
+                </small>
+              </div>
+              
+              <!-- Custom Providers (for all service types) -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label small mb-0">Custom Providers</label>
+                  <button 
+                    type="button" 
+                    class="btn btn-sm btn-outline-primary"
+                    (click)="addCustomProvider()">
+                    + Add Custom Provider
+                  </button>
+                </div>
+                
+                <div *ngIf="customProviders.length === 0" class="text-muted small mb-2">
+                  No custom providers added. Click "Add Custom Provider" to add one.
+                </div>
+                
+                <div *ngFor="let provider of customProviders; let i = index" class="card mb-2">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Provider {{ i + 1 }}</h6>
+                      <button 
+                        type="button" 
+                        class="btn btn-sm btn-outline-danger"
+                        (click)="removeCustomProvider(i)">
+                        Remove
+                      </button>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <label class="form-label small">Provider Name *</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.name"
+                          [name]="'customProviderName' + i"
+                          placeholder="e.g., United Airlines"
+                          required>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small">Location</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.location"
+                          [name]="'customProviderLocation' + i"
+                          placeholder="e.g., New York, NY">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Bond (JSC)</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.bond"
+                          [name]="'customProviderBond' + i"
+                          min="0"
+                          step="100"
+                          placeholder="1000">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Reputation</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.reputation"
+                          [name]="'customProviderReputation' + i"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          placeholder="5.0">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">API Endpoint</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.apiEndpoint"
+                          [name]="'customProviderApiEndpoint' + i"
+                          placeholder="https://api.example.com/v1">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Provider Summary -->
+              <div class="alert alert-info mb-0" *ngIf="getProviderCount() > 0">
+                <strong>Provider Summary:</strong> {{ getProviderCount() }} provider(s) configured
+                <span *ngIf="selectedServiceType?.type === 'movie' && gardenConfig.selectedProviders && gardenConfig.selectedProviders.length > 0">
+                  ({{ gardenConfig.selectedProviders.length }} predefined, {{ customProviders.length }} custom)
+                </span>
+                <span *ngIf="selectedServiceType?.type !== 'movie'">
+                  ({{ customProviders.length }} custom)
+                </span>
+              </div>
+              
+              <!-- Warning for movie service type if no providers -->
+              <div *ngIf="selectedServiceType?.type === 'movie' && !hasProviders()" class="alert alert-warning mt-2">
+                <small>
+                  ⚠️ Please select at least one movie theater provider or add a custom provider to continue
                 </small>
               </div>
             </div>

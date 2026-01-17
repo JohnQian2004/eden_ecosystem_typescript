@@ -73,17 +73,17 @@
       "gardenId": "HG"
     },
     {
-      "id": "amc-001",
-      "name": "AMC Theatres",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
+      "id": "airline-b4f263fc",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
       "bond": 1000,
-      "reputation": 4.8,
+      "reputation": 5,
       "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440001",
-      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "uuid": "b5f2acb2-ecdc-4920-bbc7-dbb989bbe24e",
+      "apiEndpoint": "https://api.airline.com/v1",
       "gardenId": "garden-1"
     }
   ],
-  "lastSaved": "2026-01-17T11:02:41.905Z"
+  "lastSaved": "2026-01-17T13:39:09.532Z"
 }

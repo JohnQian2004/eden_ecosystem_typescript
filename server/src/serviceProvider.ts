@@ -3,6 +3,7 @@
  * Handles service provider registration, querying, and certificate issuance
  */
 
+import * as crypto from "crypto";
 import type { ServiceProvider, ServiceProviderWithCert, ServiceRegistryQuery, MovieListing, TokenListing } from "./types";
 import { GARDENS, TOKEN_GARDENS, ROOT_CA_SERVICE_REGISTRY, CERTIFICATE_REGISTRY, REVOCATION_REGISTRY, DEX_POOLS, ROOT_CA } from "./state";
 import type { EdenCertificate } from "../EdenPKI";
@@ -65,7 +66,7 @@ export function registerServiceProviderWithROOTCA(provider: ServiceProviderWithC
       throw err; // Re-throw if it's a different error
     }
   }
-  
+
   // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility (will be removed later)
   const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === provider.id || p.uuid === provider.uuid);
   if (!existing) {
@@ -85,6 +86,209 @@ export function registerServiceProviderWithROOTCA(provider: ServiceProviderWithC
       gardenId: provider.gardenId
     }
   });
+}
+
+/**
+ * Generic service provider creation function
+ * Creates or reassigns service providers for a garden
+ * Supports both predefined provider IDs and custom provider configurations
+ */
+export function createServiceProvidersForGarden(
+  serviceType: string,
+  gardenId: string,
+  providers: Array<{
+    id?: string;
+    name: string;
+    location?: string;
+    bond?: number;
+    reputation?: number;
+    apiEndpoint?: string;
+    uuid?: string;
+    // Optional fields for Snake service type
+    insuranceFee?: number;
+    iGasMultiplier?: number;
+    iTaxMultiplier?: number;
+    maxInfluence?: number;
+    contextsAllowed?: string[];
+    contextsForbidden?: string[];
+    adCapabilities?: string[];
+  }>,
+  predefinedProviderMap?: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }>
+): Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> {
+  const results: Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> = [];
+  const serviceRegistry2 = getServiceRegistry2();
+  
+  // Validate garden exists
+  if (!validateGardenId(gardenId)) {
+    throw new Error(`Cannot create providers: gardenId "${gardenId}" does not exist. Valid gardens: ${[...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(tg => tg.id), "HG"].join(", ")}`);
+  }
+  
+  for (const providerConfig of providers) {
+    let providerId: string;
+    let providerData: ServiceProviderWithCert;
+    
+    // Determine provider ID
+    if (providerConfig.id) {
+      // Use provided ID
+      providerId = providerConfig.id;
+      
+      // Check if it's a predefined provider
+      if (predefinedProviderMap && predefinedProviderMap[providerId]) {
+        const predefined = predefinedProviderMap[providerId];
+        providerData = {
+          id: providerId,
+          uuid: predefined.uuid,
+          name: predefined.name,
+          serviceType: serviceType,
+          location: predefined.location,
+          bond: predefined.bond,
+          reputation: predefined.reputation,
+          gardenId: gardenId,
+          apiEndpoint: predefined.apiEndpoint,
+          status: 'active'
+        };
+      } else {
+        // Custom provider with ID
+        providerData = {
+          id: providerId,
+          uuid: providerConfig.uuid || crypto.randomUUID(),
+          name: providerConfig.name,
+          serviceType: serviceType,
+          location: providerConfig.location || 'Unknown',
+          bond: providerConfig.bond || 1000,
+          reputation: providerConfig.reputation || 5.0,
+          gardenId: gardenId,
+          apiEndpoint: providerConfig.apiEndpoint || '',
+          status: 'active',
+          // Optional Snake fields
+          insuranceFee: providerConfig.insuranceFee,
+          iGasMultiplier: providerConfig.iGasMultiplier,
+          iTaxMultiplier: providerConfig.iTaxMultiplier,
+          maxInfluence: providerConfig.maxInfluence,
+          contextsAllowed: providerConfig.contextsAllowed,
+          contextsForbidden: providerConfig.contextsForbidden,
+          adCapabilities: providerConfig.adCapabilities
+        };
+      }
+    } else {
+      // Generate ID if not provided
+      providerId = `${serviceType}-${crypto.randomUUID().substring(0, 8)}`;
+      providerData = {
+        id: providerId,
+        uuid: providerConfig.uuid || crypto.randomUUID(),
+        name: providerConfig.name,
+        serviceType: serviceType,
+        location: providerConfig.location || 'Unknown',
+        bond: providerConfig.bond || 1000,
+        reputation: providerConfig.reputation || 5.0,
+        gardenId: gardenId,
+        apiEndpoint: providerConfig.apiEndpoint || '',
+        status: 'active',
+        // Optional Snake fields
+        insuranceFee: providerConfig.insuranceFee,
+        iGasMultiplier: providerConfig.iGasMultiplier,
+        iTaxMultiplier: providerConfig.iTaxMultiplier,
+        maxInfluence: providerConfig.maxInfluence,
+        contextsAllowed: providerConfig.contextsAllowed,
+        contextsForbidden: providerConfig.contextsForbidden,
+        adCapabilities: providerConfig.adCapabilities
+      };
+    }
+    
+    // Check if provider already exists
+    const existingProvider = serviceRegistry2.getProvider(providerId);
+    
+    if (existingProvider) {
+      // Provider exists - reassign to new garden
+      if (existingProvider.gardenId !== gardenId) {
+        console.log(`   🔄 Reassigning provider: ${existingProvider.name} (${existingProvider.id}) from garden ${existingProvider.gardenId} to ${gardenId}`);
+        existingProvider.gardenId = gardenId;
+        
+        // CRITICAL: Save service registry to persistence FIRST, before broadcasting
+        try {
+          serviceRegistry2.savePersistence();
+          console.log(`   💾 Service registry saved to persistence (reassigned provider: ${existingProvider.name})`);
+        } catch (saveErr: any) {
+          console.error(`   ❌ Failed to save service registry:`, saveErr.message);
+        }
+        
+        results.push({
+          providerId: providerId,
+          providerName: existingProvider.name,
+          created: false,
+          assigned: true
+        });
+      } else {
+        console.log(`   ✓ Provider ${existingProvider.name} (${existingProvider.id}) already assigned to garden ${gardenId}`);
+        results.push({
+          providerId: providerId,
+          providerName: existingProvider.name,
+          created: false,
+          assigned: false
+        });
+      }
+    } else {
+      // Provider doesn't exist - create it
+      try {
+        serviceRegistry2.addProvider(providerData);
+        
+        // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility
+        // CRITICAL: Check if provider already exists in ROOT_CA_SERVICE_REGISTRY to avoid duplicates
+        const existingInOldRegistry = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerData.id || p.uuid === providerData.uuid);
+        if (!existingInOldRegistry) {
+          ROOT_CA_SERVICE_REGISTRY.push(providerData);
+        } else {
+          // Update existing provider in old registry
+          Object.assign(existingInOldRegistry, providerData);
+        }
+        
+        // Issue certificate
+        try {
+          issueServiceProviderCertificate(providerData);
+          console.log(`   📜 Certificate issued to ${providerData.name}`);
+        } catch (certErr: any) {
+          console.warn(`   ⚠️  Failed to issue certificate to ${providerData.name}:`, certErr.message);
+        }
+        
+        console.log(`   ✅ Created service provider: ${providerData.name} (${providerData.id}) for garden ${gardenId}`);
+        
+        // CRITICAL: Save service registry to persistence FIRST, before broadcasting to Angular
+        try {
+          serviceRegistry2.savePersistence();
+          console.log(`   💾 Service registry saved to persistence (provider: ${providerData.name})`);
+        } catch (saveErr: any) {
+          console.error(`   ❌ Failed to save service registry:`, saveErr.message);
+          // Don't throw - continue with broadcast even if save fails
+        }
+        
+        // Broadcast event AFTER persistence
+        broadcastEvent({
+          type: "service_provider_created",
+          component: "root-ca",
+          message: `Service provider ${providerData.name} created and assigned to garden ${gardenId}`,
+          timestamp: Date.now(),
+          data: {
+            providerId: providerData.id,
+            providerName: providerData.name,
+            serviceType: serviceType,
+            gardenId: gardenId
+          }
+        });
+        
+        results.push({
+          providerId: providerId,
+          providerName: providerData.name,
+          created: true,
+          assigned: true
+        });
+      } catch (err: any) {
+        console.error(`   ❌ Failed to create provider ${providerData.name}:`, err.message);
+        throw err;
+      }
+    }
+  }
+  
+  return results;
 }
 
 // Query ROOT CA Service Registry (used by gardens after LLM extraction)

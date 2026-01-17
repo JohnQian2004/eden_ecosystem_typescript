@@ -214,6 +214,16 @@ export class AppComponent implements OnInit, OnDestroy {
           this.loadServices();
         }, 500);
       }
+      
+      // Listen for garden creation events to refresh gardens list
+      if (event.type === 'garden_created') {
+        console.log(`🔄 Garden created, refreshing gardens list and Main Street...`);
+        // Refresh gardens check and services after a short delay to ensure backend has updated
+        setTimeout(() => {
+          this.checkServiceGardens();
+          this.loadServices();
+        }, 500);
+      }
     });
     
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
@@ -345,6 +355,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   
   refreshGardens() {
+    console.log('🔄 Refreshing gardens list and Main Street...');
+    // Refresh gardens check and services for Main Street
+    this.checkServiceGardens();
+    this.loadServices();
+    
     // Refresh gardens in sidebar and certificate components
     // Use setTimeout to ensure ViewChild is initialized
     setTimeout(() => {

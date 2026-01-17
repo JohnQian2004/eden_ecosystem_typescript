@@ -72,7 +72,8 @@ import {
   queryCinemarkAPI,
   queryDEXPoolAPI,
   querySnakeAPI,
-  issueServiceProviderCertificate
+  issueServiceProviderCertificate,
+  createServiceProvidersForGarden
 } from "./src/serviceProvider";
 import { initializeServiceRegistry2, getServiceRegistry2 } from "./src/serviceRegistry2";
 import {
@@ -2086,7 +2087,12 @@ httpServer.on("request", async (req, res) => {
       const dexProviders = allProviders.filter(p => p.serviceType === 'dex');
       console.log(`   🔍 [Service Registry API] DEX providers in memory: ${dexProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
     }
-    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
+    // Debug: Log provider assignments for airline service type
+    if (!serviceType || serviceType === 'airline') {
+      const airlineProviders = allProviders.filter(p => p.serviceType === 'airline');
+      console.log(`   🔍 [Service Registry API] Airline providers in memory: ${airlineProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ') || 'NONE'}`);
+    }
+    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, airline=${allProviders.filter(p => p.serviceType === 'airline').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
     
     let providers = allProviders.map(p => ({
       id: p.id,
@@ -4235,180 +4241,232 @@ httpServer.on("request", async (req, res) => {
           };
           console.log(`📝 [Garden Lifecycle] ✅ Garden added to memory:`, gardenLogData);
           getLogger().log('garden-lifecycle', 'garden-added-to-memory', gardenLogData);
+          
+          // Broadcast garden creation event to frontend
+          broadcastEvent({
+            type: "garden_created",
+            component: "root-ca",
+            message: `Garden ${gardenConfig.name} created successfully`,
+            timestamp: Date.now(),
+            data: {
+              gardenId: gardenConfig.id,
+              gardenName: gardenConfig.name,
+              serviceType: (gardenConfig as any).serviceType,
+              hasCertificate: !!gardenConfig.certificate,
+              totalGardens: GARDENS.length
+            }
+          });
         }
         
-        // Create service providers for movie gardens based on selectedProviders
+        // Create service providers for gardens using generic provider creation
         let providersCreated = 0;
-        if (serviceType === "movie") {
-          // Validate that selectedProviders is provided and is an array
-          if (!selectedProviders || !Array.isArray(selectedProviders) || selectedProviders.length === 0) {
-            console.warn(`   ⚠️  No selectedProviders provided for movie garden. Skipping provider creation.`);
+        let providerResults: Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> = [];
+        
+        // Support both old format (selectedProviders array for movie) and new format (providers array)
+        let providersToCreate: Array<{
+          id?: string;
+          name: string;
+          location?: string;
+          bond?: number;
+          reputation?: number;
+          apiEndpoint?: string;
+          uuid?: string;
+          insuranceFee?: number;
+          iGasMultiplier?: number;
+          iTaxMultiplier?: number;
+          maxInfluence?: number;
+          contextsAllowed?: string[];
+          contextsForbidden?: string[];
+          adCapabilities?: string[];
+        }> = [];
+        
+        // Backward compatibility: Handle old selectedProviders format for movie
+        // CRITICAL: Only process selectedProviders if serviceType is EXACTLY "movie"
+        // This prevents movie providers from being created for airline or other service types
+        if (serviceType === "movie" && selectedProviders && Array.isArray(selectedProviders) && selectedProviders.length > 0) {
+          console.log(`   🎬 Converting ${selectedProviders.length} selectedProviders to provider configs for movie garden...`);
+          console.log(`   🔍 [DEBUG] serviceType="${serviceType}", selectedProviders=[${selectedProviders.join(', ')}]`);
+          
+          // Predefined movie provider map (for backward compatibility)
+          const movieProviderMap: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }> = {
+            'amc-001': {
+              name: 'AMC Theatres',
+              uuid: '550e8400-e29b-41d4-a716-446655440001',
+              location: 'Baltimore, Maryland',
+              bond: 1000,
+              reputation: 4.8,
+              apiEndpoint: 'https://api.amctheatres.com/v1/listings'
+            },
+            'cinemark-001': {
+              name: 'Cinemark',
+              uuid: '550e8400-e29b-41d4-a716-446655440003',
+              location: 'Baltimore, Maryland',
+              bond: 1200,
+              reputation: 4.7,
+              apiEndpoint: 'https://api.cinemark.com/movies'
+            },
+            'moviecom-001': {
+              name: 'MovieCom',
+              uuid: '550e8400-e29b-41d4-a716-446655440002',
+              location: 'Baltimore, Maryland',
+              bond: 800,
+              reputation: 4.5,
+              apiEndpoint: 'https://api.moviecom.com/showtimes'
+            }
+          };
+          
+          // Convert selectedProviders IDs to provider configs
+          for (const providerId of selectedProviders) {
+            const predefined = movieProviderMap[providerId];
+            if (predefined) {
+              providersToCreate.push({
+                id: providerId,
+                name: predefined.name,
+                location: predefined.location,
+                bond: predefined.bond,
+                reputation: predefined.reputation,
+                apiEndpoint: predefined.apiEndpoint,
+                uuid: predefined.uuid
+              });
+            } else {
+              console.warn(`   ⚠️  Provider ID ${providerId} not found in movie provider map. Skipping.`);
+            }
+          }
+        } else if (selectedProviders && Array.isArray(selectedProviders) && selectedProviders.length > 0 && serviceType !== "movie") {
+          // CRITICAL: If selectedProviders is provided for non-movie service types, log a warning and ignore it
+          console.warn(`   ⚠️  [CRITICAL] selectedProviders provided for non-movie service type "${serviceType}": [${selectedProviders.join(', ')}]`);
+          console.warn(`   ⚠️  [CRITICAL] Ignoring selectedProviders - they are only valid for movie service type`);
+          console.warn(`   ⚠️  [CRITICAL] Use 'providers' array instead for ${serviceType} service type`);
+        }
+        
+        // New format: Check for providers array in request
+        if (requestData.providers && Array.isArray(requestData.providers)) {
+          if (requestData.providers.length > 0) {
+            console.log(`   📋 Using new providers array format: ${requestData.providers.length} provider(s)`);
+            providersToCreate = requestData.providers;
           } else {
-            console.log(`   🎬 Creating ${selectedProviders.length} movie service provider(s) for garden ${gardenConfig.id}...`);
-            console.log(`   📋 Selected providers array:`, selectedProviders);
-            console.log(`   📋 Selected providers count: ${selectedProviders.length}`);
+            console.log(`   📋 Empty providers array provided for ${serviceType} garden`);
+          }
+        }
+        
+        // Create providers if any are specified
+        if (providersToCreate.length > 0) {
+          console.log(`   🔧 Creating ${providersToCreate.length} service provider(s) for ${serviceType} garden ${gardenConfig.id}...`);
+          console.log(`   🔍 [DEBUG] providersToCreate:`, providersToCreate.map(p => ({ id: p.id, name: p.name })));
+          
+          // CRITICAL: Validate that all providers match the service type
+          // This prevents movie providers (amc-001, cinemark-001, moviecom-001) from being created for airline or other service types
+          const movieProviderIds = ['amc-001', 'cinemark-001', 'moviecom-001'];
+          const mismatchedProviders = providersToCreate.filter(p => {
+            return p.id && movieProviderIds.includes(p.id) && serviceType !== "movie";
+          });
+          
+          if (mismatchedProviders.length > 0) {
+            console.error(`   ❌ [CRITICAL] Provider type mismatch detected!`);
+            console.error(`   ❌ [CRITICAL] Service type: "${serviceType}", but movie providers found:`, mismatchedProviders.map(p => p.id).join(', '));
+            console.error(`   ❌ [CRITICAL] Removing mismatched providers to prevent incorrect provider creation`);
+            providersToCreate = providersToCreate.filter(p => {
+              return !(p.id && movieProviderIds.includes(p.id) && serviceType !== "movie");
+            });
+            console.log(`   ✅ [CRITICAL] Filtered providers list (${providersToCreate.length} remaining):`, providersToCreate.map(p => ({ id: p.id, name: p.name })));
             
-            // Map of provider IDs to their base configurations
-            // ONLY these providers will be created - no others
-            const providerMap: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }> = {
-              'amc-001': {
-                name: 'AMC Theatres',
-                uuid: '550e8400-e29b-41d4-a716-446655440001',
-                location: 'Baltimore, Maryland',
+            // If all providers were filtered out, skip provider creation
+            if (providersToCreate.length === 0) {
+              console.warn(`   ⚠️  [CRITICAL] All providers were filtered out due to type mismatch. Skipping provider creation.`);
+              console.warn(`   ⚠️  [CRITICAL] Default provider will be created instead (if applicable).`);
+            }
+          }
+          
+          // Predefined provider map (only for movie, for backward compatibility)
+          const predefinedProviderMap = serviceType === "movie" ? {
+            'amc-001': {
+              name: 'AMC Theatres',
+              uuid: '550e8400-e29b-41d4-a716-446655440001',
+              location: 'Baltimore, Maryland',
+              bond: 1000,
+              reputation: 4.8,
+              apiEndpoint: 'https://api.amctheatres.com/v1/listings'
+            },
+            'cinemark-001': {
+              name: 'Cinemark',
+              uuid: '550e8400-e29b-41d4-a716-446655440003',
+              location: 'Baltimore, Maryland',
+              bond: 1200,
+              reputation: 4.7,
+              apiEndpoint: 'https://api.cinemark.com/movies'
+            },
+            'moviecom-001': {
+              name: 'MovieCom',
+              uuid: '550e8400-e29b-41d4-a716-446655440002',
+              location: 'Baltimore, Maryland',
+              bond: 800,
+              reputation: 4.5,
+              apiEndpoint: 'https://api.moviecom.com/showtimes'
+            }
+          } : undefined;
+          
+          try {
+            providerResults = createServiceProvidersForGarden(
+              serviceType,
+              gardenConfig.id,
+              providersToCreate,
+              predefinedProviderMap
+            );
+            
+            providersCreated = providerResults.filter(r => r.created || r.assigned).length;
+            console.log(`   ✅ Successfully processed ${providersCreated} provider(s): ${providerResults.map(r => r.providerName).join(', ')}`);
+            
+            // CRITICAL: Ensure service registry is saved to persistence after provider creation
+            // (createServiceProvidersForGarden already saves, but double-check here)
+            try {
+              const serviceRegistry2 = getServiceRegistry2();
+              serviceRegistry2.savePersistence();
+              console.log(`   💾 Service registry saved to persistence after provider creation`);
+            } catch (saveErr: any) {
+              console.error(`   ❌ Failed to save service registry after provider creation:`, saveErr.message);
+            }
+          } catch (providerErr: any) {
+            console.error(`   ❌ Failed to create providers:`, providerErr.message);
+            // Don't fail the entire garden creation, just log the error
+            console.warn(`   ⚠️  Continuing with garden creation despite provider creation failure`);
+          }
+        } else {
+          console.log(`   ℹ️  No providers specified for ${serviceType} garden. Skipping provider creation.`);
+          
+          // For non-movie, non-dex service types (like airline), create a default provider if none were specified
+          // This ensures the service type appears in the service registry
+          if (serviceType !== "movie" && serviceType !== "dex" && serviceType !== "snake") {
+            console.log(`   🔧 Creating default provider for ${serviceType} garden ${gardenConfig.id}...`);
+            try {
+              const defaultProviderConfig = {
+                name: `${gardenConfig.name} Provider`,
+                location: 'Unknown',
                 bond: 1000,
-                reputation: 4.8,
-                apiEndpoint: 'https://api.amctheatres.com/v1/listings'
-              },
-              'cinemark-001': {
-                name: 'Cinemark',
-                uuid: '550e8400-e29b-41d4-a716-446655440003',
-                location: 'Baltimore, Maryland',
-                bond: 1200,
-                reputation: 4.7,
-                apiEndpoint: 'https://api.cinemark.com/movies'
-              },
-              'moviecom-001': {
-                name: 'MovieCom',
-                uuid: '550e8400-e29b-41d4-a716-446655440002',
-                location: 'Baltimore, Maryland',
-                bond: 800,
-                reputation: 4.5,
-                apiEndpoint: 'https://api.moviecom.com/showtimes'
-              }
-            };
-            
-            // Assign existing providers to this indexer, or create them if they don't exist
-            // In ROOT mode, providers may not exist yet and need to be created
-            console.log(`   🔍 [Provider Assignment] Looking for ${selectedProviders.length} provider(s) in ServiceRegistry...`);
-            console.log(`   🔍 [Provider Assignment] Selected provider IDs: ${selectedProviders.join(', ')}`);
-            const serviceRegistry2ForAssignment = getServiceRegistry2();
-            console.log(`   🔍 [Provider Assignment] ServiceRegistry2 has ${serviceRegistry2ForAssignment.getCount()} providers`);
-            
-            for (const providerId of selectedProviders) {
-              // Find the existing provider in ServiceRegistry2
-              let existingProvider = serviceRegistry2ForAssignment.getProvider(providerId);
+                reputation: 5.0,
+                apiEndpoint: `https://api.${serviceType}.com/v1`
+              };
               
-              if (existingProvider) {
-                // CRITICAL: Validate that the garden exists before assigning
-                if (!validateGardenId(gardenConfig.id)) {
-                  console.error(`   ❌ Cannot assign provider ${existingProvider.name} (${existingProvider.id}): garden ${gardenConfig.id} does not exist!`);
-                  continue; // Skip this provider
-                }
-                
-                // Provider exists, just assign it to this indexer
-                // Check if provider is already assigned to another garden
-                if (existingProvider.gardenId && existingProvider.gardenId !== gardenConfig.id) {
-                  console.warn(`   ⚠️  Provider ${existingProvider.name} (${existingProvider.id}) is already assigned to garden ${existingProvider.gardenId}. Reassigning to ${gardenConfig.id}.`);
-                }
-                
-                // Update the provider's gardenId to point to this garden
-                existingProvider.gardenId = gardenConfig.id;
-                providersCreated++;
-                console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to garden ${gardenConfig.id} (${gardenConfig.name})`);
-                
-                // Broadcast event for provider assignment
-                broadcastEvent({
-                  type: "service_provider_assigned",
-                  component: "root-ca",
-                  message: `Service provider ${existingProvider.name} assigned to ${gardenConfig.name}`,
-                  timestamp: Date.now(),
-                  data: {
-                    providerId: existingProvider.id,
-                    providerName: existingProvider.name,
-                    gardenId: gardenConfig.id,
-                    gardenName: gardenConfig.name
-                  }
-                });
-              } else {
-                // Provider doesn't exist - create it if it's in the providerMap
-                const providerConfig = providerMap[providerId];
-                if (providerConfig) {
-                  // CRITICAL: Validate that the garden exists before creating provider
-                  if (!validateGardenId(gardenConfig.id)) {
-                    console.error(`   ❌ Cannot create provider ${providerConfig.name} (${providerId}): garden ${gardenConfig.id} does not exist!`);
-                    continue; // Skip this provider
-                  }
-                  
-                  console.log(`   🆕 Creating new service provider: ${providerConfig.name} (${providerId})`);
-                  
-                  const newProvider: ServiceProviderWithCert = {
-                    id: providerId,
-                    uuid: providerConfig.uuid,
-                    name: providerConfig.name,
-                    serviceType: serviceType,
-                    location: providerConfig.location,
-                    bond: providerConfig.bond,
-                    reputation: providerConfig.reputation,
-                    gardenId: gardenConfig.id, // Assign to this garden
-                    apiEndpoint: providerConfig.apiEndpoint,
-                    status: 'active'
-                  };
-                  
-                  // Add to ServiceRegistry2 (new implementation)
-                  const serviceRegistry2 = getServiceRegistry2();
-                  try {
-                    serviceRegistry2.addProvider(newProvider);
-                    // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility (will be removed later)
-                    ROOT_CA_SERVICE_REGISTRY.push(newProvider);
-                  } catch (err: any) {
-                    console.error(`   ❌ Failed to add provider to ServiceRegistry2: ${err.message}`);
-                    throw err;
-                  }
-                  
-                  // Log provider creation
-                  const providerLogData = {
-                    providerId: newProvider.id,
-                    providerName: newProvider.name,
-                    gardenId: newProvider.gardenId,
-                    serviceType: newProvider.serviceType,
-                    totalProviders: serviceRegistry2.getCount()
-                  };
-                  console.log(`📝 [Garden Lifecycle] ✅ Provider added to ServiceRegistry2:`, providerLogData);
-                  console.log(`📋 [ServiceRegistry2] Current state:`, {
-                    totalProviders: serviceRegistry2.getCount(),
-                    movieProviders: serviceRegistry2.queryProviders('movie').map(p => `${p.id}(${p.gardenId})`),
-                    allProviders: serviceRegistry2.getAllProviders().map(p => `${p.id}(${p.gardenId || 'NO_GARDEN'})`)
-                  });
-                  getLogger().log('garden-lifecycle', 'provider-added-to-memory', providerLogData);
-                  
-                  // Issue certificate to provider
-                  try {
-                    issueServiceProviderCertificate(newProvider);
-                    console.log(`   📜 Certificate issued to ${newProvider.name}`);
-                  } catch (err: any) {
-                    console.warn(`   ⚠️  Failed to issue certificate to ${newProvider.name}:`, err.message);
-                  }
-                  
-                  providersCreated++;
-                  console.log(`   ✅ Created and assigned service provider: ${newProvider.name} (${newProvider.id}) to garden ${gardenConfig.id} (${gardenConfig.name})`);
-                  
-                  // Broadcast event for provider creation
-                  broadcastEvent({
-                    type: "service_provider_created",
-                    component: "root-ca",
-                    message: `Service provider ${newProvider.name} created and assigned to ${gardenConfig.name}`,
-                    timestamp: Date.now(),
-                    data: {
-                      providerId: newProvider.id,
-                      providerName: newProvider.name,
-                      gardenId: gardenConfig.id,
-                      gardenName: gardenConfig.name
-                    }
-                  });
-                } else {
-                  const serviceRegistry2 = getServiceRegistry2();
-                  console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry and not in providerMap. Available providers: ${serviceRegistry2.getAllProviders().map(p => `${p.name} (${p.id})`).join(', ')}`);
-                }
+              providerResults = createServiceProvidersForGarden(
+                serviceType,
+                gardenConfig.id,
+                [defaultProviderConfig],
+                undefined
+              );
+              
+              providersCreated = providerResults.filter(r => r.created || r.assigned).length;
+              console.log(`   ✅ Created default provider for ${serviceType} garden: ${providerResults.map(r => r.providerName).join(', ')}`);
+              
+              // CRITICAL: Ensure service registry is saved to persistence after default provider creation
+              try {
+                const serviceRegistry2 = getServiceRegistry2();
+                serviceRegistry2.savePersistence();
+                console.log(`   💾 Service registry saved to persistence after default provider creation`);
+              } catch (saveErr: any) {
+                console.error(`   ❌ Failed to save service registry after default provider creation:`, saveErr.message);
               }
+            } catch (defaultProviderErr: any) {
+              console.warn(`   ⚠️  Failed to create default provider for ${serviceType} garden:`, defaultProviderErr.message);
             }
-            
-            if (providersCreated === 0) {
-              console.error(`   ❌ [Provider Assignment] No providers were assigned! Check if provider IDs match ServiceRegistry.`);
-            }
-            // NOTE: ServiceRegistry will be saved together with indexers in the immediate save below
-            // No need to call redis.saveServiceRegistry() separately - it would cause duplicate saves
-            
-            console.log(`   ✅ Created ${providersCreated} service provider(s) for garden ${gardenConfig.id}`);
           }
         }
         
@@ -4885,6 +4943,45 @@ httpServer.on("request", async (req, res) => {
           // Save using ServiceRegistry2's savePersistence method
           serviceRegistry2.savePersistence();
           console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${allProviders.length} service provider(s) via ServiceRegistry2`);
+          
+          // CRITICAL: Final check - verify garden has providers after all creation logic
+          // If not, create a default provider (especially for airline and other service types)
+          if ((gardenConfig as any).serviceType && 
+              (gardenConfig as any).serviceType !== "movie" && 
+              (gardenConfig as any).serviceType !== "dex" && 
+              (gardenConfig as any).serviceType !== "snake") {
+            const finalProvidersForGarden = serviceRegistry2.queryProviders((gardenConfig as any).serviceType, {});
+            const finalHasProviderForThisGarden = finalProvidersForGarden.some(p => p.gardenId === gardenConfig.id);
+            
+            if (!finalHasProviderForThisGarden) {
+              console.log(`   🔧 [Final Check] Garden ${gardenConfig.id} still has no providers, creating default provider...`);
+              try {
+                const defaultProviderConfig = {
+                  name: `${gardenConfig.name} Provider`,
+                  location: 'Unknown',
+                  bond: 1000,
+                  reputation: 5.0,
+                  apiEndpoint: `https://api.${(gardenConfig as any).serviceType}.com/v1`
+                };
+                
+                const finalProviderResults = createServiceProvidersForGarden(
+                  (gardenConfig as any).serviceType,
+                  gardenConfig.id,
+                  [defaultProviderConfig],
+                  undefined
+                );
+                
+                const finalProvidersCreated = finalProviderResults.filter(r => r.created || r.assigned).length;
+                console.log(`   ✅ [Final Check] Created default provider for ${(gardenConfig as any).serviceType} garden: ${finalProviderResults.map(r => r.providerName).join(', ')}`);
+                
+                // CRITICAL: Save service registry to persistence
+                serviceRegistry2.savePersistence();
+                console.log(`   💾 [Final Check] Service registry saved to persistence`);
+              } catch (finalErr: any) {
+                console.warn(`   ⚠️  [Final Check] Failed to create default provider:`, finalErr.message);
+              }
+            }
+          }
         } catch (err: any) {
           console.error(`❌ [Indexer Persistence] Failed to save immediately: ${err.message}`);
         }
@@ -9224,25 +9321,58 @@ async function main() {
   
   // DEBUG: Save in-memory service registry to debug file every second
   // This helps track what's actually in memory vs what's in persistence
+  // CRITICAL: Merge both ROOT_CA_SERVICE_REGISTRY and ServiceRegistry2 to show all providers
   setInterval(() => {
     try {
       const memoryFile = path.join(__dirname, 'eden-serviceRegistry-memory.json');
+      
+      // Get providers from both old and new registries
+      const serviceRegistry2 = getServiceRegistry2();
+      const allProvidersFromServiceRegistry2 = serviceRegistry2.getAllProviders();
+      
+      // Merge: Use ServiceRegistry2 as source of truth, but also include any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2
+      const providerMap = new Map<string, any>();
+      
+      // First, add all from ServiceRegistry2 (new implementation - source of truth)
+      for (const provider of allProvidersFromServiceRegistry2) {
+        providerMap.set(provider.id, {
+          id: provider.id,
+          name: provider.name,
+          serviceType: provider.serviceType,
+          location: provider.location,
+          bond: provider.bond,
+          reputation: provider.reputation,
+          status: provider.status,
+          uuid: provider.uuid,
+          apiEndpoint: provider.apiEndpoint,
+          gardenId: provider.gardenId
+        });
+      }
+      
+      // Then, add any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2 (backward compatibility)
+      for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+        if (!providerMap.has(provider.id)) {
+          providerMap.set(provider.id, {
+            id: provider.id,
+            name: provider.name,
+            serviceType: provider.serviceType,
+            location: provider.location,
+            bond: provider.bond,
+            reputation: provider.reputation,
+            status: provider.status,
+            uuid: provider.uuid,
+            apiEndpoint: provider.apiEndpoint,
+            gardenId: provider.gardenId
+          });
+        }
+      }
+      
       const memoryData = {
-        serviceRegistry: ROOT_CA_SERVICE_REGISTRY.map(p => ({
-          id: p.id,
-          name: p.name,
-          serviceType: p.serviceType,
-          location: p.location,
-          bond: p.bond,
-          reputation: p.reputation,
-          status: p.status,
-          uuid: p.uuid,
-          apiEndpoint: p.apiEndpoint,
-          gardenId: p.gardenId
-        })),
-        totalProviders: ROOT_CA_SERVICE_REGISTRY.length,
-        movieProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie').length,
-        dexProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex').length,
+        serviceRegistry: Array.from(providerMap.values()),
+        totalProviders: providerMap.size,
+        movieProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'movie').length,
+        dexProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'dex').length,
+        airlineProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'airline').length,
         lastSaved: new Date().toISOString()
       };
       fs.writeFileSync(memoryFile, JSON.stringify(memoryData, null, 2), 'utf-8');
@@ -9693,6 +9823,100 @@ async function main() {
     }
     
     console.log(`   ✅ ServiceRegistry2 ready with ${serviceRegistry2.getCount()} total provider(s)`);
+    
+    // CRITICAL: After gardens are loaded, check for gardens without providers and create default ones
+    // Also check eden-gardens-persistence.json (separate file used by API endpoint)
+    console.log(`\n   🔍 [Startup] Checking for gardens without providers...`);
+    
+    // First, check gardens loaded from eden-wallet-persistence.json
+    const allGardens = [...GARDENS, ...TOKEN_GARDENS];
+    console.log(`   🔍 [Startup] Checking ${allGardens.length} garden(s) from memory: ${allGardens.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
+    
+    // Also check eden-gardens-persistence.json (separate file)
+    const gardensPersistenceFile = path.join(__dirname, 'eden-gardens-persistence.json');
+    let gardensFromSeparateFile: any[] = [];
+    if (fs.existsSync(gardensPersistenceFile)) {
+      try {
+        const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        gardensFromSeparateFile = persisted.gardens || [];
+        console.log(`   🔍 [Startup] Found ${gardensFromSeparateFile.length} garden(s) in eden-gardens-persistence.json: ${gardensFromSeparateFile.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+        
+        // CRITICAL: Add gardens from separate file to GARDENS array if they're not already there
+        // This ensures validateGardenId() will recognize them
+        for (const gardenFromFile of gardensFromSeparateFile) {
+          const existsInMemory = GARDENS.some(g => g.id === gardenFromFile.id) || TOKEN_GARDENS.some(tg => tg.id === gardenFromFile.id);
+          if (!existsInMemory) {
+            // Determine if it's a token garden or regular garden
+            const isTokenGarden = gardenFromFile.tokenServiceType === 'dex' || (gardenFromFile.serviceType === 'dex' && gardenFromFile.id && gardenFromFile.id.startsWith('T'));
+            
+            if (isTokenGarden) {
+              TOKEN_GARDENS.push(gardenFromFile);
+              console.log(`   🔍 [Startup] Added token garden ${gardenFromFile.id} from eden-gardens-persistence.json to TOKEN_GARDENS`);
+            } else {
+              GARDENS.push(gardenFromFile);
+              console.log(`   🔍 [Startup] Added garden ${gardenFromFile.id} from eden-gardens-persistence.json to GARDENS`);
+            }
+          }
+        }
+        
+        // Update allGardens to include all gardens (from both sources)
+        allGardens = [...GARDENS, ...TOKEN_GARDENS];
+      } catch (err: any) {
+        console.warn(`   ⚠️  [Startup] Failed to read eden-gardens-persistence.json:`, err.message);
+      }
+    }
+    
+    console.log(`   🔍 [Startup] Total gardens to check: ${allGardens.length}`);
+    
+    for (const garden of allGardens) {
+      const gardenServiceType = (garden as any).serviceType;
+      console.log(`   🔍 [Startup] Checking garden ${garden.id}: serviceType="${gardenServiceType}"`);
+      
+      if (gardenServiceType && 
+          gardenServiceType !== "movie" && 
+          gardenServiceType !== "dex" && 
+          gardenServiceType !== "snake") {
+        const providersForGarden = serviceRegistry2.queryProviders(gardenServiceType, {});
+        const hasProviderForThisGarden = providersForGarden.some(p => p.gardenId === garden.id);
+        
+        console.log(`   🔍 [Startup] Garden ${garden.id} (${gardenServiceType}): ${providersForGarden.length} provider(s) found, hasProviderForThisGarden=${hasProviderForThisGarden}`);
+        
+        if (!hasProviderForThisGarden) {
+          console.log(`   🔧 [Startup] Garden ${garden.id} (${gardenServiceType}) has no providers, creating default provider...`);
+          try {
+            const defaultProviderConfig = {
+              name: `${garden.name} Provider`,
+              location: 'Unknown',
+              bond: 1000,
+              reputation: 5.0,
+              apiEndpoint: `https://api.${gardenServiceType}.com/v1`
+            };
+            
+            const startupProviderResults = createServiceProvidersForGarden(
+              gardenServiceType,
+              garden.id,
+              [defaultProviderConfig],
+              undefined
+            );
+            
+            const startupProvidersCreated = startupProviderResults.filter(r => r.created || r.assigned).length;
+            console.log(`   ✅ [Startup] Created default provider for ${gardenServiceType} garden ${garden.id}: ${startupProviderResults.map(r => r.providerName).join(', ')}`);
+            
+            // Save service registry to persistence
+            serviceRegistry2.savePersistence();
+            console.log(`   💾 [Startup] Service registry saved to persistence`);
+          } catch (startupErr: any) {
+            console.warn(`   ⚠️  [Startup] Failed to create default provider for ${garden.id}:`, startupErr.message);
+            console.error(`   ❌ [Startup] Error details:`, startupErr);
+          }
+        } else {
+          console.log(`   ✓ [Startup] Garden ${garden.id} already has provider(s)`);
+        }
+      } else {
+        console.log(`   ⏭️  [Startup] Skipping garden ${garden.id}: serviceType="${gardenServiceType}" (movie/dex/snake or missing)`);
+      }
+    }
     
     // CRITICAL: After gardens are loaded, ensure all hardcoded providers are present if their gardens exist
     // This fixes the issue where providers are removed during initial load before gardens exist
