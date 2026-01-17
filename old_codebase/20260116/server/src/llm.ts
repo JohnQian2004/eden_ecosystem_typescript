@@ -4,6 +4,8 @@
  */
 
 import * as https from "https";
+import * as http from "http";
+import { URL } from "url";
 import type { MovieListing, TokenListing, LLMQueryResult, LLMResponse, ServiceRegistryQuery } from "./types";
 import { MOCKED_LLM, ENABLE_OPENAI } from "./config";
 
@@ -442,32 +444,66 @@ export async function resolveLLM(userInput: string): Promise<LLMResponse> {
  */
 export async function callLLM(prompt: string, useOpenAI: boolean): Promise<string> {
   if (useOpenAI) {
-    // Use OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY || ""}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
+    // Use OpenAI API - Hardcoded API key
+    const HARDCODED_API_KEY = "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";
+    
+    console.log(`   🔑 [callLLM] Using hardcoded API key (length: ${HARDCODED_API_KEY.length}, starts with: ${HARDCODED_API_KEY.substring(0, 7)}...)`);
+    
+    // Use https.request instead of fetch for Node.js compatibility
+    return new Promise<string>((resolve, reject) => {
+      const payload = JSON.stringify({
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.7
-      })
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
+      
+      const url = new URL(OPENAI_API_URL);
+      const authHeader = `Bearer ${HARDCODED_API_KEY}`;
+      console.log(`   🔑 [callLLM] Authorization header: ${authHeader.substring(0, 20)}...`);
+      
+      const req = https.request({
+        hostname: url.hostname,
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+          "Content-Length": Buffer.byteLength(payload)
+        }
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk.toString();
+        });
+        res.on("end", () => {
+          try {
+            if (res.statusCode && res.statusCode >= 400) {
+              const errorData = JSON.parse(data);
+              reject(new Error(`OpenAI API error: ${res.statusCode} ${res.statusMessage} - ${JSON.stringify(errorData)}`));
+              return;
+            }
+            
+            const parsed = JSON.parse(data);
+            if (!parsed || !parsed.choices || !Array.isArray(parsed.choices) || parsed.choices.length === 0) {
+              reject(new Error(`Invalid OpenAI API response: ${JSON.stringify(parsed)}`));
+              return;
+            }
+            
+            resolve(parsed.choices[0]?.message?.content || "");
+          } catch (err: any) {
+            reject(new Error(`Failed to parse OpenAI API response: ${err.message}. Response: ${data.substring(0, 200)}`));
+          }
+        });
+      });
+      
+      req.on("error", (err) => {
+        reject(new Error(`OpenAI API request failed: ${err.message}`));
+      });
+      
+      req.write(payload);
+      req.end();
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      throw new Error(`Invalid OpenAI API response: ${JSON.stringify(data)}`);
-    }
-    
-    return data.choices[0]?.message?.content || "";
   } else {
     // Use DeepSeek API
     return new Promise((resolve, reject) => {

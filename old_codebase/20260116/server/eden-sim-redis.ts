@@ -72,7 +72,8 @@ import {
   queryCinemarkAPI,
   queryDEXPoolAPI,
   querySnakeAPI,
-  issueServiceProviderCertificate
+  issueServiceProviderCertificate,
+  createServiceProvidersForGarden
 } from "./src/serviceProvider";
 import { initializeServiceRegistry2, getServiceRegistry2 } from "./src/serviceRegistry2";
 import {
@@ -99,6 +100,7 @@ import {
   deliverWebhook,
   getCashierStatus
 } from "./src/ledger";
+import { callLLM } from "./src/llm";
 import {
   initializeFlowWise,
   loadWorkflow,
@@ -129,6 +131,7 @@ import {
 } from "./src/llm";
 import { initializeLogger, getLogger } from "./src/logger";
 import type { WalletIntent, WalletResult } from "./src/types";
+import { getServiceTypeFields, extractBookingDetails, getServiceTypeMessage, formatRecommendation } from "./src/serviceTypeFields";
 
 // Initialize Stripe
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
@@ -279,14 +282,112 @@ httpServer.on("request", async (req, res) => {
   }
 
   // API Routes
-  // GET /api/workflow/:serviceType - Get workflow definition
-  if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision") {
+  // GET /api/workflow/list - List all available workflows (MUST BE BEFORE /api/workflow/:serviceType)
+  if (pathname === "/api/workflow/list" && req.method === "GET") {
+    console.log(`   📋 [${requestId}] GET /api/workflow/list - Listing available workflows`);
+    
+    try {
+      const dataPath = path.join(__dirname, "data");
+      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
+      const workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
+      
+      for (const serviceType of serviceTypes) {
+        const filename = `${serviceType}.json`;
+        let filePath = path.join(dataPath, filename);
+        let exists = fs.existsSync(filePath);
+        let stepCount: number | undefined = undefined;
+        
+        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+        if (!exists && serviceType === "movie") {
+          const legacyPath = path.join(dataPath, "amc_cinema.json");
+          if (fs.existsSync(legacyPath)) {
+            exists = true;
+            filePath = legacyPath;
+            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
+          }
+        }
+        
+        // Also check for dex.json
+        if (serviceType === "dex" && !exists) {
+          const dexPath = path.join(dataPath, "dex.json");
+          if (fs.existsSync(dexPath)) {
+            exists = true;
+            filePath = dexPath;
+            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
+          }
+        }
+        
+        // If workflow exists, load it and count steps
+        if (exists) {
+          try {
+            const fileContent = fs.readFileSync(filePath, "utf-8");
+            const data = JSON.parse(fileContent);
+            if (data.flowwiseWorkflow && data.flowwiseWorkflow.steps && Array.isArray(data.flowwiseWorkflow.steps)) {
+              stepCount = data.flowwiseWorkflow.steps.length;
+              console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${stepCount} steps`);
+            } else {
+              console.log(`   ⚠️ [${requestId}] Workflow ${serviceType}: ${filename} - exists but no steps found`);
+            }
+          } catch (parseError: any) {
+            console.error(`   ⚠️ [${requestId}] Error parsing workflow ${serviceType}: ${parseError.message}`);
+          }
+        } else {
+          console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - NOT FOUND`);
+        }
+        
+        workflows.push({ serviceType, filename, exists, stepCount });
+      }
+      
+      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        workflows
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error listing workflows:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // GET /api/workflow/:serviceType - Get workflow definition (MUST BE AFTER /api/workflow/list)
+  if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision" && pathname !== "/api/workflow/list") {
     const serviceType = pathname.split("/").pop();
     console.log(`   📋 [${requestId}] GET /api/workflow/${serviceType} - Loading workflow definition`);
+    console.log(`   🔍 [${requestId}] Service type from URL: "${serviceType}"`);
+    console.log(`   🔍 [${requestId}] Full pathname: "${pathname}"`);
+
+    if (!serviceType) {
+      res.writeHead(400, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: "Service type is required"
+      }));
+      return;
+    }
 
     try {
-      const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType as "movie" | "dex");
+      const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType);
       console.log(`   🔄 [${requestId}] Workflow loaded: ${workflow ? 'SUCCESS' : 'FAILED'} - ${workflow?.name || 'N/A'}`);
+      if (workflow) {
+        console.log(`   🔍 [${requestId}] Workflow name: "${workflow.name}"`);
+        console.log(`   🔍 [${requestId}] Workflow serviceType check: First step serviceType = "${(workflow.steps[0]?.actions?.find((a: any) => a.serviceType) as any)?.serviceType || 'N/A'}"`);
+      }
 
       if (workflow) {
         const responseData = {
@@ -495,20 +596,8 @@ httpServer.on("request", async (req, res) => {
         // Import template variable replacement function
         const { replaceTemplateVariables } = await import("./src/flowwise");
 
-        // Load the appropriate workflow definition
-        const fs = require('fs');
-        const path = require('path');
-        const workflowPath = serviceType === 'movie'
-          ? path.join(__dirname, 'data', 'amc_cinema.json')
-          : path.join(__dirname, 'data', 'dex.json');
-
-        if (!fs.existsSync(workflowPath)) {
-          sendResponse(404, { success: false, error: `Workflow definition not found: ${workflowPath}` });
-          return;
-        }
-
-        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
-        const workflow = workflowData.flowwiseWorkflow;
+        // Load the appropriate workflow definition dynamically
+        const workflow = loadWorkflow(serviceType);
 
         if (!workflow) {
           sendResponse(400, { success: false, error: "Invalid workflow definition" });
@@ -557,7 +646,15 @@ httpServer.on("request", async (req, res) => {
 
         // Handle decision steps specially - they require user interaction
         if (step.type === "decision" && step.requiresUserDecision) {
-          console.log(`   🤔 [${requestId}] Decision step detected: ${step.id}`);
+          console.log(`   🤔 [${requestId}] ========================================`);
+          console.log(`   🤔 [${requestId}] DECISION STEP DETECTED: ${step.id}`);
+          console.log(`   🤔 [${requestId}] Step name: ${step.name}`);
+          console.log(`   🤔 [${requestId}] Step type: ${step.type}`);
+          console.log(`   🤔 [${requestId}] requiresUserDecision: ${step.requiresUserDecision}`);
+          console.log(`   🤔 [${requestId}] Has websocketEvents: ${!!step.websocketEvents}`);
+          console.log(`   🤔 [${requestId}] websocketEvents count: ${step.websocketEvents?.length || 0}`);
+          console.log(`   🤔 [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+          console.log(`   🤔 [${requestId}] ========================================`);
 
           // For decision steps, we don't execute actions yet - we broadcast the decision request
           // Process WebSocket events for decision request
@@ -574,28 +671,86 @@ httpServer.on("request", async (req, res) => {
               };
 
               // Special handling for user_select_listing - build options from listings
-              if (step.id === "user_select_listing" && updatedContext.listings) {
-                console.log(`   📋 [${requestId}] Building movie selection options from ${updatedContext.listings.length} listings`);
-                processedEvent.data.options = updatedContext.listings.map((listing: any) => ({
-                  value: listing.id,
-                  label: `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`,
-                  data: {
-                    // Include all listing fields dynamically
-                    ...listing,
-                    // Ensure key fields are present
-                    id: listing.id,
-                    movieTitle: listing.movieTitle || listing.name,
-                    showtime: listing.showtime,
-                    price: listing.price,
-                    providerId: listing.providerId,
-                    providerName: listing.providerName || listing.provider
+              console.log(`   🔍 [${requestId}] Checking for user_select_listing step:`);
+              console.log(`   🔍 [${requestId}] Step ID: ${step.id}`);
+              console.log(`   🔍 [${requestId}] Step ID matches "user_select_listing": ${step.id === "user_select_listing"}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings exists: ${!!updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings type: ${typeof updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options BEFORE special handling:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options type:`, typeof processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              
+              // ALWAYS build options for user_select_listing if listings exist, even if template replacement already set it
+              // Check both updatedContext.listings and processedEvent.data.options (in case template replacement already set it)
+              const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+              
+              if (step.id === "user_select_listing" && listingsSource && Array.isArray(listingsSource) && listingsSource.length > 0) {
+                const selectServiceType = updatedContext.serviceType || serviceType || 'movie';
+                const selectFields = getServiceTypeFields(selectServiceType);
+                
+                console.log(`   📋 [${requestId}] ✅ Building ${selectServiceType} selection options from ${listingsSource.length} listings`);
+                console.log(`   📋 [${requestId}] Using listings from: ${updatedContext.listings ? 'updatedContext.listings' : 'processedEvent.data.options'}`);
+                processedEvent.data.options = listingsSource.map((listing: any) => {
+                  // Build label dynamically based on service type
+                  let label = '';
+                  if (selectServiceType === 'movie') {
+                    label = `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`;
+                  } else if (selectServiceType === 'airline') {
+                    label = `${listing.flightNumber || listing.name} to ${listing.destination} on ${listing.date} - $${listing.price}`;
+                  } else {
+                    // Generic fallback
+                    const primary = listing[selectFields.primary] || listing.name;
+                    const time = listing[selectFields.time] || '';
+                    label = `${primary}${time ? ` - ${time}` : ''} - $${listing.price || listing[selectFields.price]}`;
                   }
-                }));
+                  
+                  return {
+                    value: listing.id,
+                    label: label,
+                    data: {
+                      // Include all listing fields dynamically
+                      ...listing,
+                      // Ensure key fields are present
+                      id: listing.id,
+                      price: listing.price || listing[selectFields.price],
+                      providerId: listing.providerId,
+                      providerName: listing.providerName || listing.provider
+                    }
+                  };
+                });
+                console.log(`   📋 [${requestId}] ✅ Built ${processedEvent.data.options.length} selection options`);
+                console.log(`   📋 [${requestId}] First option:`, JSON.stringify(processedEvent.data.options[0], null, 2));
+              } else {
+                console.log(`   ⚠️ [${requestId}] ⚠️ NOT building options because:`);
+                if (step.id !== "user_select_listing") {
+                  console.log(`   ⚠️ [${requestId}]   - Step ID "${step.id}" does not match "user_select_listing"`);
+                }
+                const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+                if (!listingsSource || !Array.isArray(listingsSource) || listingsSource.length === 0) {
+                  console.log(`   ⚠️ [${requestId}]   - No listings found in updatedContext.listings or processedEvent.data.options`);
+                  console.log(`   ⚠️ [${requestId}]   - updatedContext.listings:`, updatedContext.listings);
+                  console.log(`   ⚠️ [${requestId}]   - processedEvent.data.options:`, processedEvent.data?.options);
+                  console.log(`   ⚠️ [${requestId}]   - Available context keys:`, Object.keys(updatedContext));
+                }
+              }
+              
+              // Final check: Ensure options is an array before broadcasting
+              if (processedEvent.data?.options && !Array.isArray(processedEvent.data.options)) {
+                console.warn(`   ⚠️ [${requestId}] ⚠️ processedEvent.data.options is not an array! Converting...`);
+                console.warn(`   ⚠️ [${requestId}] Current value:`, processedEvent.data.options);
+                console.warn(`   ⚠️ [${requestId}] Type:`, typeof processedEvent.data.options);
+                processedEvent.data.options = [];
               }
 
               console.log(`   📡 [${requestId}] Broadcasting decision event: ${event.type}`);
+              console.log(`   📡 [${requestId}] Event structure:`, JSON.stringify(processedEvent, null, 2));
+              console.log(`   📡 [${requestId}] Event data.options:`, processedEvent.data?.options);
+              console.log(`   📡 [${requestId}] Event data.options count:`, processedEvent.data?.options?.length || 0);
               try {
                 broadcastEvent(processedEvent);
+                console.log(`   ✅ [${requestId}] Successfully broadcasted event: ${event.type}`);
               } catch (broadcastError) {
                 console.warn(`   ⚠️ [${requestId}] Failed to broadcast event: ${event.type}`, broadcastError);
               }
@@ -603,7 +758,21 @@ httpServer.on("request", async (req, res) => {
           }
 
           // For decision steps, return early without nextStepId - execution pauses for user input
-          console.log(`   ⏸️ [${requestId}] Step ${stepId} paused for user ${step.id.includes('select') ? 'selection' : 'decision'}`);
+          console.log(`   ⏸️ [${requestId}] ========================================`);
+          console.log(`   ⏸️ [${requestId}] STEP PAUSED FOR USER INTERACTION`);
+          console.log(`   ⏸️ [${requestId}] Step ID: ${stepId}`);
+          console.log(`   ⏸️ [${requestId}] Decision type: ${step.id.includes('select') ? 'selection' : 'decision'}`);
+          console.log(`   ⏸️ [${requestId}] Events count: ${events.length}`);
+          console.log(`   ⏸️ [${requestId}] Events summary:`, events.map(e => ({ 
+            type: e.type, 
+            hasOptions: !!e.data?.options, 
+            optionsCount: Array.isArray(e.data?.options) ? e.data.options.length : 0,
+            optionsType: typeof e.data?.options
+          })));
+          if (events.length > 0) {
+            console.log(`   ⏸️ [${requestId}] First event full structure:`, JSON.stringify(events[0], null, 2));
+          }
+          console.log(`   ⏸️ [${requestId}] ========================================`);
 
           sendResponse(200, {
             success: true,
@@ -695,109 +864,121 @@ httpServer.on("request", async (req, res) => {
                   break;
 
                 case 'llm_extract_query':
+                  // Extract serviceType from action, context, or workflow
+                  const extractServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
+                  console.log(`   🔍 [${requestId}] llm_extract_query: Using serviceType: ${extractServiceType}`);
+                  
+                  // Use actual LLM extraction if available, otherwise return mock
                   actionResult = {
                     queryResult: {
-                      serviceType: 'movie',
+                      serviceType: extractServiceType,
                       query: {
-                        filters: {
+                        filters: extractServiceType === 'movie' ? {
                           genre: 'sci-fi',
                           time: 'evening'
-                        }
+                        } : extractServiceType === 'airline' ? {
+                          destination: 'any',
+                          date: 'any'
+                        } : {}
                       }
                     }
                   };
                   break;
 
-                case 'query_service_registry':
-                  const mockListings = [                  {
-                    id: 'amc-001',
-                    name: 'AMC Theatres',
-                    serviceType: 'movie',
-                    location: 'Downtown Plaza',
-                    providerId: 'amc-001',
-                    providerName: 'AMC Theatres',
-                    movieTitle: 'The Dark Knight',
-                    showtime: '7:00 PM',
-                    price: 15.99,
-                    rating: 4.8,
-                    genre: 'Action',
-                    duration: '152 min',
-                    format: 'IMAX',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/dark-knight.jpg'
-                  }, {
-                    id: 'cineplex-001',
-                    name: 'Cineplex Odeon',
-                    serviceType: 'movie',
-                    location: 'Mall Central',
-                    providerId: 'cineplex-001',
-                    providerName: 'Cineplex Odeon',
-                    movieTitle: 'Inception',
-                    showtime: '8:30 PM',
-                    price: 13.50,
-                    rating: 4.6,
-                    genre: 'Sci-Fi',
-                    duration: '148 min',
-                    format: '3D',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/inception.jpg'
-                  }, {
-                    id: 'regal-001',
-                    name: 'Regal Cinemas',
-                    serviceType: 'movie',
-                    location: 'Riverside Center',
-                    providerId: 'regal-001',
-                    providerName: 'Regal Cinemas',
-                    movieTitle: 'Avatar',
-                    showtime: '6:15 PM',
-                    price: 17.25,
-                    rating: 4.9,
-                    genre: 'Adventure',
-                    duration: '162 min',
-                    format: '4DX',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/avatar.jpg'
-                  }];
-                  actionResult = {
-                    listings: mockListings,
-                    providers: [{
-                      id: 'amc-001',
-                      name: 'AMC Theatres',
-                      serviceType: 'movie',
-                      location: 'Demo Location'
-                    }]
-                  };
-                  console.log(`   📋 [${requestId}] Set ${mockListings.length} listings in context`);
-                  break;
+                case 'query_service_registry': {
+                  // Get serviceType from action, context, or workflow
+                  const queryServiceType = processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
+                  console.log(`   🔍 [${requestId}] query_service_registry: Querying for serviceType: ${queryServiceType}`);
+                  
+                  // Query actual service registry
+                  const serviceRegistry2 = getServiceRegistry2();
+                  const providers = serviceRegistry2.queryProviders(queryServiceType, processedAction.filters || updatedContext.queryResult?.query?.filters || {});
+                  
+                  console.log(`   📋 [${requestId}] Found ${providers.length} providers for serviceType: ${queryServiceType}`);
+                  
+                  // Generate mock listings based on service type (in real implementation, this would query provider APIs)
+                  const queryFields = getServiceTypeFields(queryServiceType);
+                  const mockListings = providers.map((provider, index) => {
+                    const baseListing: any = {
+                      id: provider.id,
+                      name: provider.name,
+                      serviceType: queryServiceType,
+                      location: provider.location,
+                      providerId: provider.id,
+                      providerName: provider.name,
+                      price: 15.99 + (index * 2.5), // Vary prices
+                      rating: 4.5 + (Math.random() * 0.5), // Random rating between 4.5-5.0
+                    };
+                    
+                  // Add service-type-specific fields
+                  if (queryServiceType === 'movie') {
+                    baseListing.movieTitle = ['The Dark Knight', 'Inception', 'Avatar', 'Interstellar', 'The Matrix'][index % 5];
+                    baseListing.showtime = ['7:00 PM', '8:30 PM', '6:15 PM', '9:00 PM', '5:30 PM'][index % 5];
+                    baseListing.genre = ['Action', 'Sci-Fi', 'Adventure', 'Thriller', 'Drama'][index % 5];
+                    baseListing.duration = '152 min';
+                    baseListing.format = ['IMAX', '3D', '4DX', 'Standard', 'Premium'][index % 5];
+                  } else if (queryServiceType === 'airline') {
+                    baseListing.flightNumber = ['AA123', 'UA456', 'DL789', 'SW012', 'JB345'][index % 5];
+                    baseListing.destination = ['Los Angeles', 'New York', 'Chicago', 'Miami', 'Seattle'][index % 5];
+                    baseListing.date = ['2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24'][index % 5];
+                    baseListing.departure = ['8:00 AM', '10:30 AM', '2:00 PM', '6:00 PM', '9:30 PM'][index % 5];
+                    baseListing.arrival = ['11:00 AM', '1:30 PM', '5:00 PM', '9:00 PM', '12:30 AM'][index % 5];
+                  } else {
+                    // Generic fallback for other service types
+                    baseListing.name = `${provider.name} Service`;
+                    baseListing.date = new Date().toISOString().split('T')[0];
+                  }
+                  
+                  return baseListing;
+                });
+                
+                actionResult = {
+                  listings: mockListings,
+                  providers: providers.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    serviceType: p.serviceType,
+                    location: p.location
+                  }))
+                };
+                
+                // Store serviceType in context for later use
+                updatedContext.serviceType = queryServiceType;
+                
+                console.log(`   📋 [${requestId}] Set ${mockListings.length} ${queryServiceType} listings in context`);
+                break;
+                }
 
-                case 'llm_format_response':
+                case 'llm_format_response': {
                   const availableListings = updatedContext.listings || [];
-                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} movie options for user selection`);
+                  const formatServiceType = updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
+                  const formatFields = getServiceTypeFields(formatServiceType);
+                  const serviceMessage = getServiceTypeMessage(formatServiceType, availableListings.length);
+                  
+                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} ${formatServiceType} options for user selection`);
 
                   actionResult = {
                     llmResponse: {
-                      message: 'Found great movie options! Here are the best matches for your request.',
+                      message: serviceMessage,
                       iGasCost: 0.004450,
                       queryProcessed: true,
                       optionsFound: availableListings.length,
-                      serviceType: 'movie',
-                      recommendations: availableListings.map((listing: any, index: number) => ({
-                        rank: index + 1,
-                        movieTitle: listing.movieTitle,
-                        showtime: listing.showtime,
-                        price: listing.price,
-                        provider: listing.providerName,
-                        rating: listing.rating
-                      }))
+                      serviceType: formatServiceType,
+                      recommendations: availableListings.map((listing: any, index: number) => formatRecommendation(formatServiceType, listing, index))
                     },
                     listings: availableListings, // Keep for selection step
                     iGasCost: 0.004450,
                     currentIGas: 0.004450
                   };
-                  console.log(`   📋 [${requestId}] Set structured llmResponse:`, actionResult.llmResponse);
+                  
+                  // Store serviceType in context if not already set
+                  updatedContext.serviceType = formatServiceType;
+                  
+                  console.log(`   📋 [${requestId}] Set structured llmResponse for ${formatServiceType}:`, actionResult.llmResponse);
                   break;
+                }
 
-                case 'add_ledger_entry':
+                case 'add_ledger_entry': {
                   console.log(`🔍 [${requestId}] Executing add_ledger_entry action - START`);
                   try {
                     // Use snapshot from context (created by create_snapshot action)
@@ -806,32 +987,44 @@ httpServer.on("request", async (req, res) => {
                       throw new Error('No snapshot available for ledger entry creation');
                     }
 
-                    console.log(`📝 [${requestId}] Adding ledger entry for movie booking:`, {
+                    // Get serviceType from action, context, or workflow
+                    const ledgerServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
+                    const ledgerFields = getServiceTypeFields(ledgerServiceType);
+                    
+                    // Build booking details dynamically based on service type
+                    const bookingDetails = extractBookingDetails(ledgerServiceType, updatedContext.selectedListing || {});
+                    
+                    // Get default provider info based on service type
+                    const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
+                                                ledgerServiceType === 'airline' ? 'Airline Provider' :
+                                                ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
+                                                `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
+                    const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
+                                             ledgerServiceType === 'airline' ? 'airline-001' :
+                                             `${ledgerServiceType}-001`;
+                    
+                    console.log(`📝 [${requestId}] Adding ledger entry for ${ledgerServiceType} booking:`, {
                       amount: snapshot.amount,
                       payer: snapshot.payer,
-                      merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName,
-                      movieTitle: updatedContext.selectedListing?.movieTitle
+                      merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
+                      bookingDetails: bookingDetails
                     });
 
                     console.log(`📝 [${requestId}] Calling addLedgerEntry with:`, {
                       snapshotTxId: snapshot.txId,
-                      serviceType: processedAction.serviceType || 'movie',
+                      serviceType: ledgerServiceType,
                       payerId: processedAction.payerId || updatedContext.user?.email,
-                      merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName
+                      merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName
                     });
 
                     const ledgerEntry = await addLedgerEntry(
                       snapshot,
-                      processedAction.serviceType || 'movie',
+                      ledgerServiceType,
                       processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
                       processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
-                      processedAction.merchantName || updatedContext.selectedListing?.providerName || 'AMC Theatres',
-                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || 'amc-001',
-                      {
-                        movieTitle: updatedContext.selectedListing?.movieTitle,
-                        showtime: updatedContext.selectedListing?.showtime,
-                        location: updatedContext.selectedListing?.location
-                      }
+                      processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
+                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
+                      bookingDetails
                     );
 
                     console.log(`📝 [${requestId}] addLedgerEntry returned:`, {
@@ -869,6 +1062,7 @@ httpServer.on("request", async (req, res) => {
                     actionResult = { error: ledgerError.message };
                   }
                   break;
+                }
 
                 case 'check_balance':
                   const userEmail = processedAction.email || updatedContext.user?.email;
@@ -1489,6 +1683,132 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // GET /api/workflow/list - List all available workflows
+  if (pathname === "/api/workflow/list" && req.method === "GET") {
+    console.log(`   📋 [${requestId}] GET /api/workflow/list - Listing available workflows`);
+    
+    try {
+      const dataPath = path.join(__dirname, "data");
+      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
+      const workflows: Array<{serviceType: string, filename: string, exists: boolean}> = [];
+      
+      for (const serviceType of serviceTypes) {
+        const filename = `${serviceType}.json`;
+        let filePath = path.join(dataPath, filename);
+        let exists = fs.existsSync(filePath);
+        
+        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+        if (!exists && serviceType === "movie") {
+          const legacyPath = path.join(dataPath, "amc_cinema.json");
+          if (fs.existsSync(legacyPath)) {
+            exists = true;
+            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
+          }
+        }
+        
+        // Also check for dex.json
+        if (serviceType === "dex" && !exists) {
+          const dexPath = path.join(dataPath, "dex.json");
+          exists = fs.existsSync(dexPath);
+          if (exists) {
+            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
+          }
+        }
+        
+        workflows.push({ serviceType, filename, exists });
+        console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+      }
+      
+      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        workflows
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error listing workflows:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // POST /api/workflow/generate - Generate workflow using LLM
+  if (pathname === "/api/workflow/generate" && req.method === "POST") {
+    console.log(`   🔧 [${requestId}] POST /api/workflow/generate - Generating workflow`);
+    let body = "";
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify(data));
+        }
+      };
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { serviceType } = parsedBody;
+        
+        if (!serviceType) {
+          sendResponse(400, { success: false, error: "serviceType is required" });
+          return;
+        }
+        
+        // Load template (try movie.json first, fallback to amc_cinema.json)
+        let templatePath = path.join(__dirname, "data", "movie.json");
+        if (!fs.existsSync(templatePath)) {
+          templatePath = path.join(__dirname, "data", "amc_cinema.json");
+          if (!fs.existsSync(templatePath)) {
+            sendResponse(404, { success: false, error: "Template workflow not found" });
+            return;
+          }
+        }
+        
+        const templateContent = fs.readFileSync(templatePath, "utf-8");
+        const template = JSON.parse(templateContent);
+        
+        // Generate workflow using LLM
+        console.log(`   🤖 [${requestId}] Generating workflow for service type: ${serviceType}`);
+        const generatedWorkflow = await generateWorkflowFromTemplate(template, serviceType);
+        
+        // Save to file
+        const outputPath = path.join(__dirname, "data", `${serviceType}.json`);
+        const outputContent = JSON.stringify(generatedWorkflow, null, 2);
+        fs.writeFileSync(outputPath, outputContent, "utf-8");
+        
+        console.log(`   ✅ [${requestId}] Workflow generated and saved: ${outputPath}`);
+        
+        sendResponse(200, {
+          success: true,
+          workflow: generatedWorkflow.flowwiseWorkflow,
+          filename: `${serviceType}.json`
+        });
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error generating workflow:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
   if (pathname === "/api/workflow/decision" && req.method === "POST") {
     console.log(`   🤔 [${requestId}] POST /api/workflow/decision - User decision submission (NEW ARCHITECTURE: Using FlowWiseService)`);
     let body = "";
@@ -1867,7 +2187,12 @@ httpServer.on("request", async (req, res) => {
       const dexProviders = allProviders.filter(p => p.serviceType === 'dex');
       console.log(`   🔍 [Service Registry API] DEX providers in memory: ${dexProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
     }
-    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
+    // Debug: Log provider assignments for airline service type
+    if (!serviceType || serviceType === 'airline') {
+      const airlineProviders = allProviders.filter(p => p.serviceType === 'airline');
+      console.log(`   🔍 [Service Registry API] Airline providers in memory: ${airlineProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ') || 'NONE'}`);
+    }
+    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, airline=${allProviders.filter(p => p.serviceType === 'airline').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
     
     let providers = allProviders.map(p => ({
       id: p.id,
@@ -4016,180 +4341,232 @@ httpServer.on("request", async (req, res) => {
           };
           console.log(`📝 [Garden Lifecycle] ✅ Garden added to memory:`, gardenLogData);
           getLogger().log('garden-lifecycle', 'garden-added-to-memory', gardenLogData);
+          
+          // Broadcast garden creation event to frontend
+          broadcastEvent({
+            type: "garden_created",
+            component: "root-ca",
+            message: `Garden ${gardenConfig.name} created successfully`,
+            timestamp: Date.now(),
+            data: {
+              gardenId: gardenConfig.id,
+              gardenName: gardenConfig.name,
+              serviceType: (gardenConfig as any).serviceType,
+              hasCertificate: !!gardenConfig.certificate,
+              totalGardens: GARDENS.length
+            }
+          });
         }
         
-        // Create service providers for movie gardens based on selectedProviders
+        // Create service providers for gardens using generic provider creation
         let providersCreated = 0;
-        if (serviceType === "movie") {
-          // Validate that selectedProviders is provided and is an array
-          if (!selectedProviders || !Array.isArray(selectedProviders) || selectedProviders.length === 0) {
-            console.warn(`   ⚠️  No selectedProviders provided for movie garden. Skipping provider creation.`);
+        let providerResults: Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> = [];
+        
+        // Support both old format (selectedProviders array for movie) and new format (providers array)
+        let providersToCreate: Array<{
+          id?: string;
+          name: string;
+          location?: string;
+          bond?: number;
+          reputation?: number;
+          apiEndpoint?: string;
+          uuid?: string;
+          insuranceFee?: number;
+          iGasMultiplier?: number;
+          iTaxMultiplier?: number;
+          maxInfluence?: number;
+          contextsAllowed?: string[];
+          contextsForbidden?: string[];
+          adCapabilities?: string[];
+        }> = [];
+        
+        // Backward compatibility: Handle old selectedProviders format for movie
+        // CRITICAL: Only process selectedProviders if serviceType is EXACTLY "movie"
+        // This prevents movie providers from being created for airline or other service types
+        if (serviceType === "movie" && selectedProviders && Array.isArray(selectedProviders) && selectedProviders.length > 0) {
+          console.log(`   🎬 Converting ${selectedProviders.length} selectedProviders to provider configs for movie garden...`);
+          console.log(`   🔍 [DEBUG] serviceType="${serviceType}", selectedProviders=[${selectedProviders.join(', ')}]`);
+          
+          // Predefined movie provider map (for backward compatibility)
+          const movieProviderMap: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }> = {
+            'amc-001': {
+              name: 'AMC Theatres',
+              uuid: '550e8400-e29b-41d4-a716-446655440001',
+              location: 'Baltimore, Maryland',
+              bond: 1000,
+              reputation: 4.8,
+              apiEndpoint: 'https://api.amctheatres.com/v1/listings'
+            },
+            'cinemark-001': {
+              name: 'Cinemark',
+              uuid: '550e8400-e29b-41d4-a716-446655440003',
+              location: 'Baltimore, Maryland',
+              bond: 1200,
+              reputation: 4.7,
+              apiEndpoint: 'https://api.cinemark.com/movies'
+            },
+            'moviecom-001': {
+              name: 'MovieCom',
+              uuid: '550e8400-e29b-41d4-a716-446655440002',
+              location: 'Baltimore, Maryland',
+              bond: 800,
+              reputation: 4.5,
+              apiEndpoint: 'https://api.moviecom.com/showtimes'
+            }
+          };
+          
+          // Convert selectedProviders IDs to provider configs
+          for (const providerId of selectedProviders) {
+            const predefined = movieProviderMap[providerId];
+            if (predefined) {
+              providersToCreate.push({
+                id: providerId,
+                name: predefined.name,
+                location: predefined.location,
+                bond: predefined.bond,
+                reputation: predefined.reputation,
+                apiEndpoint: predefined.apiEndpoint,
+                uuid: predefined.uuid
+              });
+            } else {
+              console.warn(`   ⚠️  Provider ID ${providerId} not found in movie provider map. Skipping.`);
+            }
+          }
+        } else if (selectedProviders && Array.isArray(selectedProviders) && selectedProviders.length > 0 && serviceType !== "movie") {
+          // CRITICAL: If selectedProviders is provided for non-movie service types, log a warning and ignore it
+          console.warn(`   ⚠️  [CRITICAL] selectedProviders provided for non-movie service type "${serviceType}": [${selectedProviders.join(', ')}]`);
+          console.warn(`   ⚠️  [CRITICAL] Ignoring selectedProviders - they are only valid for movie service type`);
+          console.warn(`   ⚠️  [CRITICAL] Use 'providers' array instead for ${serviceType} service type`);
+        }
+        
+        // New format: Check for providers array in request
+        if (requestData.providers && Array.isArray(requestData.providers)) {
+          if (requestData.providers.length > 0) {
+            console.log(`   📋 Using new providers array format: ${requestData.providers.length} provider(s)`);
+            providersToCreate = requestData.providers;
           } else {
-            console.log(`   🎬 Creating ${selectedProviders.length} movie service provider(s) for garden ${gardenConfig.id}...`);
-            console.log(`   📋 Selected providers array:`, selectedProviders);
-            console.log(`   📋 Selected providers count: ${selectedProviders.length}`);
+            console.log(`   📋 Empty providers array provided for ${serviceType} garden`);
+          }
+        }
+        
+        // Create providers if any are specified
+        if (providersToCreate.length > 0) {
+          console.log(`   🔧 Creating ${providersToCreate.length} service provider(s) for ${serviceType} garden ${gardenConfig.id}...`);
+          console.log(`   🔍 [DEBUG] providersToCreate:`, providersToCreate.map(p => ({ id: p.id, name: p.name })));
+          
+          // CRITICAL: Validate that all providers match the service type
+          // This prevents movie providers (amc-001, cinemark-001, moviecom-001) from being created for airline or other service types
+          const movieProviderIds = ['amc-001', 'cinemark-001', 'moviecom-001'];
+          const mismatchedProviders = providersToCreate.filter(p => {
+            return p.id && movieProviderIds.includes(p.id) && serviceType !== "movie";
+          });
+          
+          if (mismatchedProviders.length > 0) {
+            console.error(`   ❌ [CRITICAL] Provider type mismatch detected!`);
+            console.error(`   ❌ [CRITICAL] Service type: "${serviceType}", but movie providers found:`, mismatchedProviders.map(p => p.id).join(', '));
+            console.error(`   ❌ [CRITICAL] Removing mismatched providers to prevent incorrect provider creation`);
+            providersToCreate = providersToCreate.filter(p => {
+              return !(p.id && movieProviderIds.includes(p.id) && serviceType !== "movie");
+            });
+            console.log(`   ✅ [CRITICAL] Filtered providers list (${providersToCreate.length} remaining):`, providersToCreate.map(p => ({ id: p.id, name: p.name })));
             
-            // Map of provider IDs to their base configurations
-            // ONLY these providers will be created - no others
-            const providerMap: Record<string, { name: string; uuid: string; location: string; bond: number; reputation: number; apiEndpoint: string }> = {
-              'amc-001': {
-                name: 'AMC Theatres',
-                uuid: '550e8400-e29b-41d4-a716-446655440001',
-                location: 'Baltimore, Maryland',
+            // If all providers were filtered out, skip provider creation
+            if (providersToCreate.length === 0) {
+              console.warn(`   ⚠️  [CRITICAL] All providers were filtered out due to type mismatch. Skipping provider creation.`);
+              console.warn(`   ⚠️  [CRITICAL] Default provider will be created instead (if applicable).`);
+            }
+          }
+          
+          // Predefined provider map (only for movie, for backward compatibility)
+          const predefinedProviderMap = serviceType === "movie" ? {
+            'amc-001': {
+              name: 'AMC Theatres',
+              uuid: '550e8400-e29b-41d4-a716-446655440001',
+              location: 'Baltimore, Maryland',
+              bond: 1000,
+              reputation: 4.8,
+              apiEndpoint: 'https://api.amctheatres.com/v1/listings'
+            },
+            'cinemark-001': {
+              name: 'Cinemark',
+              uuid: '550e8400-e29b-41d4-a716-446655440003',
+              location: 'Baltimore, Maryland',
+              bond: 1200,
+              reputation: 4.7,
+              apiEndpoint: 'https://api.cinemark.com/movies'
+            },
+            'moviecom-001': {
+              name: 'MovieCom',
+              uuid: '550e8400-e29b-41d4-a716-446655440002',
+              location: 'Baltimore, Maryland',
+              bond: 800,
+              reputation: 4.5,
+              apiEndpoint: 'https://api.moviecom.com/showtimes'
+            }
+          } : undefined;
+          
+          try {
+            providerResults = createServiceProvidersForGarden(
+              serviceType,
+              gardenConfig.id,
+              providersToCreate,
+              predefinedProviderMap
+            );
+            
+            providersCreated = providerResults.filter(r => r.created || r.assigned).length;
+            console.log(`   ✅ Successfully processed ${providersCreated} provider(s): ${providerResults.map(r => r.providerName).join(', ')}`);
+            
+            // CRITICAL: Ensure service registry is saved to persistence after provider creation
+            // (createServiceProvidersForGarden already saves, but double-check here)
+            try {
+              const serviceRegistry2 = getServiceRegistry2();
+              serviceRegistry2.savePersistence();
+              console.log(`   💾 Service registry saved to persistence after provider creation`);
+            } catch (saveErr: any) {
+              console.error(`   ❌ Failed to save service registry after provider creation:`, saveErr.message);
+            }
+          } catch (providerErr: any) {
+            console.error(`   ❌ Failed to create providers:`, providerErr.message);
+            // Don't fail the entire garden creation, just log the error
+            console.warn(`   ⚠️  Continuing with garden creation despite provider creation failure`);
+          }
+        } else {
+          console.log(`   ℹ️  No providers specified for ${serviceType} garden. Skipping provider creation.`);
+          
+          // For non-movie, non-dex service types (like airline), create a default provider if none were specified
+          // This ensures the service type appears in the service registry
+          if (serviceType !== "movie" && serviceType !== "dex" && serviceType !== "snake") {
+            console.log(`   🔧 Creating default provider for ${serviceType} garden ${gardenConfig.id}...`);
+            try {
+              const defaultProviderConfig = {
+                name: `${gardenConfig.name} Provider`,
+                location: 'Unknown',
                 bond: 1000,
-                reputation: 4.8,
-                apiEndpoint: 'https://api.amctheatres.com/v1/listings'
-              },
-              'cinemark-001': {
-                name: 'Cinemark',
-                uuid: '550e8400-e29b-41d4-a716-446655440003',
-                location: 'Baltimore, Maryland',
-                bond: 1200,
-                reputation: 4.7,
-                apiEndpoint: 'https://api.cinemark.com/movies'
-              },
-              'moviecom-001': {
-                name: 'MovieCom',
-                uuid: '550e8400-e29b-41d4-a716-446655440002',
-                location: 'Baltimore, Maryland',
-                bond: 800,
-                reputation: 4.5,
-                apiEndpoint: 'https://api.moviecom.com/showtimes'
-              }
-            };
-            
-            // Assign existing providers to this indexer, or create them if they don't exist
-            // In ROOT mode, providers may not exist yet and need to be created
-            console.log(`   🔍 [Provider Assignment] Looking for ${selectedProviders.length} provider(s) in ServiceRegistry...`);
-            console.log(`   🔍 [Provider Assignment] Selected provider IDs: ${selectedProviders.join(', ')}`);
-            const serviceRegistry2ForAssignment = getServiceRegistry2();
-            console.log(`   🔍 [Provider Assignment] ServiceRegistry2 has ${serviceRegistry2ForAssignment.getCount()} providers`);
-            
-            for (const providerId of selectedProviders) {
-              // Find the existing provider in ServiceRegistry2
-              let existingProvider = serviceRegistry2ForAssignment.getProvider(providerId);
+                reputation: 5.0,
+                apiEndpoint: `https://api.${serviceType}.com/v1`
+              };
               
-              if (existingProvider) {
-                // CRITICAL: Validate that the garden exists before assigning
-                if (!validateGardenId(gardenConfig.id)) {
-                  console.error(`   ❌ Cannot assign provider ${existingProvider.name} (${existingProvider.id}): garden ${gardenConfig.id} does not exist!`);
-                  continue; // Skip this provider
-                }
-                
-                // Provider exists, just assign it to this indexer
-                // Check if provider is already assigned to another garden
-                if (existingProvider.gardenId && existingProvider.gardenId !== gardenConfig.id) {
-                  console.warn(`   ⚠️  Provider ${existingProvider.name} (${existingProvider.id}) is already assigned to garden ${existingProvider.gardenId}. Reassigning to ${gardenConfig.id}.`);
-                }
-                
-                // Update the provider's gardenId to point to this garden
-                existingProvider.gardenId = gardenConfig.id;
-                providersCreated++;
-                console.log(`   ✅ Assigned service provider: ${existingProvider.name} (${existingProvider.id}) to garden ${gardenConfig.id} (${gardenConfig.name})`);
-                
-                // Broadcast event for provider assignment
-                broadcastEvent({
-                  type: "service_provider_assigned",
-                  component: "root-ca",
-                  message: `Service provider ${existingProvider.name} assigned to ${gardenConfig.name}`,
-                  timestamp: Date.now(),
-                  data: {
-                    providerId: existingProvider.id,
-                    providerName: existingProvider.name,
-                    gardenId: gardenConfig.id,
-                    gardenName: gardenConfig.name
-                  }
-                });
-              } else {
-                // Provider doesn't exist - create it if it's in the providerMap
-                const providerConfig = providerMap[providerId];
-                if (providerConfig) {
-                  // CRITICAL: Validate that the garden exists before creating provider
-                  if (!validateGardenId(gardenConfig.id)) {
-                    console.error(`   ❌ Cannot create provider ${providerConfig.name} (${providerId}): garden ${gardenConfig.id} does not exist!`);
-                    continue; // Skip this provider
-                  }
-                  
-                  console.log(`   🆕 Creating new service provider: ${providerConfig.name} (${providerId})`);
-                  
-                  const newProvider: ServiceProviderWithCert = {
-                    id: providerId,
-                    uuid: providerConfig.uuid,
-                    name: providerConfig.name,
-                    serviceType: serviceType,
-                    location: providerConfig.location,
-                    bond: providerConfig.bond,
-                    reputation: providerConfig.reputation,
-                    gardenId: gardenConfig.id, // Assign to this garden
-                    apiEndpoint: providerConfig.apiEndpoint,
-                    status: 'active'
-                  };
-                  
-                  // Add to ServiceRegistry2 (new implementation)
-                  const serviceRegistry2 = getServiceRegistry2();
-                  try {
-                    serviceRegistry2.addProvider(newProvider);
-                    // Also add to old ROOT_CA_SERVICE_REGISTRY for backward compatibility (will be removed later)
-                    ROOT_CA_SERVICE_REGISTRY.push(newProvider);
-                  } catch (err: any) {
-                    console.error(`   ❌ Failed to add provider to ServiceRegistry2: ${err.message}`);
-                    throw err;
-                  }
-                  
-                  // Log provider creation
-                  const providerLogData = {
-                    providerId: newProvider.id,
-                    providerName: newProvider.name,
-                    gardenId: newProvider.gardenId,
-                    serviceType: newProvider.serviceType,
-                    totalProviders: serviceRegistry2.getCount()
-                  };
-                  console.log(`📝 [Garden Lifecycle] ✅ Provider added to ServiceRegistry2:`, providerLogData);
-                  console.log(`📋 [ServiceRegistry2] Current state:`, {
-                    totalProviders: serviceRegistry2.getCount(),
-                    movieProviders: serviceRegistry2.queryProviders('movie').map(p => `${p.id}(${p.gardenId})`),
-                    allProviders: serviceRegistry2.getAllProviders().map(p => `${p.id}(${p.gardenId || 'NO_GARDEN'})`)
-                  });
-                  getLogger().log('garden-lifecycle', 'provider-added-to-memory', providerLogData);
-                  
-                  // Issue certificate to provider
-                  try {
-                    issueServiceProviderCertificate(newProvider);
-                    console.log(`   📜 Certificate issued to ${newProvider.name}`);
-                  } catch (err: any) {
-                    console.warn(`   ⚠️  Failed to issue certificate to ${newProvider.name}:`, err.message);
-                  }
-                  
-                  providersCreated++;
-                  console.log(`   ✅ Created and assigned service provider: ${newProvider.name} (${newProvider.id}) to garden ${gardenConfig.id} (${gardenConfig.name})`);
-                  
-                  // Broadcast event for provider creation
-                  broadcastEvent({
-                    type: "service_provider_created",
-                    component: "root-ca",
-                    message: `Service provider ${newProvider.name} created and assigned to ${gardenConfig.name}`,
-                    timestamp: Date.now(),
-                    data: {
-                      providerId: newProvider.id,
-                      providerName: newProvider.name,
-                      gardenId: gardenConfig.id,
-                      gardenName: gardenConfig.name
-                    }
-                  });
-                } else {
-                  const serviceRegistry2 = getServiceRegistry2();
-                  console.warn(`   ⚠️  Provider ${providerId} not found in ServiceRegistry and not in providerMap. Available providers: ${serviceRegistry2.getAllProviders().map(p => `${p.name} (${p.id})`).join(', ')}`);
-                }
+              providerResults = createServiceProvidersForGarden(
+                serviceType,
+                gardenConfig.id,
+                [defaultProviderConfig],
+                undefined
+              );
+              
+              providersCreated = providerResults.filter(r => r.created || r.assigned).length;
+              console.log(`   ✅ Created default provider for ${serviceType} garden: ${providerResults.map(r => r.providerName).join(', ')}`);
+              
+              // CRITICAL: Ensure service registry is saved to persistence after default provider creation
+              try {
+                const serviceRegistry2 = getServiceRegistry2();
+                serviceRegistry2.savePersistence();
+                console.log(`   💾 Service registry saved to persistence after default provider creation`);
+              } catch (saveErr: any) {
+                console.error(`   ❌ Failed to save service registry after default provider creation:`, saveErr.message);
               }
+            } catch (defaultProviderErr: any) {
+              console.warn(`   ⚠️  Failed to create default provider for ${serviceType} garden:`, defaultProviderErr.message);
             }
-            
-            if (providersCreated === 0) {
-              console.error(`   ❌ [Provider Assignment] No providers were assigned! Check if provider IDs match ServiceRegistry.`);
-            }
-            // NOTE: ServiceRegistry will be saved together with indexers in the immediate save below
-            // No need to call redis.saveServiceRegistry() separately - it would cause duplicate saves
-            
-            console.log(`   ✅ Created ${providersCreated} service provider(s) for garden ${gardenConfig.id}`);
           }
         }
         
@@ -4666,6 +5043,45 @@ httpServer.on("request", async (req, res) => {
           // Save using ServiceRegistry2's savePersistence method
           serviceRegistry2.savePersistence();
           console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${allProviders.length} service provider(s) via ServiceRegistry2`);
+          
+          // CRITICAL: Final check - verify garden has providers after all creation logic
+          // If not, create a default provider (especially for airline and other service types)
+          if ((gardenConfig as any).serviceType && 
+              (gardenConfig as any).serviceType !== "movie" && 
+              (gardenConfig as any).serviceType !== "dex" && 
+              (gardenConfig as any).serviceType !== "snake") {
+            const finalProvidersForGarden = serviceRegistry2.queryProviders((gardenConfig as any).serviceType, {});
+            const finalHasProviderForThisGarden = finalProvidersForGarden.some(p => p.gardenId === gardenConfig.id);
+            
+            if (!finalHasProviderForThisGarden) {
+              console.log(`   🔧 [Final Check] Garden ${gardenConfig.id} still has no providers, creating default provider...`);
+              try {
+                const defaultProviderConfig = {
+                  name: `${gardenConfig.name} Provider`,
+                  location: 'Unknown',
+                  bond: 1000,
+                  reputation: 5.0,
+                  apiEndpoint: `https://api.${(gardenConfig as any).serviceType}.com/v1`
+                };
+                
+                const finalProviderResults = createServiceProvidersForGarden(
+                  (gardenConfig as any).serviceType,
+                  gardenConfig.id,
+                  [defaultProviderConfig],
+                  undefined
+                );
+                
+                const finalProvidersCreated = finalProviderResults.filter(r => r.created || r.assigned).length;
+                console.log(`   ✅ [Final Check] Created default provider for ${(gardenConfig as any).serviceType} garden: ${finalProviderResults.map(r => r.providerName).join(', ')}`);
+                
+                // CRITICAL: Save service registry to persistence
+                serviceRegistry2.savePersistence();
+                console.log(`   💾 [Final Check] Service registry saved to persistence`);
+              } catch (finalErr: any) {
+                console.warn(`   ⚠️  [Final Check] Failed to create default provider:`, finalErr.message);
+              }
+            }
+          }
         } catch (err: any) {
           console.error(`❌ [Indexer Persistence] Failed to save immediately: ${err.message}`);
         }
@@ -5317,6 +5733,74 @@ function _initializeDEXPools_DEPRECATED(): void {
   }
 }
 
+/**
+ * Generate workflow JSON from template using LLM
+ */
+async function generateWorkflowFromTemplate(template: any, serviceType: string): Promise<any> {
+  const serviceTypeDescriptions: Record<string, string> = {
+    movie: "Movie ticket booking service - Users can search for movies, select showtimes, and purchase tickets",
+    dex: "Decentralized exchange token pools - Users can buy and sell tokens through DEX pools",
+    airline: "Airline ticket booking service - Users can search for flights, select seats, and purchase tickets",
+    autoparts: "Automotive parts marketplace - Users can search for auto parts, compare prices, and purchase parts",
+    hotel: "Hotel reservation service - Users can search for hotels, view availability, and book rooms",
+    restaurant: "Restaurant booking service - Users can search for restaurants, view menus, and make reservations",
+    snake: "Snake (Advertiser) - Advertising service provider that displays ads to users"
+  };
+  
+  const description = serviceTypeDescriptions[serviceType] || `Service type: ${serviceType}`;
+  
+  const prompt = `You are a workflow designer for the Eden ecosystem. Generate a FlowWise workflow JSON file based on the provided template.
+
+SERVICE TYPE: ${serviceType}
+DESCRIPTION: ${description}
+
+TEMPLATE WORKFLOW:
+${JSON.stringify(template, null, 2)}
+
+INSTRUCTIONS:
+1. Adapt the template workflow to the new service type (${serviceType})
+2. Update all serviceType references from "movie" to "${serviceType}"
+3. Update step names, descriptions, and actions to match the new service type
+4. Keep the same workflow structure (steps, transitions, actions)
+5. Update component names if needed (e.g., "movie_theater" → appropriate component for ${serviceType})
+6. Update field names in actions (e.g., "movieTitle" → appropriate field for ${serviceType})
+7. Ensure all transitions and step IDs are valid
+8. Keep ROOT CA ledger and payment steps unchanged
+9. Return ONLY the complete JSON object with the same structure as the template
+
+CRITICAL: Return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanations. Just the JSON object.`;
+
+  try {
+    const llmResponse = await callLLM(prompt, ENABLE_OPENAI);
+    
+    // Try to parse the response as JSON
+    let generatedWorkflow: any;
+    try {
+      // Remove markdown code blocks if present
+      const cleanedResponse = llmResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      generatedWorkflow = JSON.parse(cleanedResponse);
+    } catch (parseError: any) {
+      // If parsing fails, try to extract JSON from the response
+      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        generatedWorkflow = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error(`Failed to parse LLM response as JSON: ${parseError.message}`);
+      }
+    }
+    
+    // Validate that the generated workflow has the required structure
+    if (!generatedWorkflow.flowwiseWorkflow) {
+      throw new Error("Generated workflow missing 'flowwiseWorkflow' property");
+    }
+    
+    return generatedWorkflow;
+  } catch (error: any) {
+    console.error(`❌ [Workflow Generation] Error:`, error.message);
+    throw error;
+  }
+}
+
 // LLM System Prompts
 // (LLM prompts moved to src/llm.ts)
 const _LLM_QUERY_EXTRACTION_PROMPT_DEPRECATED = `
@@ -5730,16 +6214,41 @@ async function formatResponseWithOpenAI(listings: MovieListing[] | TokenListing[
               // Ensure selectedListing has providerId by matching it back to original listings
               let selectedListing = content.selectedListing || (listings.length > 0 ? listings[0] : null);
               if (selectedListing && !selectedListing.providerId) {
-                // Try to find matching listing by movie title and provider name
-                const matchedListing = listings.find(l => 
-                  l.movieTitle === selectedListing.movieTitle && 
-                  l.providerName === selectedListing.providerName
-                );
+                // Try to find matching listing by id first (most reliable)
+                let matchedListing = listings.find(l => l.id === selectedListing.id);
+                
+                // If no id match, try matching by provider name and a unique identifier
+                // For movie: match by movieTitle + providerName
+                // For airline: match by flightNumber + providerName
+                // For others: match by name/primary field + providerName
+                if (!matchedListing && listings.length > 0) {
+                  const firstListing = listings[0] as any;
+                  const matchServiceType = firstListing.serviceType || 'movie';
+                  const matchFields = getServiceTypeFields(matchServiceType);
+                  
+                  if (matchServiceType === 'movie' && selectedListing.movieTitle) {
+                    matchedListing = listings.find((l: any) => 
+                      l.movieTitle === selectedListing.movieTitle && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  } else if (matchServiceType === 'airline' && selectedListing.flightNumber) {
+                    matchedListing = listings.find((l: any) => 
+                      l.flightNumber === selectedListing.flightNumber && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  } else if (selectedListing[matchFields.primary] && selectedListing.providerName) {
+                    matchedListing = listings.find((l: any) => 
+                      l[matchFields.primary] === selectedListing[matchFields.primary] && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  }
+                }
+                
                 if (matchedListing) {
-                  selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+                  selectedListing = { ...selectedListing, providerId: (matchedListing as any).providerId };
                 } else if (listings.length > 0) {
                   // Fallback to first listing
-                  selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+                  selectedListing = { ...selectedListing, providerId: (listings[0] as any).providerId };
                 }
               }
               
@@ -8720,77 +9229,8 @@ Return JSON with:
   }
 }
 
-// Helper function to call LLM (reuse existing LLM infrastructure)
-async function callLLM(prompt: string, useOpenAI: boolean): Promise<string> {
-  if (useOpenAI) {
-    // Use OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY || ""}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      throw new Error(`Invalid OpenAI API response: ${JSON.stringify(data)}`);
-    }
-    
-    return data.choices[0]?.message?.content || "";
-  } else {
-    // Use DeepSeek API
-    return new Promise((resolve, reject) => {
-      const payload = JSON.stringify({
-        model: "deepseek-chat",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7
-      });
-      
-      const req = https.request({
-        hostname: "api.deepseek.com",
-        path: "/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY || ""}`
-        }
-      }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => { data += chunk.toString(); });
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            
-            if (!parsed || !parsed.choices || !Array.isArray(parsed.choices) || parsed.choices.length === 0) {
-              reject(new Error(`Invalid DeepSeek API response: ${JSON.stringify(parsed)}`));
-              return;
-            }
-            
-            resolve(parsed.choices[0]?.message?.content || "");
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-      
-      req.on("error", reject);
-      req.write(payload);
-      req.end();
-    });
-  }
-}
+// NOTE: callLLM is imported from src/llm.ts (line 102 and 127)
+// The local callLLM function has been removed to use the imported one with hardcoded API key
 
 // Main Server Initialization
 async function main() {
@@ -9006,25 +9446,58 @@ async function main() {
   
   // DEBUG: Save in-memory service registry to debug file every second
   // This helps track what's actually in memory vs what's in persistence
+  // CRITICAL: Merge both ROOT_CA_SERVICE_REGISTRY and ServiceRegistry2 to show all providers
   setInterval(() => {
     try {
       const memoryFile = path.join(__dirname, 'eden-serviceRegistry-memory.json');
+      
+      // Get providers from both old and new registries
+      const serviceRegistry2 = getServiceRegistry2();
+      const allProvidersFromServiceRegistry2 = serviceRegistry2.getAllProviders();
+      
+      // Merge: Use ServiceRegistry2 as source of truth, but also include any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2
+      const providerMap = new Map<string, any>();
+      
+      // First, add all from ServiceRegistry2 (new implementation - source of truth)
+      for (const provider of allProvidersFromServiceRegistry2) {
+        providerMap.set(provider.id, {
+          id: provider.id,
+          name: provider.name,
+          serviceType: provider.serviceType,
+          location: provider.location,
+          bond: provider.bond,
+          reputation: provider.reputation,
+          status: provider.status,
+          uuid: provider.uuid,
+          apiEndpoint: provider.apiEndpoint,
+          gardenId: provider.gardenId
+        });
+      }
+      
+      // Then, add any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2 (backward compatibility)
+      for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+        if (!providerMap.has(provider.id)) {
+          providerMap.set(provider.id, {
+            id: provider.id,
+            name: provider.name,
+            serviceType: provider.serviceType,
+            location: provider.location,
+            bond: provider.bond,
+            reputation: provider.reputation,
+            status: provider.status,
+            uuid: provider.uuid,
+            apiEndpoint: provider.apiEndpoint,
+            gardenId: provider.gardenId
+          });
+        }
+      }
+      
       const memoryData = {
-        serviceRegistry: ROOT_CA_SERVICE_REGISTRY.map(p => ({
-          id: p.id,
-          name: p.name,
-          serviceType: p.serviceType,
-          location: p.location,
-          bond: p.bond,
-          reputation: p.reputation,
-          status: p.status,
-          uuid: p.uuid,
-          apiEndpoint: p.apiEndpoint,
-          gardenId: p.gardenId
-        })),
-        totalProviders: ROOT_CA_SERVICE_REGISTRY.length,
-        movieProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie').length,
-        dexProviders: ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'dex').length,
+        serviceRegistry: Array.from(providerMap.values()),
+        totalProviders: providerMap.size,
+        movieProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'movie').length,
+        dexProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'dex').length,
+        airlineProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'airline').length,
         lastSaved: new Date().toISOString()
       };
       fs.writeFileSync(memoryFile, JSON.stringify(memoryData, null, 2), 'utf-8');
@@ -9475,6 +9948,100 @@ async function main() {
     }
     
     console.log(`   ✅ ServiceRegistry2 ready with ${serviceRegistry2.getCount()} total provider(s)`);
+    
+    // CRITICAL: After gardens are loaded, check for gardens without providers and create default ones
+    // Also check eden-gardens-persistence.json (separate file used by API endpoint)
+    console.log(`\n   🔍 [Startup] Checking for gardens without providers...`);
+    
+    // First, check gardens loaded from eden-wallet-persistence.json
+    const allGardens = [...GARDENS, ...TOKEN_GARDENS];
+    console.log(`   🔍 [Startup] Checking ${allGardens.length} garden(s) from memory: ${allGardens.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
+    
+    // Also check eden-gardens-persistence.json (separate file)
+    const gardensPersistenceFile = path.join(__dirname, 'eden-gardens-persistence.json');
+    let gardensFromSeparateFile: any[] = [];
+    if (fs.existsSync(gardensPersistenceFile)) {
+      try {
+        const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        gardensFromSeparateFile = persisted.gardens || [];
+        console.log(`   🔍 [Startup] Found ${gardensFromSeparateFile.length} garden(s) in eden-gardens-persistence.json: ${gardensFromSeparateFile.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+        
+        // CRITICAL: Add gardens from separate file to GARDENS array if they're not already there
+        // This ensures validateGardenId() will recognize them
+        for (const gardenFromFile of gardensFromSeparateFile) {
+          const existsInMemory = GARDENS.some(g => g.id === gardenFromFile.id) || TOKEN_GARDENS.some(tg => tg.id === gardenFromFile.id);
+          if (!existsInMemory) {
+            // Determine if it's a token garden or regular garden
+            const isTokenGarden = gardenFromFile.tokenServiceType === 'dex' || (gardenFromFile.serviceType === 'dex' && gardenFromFile.id && gardenFromFile.id.startsWith('T'));
+            
+            if (isTokenGarden) {
+              TOKEN_GARDENS.push(gardenFromFile);
+              console.log(`   🔍 [Startup] Added token garden ${gardenFromFile.id} from eden-gardens-persistence.json to TOKEN_GARDENS`);
+            } else {
+              GARDENS.push(gardenFromFile);
+              console.log(`   🔍 [Startup] Added garden ${gardenFromFile.id} from eden-gardens-persistence.json to GARDENS`);
+            }
+          }
+        }
+        
+        // Update allGardens to include all gardens (from both sources)
+        allGardens = [...GARDENS, ...TOKEN_GARDENS];
+      } catch (err: any) {
+        console.warn(`   ⚠️  [Startup] Failed to read eden-gardens-persistence.json:`, err.message);
+      }
+    }
+    
+    console.log(`   🔍 [Startup] Total gardens to check: ${allGardens.length}`);
+    
+    for (const garden of allGardens) {
+      const gardenServiceType = (garden as any).serviceType;
+      console.log(`   🔍 [Startup] Checking garden ${garden.id}: serviceType="${gardenServiceType}"`);
+      
+      if (gardenServiceType && 
+          gardenServiceType !== "movie" && 
+          gardenServiceType !== "dex" && 
+          gardenServiceType !== "snake") {
+        const providersForGarden = serviceRegistry2.queryProviders(gardenServiceType, {});
+        const hasProviderForThisGarden = providersForGarden.some(p => p.gardenId === garden.id);
+        
+        console.log(`   🔍 [Startup] Garden ${garden.id} (${gardenServiceType}): ${providersForGarden.length} provider(s) found, hasProviderForThisGarden=${hasProviderForThisGarden}`);
+        
+        if (!hasProviderForThisGarden) {
+          console.log(`   🔧 [Startup] Garden ${garden.id} (${gardenServiceType}) has no providers, creating default provider...`);
+          try {
+            const defaultProviderConfig = {
+              name: `${garden.name} Provider`,
+              location: 'Unknown',
+              bond: 1000,
+              reputation: 5.0,
+              apiEndpoint: `https://api.${gardenServiceType}.com/v1`
+            };
+            
+            const startupProviderResults = createServiceProvidersForGarden(
+              gardenServiceType,
+              garden.id,
+              [defaultProviderConfig],
+              undefined
+            );
+            
+            const startupProvidersCreated = startupProviderResults.filter(r => r.created || r.assigned).length;
+            console.log(`   ✅ [Startup] Created default provider for ${gardenServiceType} garden ${garden.id}: ${startupProviderResults.map(r => r.providerName).join(', ')}`);
+            
+            // Save service registry to persistence
+            serviceRegistry2.savePersistence();
+            console.log(`   💾 [Startup] Service registry saved to persistence`);
+          } catch (startupErr: any) {
+            console.warn(`   ⚠️  [Startup] Failed to create default provider for ${garden.id}:`, startupErr.message);
+            console.error(`   ❌ [Startup] Error details:`, startupErr);
+          }
+        } else {
+          console.log(`   ✓ [Startup] Garden ${garden.id} already has provider(s)`);
+        }
+      } else {
+        console.log(`   ⏭️  [Startup] Skipping garden ${garden.id}: serviceType="${gardenServiceType}" (movie/dex/snake or missing)`);
+      }
+    }
     
     // CRITICAL: After gardens are loaded, ensure all hardcoded providers are present if their gardens exist
     // This fixes the issue where providers are removed during initial load before gardens exist

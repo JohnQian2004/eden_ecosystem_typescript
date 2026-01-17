@@ -51,7 +51,117 @@
         "location": "Riverside Center",
         "price": 15.99
       }
+    },
+    {
+      "entryId": "6f2d8b51-e5f5-4e4f-b4dd-af50e4ab1a9a",
+      "txId": "tx_1768642521305",
+      "timestamp": 1768642521305,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Regal Cinemas",
+      "providerUuid": "regal-001",
+      "serviceType": "movie",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "movieTitle": "Avatar",
+        "showtime": "6:15 PM",
+        "location": "Riverside Center",
+        "price": 15.99
+      }
+    },
+    {
+      "entryId": "a31eb300-8eaf-47e3-be2f-3b933cc7196c",
+      "txId": "tx_1768643771861",
+      "timestamp": 1768643771861,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Regal Cinemas",
+      "providerUuid": "regal-001",
+      "serviceType": "movie",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "movieTitle": "Avatar",
+        "showtime": "6:15 PM",
+        "location": "Riverside Center",
+        "price": 15.99
+      }
+    },
+    {
+      "entryId": "2374051d-d1cb-4083-bc12-be9046f6de80",
+      "txId": "tx_1768668767371",
+      "timestamp": 1768668767371,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AIRLINE Provider",
+      "providerUuid": "airline-b4f263fc",
+      "serviceType": "airline",
+      "amount": 299.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 14.999500000000001,
+        "eden": 5.9998000000000005
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 299.99,
+        "flightNumber": "AA123",
+        "date": "2026-01-20",
+        "destination": "Los Angeles",
+        "providerName": "Garden-AIRLINE Provider",
+        "departure": "8:00 AM",
+        "arrival": "11:00 AM"
+      }
+    },
+    {
+      "entryId": "e8df2f09-fd1a-4e15-af95-1b77d7bb028d",
+      "txId": "tx_1768668996767",
+      "timestamp": 1768668996767,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AIRLINE Provider",
+      "providerUuid": "airline-e954d555",
+      "serviceType": "airline",
+      "amount": 299.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 14.999500000000001,
+        "eden": 5.9998000000000005
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 299.99,
+        "flightNumber": "UA456",
+        "date": "2026-01-21",
+        "destination": "New York",
+        "providerName": "Garden-AIRLINE Provider",
+        "departure": "10:30 AM",
+        "arrival": "1:30 PM"
+      }
     }
   ],
-  "lastSaved": "2026-01-17T03:31:27.020Z"
+  "lastSaved": "2026-01-17T16:56:36.836Z"
 }

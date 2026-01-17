@@ -53,13 +53,8 @@
             <td>{{ formatIGasCost(entry?.iGasCost) }}</td>
             <td><span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span></td>
             <td>
-              <div *ngIf="entry?.bookingDetails?.movieTitle">
-                <strong>Movie:</strong> {{ entry.bookingDetails?.movieTitle }}<br>
-                <small *ngIf="entry.bookingDetails?.showtime">Showtime: {{ entry.bookingDetails?.showtime }}</small>
-              </div>
-              <div *ngIf="entry?.bookingDetails?.tokenSymbol">
-                <strong>DEX Trade:</strong> {{ entry.bookingDetails?.action }} {{ entry.bookingDetails?.tokenAmount }} {{ entry.bookingDetails?.tokenSymbol }}
-              </div>
+              <div *ngIf="entry?.bookingDetails" [innerHTML]="formatBookingDetails(entry)"></div>
+              <span *ngIf="!entry?.bookingDetails" class="text-muted">—</span>
             </td>
           </tr>
         </tbody>

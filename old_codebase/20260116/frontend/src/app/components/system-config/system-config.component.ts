@@ -19,6 +19,15 @@ interface GardenConfig {
   selectedProviders?: string[]; // Selected movie theater providers
 }
 
+interface CustomProvider {
+  id?: string;
+  name: string;
+  location: string;
+  bond: number;
+  reputation: number;
+  apiEndpoint: string;
+}
+
 @Component({
   selector: 'app-system-config',
   templateUrl: './system-config.component.html',
@@ -59,12 +68,15 @@ export class SystemConfigComponent implements OnInit {
     selectedProviders: []
   };
   
-  // Available movie theater providers
+  // Available movie theater providers (predefined)
   movieProviders = [
     { id: 'amc-001', name: 'AMC Theatres' },
     { id: 'cinemark-001', name: 'Cinemark' },
     { id: 'moviecom-001', name: 'MovieCom' }
   ];
+  
+  // Custom providers (for any service type)
+  customProviders: CustomProvider[] = [];
   
   // Deployment cost
   deploymentFee: number = 110; // Base deployment fee in JSC
@@ -76,6 +88,14 @@ export class SystemConfigComponent implements OnInit {
   isResetting: boolean = false;
   resetError: string | null = null;
   resetSuccess: boolean = false;
+
+  // Workflow Designer state
+  availableWorkflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
+  selectedWorkflowServiceType: string = '';
+  isGeneratingWorkflow: boolean = false;
+  workflowGenerationError: string | null = null;
+  workflowGenerationSuccess: boolean = false;
+  generatedWorkflow: any = null;
 
   @Output() gardensRefreshed = new EventEmitter<void>();
 
@@ -133,6 +153,7 @@ export class SystemConfigComponent implements OnInit {
     // Load wallet balance and service types
     this.loadWalletBalance();
     this.loadServiceTypes();
+    this.loadAvailableWorkflows();
   }
 
   loadWalletBalance() {
@@ -172,13 +193,16 @@ export class SystemConfigComponent implements OnInit {
       return this.deploymentFee * 2;
     }
     
-    // For movie service type: base garden fee (100 JSC) + 10 JSC per selected provider
+    // For movie service type: base garden fee (100 JSC)
     if (this.selectedServiceType?.type === 'movie') {
-      const providerCount = this.gardenConfig.selectedProviders?.length || 0;
+      // Add 10 JSC per provider (for all service types)
+      const providerCount = this.getProviderCount();
       return baseGardenFee + (providerCount * 10);
     }
     
-    return this.deploymentFee;
+    // For other service types: base fee + 10 JSC per custom provider
+    const providerCount = this.getProviderCount();
+    return baseGardenFee + (providerCount * 10);
   }
 
   hasSufficientBalance(): boolean {
@@ -186,12 +210,11 @@ export class SystemConfigComponent implements OnInit {
   }
 
   hasSelectedProviders(): boolean {
-    // For movie service type, require at least one provider to be selected
-    if (this.selectedServiceType?.type === 'movie') {
-      const selectedProviders = this.gardenConfig.selectedProviders || [];
-      return Array.isArray(selectedProviders) && selectedProviders.length > 0;
+    // For movie service type, check if providers are selected (predefined or custom)
+    if (this.gardenConfig.serviceType === 'movie') {
+      return this.hasProviders();
     }
-    // For other service types (snake, dex), providers are not required
+    // For other service types, providers are optional (but can be added via custom providers)
     return true;
   }
 
@@ -302,14 +325,53 @@ export class SystemConfigComponent implements OnInit {
       amount: requiredFee
     };
     
-    // Only include selectedProviders for movie service type
-    if (this.gardenConfig.serviceType === 'movie') {
+    // Build providers array from both predefined (selectedProviders) and custom providers
+    const providers: Array<{
+      id?: string;
+      name: string;
+      location: string;
+      bond: number;
+      reputation: number;
+      apiEndpoint: string;
+    }> = [];
+    
+    // Add predefined providers (for movie service type, backward compatibility)
+    if (this.gardenConfig.serviceType === 'movie' && this.gardenConfig.selectedProviders && Array.isArray(this.gardenConfig.selectedProviders)) {
+      // Convert selected provider IDs to provider configs
+      for (const providerId of this.gardenConfig.selectedProviders) {
+        const predefinedProvider = this.movieProviders.find(p => p.id === providerId);
+        if (predefinedProvider) {
+          providers.push({
+            id: providerId,
+            name: predefinedProvider.name,
+            location: 'Baltimore, Maryland', // Default location
+            bond: 1000, // Default bond
+            reputation: 4.5, // Default reputation
+            apiEndpoint: `https://api.${providerId.replace('-001', '').toLowerCase()}.com/v1`
+          });
+        }
+      }
+    }
+    
+    // Add custom providers
+    if (this.customProviders && this.customProviders.length > 0) {
+      providers.push(...this.customProviders);
+    }
+    
+    // Include providers array if any providers are specified
+    if (providers.length > 0) {
+      requestBody.providers = providers;
+    }
+    
+    // Backward compatibility: Also include selectedProviders for movie (if no custom providers)
+    if (this.gardenConfig.serviceType === 'movie' && providers.length === 0) {
       requestBody.selectedProviders = Array.isArray(this.gardenConfig.selectedProviders) 
         ? this.gardenConfig.selectedProviders 
         : [];
     }
     
-    console.log('📤 Creating garden with selectedProviders:', requestBody.selectedProviders);
+    console.log('📤 Creating garden with providers:', providers);
+    console.log('📤 Request body:', { ...requestBody, providers: providers.length });
     
     this.http.post<{success: boolean, garden?: any, balance?: number, error?: string}>(
       `${this.apiUrl}/api/wizard/create-garden`,
@@ -323,6 +385,11 @@ export class SystemConfigComponent implements OnInit {
           }
           this.creationSuccess = true;
           this.wizardStep = 3;
+          
+          // Emit gardens refreshed event to notify parent component
+          console.log('✅ Garden created successfully, emitting gardensRefreshed event');
+          this.gardensRefreshed.emit();
+          
           // Reset after 3 seconds
           setTimeout(() => {
             this.resetWizard();
@@ -352,8 +419,43 @@ export class SystemConfigComponent implements OnInit {
       isSnake: false,
       selectedProviders: []
     };
+    this.customProviders = [];
     this.creationError = null;
     this.creationSuccess = false;
+  }
+  
+  addCustomProvider() {
+    this.customProviders.push({
+      name: '',
+      location: '',
+      bond: 1000,
+      reputation: 5.0,
+      apiEndpoint: ''
+    });
+  }
+  
+  removeCustomProvider(index: number) {
+    this.customProviders.splice(index, 1);
+  }
+  
+  hasProviders(): boolean {
+    // Check if there are any providers (predefined or custom)
+    const hasPredefined = this.gardenConfig.serviceType === 'movie' && 
+                         this.gardenConfig.selectedProviders && 
+                         Array.isArray(this.gardenConfig.selectedProviders) && 
+                         this.gardenConfig.selectedProviders.length > 0;
+    const hasCustom = this.customProviders && this.customProviders.length > 0;
+    return hasPredefined || hasCustom;
+  }
+  
+  getProviderCount(): number {
+    const predefinedCount = (this.gardenConfig.serviceType === 'movie' && 
+                            this.gardenConfig.selectedProviders && 
+                            Array.isArray(this.gardenConfig.selectedProviders)) 
+                            ? this.gardenConfig.selectedProviders.length 
+                            : 0;
+    const customCount = this.customProviders ? this.customProviders.length : 0;
+    return predefinedCount + customCount;
   }
 
   startNewServiceTypeCreation() {
@@ -538,6 +640,103 @@ export class SystemConfigComponent implements OnInit {
           reject(err);
         }
       });
+    });
+  }
+
+  loadAvailableWorkflows() {
+    console.log('🔧 [Workflow Designer] Loading available workflows...');
+    
+    // Load existing workflows from server
+    this.http.get<{success: boolean, workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}>}>(`${this.apiUrl}/api/workflow/list`)
+      .subscribe({
+        next: (response) => {
+          console.log('🔧 [Workflow Designer] Workflow list response:', response);
+          if (response.success && response.workflows) {
+            // Use workflows directly from server response
+            this.availableWorkflows = response.workflows;
+            console.log(`🔧 [Workflow Designer] Loaded ${this.availableWorkflows.length} workflows:`, this.availableWorkflows);
+          } else {
+            console.error('🔧 [Workflow Designer] Failed to load workflows: response.success = false');
+            // Fallback: Initialize with default list
+            this.availableWorkflows = [
+              { serviceType: 'movie', filename: 'movie.json', exists: false },
+              { serviceType: 'dex', filename: 'dex.json', exists: false },
+              { serviceType: 'airline', filename: 'airline.json', exists: false },
+              { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+              { serviceType: 'hotel', filename: 'hotel.json', exists: false },
+              { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
+              { serviceType: 'snake', filename: 'snake.json', exists: false }
+            ];
+          }
+        },
+        error: (err) => {
+          console.error('🔧 [Workflow Designer] Failed to load available workflows:', err);
+          // Fallback: Initialize with default list
+          this.availableWorkflows = [
+            { serviceType: 'movie', filename: 'movie.json', exists: false },
+            { serviceType: 'dex', filename: 'dex.json', exists: false },
+            { serviceType: 'airline', filename: 'airline.json', exists: false },
+            { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+            { serviceType: 'hotel', filename: 'hotel.json', exists: false },
+            { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
+            { serviceType: 'snake', filename: 'snake.json', exists: false }
+          ];
+        }
+      });
+  }
+
+  generateWorkflow() {
+    if (!this.selectedWorkflowServiceType) {
+      this.workflowGenerationError = 'Please select a service type';
+      return;
+    }
+
+    this.isGeneratingWorkflow = true;
+    this.workflowGenerationError = null;
+    this.workflowGenerationSuccess = false;
+    this.generatedWorkflow = null;
+
+    console.log(`🔧 [Workflow Designer] Generating workflow for service type: ${this.selectedWorkflowServiceType}`);
+
+    this.http.post<{success: boolean, workflow?: any, filename?: string, error?: string}>(
+      `${this.apiUrl}/api/workflow/generate`,
+      {
+        serviceType: this.selectedWorkflowServiceType
+      }
+    ).subscribe({
+      next: (response) => {
+        if (response.success && response.workflow) {
+          this.generatedWorkflow = response.workflow;
+          this.workflowGenerationSuccess = true;
+          console.log(`✅ [Workflow Designer] Workflow generated successfully: ${response.filename}`);
+          console.log(`📋 [Workflow Designer] Generated workflow:`, this.generatedWorkflow);
+          
+          // Update the workflow status in the table immediately
+          const workflowIndex = this.availableWorkflows.findIndex(w => w.serviceType === this.selectedWorkflowServiceType);
+          if (workflowIndex >= 0) {
+            this.availableWorkflows[workflowIndex].exists = true;
+            console.log(`✅ [Workflow Designer] Updated workflow status for ${this.selectedWorkflowServiceType}: exists = true`);
+          }
+          
+          // Also reload from server to ensure consistency
+          setTimeout(() => {
+            this.loadAvailableWorkflows();
+          }, 500);
+          
+          // Hide success message after 5 seconds
+          setTimeout(() => {
+            this.workflowGenerationSuccess = false;
+          }, 5000);
+        } else {
+          this.workflowGenerationError = response.error || 'Failed to generate workflow';
+        }
+        this.isGeneratingWorkflow = false;
+      },
+      error: (err) => {
+        console.error('Failed to generate workflow:', err);
+        this.workflowGenerationError = err.error?.error || err.message || 'Failed to generate workflow';
+        this.isGeneratingWorkflow = false;
+      }
     });
   }
 

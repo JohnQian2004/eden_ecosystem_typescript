@@ -18,6 +18,7 @@ interface LedgerEntry {
   status: 'pending' | 'processed' | 'completed' | 'failed';
   cashierId: string;
   bookingDetails?: {
+    // Movie details
     movieTitle?: string;
     showtime?: string;
     location?: string;
@@ -29,6 +30,14 @@ interface LedgerEntry {
     baseAmount?: number;
     price?: number;
     iTax?: number;
+    // Airline details
+    flightNumber?: string;
+    destination?: string;
+    date?: string;
+    departure?: string;
+    arrival?: string;
+    // Generic fields
+    [key: string]: any;
   };
 }
 
@@ -152,6 +161,54 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     const num = typeof iGasCost === 'string' ? parseFloat(iGasCost) : iGasCost;
     if (isNaN(num)) return '0.000000';
     return num.toFixed(6);
+  }
+
+  formatBookingDetails(entry: LedgerEntry): string {
+    if (!entry.bookingDetails) return '';
+    
+    const details = entry.bookingDetails;
+    const parts: string[] = [];
+    
+    // Movie details
+    if (details.movieTitle) {
+      parts.push(`Movie: ${details.movieTitle}`);
+      if (details.showtime) {
+        parts.push(`Showtime: ${details.showtime}`);
+      }
+    }
+    
+    // Airline details
+    if (details.flightNumber) {
+      parts.push(`Flight: ${details.flightNumber}`);
+      if (details.destination) {
+        parts.push(`To: ${details.destination}`);
+      }
+      if (details.date) {
+        parts.push(`Date: ${details.date}`);
+      }
+      if (details.departure && details.arrival) {
+        parts.push(`Time: ${details.departure} - ${details.arrival}`);
+      }
+    }
+    
+    // DEX trade details
+    if (details.tokenSymbol) {
+      const action = details.action || 'TRADE';
+      const amount = details.tokenAmount || 0;
+      parts.push(`DEX: ${action} ${amount} ${details.tokenSymbol}`);
+    }
+    
+    // Generic fallback - show any other fields
+    if (parts.length === 0) {
+      Object.keys(details).forEach(key => {
+        if (key !== 'price' && key !== 'providerName' && details[key]) {
+          const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+          parts.push(`${label}: ${details[key]}`);
+        }
+      });
+    }
+    
+    return parts.join('<br>');
   }
 }
 
