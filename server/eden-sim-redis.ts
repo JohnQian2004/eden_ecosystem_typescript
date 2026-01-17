@@ -646,7 +646,15 @@ httpServer.on("request", async (req, res) => {
 
         // Handle decision steps specially - they require user interaction
         if (step.type === "decision" && step.requiresUserDecision) {
-          console.log(`   🤔 [${requestId}] Decision step detected: ${step.id}`);
+          console.log(`   🤔 [${requestId}] ========================================`);
+          console.log(`   🤔 [${requestId}] DECISION STEP DETECTED: ${step.id}`);
+          console.log(`   🤔 [${requestId}] Step name: ${step.name}`);
+          console.log(`   🤔 [${requestId}] Step type: ${step.type}`);
+          console.log(`   🤔 [${requestId}] requiresUserDecision: ${step.requiresUserDecision}`);
+          console.log(`   🤔 [${requestId}] Has websocketEvents: ${!!step.websocketEvents}`);
+          console.log(`   🤔 [${requestId}] websocketEvents count: ${step.websocketEvents?.length || 0}`);
+          console.log(`   🤔 [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+          console.log(`   🤔 [${requestId}] ========================================`);
 
           // For decision steps, we don't execute actions yet - we broadcast the decision request
           // Process WebSocket events for decision request
@@ -750,7 +758,21 @@ httpServer.on("request", async (req, res) => {
           }
 
           // For decision steps, return early without nextStepId - execution pauses for user input
-          console.log(`   ⏸️ [${requestId}] Step ${stepId} paused for user ${step.id.includes('select') ? 'selection' : 'decision'}`);
+          console.log(`   ⏸️ [${requestId}] ========================================`);
+          console.log(`   ⏸️ [${requestId}] STEP PAUSED FOR USER INTERACTION`);
+          console.log(`   ⏸️ [${requestId}] Step ID: ${stepId}`);
+          console.log(`   ⏸️ [${requestId}] Decision type: ${step.id.includes('select') ? 'selection' : 'decision'}`);
+          console.log(`   ⏸️ [${requestId}] Events count: ${events.length}`);
+          console.log(`   ⏸️ [${requestId}] Events summary:`, events.map(e => ({ 
+            type: e.type, 
+            hasOptions: !!e.data?.options, 
+            optionsCount: Array.isArray(e.data?.options) ? e.data.options.length : 0,
+            optionsType: typeof e.data?.options
+          })));
+          if (events.length > 0) {
+            console.log(`   ⏸️ [${requestId}] First event full structure:`, JSON.stringify(events[0], null, 2));
+          }
+          console.log(`   ⏸️ [${requestId}] ========================================`);
 
           sendResponse(200, {
             success: true,

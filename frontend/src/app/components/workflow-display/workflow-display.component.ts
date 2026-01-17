@@ -28,8 +28,12 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   pendingSelection: any = null;
   showSelectionPrompt: boolean = false;
 
+  // Current workflow (property instead of getter to avoid infinite loops)
+  currentWorkflow: FlowWiseWorkflow | null = null;
+
   // UI State
   workflowSteps: WorkflowStep[] = [];
+  debugWorkflowSteps: WorkflowStep[] = []; // Property instead of getter
   completedSteps: string[] = [];
   currentStepIndex: number = 0;
 
@@ -53,45 +57,20 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     return this.llmResponses.filter(r => r.type === 'response').length;
   }
 
-  // Debug getter for template - dynamically get workflow from active execution
-  get debugWorkflowSteps(): any[] {
-    // First, try to get workflow from active execution
-    if (this.activeExecution) {
-      const workflow = this.flowWiseService.getWorkflow(this.activeExecution.serviceType);
-      if (workflow && workflow.steps) {
-        console.log(`🔍 [WorkflowDisplay] Using workflow from active execution: ${this.activeExecution.serviceType}`);
-        return workflow.steps;
-      }
-    }
-    
-    // Fallback to selected workflow
-    if (this.selectedWorkflow) {
-      const workflow = this.flowWiseService.getWorkflow(this.selectedWorkflow);
-      if (workflow && workflow.steps) {
-        console.log(`🔍 [WorkflowDisplay] Using workflow from selected: ${this.selectedWorkflow}`);
-        return workflow.steps;
-      }
-    }
-    
-    // Legacy fallback to movieWorkflow
-    if (this.movieWorkflow && this.movieWorkflow.steps) {
-      console.log(`🔍 [WorkflowDisplay] Using legacy movieWorkflow`);
-      return this.movieWorkflow.steps;
-    }
-    
-    return [];
+  // Update debug workflow steps when current workflow changes
+  private updateDebugWorkflowSteps(): void {
+    this.debugWorkflowSteps = this.currentWorkflow?.steps || [];
   }
   
-  // Get current workflow dynamically
-  get currentWorkflow(): FlowWiseWorkflow | null {
+  // Update current workflow based on active execution or selected workflow
+  private updateCurrentWorkflow(): void {
     // Priority 1: Get workflow from active execution
     if (this.activeExecution) {
       const workflow = this.flowWiseService.getWorkflow(this.activeExecution.serviceType);
       if (workflow) {
-        console.log(`🔍 [WorkflowDisplay] currentWorkflow getter: Found workflow from activeExecution (${this.activeExecution.serviceType}): ${workflow.name}`);
-        return workflow;
-      } else {
-        console.warn(`⚠️ [WorkflowDisplay] currentWorkflow getter: activeExecution exists but workflow not found for ${this.activeExecution.serviceType}`);
+        this.currentWorkflow = workflow;
+        this.updateDebugWorkflowSteps();
+        return;
       }
     }
     
@@ -99,22 +78,22 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     if (this.selectedWorkflow) {
       const workflow = this.flowWiseService.getWorkflow(this.selectedWorkflow);
       if (workflow) {
-        console.log(`🔍 [WorkflowDisplay] currentWorkflow getter: Found workflow from selectedWorkflow (${this.selectedWorkflow}): ${workflow.name}`);
-        return workflow;
-      } else {
-        console.warn(`⚠️ [WorkflowDisplay] currentWorkflow getter: selectedWorkflow exists but workflow not found for ${this.selectedWorkflow}`);
+        this.currentWorkflow = workflow;
+        this.updateDebugWorkflowSteps();
+        return;
       }
     }
     
     // Priority 3: Fallback to legacy properties
     const legacyWorkflow = this.movieWorkflow || this.dexWorkflow;
     if (legacyWorkflow) {
-      console.log(`🔍 [WorkflowDisplay] currentWorkflow getter: Using legacy workflow: ${legacyWorkflow.name}`);
-      return legacyWorkflow;
+      this.currentWorkflow = legacyWorkflow;
+      this.updateDebugWorkflowSteps();
+      return;
     }
     
-    console.log(`🔍 [WorkflowDisplay] currentWorkflow getter: No workflow found. activeExecution: ${this.activeExecution?.serviceType || 'null'}, selectedWorkflow: ${this.selectedWorkflow || 'null'}`);
-    return null;
+    this.currentWorkflow = null;
+    this.updateDebugWorkflowSteps();
   }
 
   // TrackBy function for ngFor
@@ -158,8 +137,6 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       console.log('🤔 [WorkflowDisplay] Set pendingDecision and showDecisionPrompt=true');
       console.log('🤔 [WorkflowDisplay] pendingDecision:', this.pendingDecision);
       console.log('🤔 [WorkflowDisplay] showDecisionPrompt:', this.showDecisionPrompt);
-      
-      this.cdr.detectChanges();
     });
 
     // Listen for selection requests (from HTTP responses AND WebSocket)
@@ -191,53 +168,61 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     console.log('🎬 [WorkflowDisplay] ✅ Subscribed to selection requests');
 
     // Listen for active workflow executions and update display
-    // Check for active executions periodically
+    // Check for active executions periodically (only when needed)
+    let lastExecutionId: string | null = null;
     const executionCheckInterval = setInterval(() => {
       const latestExecution = this.flowWiseService.getLatestActiveExecution();
       
-      if (latestExecution) {
-        // Check if this is a new execution or if workflow needs to be loaded
-        const executionChanged = latestExecution !== this.activeExecution;
-        const workflowMissing = !this.flowWiseService.getWorkflow(latestExecution.serviceType);
+      // Only update if execution actually changed
+      if (latestExecution && latestExecution.executionId !== lastExecutionId) {
+        lastExecutionId = latestExecution.executionId;
+        console.log(`🔄 [WorkflowDisplay] Active execution detected: ${latestExecution.serviceType} (${latestExecution.executionId})`);
+        this.activeExecution = latestExecution;
+        this.selectedWorkflow = latestExecution.serviceType;
         
-        if (executionChanged || workflowMissing) {
-          console.log(`🔄 [WorkflowDisplay] Active execution detected: ${latestExecution.serviceType} (${latestExecution.executionId})`);
-          this.activeExecution = latestExecution;
-          this.selectedWorkflow = latestExecution.serviceType;
-          
-          // Get the workflow for this execution
-          const workflow = this.flowWiseService.getWorkflow(latestExecution.serviceType);
-          if (workflow) {
-            console.log(`✅ [WorkflowDisplay] Found workflow for ${latestExecution.serviceType}: ${workflow.name}`);
-            // Store in legacy properties for backward compatibility
-            if (latestExecution.serviceType === 'movie') {
-              this.movieWorkflow = workflow;
-            } else if (latestExecution.serviceType === 'dex') {
-              this.dexWorkflow = workflow;
-            }
-            this.initializeWorkflowDisplay(latestExecution.serviceType);
-            this.cdr.detectChanges();
-          } else {
-            console.warn(`⚠️ [WorkflowDisplay] Workflow not found for ${latestExecution.serviceType}, attempting to load...`);
-            // Try to load the workflow if it's not in cache
-            this.flowWiseService.loadWorkflowIfNeeded(latestExecution.serviceType);
+        // Get the workflow for this execution
+        const workflow = this.flowWiseService.getWorkflow(latestExecution.serviceType);
+        if (workflow) {
+          console.log(`✅ [WorkflowDisplay] Found workflow for ${latestExecution.serviceType}: ${workflow.name}`);
+          // Store in legacy properties for backward compatibility
+          if (latestExecution.serviceType === 'movie') {
+            this.movieWorkflow = workflow;
+          } else if (latestExecution.serviceType === 'dex') {
+            this.dexWorkflow = workflow;
           }
+          // Update current workflow property (no getter, just set it)
+          this.currentWorkflow = workflow;
+          this.updateDebugWorkflowSteps();
+          this.initializeWorkflowDisplay(latestExecution.serviceType);
+        } else {
+          console.warn(`⚠️ [WorkflowDisplay] Workflow not found for ${latestExecution.serviceType}, attempting to load...`);
+          // Try to load the workflow if it's not in cache
+          this.flowWiseService.loadWorkflowIfNeeded(latestExecution.serviceType);
         }
-      } else if (this.activeExecution) {
+      } else if (!latestExecution && this.activeExecution) {
         // Execution was cleared
         console.log(`🔄 [WorkflowDisplay] Active execution cleared`);
+        lastExecutionId = null;
         this.activeExecution = null;
-        this.cdr.detectChanges();
+        this.updateCurrentWorkflow();
+        this.updateDebugWorkflowSteps();
       }
-    }, 500); // Check every 500ms
+    }, 1000); // Check every 1 second (less frequent)
     
     // Store interval ID for cleanup
     (this as any)._executionCheckInterval = executionCheckInterval;
 
     // Listen for WebSocket events (LLM responses, etc.)
+    console.log('📡 [WorkflowDisplay] Subscribing to WebSocket events...');
     this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
+      console.log('📡 [WorkflowDisplay] WebSocket event received:', event.type);
+      if (event.type === 'user_selection_required') {
+        console.log('🎬 [WorkflowDisplay] ⚡ DIRECT WEBSOCKET SELECTION EVENT');
+        console.log('🎬 [WorkflowDisplay] Event:', JSON.stringify(event, null, 2));
+      }
       this.handleWebSocketEvent(event);
     });
+    console.log('📡 [WorkflowDisplay] ✅ Subscribed to WebSocket events');
   }
 
   ngOnDestroy() {
@@ -276,8 +261,6 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
               this.selectedWorkflow = 'movie';
               this.initializeWorkflowDisplay('movie');
             }
-            this.cdr.detectChanges(); // Ensure UI updates
-
             // Additional debugging for template rendering
             setTimeout(() => {
               console.log('🔍 [WorkflowDisplay] Template check - movieWorkflow exists:', !!this.movieWorkflow);
@@ -291,13 +274,11 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
             console.error('❌ [WorkflowDisplay] Movie workflow API returned success=false:', data.error);
           }
           this.isLoading = false;
-          this.cdr.detectChanges();
         },
         error: (err) => {
           console.error('❌ [WorkflowDisplay] Failed to load movie workflow:', err);
           console.error('❌ [WorkflowDisplay] Error details:', err.status, err.statusText, err.url);
           this.isLoading = false;
-          this.cdr.detectChanges();
         }
       });
 
@@ -1131,7 +1112,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         });
         console.log('🎬 [WorkflowDisplay] ========================================');
         
-        this.cdr.detectChanges();
+        // Angular's change detection will handle the update automatically
         break;
 
       case 'workflow_step_changed':
@@ -1196,7 +1177,6 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           this.selectedListing.movieTitle = event.data.movieTitle;
           this.selectedListing.duration = event.data.duration;
           console.log('🎬 [WorkflowDisplay] Movie started, updated selectedListing:', this.selectedListing);
-          this.cdr.detectChanges();
         }
         break;
 
@@ -1204,8 +1184,6 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         // Other events (ledger, payment, etc.) can be handled here if needed
         break;
     }
-
-    this.cdr.detectChanges();
   }
 }
 

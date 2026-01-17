@@ -103,14 +103,25 @@ export function extractBookingDetails(serviceType: string, listing: any): Record
     details.providerName = listing[fields.provider];
   }
 
-  // Add all other mapped fields
+  // Add all other mapped fields (departure, arrival, etc.)
   Object.keys(fields).forEach(key => {
     if (key !== 'primary' && key !== 'time' && key !== 'location' && key !== 'price' && key !== 'provider') {
-      if (listing[fields[key]]) {
-        details[fields[key]] = listing[fields[key]];
+      const fieldName = fields[key];
+      if (listing[fieldName]) {
+        details[fieldName] = listing[fieldName];
       }
     }
   });
+
+  // Also include any additional fields from the listing that might be useful
+  // This ensures we capture all relevant booking information
+  if (serviceType === 'airline') {
+    if (listing.departure) details.departure = listing.departure;
+    if (listing.arrival) details.arrival = listing.arrival;
+    if (listing.flightNumber) details.flightNumber = listing.flightNumber;
+    if (listing.destination) details.destination = listing.destination;
+    if (listing.date) details.date = listing.date;
+  }
 
   return details;
 }

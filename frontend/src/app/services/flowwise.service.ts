@@ -615,15 +615,26 @@ export class FlowWiseService {
               e.type === 'user_decision_required' || e.type === 'user_selection_required'
             );
             if (decisionEvent) {
-              const decisionRequest: UserDecisionRequest = {
-                executionId: execution.executionId,
-                stepId: decisionEvent.data?.stepId || step.id,
-                prompt: decisionEvent.data?.prompt || decisionEvent.message || 'Please make a decision',
-                options: decisionEvent.data?.options || [],
-                timeout: decisionEvent.data?.timeout || 60000
-              };
-              console.log(`📋 [FlowWise] Emitting decision request from paused step:`, decisionRequest);
-              this.decisionRequest$.next(decisionRequest);
+              if (decisionEvent.type === 'user_selection_required') {
+                // For selection events, emit through selectionRequest$ Subject
+                console.log(`🎬 [FlowWise] ========================================`);
+                console.log(`🎬 [FlowWise] SELECTION EVENT FROM PAUSED STEP`);
+                console.log(`🎬 [FlowWise] Full event:`, JSON.stringify(decisionEvent, null, 2));
+                console.log(`🎬 [FlowWise] Emitting selection event through Subject`);
+                this.selectionRequest$.next(decisionEvent);
+                console.log(`🎬 [FlowWise] ========================================`);
+              } else {
+                // For decision events, emit through decisionRequest$ Subject
+                const decisionRequest: UserDecisionRequest = {
+                  executionId: execution.executionId,
+                  stepId: decisionEvent.data?.stepId || step.id,
+                  prompt: decisionEvent.data?.prompt || decisionEvent.message || 'Please make a decision',
+                  options: decisionEvent.data?.options || [],
+                  timeout: decisionEvent.data?.timeout || 60000
+                };
+                console.log(`📋 [FlowWise] Emitting decision request from paused step:`, decisionRequest);
+                this.decisionRequest$.next(decisionRequest);
+              }
             }
           }
           // Return null to pause execution
