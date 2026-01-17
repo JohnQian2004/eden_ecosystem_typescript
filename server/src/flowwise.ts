@@ -100,14 +100,27 @@ export function initializeFlowWise(
 
 /**
  * Load workflow definition from JSON file
+ * DYNAMIC MAPPING: serviceType → ${serviceType}.json
+ * Supports any service type without code changes
  */
-export function loadWorkflow(serviceType: "movie" | "dex"): FlowWiseWorkflow | null {
+export function loadWorkflow(serviceType: string): FlowWiseWorkflow | null {
   try {
-    const filename = serviceType === "movie" ? "amc_cinema.json" : "dex.json";
-    const filePath = path.join(workflowDataPath, filename);
+    // Dynamic filename mapping: ${serviceType}.json
+    const filename = `${serviceType}.json`;
+    let filePath = path.join(workflowDataPath, filename);
+    
+    // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+    if (!fs.existsSync(filePath) && serviceType === "movie") {
+      const legacyPath = path.join(workflowDataPath, "amc_cinema.json");
+      if (fs.existsSync(legacyPath)) {
+        console.log(`⚠️ [FlowWise] Using legacy workflow file: amc_cinema.json (consider renaming to movie.json)`);
+        filePath = legacyPath;
+      }
+    }
     
     if (!fs.existsSync(filePath)) {
       console.error(`❌ [FlowWise] Workflow file not found: ${filePath}`);
+      console.error(`❌ [FlowWise] Expected file: ${filename} in ${workflowDataPath}`);
       return null;
     }
     
@@ -119,7 +132,7 @@ export function loadWorkflow(serviceType: "movie" | "dex"): FlowWiseWorkflow | n
       return null;
     }
     
-    console.log(`✅ [FlowWise] Loaded workflow: ${data.flowwiseWorkflow.name} (${data.flowwiseWorkflow.version})`);
+    console.log(`✅ [FlowWise] Loaded workflow: ${data.flowwiseWorkflow.name} (${data.flowwiseWorkflow.version || '1.0.0'})`);
     return data.flowwiseWorkflow;
   } catch (error: any) {
     console.error(`❌ [FlowWise] Error loading workflow:`, error.message);

@@ -51,7 +51,59 @@
         "location": "Riverside Center",
         "price": 15.99
       }
+    },
+    {
+      "entryId": "6f2d8b51-e5f5-4e4f-b4dd-af50e4ab1a9a",
+      "txId": "tx_1768642521305",
+      "timestamp": 1768642521305,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Regal Cinemas",
+      "providerUuid": "regal-001",
+      "serviceType": "movie",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "movieTitle": "Avatar",
+        "showtime": "6:15 PM",
+        "location": "Riverside Center",
+        "price": 15.99
+      }
+    },
+    {
+      "entryId": "a31eb300-8eaf-47e3-be2f-3b933cc7196c",
+      "txId": "tx_1768643771861",
+      "timestamp": 1768643771861,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Regal Cinemas",
+      "providerUuid": "regal-001",
+      "serviceType": "movie",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "movieTitle": "Avatar",
+        "showtime": "6:15 PM",
+        "location": "Riverside Center",
+        "price": 15.99
+      }
     }
   ],
-  "lastSaved": "2026-01-17T03:31:27.020Z"
+  "lastSaved": "2026-01-17T09:56:12.750Z"
 }

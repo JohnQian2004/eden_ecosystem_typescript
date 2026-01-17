@@ -128,15 +128,69 @@ export async function validateFlowWiseServiceCertificate(): Promise<boolean> {
 }
 
 /**
- * Load workflow definition from JSON file
+ * Validate workflow structure (ROOT CA Runtime Validation)
+ * Ensures workflow follows required schema before execution
  */
-export function loadWorkflowDefinition(serviceType: "movie" | "dex"): FlowWiseWorkflow | null {
+function validateWorkflowStructure(workflow: FlowWiseWorkflow): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Required fields
+  if (!workflow.name) errors.push("Missing workflow.name");
+  if (!workflow.initialStep) errors.push("Missing workflow.initialStep");
+  if (!workflow.steps || !Array.isArray(workflow.steps)) {
+    errors.push("Missing or invalid workflow.steps");
+  }
+  
+  // Validate steps reference initialStep
+  if (workflow.steps && workflow.initialStep) {
+    const stepIds = workflow.steps.map(s => s.id);
+    if (!stepIds.includes(workflow.initialStep)) {
+      errors.push(`Initial step '${workflow.initialStep}' not found in steps`);
+    }
+  }
+  
+  // Validate transitions reference valid steps
+  if (workflow.transitions && workflow.steps) {
+    const stepIds = workflow.steps.map(s => s.id);
+    for (const transition of workflow.transitions) {
+      if (!stepIds.includes(transition.from)) {
+        errors.push(`Transition from '${transition.from}' references non-existent step`);
+      }
+      if (!stepIds.includes(transition.to)) {
+        errors.push(`Transition to '${transition.to}' references non-existent step`);
+      }
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Load workflow definition from JSON file
+ * DYNAMIC MAPPING: serviceType → ${serviceType}.json
+ * Supports any service type without code changes
+ */
+export function loadWorkflowDefinition(serviceType: string): FlowWiseWorkflow | null {
   try {
-    const filename = serviceType === "movie" ? "amc_cinema.json" : "dex.json";
-    const filePath = path.join(workflowDataPath, filename);
+    // Dynamic filename mapping: ${serviceType}.json
+    const filename = `${serviceType}.json`;
+    let filePath = path.join(workflowDataPath, filename);
+    
+    // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+    if (!fs.existsSync(filePath) && serviceType === "movie") {
+      const legacyPath = path.join(workflowDataPath, "amc_cinema.json");
+      if (fs.existsSync(legacyPath)) {
+        console.log(`⚠️ [FlowWiseService] Using legacy workflow file: amc_cinema.json (consider renaming to movie.json)`);
+        filePath = legacyPath;
+      }
+    }
     
     if (!fs.existsSync(filePath)) {
       console.error(`❌ [FlowWiseService] Workflow file not found: ${filePath}`);
+      console.error(`❌ [FlowWiseService] Expected file: ${filename} in ${workflowDataPath}`);
       return null;
     }
     
@@ -148,7 +202,16 @@ export function loadWorkflowDefinition(serviceType: "movie" | "dex"): FlowWiseWo
       return null;
     }
     
-    console.log(`✅ [FlowWiseService] Loaded workflow: ${data.flowwiseWorkflow.name} (${data.flowwiseWorkflow.version})`);
+    // ROOT CA Runtime Validation
+    const validationResult = validateWorkflowStructure(data.flowwiseWorkflow);
+    if (!validationResult.valid) {
+      console.error(`❌ [FlowWiseService] Workflow validation failed for ${filename}:`);
+      validationResult.errors.forEach(err => console.error(`   - ${err}`));
+      return null;
+    }
+    
+    console.log(`✅ [FlowWiseService] Loaded workflow: ${data.flowwiseWorkflow.name} (${data.flowwiseWorkflow.version || '1.0.0'})`);
+    console.log(`✅ [FlowWiseService] Workflow validated: ${filename}`);
     return data.flowwiseWorkflow;
   } catch (error: any) {
     console.error(`❌ [FlowWiseService] Error loading workflow:`, error.message);
@@ -183,7 +246,7 @@ function calculateWorkflowProcessingGas(
 export async function startWorkflowFromUserInput(
   userInput: string,
   user: User,
-  serviceType: "movie" | "dex" = "movie"
+  serviceType: string = "movie"
 ): Promise<{
   executionId: string;
   currentStep: string;

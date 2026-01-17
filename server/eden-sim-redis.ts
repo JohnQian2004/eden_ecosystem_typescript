@@ -284,8 +284,20 @@ httpServer.on("request", async (req, res) => {
     const serviceType = pathname.split("/").pop();
     console.log(`   📋 [${requestId}] GET /api/workflow/${serviceType} - Loading workflow definition`);
 
+    if (!serviceType) {
+      res.writeHead(400, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: "Service type is required"
+      }));
+      return;
+    }
+
     try {
-      const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType as "movie" | "dex");
+      const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType);
       console.log(`   🔄 [${requestId}] Workflow loaded: ${workflow ? 'SUCCESS' : 'FAILED'} - ${workflow?.name || 'N/A'}`);
 
       if (workflow) {
