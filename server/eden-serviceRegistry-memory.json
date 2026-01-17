@@ -95,11 +95,35 @@
       "uuid": "ad9d31b0-9fc5-4ac9-9000-16957dfed712",
       "apiEndpoint": "https://api.airline.com/v1",
       "gardenId": "garden-1"
+    },
+    {
+      "id": "amc-001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "gardenId": "garden-2"
+    },
+    {
+      "id": "autoparts-b63a26ef",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "bf3a570b-e72b-4b19-9e51-ad0c8711a9b9",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-3"
     }
   ],
-  "totalProviders": 8,
-  "movieProviders": 0,
+  "totalProviders": 10,
+  "movieProviders": 1,
   "dexProviders": 0,
   "airlineProviders": 2,
-  "lastSaved": "2026-01-17T16:58:42.109Z"
+  "lastSaved": "2026-01-17T17:16:17.077Z"
 }

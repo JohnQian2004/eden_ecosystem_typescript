@@ -36,6 +36,12 @@ interface LedgerEntry {
     date?: string;
     departure?: string;
     arrival?: string;
+    // Autoparts details
+    partName?: string;
+    partNumber?: string;
+    category?: string;
+    availability?: string;
+    warehouse?: string;
     // Generic fields
     [key: string]: any;
   };
@@ -188,6 +194,23 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       }
       if (details.departure && details.arrival) {
         parts.push(`Time: ${details.departure} - ${details.arrival}`);
+      }
+    }
+    
+    // Autoparts details
+    if (details.partName) {
+      parts.push(`Part: ${details.partName}`);
+      if (details.partNumber) {
+        parts.push(`Part #: ${details.partNumber}`);
+      }
+      if (details.category) {
+        parts.push(`Category: ${details.category}`);
+      }
+      if (details.warehouse) {
+        parts.push(`Warehouse: ${details.warehouse}`);
+      }
+      if (details.availability) {
+        parts.push(`Availability: ${details.availability}`);
       }
     }
     

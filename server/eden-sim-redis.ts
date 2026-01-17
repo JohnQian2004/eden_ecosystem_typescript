@@ -923,6 +923,12 @@ httpServer.on("request", async (req, res) => {
                     baseListing.date = ['2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24'][index % 5];
                     baseListing.departure = ['8:00 AM', '10:30 AM', '2:00 PM', '6:00 PM', '9:30 PM'][index % 5];
                     baseListing.arrival = ['11:00 AM', '1:30 PM', '5:00 PM', '9:00 PM', '12:30 AM'][index % 5];
+                  } else if (queryServiceType === 'autoparts') {
+                    baseListing.partName = ['Brake Pads', 'Oil Filter', 'Air Filter', 'Spark Plugs', 'Battery'][index % 5];
+                    baseListing.partNumber = [`BP-${1000 + index}`, `OF-${2000 + index}`, `AF-${3000 + index}`, `SP-${4000 + index}`, `BAT-${5000 + index}`][index % 5];
+                    baseListing.category = ['Brakes', 'Filters', 'Filters', 'Ignition', 'Electrical'][index % 5];
+                    baseListing.warehouse = ['Warehouse A', 'Warehouse B', 'Warehouse C', 'Warehouse D', 'Warehouse E'][index % 5];
+                    baseListing.availability = ['In Stock', 'In Stock', 'Low Stock', 'In Stock', 'In Stock'][index % 5];
                   } else {
                     // Generic fallback for other service types
                     baseListing.name = `${provider.name} Service`;
@@ -1007,8 +1013,10 @@ httpServer.on("request", async (req, res) => {
                       amount: snapshot.amount,
                       payer: snapshot.payer,
                       merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
-                      bookingDetails: bookingDetails
+                      bookingDetails: bookingDetails,
+                      selectedListing: updatedContext.selectedListing
                     });
+                    console.log(`📝 [${requestId}] Extracted booking details for ${ledgerServiceType}:`, JSON.stringify(bookingDetails, null, 2));
 
                     console.log(`📝 [${requestId}] Calling addLedgerEntry with:`, {
                       snapshotTxId: snapshot.txId,

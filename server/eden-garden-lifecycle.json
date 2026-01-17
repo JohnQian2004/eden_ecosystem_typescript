@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-17T13:55:39.164Z",
+  "lastSaved": "2026-01-17T17:04:12.218Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -4976,6 +4976,77 @@
             "wallet-service-001(HG)",
             "airline-b4f263fc(garden-1)",
             "airline-e954d555(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768669151568,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768669151589,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 9,
+          "totalSaved": 9,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)",
+            "amc-001(garden-2)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768669190359,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-AUTOPARTS",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 3
+        }
+      },
+      {
+        "timestamp": 1768669190378,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)",
+            "amc-001(garden-2)",
+            "autoparts-b63a26ef(garden-3)"
           ]
         }
       }

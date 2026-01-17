@@ -121,6 +121,12 @@ export function extractBookingDetails(serviceType: string, listing: any): Record
     if (listing.flightNumber) details.flightNumber = listing.flightNumber;
     if (listing.destination) details.destination = listing.destination;
     if (listing.date) details.date = listing.date;
+  } else if (serviceType === 'autoparts') {
+    if (listing.partName) details.partName = listing.partName;
+    if (listing.partNumber) details.partNumber = listing.partNumber;
+    if (listing.category) details.category = listing.category;
+    if (listing.warehouse) details.warehouse = listing.warehouse;
+    if (listing.availability) details.availability = listing.availability;
   }
 
   return details;
