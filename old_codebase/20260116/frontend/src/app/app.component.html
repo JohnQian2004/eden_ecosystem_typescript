@@ -1,0 +1,396 @@
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3 sidebar">
+      <app-sidebar></app-sidebar>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-md-9">
+      <div class="container-fluid py-3">
+        <h1 class="mb-4">🌳 Eden Simulator Dashboard</h1>
+        
+        <!-- iGas Display -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <app-igas-display></app-igas-display>
+          </div>
+        </div>
+        
+        <!-- Garden of Eden Main Street - Service Type Cards -->
+        <!-- Only show Main Street if there are service gardens (non-root) available -->
+        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0 && hasServiceIndexers">
+          <div class="col-12">
+            <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
+            <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
+                <div 
+                  class="card service-card-compact h-100" 
+                  [ngClass]="{
+                    'movie-service': serviceType.type === 'movie', 
+                    'dex-service': serviceType.type === 'dex',
+                    'airline-service': serviceType.type === 'airline',
+                    'autoparts-service': serviceType.type === 'autoparts',
+                    'hotel-service': serviceType.type === 'hotel',
+                    'restaurant-service': serviceType.type === 'restaurant'
+                  }"
+                  (click)="selectServiceType(serviceType)" 
+                  style="cursor: pointer;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
+                    <h6 class="card-title mb-0 small">{{ serviceType.adText }}</h6>
+                    <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
+                      <span class="badge bg-success small">Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Snake Services (serviceType: "snake", belongs to gardens) -->
+        <div class="row mb-3" *ngIf="!isLoadingSnakeProviders && snakeProviders.length > 0">
+          <div class="col-12">
+            <h5 class="mb-2">🐍 Snake Services</h5>
+            <p class="text-muted small mb-3">Snake is a service type (serviceType: "snake") - Each service belongs to a garden. Higher fees, transparent pricing.</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-3" *ngFor="let snakeProvider of snakeProviders">
+                <div 
+                  class="card service-card-compact h-100 snake-provider-card" 
+                  (click)="selectServiceType({type: snakeProvider.serviceType, icon: '🐍', adText: snakeProvider.name, sampleQuery: 'Show me ' + snakeProvider.name + ' options'})"
+                  style="cursor: pointer; border: 2px solid #ff6b9d;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">🐍</div>
+                    <h6 class="card-title mb-1 small fw-bold">{{ snakeProvider.name }}</h6>
+                    <div class="small text-muted mb-1">
+                      <div><strong>Service Type:</strong> {{ snakeProvider.serviceType }}</div>
+                      <div><strong>Garden:</strong> {{ snakeProvider.gardenId || snakeProvider.indexerId }}</div>
+                      <div>iGas: {{ (snakeProvider.iGasMultiplier || 1.0) }}x</div>
+                      <div>iTax: {{ (snakeProvider.iTaxMultiplier || 1.0) }}x</div>
+                      <div>Insurance: {{ snakeProvider.insuranceFee || snakeProvider.bond }}</div>
+                    </div>
+                    <div class="small">
+                      <span class="badge bg-info" *ngFor="let context of snakeProvider.contextsAllowed">{{ context }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Stripe Payment Rail - Buy JesusCoin -->
+              <div class="col-6 col-md-4 col-lg-3">
+                <div class="card service-card-compact h-100" style="border: 2px solid #635bff; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">💳</div>
+                    <h6 class="card-title mb-1 small fw-bold">Stripe Payment Rail</h6>
+                    <div class="small mb-2">
+                      <div><strong>Buy JesusCoin</strong></div>
+                      <div>500 JSC = $500 USD</div>
+                    </div>
+                    <div class="mb-2 small" *ngIf="userEmail">
+                      <div><strong>Email:</strong> {{ userEmail }}</div>
+                      <div *ngIf="isLoadingBalance" class="text-light">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Loading balance...
+                      </div>
+                      <div *ngIf="!isLoadingBalance" class="text-light">
+                        <strong>Balance:</strong> {{ walletBalance.toFixed(2) }} JSC
+                      </div>
+                    </div>
+                    <button 
+                      class="btn btn-light btn-sm w-100 mb-2" 
+                      (click)="buyJesusCoin(500); $event.stopPropagation()"
+                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
+                      <span *ngIf="!isProcessingStripe">BUY 500 JSC</span>
+                      <span *ngIf="isProcessingStripe">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Processing...
+                      </span>
+                    </button>
+                    <button 
+                      class="btn btn-warning btn-sm w-100" 
+                      (click)="buyMovieIndexer(110); $event.stopPropagation()"
+                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
+                      <span *ngIf="!isProcessingGarden">Install Movie Garden</span>
+                      <span *ngIf="isProcessingGarden">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Installing...
+                      </span>
+                      <div class="small mt-1">110 JSC</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Loading Snake Services -->
+        <div class="row mb-3" *ngIf="isLoadingSnakeProviders">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-danger" role="status" style="width: 1.5rem; height: 1.5rem;">
+              <span class="visually-hidden">Loading Snake services...</span>
+            </div>
+            <p class="mt-2 text-muted small">Loading Snake services...</p>
+          </div>
+        </div>
+        
+        <!-- Loading Services -->
+        <div class="row mb-4" *ngIf="isLoadingServices">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading services...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading Garden of Eden Main Street...</p>
+          </div>
+        </div>
+        
+        <!-- Unified Chat Input with Context Sensing -->
+        <!-- Only show chat input if there are service gardens available -->
+        <div class="row mb-4" *ngIf="hasServiceIndexers">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header" [ngClass]="{'bg-primary': selectedServiceType === 'movie', 'bg-info': selectedServiceType === 'dex', 'bg-secondary': !selectedServiceType}">
+                <h5 class="mb-0">
+                  <span *ngIf="selectedServiceType === 'movie'">🎬 Movie Query</span>
+                  <span *ngIf="selectedServiceType === 'dex'">💰 DEX Query</span>
+                  <span *ngIf="!selectedServiceType">💬 Eden Chat</span>
+                  <span *ngIf="selectedServiceType" class="badge bg-light text-dark ms-2">{{ selectedServiceType.toUpperCase() }}</span>
+                </h5>
+              </div>
+              <div class="card-body">
+                <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm" autocomplete="off">
+                  <div class="input-group input-group-lg">
+                    <span class="input-group-text" *ngIf="selectedServiceType">
+                      <span *ngIf="selectedServiceType === 'movie'">🎬</span>
+                      <span *ngIf="selectedServiceType === 'dex'">💰</span>
+                      <span *ngIf="selectedServiceType === 'airline'">✈️</span>
+                      <span *ngIf="selectedServiceType === 'autoparts'">🔧</span>
+                      <span *ngIf="selectedServiceType === 'hotel'">🏨</span>
+                      <span *ngIf="selectedServiceType === 'restaurant'">🍽️</span>
+                    </span>
+                    <input 
+                      type="text" 
+                      class="form-control" 
+                      [placeholder]="inputPlaceholder"
+                      [(ngModel)]="userInput"
+                      name="userInput"
+                      required
+                      autocomplete="off"
+                      [disabled]="isProcessing"
+                      (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()"
+                      (input)="selectedServiceType = detectServiceType(userInput) || selectedServiceType">
+                    <button 
+                      class="btn" 
+                      [ngClass]="{
+                        'btn-primary': selectedServiceType === 'movie', 
+                        'btn-info': selectedServiceType === 'dex',
+                        'btn-success': selectedServiceType === 'airline',
+                        'btn-warning': selectedServiceType === 'autoparts',
+                        'btn-danger': selectedServiceType === 'hotel',
+                        'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
+                      }"
+                      type="submit"
+                      [disabled]="isProcessing || !userInput?.trim()">
+                      <span *ngIf="!isProcessing">Send</span>
+                      <span *ngIf="isProcessing">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                      </span>
+                    </button>
+                  </div>
+                  <small class="text-muted mt-2 d-block" *ngIf="selectedServiceType">
+                    <span *ngIf="selectedServiceType === 'movie'">🎬 Context: Movie service - ROOT CA ServiceRegistry will find the best movie providers</span>
+                    <span *ngIf="selectedServiceType === 'dex'">💰 Context: DEX service - ROOT CA ServiceRegistry will find the best token pools</span>
+                    <span *ngIf="selectedServiceType === 'airline'">✈️ Context: Airline service - ROOT CA ServiceRegistry will find the best flight providers</span>
+                    <span *ngIf="selectedServiceType === 'autoparts'">🔧 Context: Auto parts service - ROOT CA ServiceRegistry will find the best parts providers</span>
+                    <span *ngIf="selectedServiceType === 'hotel'">🏨 Context: Hotel service - ROOT CA ServiceRegistry will find the best hotel providers</span>
+                    <span *ngIf="selectedServiceType === 'restaurant'">🍽️ Context: Restaurant service - ROOT CA ServiceRegistry will find the best restaurant providers</span>
+                  </small>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Tabbed Interface -->
+        <div class="row">
+          <div class="col-12">
+            <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow'}"
+                  id="workflow-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow'"
+                  role="tab">
+                  🔄 FlowWise Workflows
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'ledger'}"
+                  id="ledger-tab" 
+                  type="button" 
+                  (click)="activeTab = 'ledger'"
+                  role="tab">
+                  📋 Ledger - All Eden Bookings
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'certificates'}"
+                  id="certificates-tab" 
+                  type="button" 
+                  (click)="activeTab = 'certificates'"
+                  role="tab">
+                  🔐 Certificates
+                </button>
+              </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'chat'}"
+                      id="chat-tab" 
+                      type="button"
+                      (click)="activeTab = 'chat'"
+                      role="tab">
+                      💬 Simulator Chat
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'config'}"
+                      id="config-tab" 
+                      type="button"
+                      (click)="activeTab = 'config'"
+                      role="tab">
+                      ⚙️ System Configuration
+                    </button>
+                  </li>
+            </ul>
+            
+            <div class="tab-content" id="mainTabContent">
+              <!-- Workflow Tab (First Tab) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow'}"
+                id="workflow-pane" 
+                role="tabpanel">
+                <app-workflow-display></app-workflow-display>
+              </div>
+              
+              <!-- Ledger Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'ledger'}"
+                id="ledger-pane" 
+                role="tabpanel">
+                <app-ledger-display></app-ledger-display>
+              </div>
+              
+              <!-- Certificates Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'certificates'}"
+                id="certificates-pane" 
+                role="tabpanel">
+                <app-certificate-display></app-certificate-display>
+              </div>
+              
+              <!-- Chat Tab -->
+              <div
+                class="tab-pane fade"
+                [ngClass]="{'show active': activeTab === 'chat'}"
+                id="chat-pane"
+                role="tabpanel">
+                <!-- AMC Workflow Active Indicator -->
+                <div *ngIf="amcWorkflowActive" class="alert alert-success mb-3">
+                  <h6>🎬 AMC Cinema Workflow Active (Atomic Server Execution)</h6>
+                  <p class="mb-2">Your movie request is being processed through the AMC Cinema workflow.</p>
+                  <div class="alert alert-info small mb-2">
+                    <strong>🔄 Atomic Execution:</strong> Steps processed entirely on server |
+                    <strong>🤖 LLM Self-Play:</strong> AI processing automated |
+                    <strong>💰 Server Autopay:</strong> Payments processed automatically
+                    <br><strong>💬 Eden Chat:</strong> Use the input field to provide movie preferences.
+                  </div>
+                  <div class="progress mb-2">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                         role="progressbar" style="width: 100%">
+                      Processing...
+                    </div>
+                  </div>
+                </div>
+
+                <!-- FlowWise Decision Prompt -->
+                <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-3" role="alert">
+                  <h5 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h5>
+                  <hr>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button
+                      *ngFor="let option of pendingDecision.options"
+                      class="btn btn-primary"
+                      (click)="submitDecision(option.value)">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <small class="text-muted mt-2 d-block">
+                    This decision will advance the AMC workflow
+                  </small>
+                </div>
+
+                <!-- Workflow Messages (when AMC workflow is active) -->
+                <div *ngIf="amcWorkflowActive && workflowMessages.length > 0" class="mb-3">
+                  <div class="card">
+                    <div class="card-header">
+                      <h6 class="mb-0">🎬 AMC Workflow Messages</h6>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                      <div *ngFor="let msg of workflowMessages" class="mb-2">
+                        <div [ngClass]="{
+                          'text-primary fw-bold': msg.type === 'user_message',
+                          'text-success': msg.type === 'llm_response',
+                          'text-info': msg.type === 'ledger_entry_added',
+                          'text-warning': msg.type === 'cashier_payment_processed',
+                          'text-danger': msg.type === 'error'
+                        }">
+                          <small class="text-muted">[{{ msg.type }}]</small>
+                          {{ msg.message }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Stop AMC Workflow Button -->
+                <div *ngIf="amcWorkflowActive" class="mb-3 text-center">
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm"
+                    (click)="stopAmcWorkflow()">
+                    <i class="fas fa-stop"></i> Stop AMC Workflow
+                  </button>
+                </div>
+
+                <app-chat-box></app-chat-box>
+              </div>
+              <!-- System Configuration Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'config'}"
+                id="config-pane" 
+                role="tabpanel">
+                <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

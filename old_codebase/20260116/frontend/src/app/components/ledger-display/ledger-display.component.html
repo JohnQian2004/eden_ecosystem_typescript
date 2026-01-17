@@ -1,0 +1,69 @@
+<div class="card">
+  <div class="card-header bg-info text-white">
+    <h5 class="mb-0">📖 Ledger - All Eden Bookings</h5>
+  </div>
+  <div class="card-body">
+    <!-- Cashier Status -->
+    <div *ngIf="cashier" class="mb-4 p-3 bg-light rounded">
+      <h6>💳 Cashier Status</h6>
+      <div class="row">
+        <div class="col-md-4">
+          <strong>Name:</strong> {{ cashier.name }}
+        </div>
+        <div class="col-md-4">
+          <strong>Processed:</strong> {{ cashier.processedCount }} transactions
+        </div>
+        <div class="col-md-4">
+          <strong>Total:</strong> {{ cashier.totalProcessed?.toFixed(2) || '0.00' }} JSC
+        </div>
+      </div>
+    </div>
+    
+    <!-- Entry Count -->
+    <div class="mb-3">
+      <strong>Total Entries:</strong> {{ ledgerEntries?.length || 0 }}
+    </div>
+    
+    <!-- Entry List -->
+    <div *ngIf="!ledgerEntries || ledgerEntries.length === 0" class="text-center text-muted py-5">
+      <p class="mb-0">No ledger entries yet.</p>
+    </div>
+    
+    <div *ngIf="ledgerEntries && ledgerEntries.length > 0" class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Entry ID</th>
+            <th>Timestamp</th>
+            <th>Merchant</th>
+            <th>Service Type</th>
+            <th>Amount</th>
+            <th>iGas Cost</th>
+            <th>Status</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let entry of ledgerEntries">
+            <td><small>{{ entry?.entryId?.substring(0, 8) }}...</small></td>
+            <td><small>{{ entry?.timestamp ? formatDate(entry.timestamp) : 'N/A' }}</small></td>
+            <td>{{ entry?.merchant || 'N/A' }}</td>
+            <td><span class="badge bg-secondary">{{ entry?.serviceType || 'N/A' }}</span></td>
+            <td><strong>{{ entry?.amount?.toFixed(2) || '0.00' }} JSC</strong></td>
+            <td>{{ formatIGasCost(entry?.iGasCost) }}</td>
+            <td><span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span></td>
+            <td>
+              <div *ngIf="entry?.bookingDetails?.movieTitle">
+                <strong>Movie:</strong> {{ entry.bookingDetails?.movieTitle }}<br>
+                <small *ngIf="entry.bookingDetails?.showtime">Showtime: {{ entry.bookingDetails?.showtime }}</small>
+              </div>
+              <div *ngIf="entry?.bookingDetails?.tokenSymbol">
+                <strong>DEX Trade:</strong> {{ entry.bookingDetails?.action }} {{ entry.bookingDetails?.tokenAmount }} {{ entry.bookingDetails?.tokenSymbol }}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

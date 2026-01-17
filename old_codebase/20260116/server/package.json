@@ -1,0 +1,43 @@
+{
+  "name": "eden-sim-server",
+  "version": "1.3.0",
+  "description": "EDEN Simulation Engine - Deterministic simulation core for EDEN protocol",
+  "main": "dist/eden_sim_ts_v_1.js",
+  "types": "dist/eden_sim_ts_v_1.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "dev": "start-dev.bat"
+  },
+  "keywords": [
+    "eden",
+    "simulation",
+    "blockchain",
+    "governance",
+    "deterministic"
+  ],
+  "author": "",
+  "license": "ISC",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "dependencies": {
+    "redis": "^5.10.0",
+    "ws": "^8.16.0",
+    "stripe": "^14.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.10",
+    "@types/stripe": "^8.0.417",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  }
+}
