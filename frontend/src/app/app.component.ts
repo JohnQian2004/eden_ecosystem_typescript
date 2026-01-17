@@ -746,6 +746,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // Update placeholder based on service type
     this.inputPlaceholder = serviceType.sampleQuery;
     
+    // Pre-load the workflow for this service type so it's ready when user submits
+    console.log(`🔄 [App] Pre-loading workflow for service type: ${serviceType.type}`);
+    this.flowWiseService.loadWorkflowIfNeeded(serviceType.type);
+    
     // Focus on the unified input
     setTimeout(() => {
       const input = document.querySelector('input[name="userInput"]') as HTMLInputElement;
@@ -756,6 +760,91 @@ export class AppComponent implements OnInit, OnDestroy {
     }, 100);
   }
   
+  /**
+   * Create service-type-specific mock data for workflow initialization
+   */
+  createMockDataForServiceType(serviceType: string): any {
+    if (serviceType === 'airline') {
+      return {
+        llmResponse: {
+          selectedListing: {
+            flightNumber: 'AA123',
+            destination: 'Los Angeles',
+            date: '2026-01-20',
+            price: 299.99,
+            providerId: 'airline-001',
+            providerName: 'Airline Provider',
+            location: 'New York'
+          },
+          iGasCost: 0.004450
+        },
+        selectedListing: {
+          flightNumber: 'AA123',
+          destination: 'Los Angeles',
+          date: '2026-01-20',
+          price: 299.99,
+          providerId: 'airline-001',
+          providerName: 'Airline Provider',
+          location: 'New York'
+        },
+        flightPrice: 299.99,
+        totalCost: 300.004450,
+        paymentSuccess: true,
+        userDecision: 'YES'
+      };
+    } else if (serviceType === 'movie') {
+      return {
+        llmResponse: {
+          selectedListing: {
+            movieTitle: 'Demo Movie',
+            showtime: '7:00 PM',
+            price: 15.99,
+            providerId: 'amc-001',
+            providerName: 'AMC Theatres',
+            location: 'Demo Location'
+          },
+          iGasCost: 0.004450
+        },
+        selectedListing: {
+          movieTitle: 'Demo Movie',
+          showtime: '7:00 PM',
+          price: 15.99,
+          providerId: 'amc-001',
+          providerName: 'AMC Theatres',
+          location: 'Demo Location'
+        },
+        moviePrice: 15.99,
+        totalCost: 16.004450,
+        paymentSuccess: true,
+        userDecision: 'YES'
+      };
+    } else {
+      // Generic fallback for other service types
+      return {
+        llmResponse: {
+          selectedListing: {
+            name: 'Demo Service',
+            price: 50.00,
+            providerId: 'provider-001',
+            providerName: 'Service Provider',
+            location: 'Demo Location'
+          },
+          iGasCost: 0.004450
+        },
+        selectedListing: {
+          name: 'Demo Service',
+          price: 50.00,
+          providerId: 'provider-001',
+          providerName: 'Service Provider',
+          location: 'Demo Location'
+        },
+        totalCost: 50.004450,
+        paymentSuccess: true,
+        userDecision: 'YES'
+      };
+    }
+  }
+
   // Context sensing - detect service type from user input
   detectServiceType(input: string): string | null {
     const lowerInput = input.toLowerCase();
@@ -823,8 +912,11 @@ export class AppComponent implements OnInit, OnDestroy {
       console.log(`🔍 Detected service type from input: ${this.selectedServiceType || 'unknown'}`);
     }
 
+    // If no service type detected, default to 'movie' for backward compatibility
+    const serviceType = this.selectedServiceType || 'movie';
+
     console.log('📤 Submitting chat message:', this.userInput);
-    console.log(`📋 Context: Service Type = ${this.selectedServiceType || 'auto-detected'}`);
+    console.log(`📋 Context: Service Type = ${serviceType}`);
     
     this.isProcessing = true;
     const input = this.userInput.trim();
@@ -845,60 +937,80 @@ export class AppComponent implements OnInit, OnDestroy {
     }, 180000); // 3 minutes safety timeout
 
     try {
-      // Automatically start AMC Cinema Workflow for ANY chat input
-      console.log('🎬 [AMC Workflow] Automatically starting AMC cinema workflow for chat input:', input);
+      // Automatically start workflow for the selected service type
+      console.log(`🎬 [Workflow] Automatically starting ${serviceType} workflow for chat input:`, input);
       this.amcWorkflowActive = true;
       this.workflowMessages = [];
 
-      const execution = this.flowWiseService.startWorkflow('movie', {
+      // Ensure workflow is loaded before starting
+      console.log(`🔄 [Workflow] Ensuring ${serviceType} workflow is loaded...`);
+      this.flowWiseService.loadWorkflowIfNeeded(serviceType);
+      
+      // Wait a bit for workflow to load if it was just requested
+      // Check if workflow is loaded, if not wait and retry
+      let workflowLoaded = false;
+      let retries = 0;
+      const maxRetries = 10; // Wait up to 5 seconds (10 * 500ms)
+      
+      while (!workflowLoaded && retries < maxRetries) {
+        const workflow = this.flowWiseService.getWorkflow(serviceType);
+        if (workflow) {
+          console.log(`✅ [Workflow] ${serviceType} workflow is loaded: ${workflow.name}`);
+          workflowLoaded = true;
+        } else {
+          console.log(`⏳ [Workflow] Waiting for ${serviceType} workflow to load... (attempt ${retries + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries++;
+        }
+      }
+      
+      if (!workflowLoaded) {
+        console.error(`❌ [Workflow] Failed to load ${serviceType} workflow after ${maxRetries} attempts`);
+        alert(`Failed to load ${serviceType} workflow. Please try again.`);
+        this.amcWorkflowActive = false;
+        return;
+      }
+
+      // Create service-type-agnostic mock data based on serviceType
+      const mockData = this.createMockDataForServiceType(serviceType);
+      
+      console.log(`🚀 [Workflow] Starting ${serviceType} workflow execution...`);
+      let execution = this.flowWiseService.startWorkflow(serviceType, {
         input: input,
         email: this.userEmail,
         user: { email: this.userEmail, id: this.userEmail },
         edenChatSession: {
           sessionId: `session_${Date.now()}`,
-          serviceType: 'movie',
+          serviceType: serviceType,
           startTime: Date.now()
         },
-        // Provide mock data to prevent workflow errors
-        llmResponse: {
-          selectedListing: {
-            movieTitle: 'Demo Movie',
-            showtime: '7:00 PM',
-            price: 15.99,
-            providerId: 'amc-001',
-            providerName: 'AMC Theatres',
-            location: 'Demo Location'
-          },
-          iGasCost: 0.004450
-        },
-        selectedListing: {
-          movieTitle: 'Demo Movie',
-          showtime: '7:00 PM',
-          price: 15.99,
-          providerId: 'amc-001',
-          providerName: 'AMC Theatres',
-          location: 'Demo Location'
-        },
-        moviePrice: 15.99,
-        totalCost: 16.004450,
-        paymentSuccess: true,
-        userDecision: 'YES'
+        // Provide mock data to prevent workflow errors (service-type specific)
+        ...mockData
       });
 
-      if (execution) {
-        console.log('🚀 [AMC Workflow] AMC workflow started successfully:', execution.executionId);
-        // Add user message to workflow chat
-        this.workflowMessages.push({
-          type: 'user_message',
-          message: input,
-          timestamp: Date.now(),
-          data: { user: this.userEmail }
-        });
-      } else {
-        console.error('❌ [AMC Workflow] Failed to start AMC workflow');
-        alert('Failed to start AMC workflow. Please try again.');
+      // If workflow not started (shouldn't happen if loaded), log error
+      if (!execution) {
+        console.error(`❌ [Workflow] Failed to start ${serviceType} workflow even though it's loaded`);
+        alert(`Failed to start ${serviceType} workflow. Please try again.`);
         this.amcWorkflowActive = false;
+        return;
       }
+
+      console.log(`🚀 [Workflow] ${serviceType} workflow started successfully:`, execution.executionId);
+      console.log(`🚀 [Workflow] Execution details:`, {
+        executionId: execution.executionId,
+        serviceType: execution.serviceType,
+        currentStep: execution.currentStep,
+        workflowId: execution.workflowId
+      });
+      
+      // Add user message to workflow chat
+      this.workflowMessages.push({
+        type: 'user_message',
+        message: input,
+        timestamp: Date.now(),
+        data: { user: this.userEmail }
+      });
     } catch (error: any) {
       console.error('❌ Error caught in onSubmit:', error);
 

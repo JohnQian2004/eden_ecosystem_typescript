@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-17T13:39:43.537Z",
+  "lastSaved": "2026-01-17T13:55:39.164Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -4944,6 +4944,38 @@
             "websocket-service-001(HG)",
             "wallet-service-001(HG)",
             "airline-b4f263fc(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768657508991,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768657509028,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 8,
+          "totalSaved": 8,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)"
           ]
         }
       }

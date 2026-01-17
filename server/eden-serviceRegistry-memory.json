@@ -83,11 +83,23 @@
       "uuid": "b5f2acb2-ecdc-4920-bbc7-dbb989bbe24e",
       "apiEndpoint": "https://api.airline.com/v1",
       "gardenId": "garden-1"
+    },
+    {
+      "id": "airline-e954d555",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "ad9d31b0-9fc5-4ac9-9000-16957dfed712",
+      "apiEndpoint": "https://api.airline.com/v1",
+      "gardenId": "garden-1"
     }
   ],
-  "totalProviders": 7,
+  "totalProviders": 8,
   "movieProviders": 0,
   "dexProviders": 0,
-  "airlineProviders": 1,
-  "lastSaved": "2026-01-17T13:39:44.840Z"
+  "airlineProviders": 2,
+  "lastSaved": "2026-01-17T16:22:36.222Z"
 }

@@ -5,7 +5,7 @@
       "name": "Garden-AIRLINE",
       "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:3c5641a7-6173-49cc-a107-23cde753bade",
+      "uuid": "eden:garden:2e28ec45-bb9b-495c-b09b-c236d75ef104",
       "serverIp": "localhost",
       "serverDomain": "garden-airline.eden.local",
       "serverPort": 3001,
@@ -13,7 +13,7 @@
       "serviceType": "airline",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:3c5641a7-6173-49cc-a107-23cde753bade",
+        "subject": "eden:garden:2e28ec45-bb9b-495c-b09b-c236d75ef104",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -24,11 +24,11 @@
           "gardenName": "Garden-AIRLINE",
           "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1768657148527,
-        "expiresAt": 1800193148527,
-        "signature": "BOkH+KKKCuZL3maBTGF0e+GKAbDZBaMqFFSvvuZkuiqLZA0aJkUoDcJkDhZ/Ey8mZOQOfHceduyr9VcuvQltBw=="
+        "issuedAt": 1768657508985,
+        "expiresAt": 1800193508985,
+        "signature": "E+Hrt3fXoNDmp5MuTwMwwFLX5DsBHBI1/s+ty4veEcRg9r1SK59iH5ZIBuc/Wpv58gWTdTWrwHEzitfMiCduCg=="
       }
     }
   ],
-  "lastSaved": "2026-01-17T13:39:09.532Z"
+  "lastSaved": "2026-01-17T13:45:09.984Z"
 }

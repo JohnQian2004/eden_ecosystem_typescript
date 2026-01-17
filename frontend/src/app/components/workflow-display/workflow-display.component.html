@@ -7,7 +7,7 @@
     <!-- Debug Info -->
     <div class="alert alert-info small mb-3">
       <strong>Debug Info:</strong><br>
-      Loading: {{ isLoading }} | Movie Workflow: {{ movieWorkflow ? 'Loaded' : 'Not loaded' }} | DEX Workflow: {{ dexWorkflow ? 'Loaded' : 'Not loaded' }}<br>
+      Loading: {{ isLoading }} | Current Workflow: {{ currentWorkflow ? currentWorkflow.name : 'None' }} | Selected: {{ selectedWorkflow || 'None' }} | Active Execution: {{ activeExecution ? activeExecution.serviceType : 'None' }}<br>
       API URL: {{ apiUrl }}
     </div>
 
@@ -120,17 +120,19 @@
       <p class="text-muted small">Check browser console for API request details</p>
     </div>
 
-    <div *ngIf="!isLoading && movieWorkflow">
+    <div *ngIf="!isLoading && currentWorkflow">
       <!-- Debug: Template condition met -->
       <div style="background: #f0f0f0; padding: 5px; margin-bottom: 10px; font-size: 12px;">
-        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, movieWorkflow: {{!!movieWorkflow}}, steps: {{movieWorkflow?.steps?.length || 0}}
+        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, currentWorkflow: {{!!currentWorkflow}}, workflowName: {{currentWorkflow?.name || 'N/A'}}, steps: {{debugWorkflowSteps?.length || 0}}<br>
+        🔍 DEBUG: Selection - showSelectionPrompt: {{showSelectionPrompt}}, pendingSelection: {{!!pendingSelection}}, options count: {{pendingSelection?.options?.length || 0}}<br>
+        🔍 DEBUG: Decision - showDecisionPrompt: {{showDecisionPrompt}}, pendingDecision: {{!!pendingDecision}}, options count: {{pendingDecision?.options?.length || 0}}
       </div>
       <!-- Workflow Control -->
       <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div>
-            <h5 class="mb-1">{{ movieWorkflow.name }}</h5>
-            <p class="text-muted mb-0">{{ movieWorkflow.description }}</p>
+            <h5 class="mb-1">{{ currentWorkflow?.name || 'No Workflow' }}</h5>
+            <p class="text-muted mb-0">{{ currentWorkflow?.description || '' }}</p>
           </div>
           <button
             type="button"
@@ -165,9 +167,18 @@
         </small>
       </div>
 
+      <!-- Debug: Selection Prompt State (always visible for debugging) -->
+      <div style="background: #fff3cd; padding: 10px; margin-bottom: 10px; font-size: 12px; border: 1px solid #ffc107;">
+        ⚠️ DEBUG Selection State:<br>
+        showSelectionPrompt: {{showSelectionPrompt}}<br>
+        pendingSelection exists: {{!!pendingSelection}}<br>
+        pendingSelection options count: {{pendingSelection?.options?.length || 0}}<br>
+        pendingSelection prompt: {{pendingSelection?.prompt || 'N/A'}}
+      </div>
+
       <!-- Movie Selection Prompt -->
-      <div *ngIf="showSelectionPrompt && pendingSelection" class="alert alert-success mb-4" role="alert">
-        <h6 class="alert-heading">🎬 {{ pendingSelection.prompt }}</h6>
+      <div *ngIf="showSelectionPrompt && pendingSelection && pendingSelection.options && pendingSelection.options.length > 0" class="alert alert-success mb-4" role="alert">
+        <h6 class="alert-heading">✈️ {{ pendingSelection.prompt }}</h6>
         <hr>
         <div class="row g-3">
           <div *ngFor="let option of pendingSelection.options; let i = index"
@@ -192,7 +203,7 @@
           </div>
         </div>
         <small class="text-muted mt-3 d-block">
-          Please select your preferred movie option • Timeout: {{ pendingSelection.timeout }}ms
+          Please select your preferred option • Timeout: {{ pendingSelection.timeout }}ms
         </small>
       </div>
 
@@ -448,7 +459,7 @@
           </div>
 
           <!-- Workflow Completed -->
-          <div *ngIf="activeExecution && movieWorkflow.finalSteps.includes(activeExecution.currentStep)" class="text-center py-5">
+          <div *ngIf="activeExecution && currentWorkflow && currentWorkflow.finalSteps.includes(activeExecution.currentStep)" class="text-center py-5">
             <div class="mb-4">
               <i class="fas fa-check-circle fs-1 text-success"></i>
             </div>
@@ -466,8 +477,8 @@
     </div>
 
     <!-- DEX Workflow (Future) -->
-    <div *ngIf="!isLoading && !movieWorkflow" class="text-center py-5">
-      <p class="text-muted">AMC Cinema workflow not loaded. Please check server connection.</p>
+    <div *ngIf="!isLoading && !currentWorkflow" class="text-center py-5">
+      <p class="text-muted">No workflow loaded. Select a service type on Main Street to start a workflow.</p>
     </div>
   </div>
 </div>

@@ -15,6 +15,7 @@ import { replaceTemplateVariables, evaluateCondition, type FlowWiseWorkflow, typ
 import type { LedgerEntry, User } from "../types";
 import { addLedgerEntry, processPayment, getCashierStatus } from "../ledger";
 import { getWalletBalance } from "../wallet";
+import { extractBookingDetails, getServiceTypeFields } from "../serviceTypeFields";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -695,19 +696,31 @@ async function executeStepActions(
             context.snapshot.amount = entryAmount;
           }
 
+          // Get serviceType and build booking details dynamically
+          const ledgerServiceType = context.serviceType || "movie";
+          const fields = getServiceTypeFields(ledgerServiceType);
+          
+          // Build booking details dynamically based on service type
+          const bookingDetails = extractBookingDetails(ledgerServiceType, context.selectedListing || {});
+          bookingDetails.price = entryAmount; // Ensure price is set
+          
+          // Get default provider info based on service type
+          const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
+                                      ledgerServiceType === 'airline' ? 'Airline Provider' :
+                                      ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
+                                      `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
+          const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
+                                   ledgerServiceType === 'airline' ? 'airline-001' :
+                                   `${ledgerServiceType}-001`;
+          
           const ledgerEntry = addLedgerEntry(
             context.snapshot,
-            context.serviceType || "movie",
+            ledgerServiceType,
             context.iGasCost || 0.00445,
             context.user?.email || "unknown@example.com",
-            context.selectedListing?.providerName || "AMC Theatres",
-            context.providerUuid || context.selectedListing?.providerId || "amc-001",
-            {
-              movieTitle: context.selectedListing?.movieTitle,
-              showtime: context.selectedListing?.showtime,
-              location: context.selectedListing?.location,
-              price: entryAmount
-            }
+            context.selectedListing?.providerName || defaultProviderName,
+            context.providerUuid || context.selectedListing?.providerId || defaultProviderId,
+            bookingDetails
           );
           context.ledgerEntry = ledgerEntry;
           // Initialize cashier in context for payment step

@@ -131,6 +131,7 @@ import {
 } from "./src/llm";
 import { initializeLogger, getLogger } from "./src/logger";
 import type { WalletIntent, WalletResult } from "./src/types";
+import { getServiceTypeFields, extractBookingDetails, getServiceTypeMessage, formatRecommendation } from "./src/serviceTypeFields";
 
 // Initialize Stripe
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
@@ -365,6 +366,8 @@ httpServer.on("request", async (req, res) => {
   if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision" && pathname !== "/api/workflow/list") {
     const serviceType = pathname.split("/").pop();
     console.log(`   📋 [${requestId}] GET /api/workflow/${serviceType} - Loading workflow definition`);
+    console.log(`   🔍 [${requestId}] Service type from URL: "${serviceType}"`);
+    console.log(`   🔍 [${requestId}] Full pathname: "${pathname}"`);
 
     if (!serviceType) {
       res.writeHead(400, {
@@ -381,6 +384,10 @@ httpServer.on("request", async (req, res) => {
     try {
       const workflow: FlowWiseWorkflow | null = loadWorkflow(serviceType);
       console.log(`   🔄 [${requestId}] Workflow loaded: ${workflow ? 'SUCCESS' : 'FAILED'} - ${workflow?.name || 'N/A'}`);
+      if (workflow) {
+        console.log(`   🔍 [${requestId}] Workflow name: "${workflow.name}"`);
+        console.log(`   🔍 [${requestId}] Workflow serviceType check: First step serviceType = "${(workflow.steps[0]?.actions?.find((a: any) => a.serviceType) as any)?.serviceType || 'N/A'}"`);
+      }
 
       if (workflow) {
         const responseData = {
@@ -589,20 +596,8 @@ httpServer.on("request", async (req, res) => {
         // Import template variable replacement function
         const { replaceTemplateVariables } = await import("./src/flowwise");
 
-        // Load the appropriate workflow definition
-        const fs = require('fs');
-        const path = require('path');
-        const workflowPath = serviceType === 'movie'
-          ? path.join(__dirname, 'data', 'amc_cinema.json')
-          : path.join(__dirname, 'data', 'dex.json');
-
-        if (!fs.existsSync(workflowPath)) {
-          sendResponse(404, { success: false, error: `Workflow definition not found: ${workflowPath}` });
-          return;
-        }
-
-        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
-        const workflow = workflowData.flowwiseWorkflow;
+        // Load the appropriate workflow definition dynamically
+        const workflow = loadWorkflow(serviceType);
 
         if (!workflow) {
           sendResponse(400, { success: false, error: "Invalid workflow definition" });
@@ -668,28 +663,86 @@ httpServer.on("request", async (req, res) => {
               };
 
               // Special handling for user_select_listing - build options from listings
-              if (step.id === "user_select_listing" && updatedContext.listings) {
-                console.log(`   📋 [${requestId}] Building movie selection options from ${updatedContext.listings.length} listings`);
-                processedEvent.data.options = updatedContext.listings.map((listing: any) => ({
-                  value: listing.id,
-                  label: `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`,
-                  data: {
-                    // Include all listing fields dynamically
-                    ...listing,
-                    // Ensure key fields are present
-                    id: listing.id,
-                    movieTitle: listing.movieTitle || listing.name,
-                    showtime: listing.showtime,
-                    price: listing.price,
-                    providerId: listing.providerId,
-                    providerName: listing.providerName || listing.provider
+              console.log(`   🔍 [${requestId}] Checking for user_select_listing step:`);
+              console.log(`   🔍 [${requestId}] Step ID: ${step.id}`);
+              console.log(`   🔍 [${requestId}] Step ID matches "user_select_listing": ${step.id === "user_select_listing"}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings exists: ${!!updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings type: ${typeof updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
+              console.log(`   🔍 [${requestId}] updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options BEFORE special handling:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options type:`, typeof processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}] processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              
+              // ALWAYS build options for user_select_listing if listings exist, even if template replacement already set it
+              // Check both updatedContext.listings and processedEvent.data.options (in case template replacement already set it)
+              const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+              
+              if (step.id === "user_select_listing" && listingsSource && Array.isArray(listingsSource) && listingsSource.length > 0) {
+                const selectServiceType = updatedContext.serviceType || serviceType || 'movie';
+                const selectFields = getServiceTypeFields(selectServiceType);
+                
+                console.log(`   📋 [${requestId}] ✅ Building ${selectServiceType} selection options from ${listingsSource.length} listings`);
+                console.log(`   📋 [${requestId}] Using listings from: ${updatedContext.listings ? 'updatedContext.listings' : 'processedEvent.data.options'}`);
+                processedEvent.data.options = listingsSource.map((listing: any) => {
+                  // Build label dynamically based on service type
+                  let label = '';
+                  if (selectServiceType === 'movie') {
+                    label = `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`;
+                  } else if (selectServiceType === 'airline') {
+                    label = `${listing.flightNumber || listing.name} to ${listing.destination} on ${listing.date} - $${listing.price}`;
+                  } else {
+                    // Generic fallback
+                    const primary = listing[selectFields.primary] || listing.name;
+                    const time = listing[selectFields.time] || '';
+                    label = `${primary}${time ? ` - ${time}` : ''} - $${listing.price || listing[selectFields.price]}`;
                   }
-                }));
+                  
+                  return {
+                    value: listing.id,
+                    label: label,
+                    data: {
+                      // Include all listing fields dynamically
+                      ...listing,
+                      // Ensure key fields are present
+                      id: listing.id,
+                      price: listing.price || listing[selectFields.price],
+                      providerId: listing.providerId,
+                      providerName: listing.providerName || listing.provider
+                    }
+                  };
+                });
+                console.log(`   📋 [${requestId}] ✅ Built ${processedEvent.data.options.length} selection options`);
+                console.log(`   📋 [${requestId}] First option:`, JSON.stringify(processedEvent.data.options[0], null, 2));
+              } else {
+                console.log(`   ⚠️ [${requestId}] ⚠️ NOT building options because:`);
+                if (step.id !== "user_select_listing") {
+                  console.log(`   ⚠️ [${requestId}]   - Step ID "${step.id}" does not match "user_select_listing"`);
+                }
+                const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+                if (!listingsSource || !Array.isArray(listingsSource) || listingsSource.length === 0) {
+                  console.log(`   ⚠️ [${requestId}]   - No listings found in updatedContext.listings or processedEvent.data.options`);
+                  console.log(`   ⚠️ [${requestId}]   - updatedContext.listings:`, updatedContext.listings);
+                  console.log(`   ⚠️ [${requestId}]   - processedEvent.data.options:`, processedEvent.data?.options);
+                  console.log(`   ⚠️ [${requestId}]   - Available context keys:`, Object.keys(updatedContext));
+                }
+              }
+              
+              // Final check: Ensure options is an array before broadcasting
+              if (processedEvent.data?.options && !Array.isArray(processedEvent.data.options)) {
+                console.warn(`   ⚠️ [${requestId}] ⚠️ processedEvent.data.options is not an array! Converting...`);
+                console.warn(`   ⚠️ [${requestId}] Current value:`, processedEvent.data.options);
+                console.warn(`   ⚠️ [${requestId}] Type:`, typeof processedEvent.data.options);
+                processedEvent.data.options = [];
               }
 
               console.log(`   📡 [${requestId}] Broadcasting decision event: ${event.type}`);
+              console.log(`   📡 [${requestId}] Event structure:`, JSON.stringify(processedEvent, null, 2));
+              console.log(`   📡 [${requestId}] Event data.options:`, processedEvent.data?.options);
+              console.log(`   📡 [${requestId}] Event data.options count:`, processedEvent.data?.options?.length || 0);
               try {
                 broadcastEvent(processedEvent);
+                console.log(`   ✅ [${requestId}] Successfully broadcasted event: ${event.type}`);
               } catch (broadcastError) {
                 console.warn(`   ⚠️ [${requestId}] Failed to broadcast event: ${event.type}`, broadcastError);
               }
@@ -789,109 +842,121 @@ httpServer.on("request", async (req, res) => {
                   break;
 
                 case 'llm_extract_query':
+                  // Extract serviceType from action, context, or workflow
+                  const extractServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
+                  console.log(`   🔍 [${requestId}] llm_extract_query: Using serviceType: ${extractServiceType}`);
+                  
+                  // Use actual LLM extraction if available, otherwise return mock
                   actionResult = {
                     queryResult: {
-                      serviceType: 'movie',
+                      serviceType: extractServiceType,
                       query: {
-                        filters: {
+                        filters: extractServiceType === 'movie' ? {
                           genre: 'sci-fi',
                           time: 'evening'
-                        }
+                        } : extractServiceType === 'airline' ? {
+                          destination: 'any',
+                          date: 'any'
+                        } : {}
                       }
                     }
                   };
                   break;
 
-                case 'query_service_registry':
-                  const mockListings = [                  {
-                    id: 'amc-001',
-                    name: 'AMC Theatres',
-                    serviceType: 'movie',
-                    location: 'Downtown Plaza',
-                    providerId: 'amc-001',
-                    providerName: 'AMC Theatres',
-                    movieTitle: 'The Dark Knight',
-                    showtime: '7:00 PM',
-                    price: 15.99,
-                    rating: 4.8,
-                    genre: 'Action',
-                    duration: '152 min',
-                    format: 'IMAX',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/dark-knight.jpg'
-                  }, {
-                    id: 'cineplex-001',
-                    name: 'Cineplex Odeon',
-                    serviceType: 'movie',
-                    location: 'Mall Central',
-                    providerId: 'cineplex-001',
-                    providerName: 'Cineplex Odeon',
-                    movieTitle: 'Inception',
-                    showtime: '8:30 PM',
-                    price: 13.50,
-                    rating: 4.6,
-                    genre: 'Sci-Fi',
-                    duration: '148 min',
-                    format: '3D',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/inception.jpg'
-                  }, {
-                    id: 'regal-001',
-                    name: 'Regal Cinemas',
-                    serviceType: 'movie',
-                    location: 'Riverside Center',
-                    providerId: 'regal-001',
-                    providerName: 'Regal Cinemas',
-                    movieTitle: 'Avatar',
-                    showtime: '6:15 PM',
-                    price: 17.25,
-                    rating: 4.9,
-                    genre: 'Adventure',
-                    duration: '162 min',
-                    format: '4DX',
-                    videoUrl: '/videos/2025-12-09-144801890.mp4',
-                    thumbnailUrl: '/api/placeholder-thumbnail/avatar.jpg'
-                  }];
-                  actionResult = {
-                    listings: mockListings,
-                    providers: [{
-                      id: 'amc-001',
-                      name: 'AMC Theatres',
-                      serviceType: 'movie',
-                      location: 'Demo Location'
-                    }]
-                  };
-                  console.log(`   📋 [${requestId}] Set ${mockListings.length} listings in context`);
-                  break;
+                case 'query_service_registry': {
+                  // Get serviceType from action, context, or workflow
+                  const queryServiceType = processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
+                  console.log(`   🔍 [${requestId}] query_service_registry: Querying for serviceType: ${queryServiceType}`);
+                  
+                  // Query actual service registry
+                  const serviceRegistry2 = getServiceRegistry2();
+                  const providers = serviceRegistry2.queryProviders(queryServiceType, processedAction.filters || updatedContext.queryResult?.query?.filters || {});
+                  
+                  console.log(`   📋 [${requestId}] Found ${providers.length} providers for serviceType: ${queryServiceType}`);
+                  
+                  // Generate mock listings based on service type (in real implementation, this would query provider APIs)
+                  const queryFields = getServiceTypeFields(queryServiceType);
+                  const mockListings = providers.map((provider, index) => {
+                    const baseListing: any = {
+                      id: provider.id,
+                      name: provider.name,
+                      serviceType: queryServiceType,
+                      location: provider.location,
+                      providerId: provider.id,
+                      providerName: provider.name,
+                      price: 15.99 + (index * 2.5), // Vary prices
+                      rating: 4.5 + (Math.random() * 0.5), // Random rating between 4.5-5.0
+                    };
+                    
+                  // Add service-type-specific fields
+                  if (queryServiceType === 'movie') {
+                    baseListing.movieTitle = ['The Dark Knight', 'Inception', 'Avatar', 'Interstellar', 'The Matrix'][index % 5];
+                    baseListing.showtime = ['7:00 PM', '8:30 PM', '6:15 PM', '9:00 PM', '5:30 PM'][index % 5];
+                    baseListing.genre = ['Action', 'Sci-Fi', 'Adventure', 'Thriller', 'Drama'][index % 5];
+                    baseListing.duration = '152 min';
+                    baseListing.format = ['IMAX', '3D', '4DX', 'Standard', 'Premium'][index % 5];
+                  } else if (queryServiceType === 'airline') {
+                    baseListing.flightNumber = ['AA123', 'UA456', 'DL789', 'SW012', 'JB345'][index % 5];
+                    baseListing.destination = ['Los Angeles', 'New York', 'Chicago', 'Miami', 'Seattle'][index % 5];
+                    baseListing.date = ['2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24'][index % 5];
+                    baseListing.departure = ['8:00 AM', '10:30 AM', '2:00 PM', '6:00 PM', '9:30 PM'][index % 5];
+                    baseListing.arrival = ['11:00 AM', '1:30 PM', '5:00 PM', '9:00 PM', '12:30 AM'][index % 5];
+                  } else {
+                    // Generic fallback for other service types
+                    baseListing.name = `${provider.name} Service`;
+                    baseListing.date = new Date().toISOString().split('T')[0];
+                  }
+                  
+                  return baseListing;
+                });
+                
+                actionResult = {
+                  listings: mockListings,
+                  providers: providers.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    serviceType: p.serviceType,
+                    location: p.location
+                  }))
+                };
+                
+                // Store serviceType in context for later use
+                updatedContext.serviceType = queryServiceType;
+                
+                console.log(`   📋 [${requestId}] Set ${mockListings.length} ${queryServiceType} listings in context`);
+                break;
+                }
 
-                case 'llm_format_response':
+                case 'llm_format_response': {
                   const availableListings = updatedContext.listings || [];
-                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} movie options for user selection`);
+                  const formatServiceType = updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
+                  const formatFields = getServiceTypeFields(formatServiceType);
+                  const serviceMessage = getServiceTypeMessage(formatServiceType, availableListings.length);
+                  
+                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} ${formatServiceType} options for user selection`);
 
                   actionResult = {
                     llmResponse: {
-                      message: 'Found great movie options! Here are the best matches for your request.',
+                      message: serviceMessage,
                       iGasCost: 0.004450,
                       queryProcessed: true,
                       optionsFound: availableListings.length,
-                      serviceType: 'movie',
-                      recommendations: availableListings.map((listing: any, index: number) => ({
-                        rank: index + 1,
-                        movieTitle: listing.movieTitle,
-                        showtime: listing.showtime,
-                        price: listing.price,
-                        provider: listing.providerName,
-                        rating: listing.rating
-                      }))
+                      serviceType: formatServiceType,
+                      recommendations: availableListings.map((listing: any, index: number) => formatRecommendation(formatServiceType, listing, index))
                     },
                     listings: availableListings, // Keep for selection step
                     iGasCost: 0.004450,
                     currentIGas: 0.004450
                   };
-                  console.log(`   📋 [${requestId}] Set structured llmResponse:`, actionResult.llmResponse);
+                  
+                  // Store serviceType in context if not already set
+                  updatedContext.serviceType = formatServiceType;
+                  
+                  console.log(`   📋 [${requestId}] Set structured llmResponse for ${formatServiceType}:`, actionResult.llmResponse);
                   break;
+                }
 
-                case 'add_ledger_entry':
+                case 'add_ledger_entry': {
                   console.log(`🔍 [${requestId}] Executing add_ledger_entry action - START`);
                   try {
                     // Use snapshot from context (created by create_snapshot action)
@@ -900,32 +965,44 @@ httpServer.on("request", async (req, res) => {
                       throw new Error('No snapshot available for ledger entry creation');
                     }
 
-                    console.log(`📝 [${requestId}] Adding ledger entry for movie booking:`, {
+                    // Get serviceType from action, context, or workflow
+                    const ledgerServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
+                    const ledgerFields = getServiceTypeFields(ledgerServiceType);
+                    
+                    // Build booking details dynamically based on service type
+                    const bookingDetails = extractBookingDetails(ledgerServiceType, updatedContext.selectedListing || {});
+                    
+                    // Get default provider info based on service type
+                    const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
+                                                ledgerServiceType === 'airline' ? 'Airline Provider' :
+                                                ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
+                                                `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
+                    const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
+                                             ledgerServiceType === 'airline' ? 'airline-001' :
+                                             `${ledgerServiceType}-001`;
+                    
+                    console.log(`📝 [${requestId}] Adding ledger entry for ${ledgerServiceType} booking:`, {
                       amount: snapshot.amount,
                       payer: snapshot.payer,
-                      merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName,
-                      movieTitle: updatedContext.selectedListing?.movieTitle
+                      merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
+                      bookingDetails: bookingDetails
                     });
 
                     console.log(`📝 [${requestId}] Calling addLedgerEntry with:`, {
                       snapshotTxId: snapshot.txId,
-                      serviceType: processedAction.serviceType || 'movie',
+                      serviceType: ledgerServiceType,
                       payerId: processedAction.payerId || updatedContext.user?.email,
-                      merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName
+                      merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName
                     });
 
                     const ledgerEntry = await addLedgerEntry(
                       snapshot,
-                      processedAction.serviceType || 'movie',
+                      ledgerServiceType,
                       processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
                       processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
-                      processedAction.merchantName || updatedContext.selectedListing?.providerName || 'AMC Theatres',
-                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || 'amc-001',
-                      {
-                        movieTitle: updatedContext.selectedListing?.movieTitle,
-                        showtime: updatedContext.selectedListing?.showtime,
-                        location: updatedContext.selectedListing?.location
-                      }
+                      processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
+                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
+                      bookingDetails
                     );
 
                     console.log(`📝 [${requestId}] addLedgerEntry returned:`, {
@@ -963,6 +1040,7 @@ httpServer.on("request", async (req, res) => {
                     actionResult = { error: ledgerError.message };
                   }
                   break;
+                }
 
                 case 'check_balance':
                   const userEmail = processedAction.email || updatedContext.user?.email;
@@ -6114,16 +6192,41 @@ async function formatResponseWithOpenAI(listings: MovieListing[] | TokenListing[
               // Ensure selectedListing has providerId by matching it back to original listings
               let selectedListing = content.selectedListing || (listings.length > 0 ? listings[0] : null);
               if (selectedListing && !selectedListing.providerId) {
-                // Try to find matching listing by movie title and provider name
-                const matchedListing = listings.find(l => 
-                  l.movieTitle === selectedListing.movieTitle && 
-                  l.providerName === selectedListing.providerName
-                );
+                // Try to find matching listing by id first (most reliable)
+                let matchedListing = listings.find(l => l.id === selectedListing.id);
+                
+                // If no id match, try matching by provider name and a unique identifier
+                // For movie: match by movieTitle + providerName
+                // For airline: match by flightNumber + providerName
+                // For others: match by name/primary field + providerName
+                if (!matchedListing && listings.length > 0) {
+                  const firstListing = listings[0] as any;
+                  const matchServiceType = firstListing.serviceType || 'movie';
+                  const matchFields = getServiceTypeFields(matchServiceType);
+                  
+                  if (matchServiceType === 'movie' && selectedListing.movieTitle) {
+                    matchedListing = listings.find((l: any) => 
+                      l.movieTitle === selectedListing.movieTitle && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  } else if (matchServiceType === 'airline' && selectedListing.flightNumber) {
+                    matchedListing = listings.find((l: any) => 
+                      l.flightNumber === selectedListing.flightNumber && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  } else if (selectedListing[matchFields.primary] && selectedListing.providerName) {
+                    matchedListing = listings.find((l: any) => 
+                      l[matchFields.primary] === selectedListing[matchFields.primary] && 
+                      l.providerName === selectedListing.providerName
+                    ) as any;
+                  }
+                }
+                
                 if (matchedListing) {
-                  selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+                  selectedListing = { ...selectedListing, providerId: (matchedListing as any).providerId };
                 } else if (listings.length > 0) {
                   // Fallback to first listing
-                  selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+                  selectedListing = { ...selectedListing, providerId: (listings[0] as any).providerId };
                 }
               }
               

@@ -5,7 +5,8 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { WebSocketService } from './websocket.service';
 
 export interface WorkflowStep {
@@ -71,7 +72,7 @@ export interface WorkflowContext {
 export interface WorkflowExecution {
   workflowId: string;
   executionId: string;
-  serviceType: 'movie' | 'dex';
+  serviceType: string;
   currentStep: string;
   context: WorkflowContext;
   history: Array<{
@@ -96,14 +97,17 @@ export class FlowWiseService {
   private workflows: Map<string, FlowWiseWorkflow> = new Map();
   private activeExecutions: Map<string, WorkflowExecution> = new Map();
   private decisionRequest$ = new Subject<UserDecisionRequest>();
+  private selectionRequest$ = new Subject<any>(); // For user_selection_required events
   
   constructor(private http: HttpClient, private wsService: WebSocketService) {
-    this.loadWorkflows();
+    // DO NOT auto-load workflows on startup
+    // Workflows will be loaded on-demand when a service type is selected on Main Street
+    // this.loadWorkflows(); // REMOVED: Only load workflows when service type is clicked
 
     // Listen for WebSocket events to handle server-side workflow decisions
     this.wsService.events$.subscribe((event: any) => {
       if (event.type === 'user_decision_required') {
-        console.log('🤔 [FlowWise] Server-side decision required:', event);
+        console.log(`🤔 [FlowWise] Server-side decision required:`, event);
 
         // Convert WebSocket event to decision request format
         // CRITICAL: Use workflowId (executionId) from event.data, not decisionId
@@ -111,30 +115,96 @@ export class FlowWiseService {
         const executionId = event.data.workflowId || event.data.executionId || event.data.decisionId || 'server_decision';
         console.log(`🔍 [FlowWise] Decision event - workflowId: ${event.data.workflowId}, executionId: ${event.data.executionId}, decisionId: ${event.data.decisionId}, using: ${executionId}`);
         
+        // For decision events, use the options from event.data.options or default YES/NO
+        let options = event.data.options;
+        
+        // If options is not an array or is empty, use default decision options
+        if (!options || !Array.isArray(options) || options.length === 0) {
+          // Default decision options
+          options = [
+            { value: 'YES', label: 'Yes' },
+            { value: 'NO', label: 'No' }
+          ];
+        }
+        
+        console.log(`📋 [FlowWise] Processing decision event with ${options.length} options`);
+        console.log(`📋 [FlowWise] Options data:`, options);
+        
         const decisionRequest: UserDecisionRequest = {
           executionId: executionId,
           stepId: event.data.stepId || 'unknown',
           prompt: event.data.prompt || event.message || 'Please make a decision',
-          options: event.data.options || [
-            { value: 'YES', label: 'Yes' },
-            { value: 'NO', label: 'No' }
-          ],
+          options: options,
           timeout: event.data.timeout || 60000
         };
 
+        console.log(`📋 [FlowWise] Emitting decision request:`, decisionRequest);
+        console.log(`📋 [FlowWise] Decision request options count: ${decisionRequest.options.length}`);
         this.decisionRequest$.next(decisionRequest);
+      } else if (event.type === 'user_selection_required') {
+        // Also handle selection events from WebSocket and emit through Subject
+        console.log(`🎬 [FlowWise] ========================================`);
+        console.log(`🎬 [FlowWise] SELECTION EVENT FROM WEBSOCKET`);
+        console.log(`🎬 [FlowWise] Full event:`, JSON.stringify(event, null, 2));
+        console.log(`🎬 [FlowWise] Event data:`, event.data);
+        console.log(`🎬 [FlowWise] Event data.options:`, event.data?.options);
+        console.log(`🎬 [FlowWise] Event data.options type:`, typeof event.data?.options);
+        console.log(`🎬 [FlowWise] Event data.options is array:`, Array.isArray(event.data?.options));
+        console.log(`🎬 [FlowWise] Event data.options length:`, event.data?.options?.length || 0);
+        
+        // Emit selection event through Subject so workflow display component can receive it
+        console.log(`🎬 [FlowWise] Emitting selection event through Subject`);
+        this.selectionRequest$.next(event);
+        console.log(`🎬 [FlowWise] ========================================`);
       }
     });
   }
 
   /**
    * Load workflow definitions from backend API
+   * Dynamically loads workflows for all available service types
    */
   private loadWorkflows(): void {
     const baseUrl = window.location.port === '4200' 
       ? 'http://localhost:3000' 
       : '';
     
+    // Get list of available workflows from backend
+    this.http.get<{ success: boolean; workflows: Array<{serviceType: string, filename: string, exists: boolean}> }>(`${baseUrl}/api/workflow/list`)
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.workflows) {
+            // Load each workflow that exists
+            response.workflows.forEach(workflowInfo => {
+              if (workflowInfo.exists) {
+                this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/${workflowInfo.serviceType}`)
+                  .subscribe({
+                    next: (data) => {
+                      if (data.success && data.flowwiseWorkflow) {
+                        this.workflows.set(workflowInfo.serviceType, data.flowwiseWorkflow);
+                        console.log(`✅ [FlowWise] Loaded ${workflowInfo.serviceType} workflow from backend:`, data.flowwiseWorkflow.name);
+                      }
+                    },
+                    error: (err) => {
+                      console.error(`❌ [FlowWise] Could not load ${workflowInfo.serviceType} workflow from backend:`, err);
+                    }
+                  });
+              }
+            });
+          }
+        },
+        error: (err) => {
+          console.error('❌ [FlowWise] Could not load workflow list from backend:', err);
+          // Fallback: Load movie and dex workflows directly
+          this.loadWorkflowFallback(baseUrl);
+        }
+      });
+  }
+
+  /**
+   * Fallback: Load movie and dex workflows directly (for backward compatibility)
+   */
+  private loadWorkflowFallback(baseUrl: string): void {
     // Load movie workflow from backend
     this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/movie`)
       .subscribe({
@@ -167,22 +237,100 @@ export class FlowWiseService {
   /**
    * Get workflow by service type
    */
-  getWorkflow(serviceType: 'movie' | 'dex'): FlowWiseWorkflow | null {
+  getWorkflow(serviceType: string): FlowWiseWorkflow | null {
     return this.workflows.get(serviceType) || null;
   }
 
   /**
+   * Load workflow on demand if not already loaded (synchronous check, async load)
+   * Public method so it can be called to pre-load workflows
+   */
+  loadWorkflowIfNeeded(serviceType: string): void {
+    if (this.workflows.has(serviceType)) {
+      console.log(`✅ [FlowWise] Workflow ${serviceType} already loaded`);
+      return;
+    }
+    
+    const baseUrl = window.location.port === '4200' 
+      ? 'http://localhost:3000' 
+      : '';
+    
+    console.log(`🔄 [FlowWise] Loading ${serviceType} workflow on demand from ${baseUrl}/api/workflow/${serviceType}`);
+    this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/${serviceType}`)
+      .subscribe({
+        next: (data) => {
+          if (data.success && data.flowwiseWorkflow) {
+            this.workflows.set(serviceType, data.flowwiseWorkflow);
+            console.log(`✅ [FlowWise] Loaded ${serviceType} workflow on demand:`, data.flowwiseWorkflow.name);
+            console.log(`✅ [FlowWise] Workflow has ${data.flowwiseWorkflow.steps?.length || 0} steps`);
+          } else {
+            console.error(`❌ [FlowWise] Failed to load ${serviceType} workflow: success=false`);
+          }
+        },
+        error: (err) => {
+          console.error(`❌ [FlowWise] Could not load ${serviceType} workflow from backend:`, err);
+          console.error(`❌ [FlowWise] Error details:`, err.message, err.status, err.url);
+        }
+      });
+  }
+
+  /**
+   * Load workflow synchronously (returns Observable)
+   */
+  private loadWorkflow(serviceType: string): Observable<FlowWiseWorkflow | null> {
+    const baseUrl = window.location.port === '4200' 
+      ? 'http://localhost:3000' 
+      : '';
+    
+    console.log(`🔄 [FlowWise] Loading ${serviceType} workflow from ${baseUrl}/api/workflow/${serviceType}`);
+    return this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/${serviceType}`)
+      .pipe(
+        map((data) => {
+          if (data.success && data.flowwiseWorkflow) {
+            this.workflows.set(serviceType, data.flowwiseWorkflow);
+            console.log(`✅ [FlowWise] Loaded ${serviceType} workflow:`, data.flowwiseWorkflow.name);
+            return data.flowwiseWorkflow;
+          } else {
+            console.error(`❌ [FlowWise] Failed to load ${serviceType} workflow: success=false`);
+            return null;
+          }
+        }),
+        catchError((err) => {
+          console.error(`❌ [FlowWise] Could not load ${serviceType} workflow from backend:`, err);
+          return of(null);
+        })
+      );
+  }
+
+  /**
    * Start workflow execution
+   * Returns null if workflow is not loaded and cannot be loaded
    */
   startWorkflow(
-    serviceType: 'movie' | 'dex',
+    serviceType: string,
     initialContext: WorkflowContext
   ): WorkflowExecution | null {
-    const workflow = this.getWorkflow(serviceType);
+    console.log(`🚀 [FlowWise] Starting workflow for service type: ${serviceType}`);
+    console.log(`🔍 [FlowWise] Currently loaded workflows: ${Array.from(this.workflows.keys()).join(', ')}`);
+    
+    // Check if workflow is already loaded
+    let workflow = this.getWorkflow(serviceType);
+    
     if (!workflow) {
+      console.warn(`⚠️ [FlowWise] Workflow ${serviceType} not in cache, attempting to load...`);
+      // Try to load it (async)
+      this.loadWorkflowIfNeeded(serviceType);
+      
+      // Return null - workflow needs to be loaded first
+      // The workflow will be loaded asynchronously, but we can't wait for it here
+      // The caller should ensure the workflow is pre-loaded (e.g., when service type is selected)
       console.error(`❌ [FlowWise] Workflow not found for service type: ${serviceType}`);
+      console.error(`❌ [FlowWise] Available workflows: ${Array.from(this.workflows.keys()).join(', ')}`);
+      console.error(`❌ [FlowWise] Please wait a moment for the workflow to load, or ensure it's pre-loaded when selecting the service type.`);
       return null;
     }
+    
+    console.log(`✅ [FlowWise] Found workflow for ${serviceType}: ${workflow.name}`);
 
     const executionId = `workflow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const execution: WorkflowExecution = {
@@ -196,9 +344,17 @@ export class FlowWiseService {
 
     this.activeExecutions.set(executionId, execution);
     console.log(`🚀 [FlowWise] Started workflow: ${workflow.name} (${executionId})`);
+    console.log(`🔍 [FlowWise] Execution serviceType: ${execution.serviceType}`);
+    console.log(`🔍 [FlowWise] Workflow initial step: ${workflow.initialStep}`);
+    console.log(`🔍 [FlowWise] Workflow has ${workflow.steps.length} steps`);
+    console.log(`🔍 [FlowWise] First step ID: ${workflow.steps[0]?.id}, name: ${workflow.steps[0]?.name}`);
     
-    // Start executing the workflow
-    this.executeWorkflow(execution, workflow);
+    // Start executing the workflow (async, but don't await - let it run in background)
+    // Add error handling to catch any issues
+    this.executeWorkflow(execution, workflow).catch((error) => {
+      console.error(`❌ [FlowWise] Error executing workflow ${execution.executionId}:`, error);
+      console.error(`❌ [FlowWise] Error details:`, error.stack || error.message);
+    });
     
     return execution;
   }
@@ -210,6 +366,10 @@ export class FlowWiseService {
     execution: WorkflowExecution,
     workflow: FlowWiseWorkflow
   ): Promise<void> {
+    console.log(`🚀 [FlowWise] executeWorkflow called for execution: ${execution.executionId}, serviceType: ${execution.serviceType}`);
+    console.log(`🚀 [FlowWise] Starting from step: ${execution.currentStep}`);
+    console.log(`🚀 [FlowWise] Workflow has ${workflow.steps.length} steps`);
+    
     const stepMap = new Map<string, WorkflowStep>();
     workflow.steps.forEach(step => stepMap.set(step.id, step));
 
@@ -219,6 +379,7 @@ export class FlowWiseService {
       const step = stepMap.get(currentStepId);
       if (!step) {
         console.error(`❌ [FlowWise] Step not found: ${currentStepId}`);
+        console.error(`❌ [FlowWise] Available steps: ${Array.from(stepMap.keys()).join(', ')}`);
         break;
       }
 
@@ -229,6 +390,14 @@ export class FlowWiseService {
       });
 
       console.log(`🔄 [FlowWise] Executing step: ${step.name} (${step.id})`);
+      console.log(`🔄 [FlowWise] Step type: ${step.type}, requiresUserDecision: ${step.requiresUserDecision}`);
+
+      // For input steps, if we already have the input in context, we can skip to executing actions
+      // Otherwise, input steps should execute normally (they validate and process the input)
+      if (step.type === 'input' && execution.context['input'] && execution.context['email']) {
+        console.log(`✅ [FlowWise] Input step ${step.id} - input already provided, executing actions`);
+        // Continue to execute the step normally - it will validate and process the input
+      }
 
       // For decision steps, we need to execute the step first to get to the decision point
       if (step.type === 'decision' && step.requiresUserDecision) {
@@ -330,6 +499,13 @@ export class FlowWiseService {
   }
 
   /**
+   * Get selection requests (for user_selection_required events)
+   */
+  getSelectionRequests(): Observable<any> {
+    return this.selectionRequest$.asObservable();
+  }
+
+  /**
    * Execute a specific workflow step on the server by step ID
    */
   async executeWorkflowStep(executionId: string, stepId: string, context?: any): Promise<string | null> {
@@ -343,9 +519,12 @@ export class FlowWiseService {
     }
 
     // Find the workflow and step
-    const workflow = this.workflows.get(execution.serviceType === 'movie' ? 'movie' : 'dex');
+    const workflow = this.workflows.get(execution.serviceType);
     if (!workflow) {
       console.error(`❌ [FlowWise] Workflow not found for service type: ${execution.serviceType}`);
+      console.error(`❌ [FlowWise] Available workflows: ${Array.from(this.workflows.keys()).join(', ')}`);
+      // Try to load workflow on demand
+      this.loadWorkflowIfNeeded(execution.serviceType);
       return null;
     }
 
@@ -391,6 +570,64 @@ export class FlowWiseService {
         // Handle WebSocket events that server should have broadcast
         if (response.result.events) {
           console.log(`📡 [FlowWise] Server broadcast ${response.result.events.length} events`);
+          console.log(`📡 [FlowWise] Events:`, JSON.stringify(response.result.events, null, 2));
+          
+          // Check if any of the events are decision/selection requests
+          for (const event of response.result.events) {
+            console.log(`📡 [FlowWise] Checking event:`, event.type, event);
+            
+            if (event.type === 'user_decision_required') {
+              console.log(`🤔 [FlowWise] Decision event in response:`, event);
+              const decisionRequest: UserDecisionRequest = {
+                executionId: execution.executionId,
+                stepId: event.data?.stepId || step.id,
+                prompt: event.data?.prompt || event.message || 'Please make a decision',
+                options: event.data?.options || [],
+                timeout: event.data?.timeout || 60000
+              };
+              console.log(`📋 [FlowWise] Emitting decision request from response:`, decisionRequest);
+              this.decisionRequest$.next(decisionRequest);
+            } else if (event.type === 'user_selection_required') {
+              console.log(`🎬 [FlowWise] ========================================`);
+              console.log(`🎬 [FlowWise] SELECTION EVENT IN HTTP RESPONSE`);
+              console.log(`🎬 [FlowWise] Full event:`, JSON.stringify(event, null, 2));
+              console.log(`🎬 [FlowWise] Event data:`, event.data);
+              console.log(`🎬 [FlowWise] Event data.options:`, event.data?.options);
+              console.log(`🎬 [FlowWise] Event data.options type:`, typeof event.data?.options);
+              console.log(`🎬 [FlowWise] Event data.options is array:`, Array.isArray(event.data?.options));
+              console.log(`🎬 [FlowWise] Event data.options length:`, event.data?.options?.length || 0);
+              
+              // Emit selection event through Subject so workflow display component can receive it
+              console.log(`🎬 [FlowWise] Emitting selection event through Subject`);
+              this.selectionRequest$.next(event);
+              console.log(`🎬 [FlowWise] ========================================`);
+            }
+          }
+        }
+
+        // Check if the step is paused for decision
+        if (response.result.pausedForDecision) {
+          console.log(`⏸️ [FlowWise] Step paused for ${response.result.decisionType || 'decision'}`);
+          // The decision event should have been broadcast via WebSocket,
+          // but if it wasn't, we need to create one from the response
+          if (response.result.events && response.result.events.length > 0) {
+            const decisionEvent = response.result.events.find((e: any) => 
+              e.type === 'user_decision_required' || e.type === 'user_selection_required'
+            );
+            if (decisionEvent) {
+              const decisionRequest: UserDecisionRequest = {
+                executionId: execution.executionId,
+                stepId: decisionEvent.data?.stepId || step.id,
+                prompt: decisionEvent.data?.prompt || decisionEvent.message || 'Please make a decision',
+                options: decisionEvent.data?.options || [],
+                timeout: decisionEvent.data?.timeout || 60000
+              };
+              console.log(`📋 [FlowWise] Emitting decision request from paused step:`, decisionRequest);
+              this.decisionRequest$.next(decisionRequest);
+            }
+          }
+          // Return null to pause execution
+          return null;
         }
 
         const nextStepId = response.result.nextStepId;
@@ -402,7 +639,7 @@ export class FlowWiseService {
           console.log(`🔄 [FlowWise] Auto-continuing workflow: ${step.id} -> ${nextStepId}`);
           
           // Find the workflow and next step
-          const workflow = this.workflows.get(execution.serviceType === 'movie' ? 'movie' : 'dex');
+          const workflow = this.workflows.get(execution.serviceType);
           if (workflow) {
             const nextStep = workflow.steps.find(s => s.id === nextStepId);
             if (nextStep) {
@@ -748,6 +985,29 @@ export class FlowWiseService {
    */
   getExecution(executionId: string): WorkflowExecution | undefined {
     return this.activeExecutions.get(executionId);
+  }
+
+  /**
+   * Get all active executions
+   */
+  getAllActiveExecutions(): WorkflowExecution[] {
+    return Array.from(this.activeExecutions.values());
+  }
+
+  /**
+   * Get the most recent active execution
+   */
+  getLatestActiveExecution(): WorkflowExecution | null {
+    const executions = this.getAllActiveExecutions();
+    if (executions.length === 0) {
+      return null;
+    }
+    // Return the most recent execution (by executionId timestamp)
+    return executions.sort((a, b) => {
+      const aTime = parseInt(a.executionId.split('-')[1] || '0');
+      const bTime = parseInt(b.executionId.split('-')[1] || '0');
+      return bTime - aTime;
+    })[0];
   }
 }
 
