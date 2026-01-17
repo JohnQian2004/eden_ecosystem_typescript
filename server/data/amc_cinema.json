@@ -528,17 +528,11 @@
         }
       },
       {
-        "id": "ledger_create_entry",
-        "name": "3️⃣ Ledger: Create Booking Entry",
+        "id": "root_ca_ledger_and_payment",
+        "name": "3️⃣ ROOT CA: Ledger, Payment & Settlement (Atomic)",
         "type": "process",
-        "component": "ledger",
-        "description": "Create ledger entry for booking",
-        "conditions": [
-          {
-            "if": "{{selectedListing}}",
-            "then": "continue"
-          }
-        ],
+        "component": "root-ca",
+        "description": "ROOT CA atomic execution: Create ledger entry, process payment, and settle entry silently. Service providers cannot dictate this step.",
         "actions": [
           {
             "type": "create_snapshot",
@@ -561,11 +555,58 @@
             "bookingDetails": {
               "movieTitle": "{{selectedListing.movieTitle}}",
               "showtime": "{{selectedListing.showtime}}",
-              "location": "{{selectedListing.location}}"
+              "location": "{{selectedListing.location}}",
+              "price": "{{selectedListing.price}}"
             }
+          },
+          {
+            "type": "check_balance",
+            "email": "{{user.email}}",
+            "required": "{{ledgerEntry.amount}}"
+          },
+          {
+            "type": "process_payment",
+            "cashier": "{{cashier}}",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "user": "{{user}}"
+          },
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
           }
         ],
         "websocketEvents": [
+          {
+            "type": "root_ca_ledger_payment_start",
+            "component": "root-ca",
+            "message": "ROOT CA: Starting atomic ledger creation and payment processing...",
+            "data": {
+              "step": "root_ca_ledger_and_payment",
+              "merchant": "{{selectedListing.providerName}}",
+              "amount": "{{moviePrice}}"
+            }
+          },
           {
             "type": "ledger_entry_created",
             "component": "ledger",
@@ -585,45 +626,20 @@
           {
             "type": "certificate_validated",
             "component": "root-ca",
-            "message": "Certificate validated for {{provider.name}}",
+            "message": "Certificate validated for {{selectedListing.providerName}}",
             "data": {
               "providerUuid": "{{providerUuid}}",
-              "providerName": "{{provider.name}}"
+              "providerName": "{{selectedListing.providerName}}"
             }
-          }
-        ],
-        "outputs": {
-          "ledgerEntry": "{{ledgerEntry}}",
-          "snapshot": "{{snapshot}}",
-          "providerUuid": "{{providerUuid}}"
-        }
-      },
-      {
-        "id": "cashier_process_payment",
-        "name": "4️⃣ Cashier: Process Payment",
-        "type": "process",
-        "component": "cashier",
-        "description": "Process payment through cashier and wallet service",
-        "actions": [
-          {
-            "type": "check_balance",
-            "email": "{{user.email}}",
-            "required": "{{totalCost}}"
           },
-          {
-            "type": "process_payment",
-            "cashier": "{{cashier}}",
-            "ledgerEntry": "{{ledgerEntry}}",
-            "user": "{{user}}"
-          }
-        ],
-        "websocketEvents": [
           {
             "type": "cashier_start",
             "component": "cashier",
             "message": "{{cashier.name}} processing payment...",
             "data": {
-              "cashier": "{{cashier}}"
+              "cashier": "{{cashier}}",
+              "entryId": "{{ledgerEntry.entryId}}",
+              "amount": "{{ledgerEntry.amount}}"
             }
           },
           {
@@ -634,7 +650,8 @@
               "entry": "{{ledgerEntry}}",
               "cashier": "{{cashier}}",
               "userBalance": "{{user.balance}}",
-              "walletService": "wallet-service-001"
+              "walletService": "wallet-service-001",
+              "entryStatus": "{{ledgerEntry.status}}"
             }
           },
           {
@@ -644,22 +661,91 @@
             "data": {
               "listing": "{{selectedListing}}",
               "price": "{{moviePrice}}",
-              "ledgerEntry": "{{ledgerEntry.entryId}}"
+              "ledgerEntry": "{{ledgerEntry.entryId}}",
+              "status": "{{ledgerEntry.status}}"
+            }
+          },
+          {
+            "type": "root_ca_ledger_payment_complete",
+            "component": "root-ca",
+            "message": "ROOT CA: Ledger and payment processing completed successfully",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "entryStatus": "{{ledgerEntry.status}}",
+              "paymentSuccess": "{{paymentSuccess}}",
+              "cashierProcessedCount": "{{cashier.processedCount}}",
+              "cashierTotalProcessed": "{{cashier.totalProcessed}}"
+            }
+          },
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA: Starting ledger settlement...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "Ledger entry settled: {{ledgerEntry.entryId}}",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "status": "completed",
+              "ledgerEntry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "root_ca_ledger_settlement_complete",
+            "component": "root-ca",
+            "message": "ROOT CA: Ledger settlement completed successfully",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "entryStatus": "{{ledgerEntry.status}}",
+              "settlementStatus": "{{settlementStatus}}"
             }
           }
         ],
         "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "snapshot": "{{snapshot}}",
+          "providerUuid": "{{providerUuid}}",
           "paymentSuccess": "{{paymentSuccess}}",
+          "paymentProcessed": "{{paymentProcessed}}",
           "updatedBalance": "{{user.balance}}",
-          "updatedCashier": "{{cashier}}"
+          "updatedCashier": "{{cashier}}",
+          "settlementStatus": "{{settlementStatus}}"
         },
         "errorHandling": {
           "onError": "error_handler",
           "errorEvents": [
             {
+              "type": "root_ca_ledger_payment_failed",
+              "component": "root-ca",
+              "message": "ROOT CA: Ledger and payment processing failed: {{error.message}}",
+              "data": {
+                "error": "{{error}}",
+                "entryId": "{{ledgerEntry.entryId}}"
+              }
+            },
+            {
               "type": "cashier_payment_failed",
               "component": "cashier",
-              "message": "Payment failed: {{error.message}}"
+              "message": "Payment failed: {{error.message}}",
+              "data": {
+                "entry": "{{ledgerEntry}}",
+                "error": "{{error}}"
+              }
             }
           ]
         }
@@ -1068,41 +1154,26 @@
         "to": "error_handler",
         "condition": "!{{userSelection}}"
       },
-      {
-        "from": "user_confirm_listing",
-        "to": "ledger_create_entry",
-        "condition": "{{userDecision}} === 'YES'"
-      },
-      {
-        "from": "user_confirm_listing",
-        "to": "error_handler",
-        "condition": "{{userDecision}} === 'NO'"
-      },
-      {
-        "from": "ledger_create_entry",
-        "to": "cashier_process_payment",
-        "condition": "always"
-      },
-      {
-        "from": "cashier_process_payment",
-        "to": "root_ca_ledger_settlement",
-        "condition": "{{paymentSuccess}}"
-      },
-      {
-        "from": "cashier_process_payment",
-        "to": "error_handler",
-        "condition": "!{{paymentSuccess}}"
-      },
-      {
-        "from": "root_ca_ledger_settlement",
-        "to": "root_ca_cashier_oversight",
-        "condition": "{{settlementStatus}} === 'settled'"
-      },
-      {
-        "from": "root_ca_ledger_settlement",
-        "to": "error_handler",
-        "condition": "{{settlementStatus}} !== 'settled'"
-      },
+        {
+          "from": "user_confirm_listing",
+          "to": "root_ca_ledger_and_payment",
+          "condition": "{{userDecision}} === 'YES'"
+        },
+        {
+          "from": "user_confirm_listing",
+          "to": "error_handler",
+          "condition": "{{userDecision}} === 'NO'"
+        },
+        {
+          "from": "root_ca_ledger_and_payment",
+          "to": "root_ca_cashier_oversight",
+          "condition": "{{paymentSuccess}} && {{settlementStatus}} === 'settled'"
+        },
+        {
+          "from": "root_ca_ledger_and_payment",
+          "to": "error_handler",
+          "condition": "!{{paymentSuccess}} || {{settlementStatus}} !== 'settled'"
+        },
       {
         "from": "root_ca_cashier_oversight",
         "to": "watch_movie",

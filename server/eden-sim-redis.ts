@@ -48,7 +48,8 @@ import {
   CERTIFICATE_REGISTRY,
   REVOCATION_REGISTRY,
   HOLY_GHOST_GARDEN,
-  LEDGER
+  LEDGER,
+  USERS as USERS_STATE
 } from "./src/state";
 import { ROOT_CA_UUID, REVOCATION_STREAM, WALLET_BALANCE_PREFIX, WALLET_HOLD_PREFIX, WALLET_AUDIT_PREFIX } from "./src/constants";
 import {
@@ -108,6 +109,13 @@ import {
   evaluateCondition,
   replaceTemplateVariables
 } from "./src/flowwise";
+import {
+  initializeFlowWiseService,
+  startWorkflowFromUserInput,
+  submitUserDecision as submitUserDecisionToFlowWise,
+  executeNextStep,
+  getWorkflowState
+} from "./src/components/flowwiseService";
 import {
   initializeLLM,
   extractQueryWithOpenAI,
@@ -1396,11 +1404,31 @@ httpServer.on("request", async (req, res) => {
         console.log(`   ✅ [${requestId}] ========================================`);
 
         // Store context for potential continuation
+        // CRITICAL: Preserve full execution object structure (workflow, context, currentStep, etc.)
+        // Don't overwrite with just context - merge context into existing execution
         if (!(global as any).workflowExecutions) {
           (global as any).workflowExecutions = new Map();
         }
         const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
-        workflowExecutions.set(executionId, updatedContext);
+        const existingExecution = workflowExecutions.get(executionId);
+        
+        if (existingExecution && existingExecution.workflow) {
+          // Preserve full execution structure - just update context
+          existingExecution.context = updatedContext;
+          existingExecution.currentStep = nextStepId || existingExecution.currentStep;
+          workflowExecutions.set(executionId, existingExecution);
+        } else {
+          // Fallback: if no existing execution, create minimal structure
+          // This shouldn't happen if FlowWiseService is used, but handle gracefully
+          console.warn(`⚠️ [${requestId}] No existing execution found for ${executionId}, creating minimal structure`);
+          workflowExecutions.set(executionId, {
+            executionId,
+            workflow,
+            context: updatedContext,
+            currentStep: nextStepId || stepId,
+            history: []
+          });
+        }
 
         sendResponse(200, {
           success: true,
@@ -1462,7 +1490,7 @@ httpServer.on("request", async (req, res) => {
   }
 
   if (pathname === "/api/workflow/decision" && req.method === "POST") {
-    console.log(`   🤔 [${requestId}] POST /api/workflow/decision - User decision submission`);
+    console.log(`   🤔 [${requestId}] POST /api/workflow/decision - User decision submission (NEW ARCHITECTURE: Using FlowWiseService)`);
     let body = "";
     
     req.on("data", (chunk) => {
@@ -1489,936 +1517,52 @@ httpServer.on("request", async (req, res) => {
 
         console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
 
-        // Load workflow definition to continue execution
-        const fs = require('fs');
-        const path = require('path');
-        // For now, default to 'movie' since we're using AMC workflow for all inputs
-        const serviceType = 'movie';
-        const workflowPath = serviceType === 'movie'
-          ? path.join(__dirname, 'data', 'amc_cinema.json')
-          : path.join(__dirname, 'data', 'dex.json');
-
-        if (!fs.existsSync(workflowPath)) {
-          sendResponse(500, { success: false, error: `Workflow definition not found` });
-          return;
-        }
-
-        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
-        const workflow = workflowData.flowwiseWorkflow;
-
-        console.log(`   📋 [${requestId}] Loaded workflow: ${workflow?.name}, steps: ${workflow?.steps?.length}, transitions: ${workflow?.transitions?.length}`);
-        console.log(`   📋 [${requestId}] Workflow keys:`, Object.keys(workflow || {}));
-        console.log(`   📋 [${requestId}] Workflow transitions type:`, typeof workflow?.transitions);
-        if (workflow?.transitions) {
-          console.log(`   📋 [${requestId}] First few transitions:`, workflow.transitions.slice(0, 3));
-        }
-
-        // Import FlowWise functions for workflow execution
-        const { replaceTemplateVariables, evaluateCondition } = await import("./src/flowwise");
-
-        // Store workflow execution context in memory (keyed by executionId)
-        // This ensures context persists across step transitions
-        if (!(global as any).workflowExecutions) {
-          (global as any).workflowExecutions = new Map();
-        }
-        const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
-
-        // Function to continue workflow execution after decision
-        const continueWorkflowExecution = async (
-          workflow: any,
-          executionId: string,
-          contextUpdates: any,
-          currentStepId: string
-        ): Promise<{ nextStepId: string | null, events: any[], context?: any }> => {
-          console.log(`   🔄 [${requestId}] ========================================`);
-          console.log(`   🔄 [${requestId}] 🔄 WORKFLOW CONTINUATION`);
-          console.log(`   🔄 [${requestId}] Execution ID: ${executionId}`);
-          console.log(`   🔄 [${requestId}] Current Step ID: ${currentStepId}`);
-          console.log(`   🔄 [${requestId}] Context Updates:`, JSON.stringify(contextUpdates, null, 2));
-          console.log(`   🔄 [${requestId}] ========================================`);
-
-          // Load existing context from storage (if it exists)
-          let existingContext = workflowExecutions.get(executionId) || {};
-          console.log(`   📋 [${requestId}] Existing context keys:`, Object.keys(existingContext));
-          console.log(`   📋 [${requestId}] Existing context has selectedListing:`, !!existingContext.selectedListing);
-          console.log(`   📋 [${requestId}] Existing context has listings:`, !!existingContext.listings);
-
-          // Merge existing context with updates (updates take precedence)
-          const fullContext = {
-            // Preserve critical context from previous steps
-            listings: contextUpdates.listings || existingContext.listings || [],
-            input: contextUpdates.input || existingContext.input || 'movie request',
-            email: contextUpdates.email || existingContext.email || 'user@example.com',
-            user: contextUpdates.user || existingContext.user || { email: contextUpdates.email || existingContext.email || 'user@example.com' },
-            // Preserve selectedListing from previous steps (CRITICAL for ledger entry creation)
-            selectedListing: contextUpdates.selectedListing || contextUpdates.userSelection || existingContext.selectedListing || existingContext.userSelection || null,
-            // Preserve other important context
-            llmResponse: contextUpdates.llmResponse || existingContext.llmResponse,
-            iGasCost: contextUpdates.iGasCost || existingContext.iGasCost,
-            snapshot: contextUpdates.snapshot || existingContext.snapshot,
-            // Merge all updates (these take precedence)
-            ...existingContext,
-            ...contextUpdates,
-            // Ensure selectedListing is explicitly set (highest priority)
-            selectedListing: contextUpdates.selectedListing || contextUpdates.userSelection || existingContext.selectedListing || existingContext.userSelection || null
-          };
-
-          // Store updated context for next step
-          workflowExecutions.set(executionId, fullContext);
-          console.log(`   💾 [${requestId}] Stored context with keys:`, Object.keys(fullContext));
-          console.log(`   💾 [${requestId}] Stored context has selectedListing:`, !!fullContext.selectedListing);
-
-          console.log(`   📋 [${requestId}] Context for transition evaluation:`, {
-            hasUserSelection: !!fullContext.userSelection,
-            userSelection: fullContext.userSelection?.id,
-            userDecision: fullContext.userDecision
-          });
-
-          // Find and evaluate transitions from the current step
-          console.log(`   🔍 [${requestId}] All transitions:`, workflow.transitions?.map((t: any) => `${t.from} -> ${t.to}`));
-          const transitions = workflow.transitions.filter((t: any) => t.from === currentStepId);
-          let nextStepId: string | null = null;
-
-          console.log(`   🔍 [${requestId}] ========================================`);
-          console.log(`   🔍 [${requestId}] 🔀 TRANSITION EVALUATION`);
-          console.log(`   🔍 [${requestId}] Current Step: ${currentStepId}`);
-          console.log(`   🔍 [${requestId}] All Workflow Transitions:`, workflow.transitions?.map((t: any) => `${t.from} -> ${t.to} (${t.condition || 'always'})`));
-          console.log(`   🔍 [${requestId}] Found ${transitions.length} transition(s) from ${currentStepId}:`);
-          transitions.forEach((t: any, index: number) => {
-            console.log(`   🔍 [${requestId}]   ${index + 1}. ${t.from} -> ${t.to} (condition: ${t.condition || 'always'})`);
-          });
-          console.log(`   🔍 [${requestId}] Context Keys:`, Object.keys(fullContext));
-          console.log(`   🔍 [${requestId}] Context selectedListing:`, fullContext.selectedListing ? 'SET' : 'NOT SET');
-          console.log(`   🔍 [${requestId}] ========================================`);
-
-          for (const transition of transitions) {
-            try {
-              const conditionMet = evaluateCondition(transition.condition, fullContext);
-              console.log(`   🔍 [${requestId}] Evaluating transition: ${transition.from} -> ${transition.to}, condition: ${transition.condition} = ${conditionMet}`);
-
-              if (conditionMet) {
-                nextStepId = transition.to;
-                console.log(`   ✅ [${requestId}] Transition condition met, next step: ${nextStepId}`);
-                break;
-              }
-            } catch (error) {
-              console.warn(`   ⚠️ [${requestId}] Error evaluating condition: ${transition.condition}`, error);
-            }
-          }
-
-          if (!nextStepId) {
-            console.log(`   ⏹️ [${requestId}] No valid transition found, workflow paused`);
-            return { nextStepId: null, events: [], context: fullContext };
-          }
-
-          // Execute the next step atomically
-          console.log(`   🚀 [${requestId}] ========================================`);
-          console.log(`   🚀 [${requestId}] 🚀 EXECUTING NEXT STEP`);
-          console.log(`   🚀 [${requestId}] Next Step ID: ${nextStepId}`);
-          const nextStep = workflow.steps.find((s: any) => s.id === nextStepId);
-          console.log(`   🚀 [${requestId}] Next Step Name: ${nextStep?.name || 'N/A'}`);
-          console.log(`   🚀 [${requestId}] Next Step Type: ${nextStep?.type || 'N/A'}`);
-          console.log(`   🚀 [${requestId}] Next Step Component: ${nextStep?.component || 'N/A'}`);
-          console.log(`   🚀 [${requestId}] Next Step Actions Count: ${nextStep?.actions?.length || 0}`);
-          if (nextStep?.actions) {
-            console.log(`   🚀 [${requestId}] Next Step Action Types:`, nextStep.actions.map((a: any) => a.type));
-          }
-          console.log(`   🚀 [${requestId}] Context Keys:`, Object.keys(fullContext));
-          console.log(`   🚀 [${requestId}] Context has selectedListing:`, !!fullContext.selectedListing);
-          console.log(`   🚀 [${requestId}] Context has ledgerEntry:`, !!fullContext.ledgerEntry);
-          console.log(`   🚀 [${requestId}] Context has cashier:`, !!fullContext.cashier);
-          console.log(`   🚀 [${requestId}] Context has user:`, !!fullContext.user);
-          console.log(`   🚀 [${requestId}] ========================================`);
-          console.log(`   🚀 [${requestId}] ⏳ CALLING executeStepAtomically NOW...`);
-          const result = await executeStepAtomically(workflow, executionId, nextStepId, fullContext);
-          console.log(`   🚀 [${requestId}] ✅ executeStepAtomically RETURNED`);
-          console.log(`   🚀 [${requestId}] Result nextStepId: ${result.nextStepId || 'NONE'}`);
-          console.log(`   🚀 [${requestId}] Result events count: ${result.events?.length || 0}`);
-          
-          // Update stored context with any changes from step execution
-          if (result.context) {
-            const updatedContext = { ...fullContext, ...result.context };
-            workflowExecutions.set(executionId, updatedContext);
-            console.log(`   💾 [${requestId}] Updated stored context after step execution`);
-          } else {
-            // Even if no context returned, update with current fullContext to preserve state
-            workflowExecutions.set(executionId, fullContext);
-          }
-          
-          // Broadcast workflow step changed event if we have a next step
-          if (result.nextStepId) {
-            const nextStep = workflow.steps.find((s: any) => s.id === result.nextStepId);
-            const currentContext = workflowExecutions.get(executionId) || fullContext;
-            broadcastEvent({
-              type: "workflow_step_changed",
-              component: "workflow",
-              message: `Workflow progressed to: ${nextStep?.name || result.nextStepId}`,
-              timestamp: Date.now(),
-              data: {
-                stepId: result.nextStepId,
-                stepName: nextStep?.name,
-                component: nextStep?.component,
-                selectedListing: currentContext.selectedListing || currentContext.userSelection,
-                context: currentContext
-              }
-            });
-          }
-          
-          // CRITICAL: Auto-continue workflow for steps with "always" transitions
-          // This ensures the workflow automatically progresses from ledger_create_entry to cashier_process_payment
-          if (result.nextStepId && result.context) {
-            const nextStepAfter = workflow.steps.find((s: any) => s.id === result.nextStepId);
-            if (nextStepAfter && nextStepAfter.type !== 'decision') {
-              // Check if the transition to the next step is "always"
-              const transitionsToNext = workflow.transitions.filter((t: any) => t.from === nextStepId && t.to === result.nextStepId);
-              const hasAlwaysTransition = transitionsToNext.some((t: any) => t.condition === 'always' || !t.condition);
-              
-              if (hasAlwaysTransition) {
-                console.log(`   🔄 [${requestId}] ========================================`);
-                console.log(`   🔄 [${requestId}] 🔄 AUTO-CONTINUING WORKFLOW (ALWAYS TRANSITION)`);
-                console.log(`   🔄 [${requestId}] Current Step: ${nextStepId}`);
-                console.log(`   🔄 [${requestId}] Next Step: ${result.nextStepId}`);
-                console.log(`   🔄 [${requestId}] ========================================`);
-                
-                // Recursively continue to the next step
-                const continuedResult = await continueWorkflowExecution(
-                  workflow,
-                  executionId,
-                  result.context,
-                  result.nextStepId
-                );
-                
-                // Merge events and return the final result
-                return {
-                  nextStepId: continuedResult.nextStepId,
-                  events: [...result.events, ...continuedResult.events],
-                  context: continuedResult.context || result.context
-                };
-              }
-            }
-          }
-          
-          return result;
-        };
-
-        // Function to execute a step atomically (extracted from the execute-step endpoint)
-        const executeStepAtomically = async (
-          workflow: any,
-          executionId: string,
-          stepId: string,
-          fullContext: any
-        ): Promise<{ nextStepId: string | null, events: any[], context?: any }> => {
-          const events: any[] = [];
-          // CRITICAL: Preserve all context, especially selectedListing
-          const updatedContext = { ...fullContext };
-          console.log(`   📋 [${requestId}] executeStepAtomically - Context keys:`, Object.keys(updatedContext));
-          console.log(`   📋 [${requestId}] executeStepAtomically - Has selectedListing:`, !!updatedContext.selectedListing);
-          if (updatedContext.selectedListing) {
-            console.log(`   📋 [${requestId}] executeStepAtomically - selectedListing:`, {
-              movieTitle: updatedContext.selectedListing.movieTitle,
-              providerName: updatedContext.selectedListing.providerName,
-              providerId: updatedContext.selectedListing.providerId,
-              price: updatedContext.selectedListing.price
-            });
-          }
-
-          const step = workflow.steps.find((s: any) => s.id === stepId);
-          if (!step) {
-            throw new Error(`Step not found: ${stepId}`);
-          }
-
-          // CRITICAL: Initialize cashier in context if not already set (needed for cashier_process_payment step)
-          if (!fullContext.cashier && (step.component === 'cashier' || step.id === 'cashier_process_payment')) {
-            fullContext.cashier = getCashierStatus();
-            console.log(`   💰 [${requestId}] ========================================`);
-            console.log(`   💰 [${requestId}] 💰 CASHIER STEP INITIALIZATION`);
-            console.log(`   💰 [${requestId}] Step ID: ${step.id}`);
-            console.log(`   💰 [${requestId}] Step Name: ${step.name}`);
-            console.log(`   💰 [${requestId}] Initialized cashier in context:`, {
-              id: fullContext.cashier.id,
-              name: fullContext.cashier.name,
-              processedCount: fullContext.cashier.processedCount,
-              totalProcessed: fullContext.cashier.totalProcessed
-            });
-            console.log(`   💰 [${requestId}] ========================================`);
-          }
-
-          console.log(`   ⚙️ [${requestId}] Executing step: ${step.name} with ${step.actions?.length || 0} actions`);
-          
-          // DEBUG: Log if this is the cashier step
-          if (step.id === 'cashier_process_payment' || step.component === 'cashier') {
-            console.log(`   💰 [${requestId}] ========================================`);
-            console.log(`   💰 [${requestId}] 🏦 CASHIER STEP EXECUTION START`);
-            console.log(`   💰 [${requestId}] Step ID: ${step.id}`);
-            console.log(`   💰 [${requestId}] Step Name: ${step.name}`);
-            console.log(`   💰 [${requestId}] Context Keys:`, Object.keys(fullContext));
-            console.log(`   💰 [${requestId}] Context has cashier:`, !!fullContext.cashier);
-            console.log(`   💰 [${requestId}] Context has ledgerEntry:`, !!fullContext.ledgerEntry);
-            console.log(`   💰 [${requestId}] Context has user:`, !!fullContext.user);
-            if (fullContext.ledgerEntry) {
-              console.log(`   💰 [${requestId}] Ledger Entry:`, {
-                entryId: fullContext.ledgerEntry.entryId,
-                amount: fullContext.ledgerEntry.amount,
-                status: fullContext.ledgerEntry.status,
-                merchant: fullContext.ledgerEntry.merchant
-              });
-            }
-            if (fullContext.cashier) {
-              console.log(`   💰 [${requestId}] Cashier Before:`, {
-                id: fullContext.cashier.id,
-                processedCount: fullContext.cashier.processedCount,
-                totalProcessed: fullContext.cashier.totalProcessed
-              });
-            }
-            console.log(`   💰 [${requestId}] ========================================`);
-          }
-
-          // Handle decision steps specially
-          if (step.type === "decision" && step.requiresUserDecision) {
-            // Add workflow and step identification to the event data
-            const processedEvent = replaceTemplateVariables(step.websocketEvents[0], updatedContext);
-            processedEvent.data = {
-              ...processedEvent.data,
-              workflowId: executionId,
-              stepId: step.id
-            };
-
-            // Special handling for user_select_listing
-            if (step.id === "user_select_listing" && updatedContext.listings) {
-              processedEvent.data.options = updatedContext.listings.map((listing: any) => ({
-                value: listing.id,
-                label: `${listing.movieTitle || listing.name} at ${listing.showtime} - $${listing.price}`,
-                data: {
-                  ...listing,
-                  id: listing.id,
-                  movieTitle: listing.movieTitle || listing.name,
-                  showtime: listing.showtime,
-                  price: listing.price,
-                  providerId: listing.providerId,
-                  providerName: listing.providerName || listing.provider
-                }
-              }));
-            }
-
-            events.push(processedEvent);
-            broadcastEvent(processedEvent);
-
-            return { nextStepId: null, events }; // Decision steps pause execution
-          }
-
-          // Execute all actions in this step atomically
-          const executedActions: any[] = [];
-
-          if (step.actions) {
-            console.log(`   🤖 [${requestId}] ========================================`);
-            console.log(`   🤖 [${requestId}] 🔧 PROCESSING ${step.actions.length} ACTION(S) IN STEP: ${step.id}`);
-            console.log(`   🤖 [${requestId}] Step Name: ${step.name}`);
-            console.log(`   🤖 [${requestId}] Step Component: ${step.component}`);
-            console.log(`   🤖 [${requestId}] Action Types:`, step.actions.map((a: any) => a.type));
-            console.log(`   🤖 [${requestId}] ========================================`);
-            
-            for (const action of step.actions) {
-              const processedAction = replaceTemplateVariables(action, updatedContext);
-              console.log(`   🤖 [${requestId}] ========================================`);
-              console.log(`   🤖 [${requestId}] 🔧 PROCESSING ACTION: ${action.type}`);
-              console.log(`   🤖 [${requestId}] Original Action Type: ${action.type}`);
-              console.log(`   🤖 [${requestId}] Processed Action:`, {
-                type: processedAction.type,
-                hasCashier: !!processedAction.cashier,
-                hasLedgerEntry: !!processedAction.ledgerEntry,
-                hasUser: !!processedAction.user,
-                hasSnapshot: !!processedAction.snapshot,
-                snapshotFromContext: !!updatedContext.snapshot
-              });
-              console.log(`   🤖 [${requestId}] Context Keys:`, Object.keys(updatedContext));
-              console.log(`   🤖 [${requestId}] ========================================`);
-
-              try {
-                let actionResult: any = {};
-                
-                console.log(`   🤖 [${requestId}] Entering switch statement for action type: ${action.type}`);
-
-                switch (action.type) {
-                  case 'validate':
-                    actionResult = {
-                      validationPassed: true,
-                      errors: [],
-                      input: updatedContext.input,
-                      email: updatedContext.email
-                    };
-                    break;
-
-                  case 'llm_extract_query':
-                    actionResult = {
-                      queryResult: {
-                        serviceType: 'movie',
-                        query: {
-                          filters: {
-                            genre: 'sci-fi',
-                            time: 'evening'
-                          }
-                        }
-                      }
-                    };
-                    break;
-
-                  case 'query_service_registry':
-                    const mockListings = [{
-                      id: 'amc-001',
-                      name: 'AMC Theatres',
-                      serviceType: 'movie',
-                      location: 'Downtown Plaza',
-                      providerId: 'amc-001',
-                      providerName: 'AMC Theatres',
-                      movieTitle: 'The Dark Knight',
-                      showtime: '7:00 PM',
-                      price: 15.99,
-                      rating: 4.8,
-                      genre: 'Action',
-                      duration: '152 min',
-                      format: 'IMAX'
-                    }, {
-                      id: 'cineplex-001',
-                      name: 'Cineplex Odeon',
-                      serviceType: 'movie',
-                      location: 'Mall Central',
-                      providerId: 'cineplex-001',
-                      providerName: 'Cineplex Odeon',
-                      movieTitle: 'Inception',
-                      showtime: '8:30 PM',
-                      price: 13.50,
-                      rating: 4.6,
-                      genre: 'Sci-Fi',
-                      duration: '148 min',
-                      format: '3D'
-                    }];
-                    actionResult = { listings: mockListings };
-                    updatedContext.listings = mockListings;
-                    break;
-
-                  case 'llm_format_response':
-                    actionResult = {
-                      message: 'Found great movie options! Here are the best matches for your request.',
-                      selectedListing: null, // Let user choose
-                      iGasCost: 0.001
-                    };
-                    updatedContext.llmResponse = actionResult;
-                    break;
-
-                  case 'check_balance':
-                    actionResult = {
-                      hasBalance: true,
-                      currentBalance: 100.0,
-                      requiredAmount: updatedContext.selectedListing?.price || 15.99
-                    };
-                    break;
-
-                  case 'process_payment':
-                    console.log(`   💰 [${requestId}] ========================================`);
-                    console.log(`   💰 [${requestId}] ✅ SWITCH CASE HIT: process_payment`);
-                    console.log(`   💰 [${requestId}] 💳 PROCESS_PAYMENT ACTION START`);
-                    console.log(`   💰 [${requestId}] ========================================`);
-                    try {
-                      console.log(`   💰 [${requestId}] Step 1: Extracting payment details from context`);
-                      const paymentUser = processedAction.user || updatedContext.user;
-                      const paymentAmount = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice || updatedContext.selectedListing?.price;
-                      
-                      console.log(`   💰 [${requestId}] Payment User:`, paymentUser ? { email: paymentUser.email, balance: paymentUser.balance } : 'MISSING');
-                      console.log(`   💰 [${requestId}] Payment Amount:`, paymentAmount);
-
-                      if (!paymentUser?.email || !paymentAmount) {
-                        console.error(`   ❌ [${requestId}] Missing payment details - user: ${!!paymentUser?.email}, amount: ${paymentAmount}`);
-                        throw new Error('Missing payment details');
-                      }
-
-                      console.log(`   💰 [${requestId}] Step 2: Getting ledger entry from context`);
-                      // Get ledger entry
-                      const ledgerEntryForPayment = processedAction.ledgerEntry || updatedContext.ledgerEntry;
-                      console.log(`   💰 [${requestId}] Ledger Entry from context:`, ledgerEntryForPayment ? {
-                        entryId: ledgerEntryForPayment.entryId,
-                        amount: ledgerEntryForPayment.amount,
-                        status: ledgerEntryForPayment.status
-                      } : 'MISSING');
-                      
-                      if (!ledgerEntryForPayment) {
-                        throw new Error('Missing ledger entry for payment processing');
-                      }
-
-                      console.log(`   💰 [${requestId}] Step 3: Finding ledger entry in LEDGER array`);
-                      // CRITICAL: Find the actual entry in LEDGER array to ensure we update the correct reference
-                      const ledgerEntryInArray = LEDGER.find(e => e.entryId === ledgerEntryForPayment.entryId);
-                      console.log(`   💰 [${requestId}] LEDGER array size:`, LEDGER.length);
-                      console.log(`   💰 [${requestId}] Looking for entryId: ${ledgerEntryForPayment.entryId}`);
-                      console.log(`   💰 [${requestId}] Found in LEDGER:`, !!ledgerEntryInArray);
-                      
-                      if (!ledgerEntryInArray) {
-                        console.error(`   ❌ [${requestId}] Available entryIds in LEDGER:`, LEDGER.map(e => e.entryId));
-                        throw new Error(`Ledger entry ${ledgerEntryForPayment.entryId} not found in LEDGER array`);
-                      }
-
-                      console.log(`   💰 [${requestId}] Step 4: Validating ledger entry amount`);
-                      console.log(`   💰 [${requestId}] Entry amount before check:`, ledgerEntryInArray.amount);
-                      // CRITICAL: Ensure the entry has an amount (use paymentAmount if entry.amount is missing)
-                      if (!ledgerEntryInArray.amount || ledgerEntryInArray.amount === 0) {
-                        console.warn(`   ⚠️ [${requestId}] Ledger entry ${ledgerEntryInArray.entryId} has no amount, using paymentAmount: ${paymentAmount}`);
-                        ledgerEntryInArray.amount = paymentAmount;
-                        // Persist the amount update
-                        if (redis) {
-                          redis.saveLedgerEntries(LEDGER);
-                          console.log(`   💾 [${requestId}] Persisted ledger entry with updated amount: ${ledgerEntryInArray.entryId}`);
-                        }
-                      }
-                      console.log(`   💰 [${requestId}] Entry amount after check:`, ledgerEntryInArray.amount);
-                      console.log(`   💰 [${requestId}] Entry status before payment:`, ledgerEntryInArray.status);
-
-                      console.log(`   💰 [${requestId}] Step 5: Debiting user wallet`);
-                      // Debit the user wallet
-                      const debitResult = debitWallet(paymentUser.email, paymentAmount);
-                      console.log(`   💰 [${requestId}] Debit result:`, {
-                        success: debitResult.success,
-                        newBalance: debitResult.newBalance,
-                        error: debitResult.error
-                      });
-                      
-                      if (!debitResult.success) {
-                        throw new Error(`Payment failed: ${debitResult.error}`);
-                      }
-
-                      console.log(`   💰 [${requestId}] Step 6: Getting cashier`);
-                      // Get cashier
-                      const cashierForPayment = processedAction.cashier || getCashierStatus();
-                      console.log(`   💰 [${requestId}] Cashier Before Payment:`, {
-                        id: cashierForPayment.id,
-                        name: cashierForPayment.name,
-                        processedCount: cashierForPayment.processedCount,
-                        totalProcessed: cashierForPayment.totalProcessed
-                      });
-
-                      console.log(`   💰 [${requestId}] Step 7: Calling processPayment function`);
-                      console.log(`   💰 [${requestId}] Parameters:`, {
-                        entryId: ledgerEntryInArray.entryId,
-                        entryAmount: ledgerEntryInArray.amount,
-                        entryStatus: ledgerEntryInArray.status,
-                        userEmail: paymentUser.email,
-                        cashierId: cashierForPayment.id
-                      });
-                      
-                      // Process payment (this will update status to 'processed' and persist)
-                      const paymentResult = await processPayment(cashierForPayment, ledgerEntryInArray, paymentUser);
-                      
-                      console.log(`   💰 [${requestId}] Step 8: Payment function returned:`, paymentResult);
-                      console.log(`   💰 [${requestId}] Entry status after processPayment:`, ledgerEntryInArray.status);
-                      console.log(`   💰 [${requestId}] Cashier After Payment:`, {
-                        id: cashierForPayment.id,
-                        processedCount: cashierForPayment.processedCount,
-                        totalProcessed: cashierForPayment.totalProcessed
-                      });
-
-                      if (!paymentResult) {
-                        console.error(`   ❌ [${requestId}] Payment processing returned false`);
-                        // Payment failed - status should be 'failed' now
-                        if (redis) {
-                          redis.saveLedgerEntries(LEDGER);
-                          console.log(`   💾 [${requestId}] Persisted ledger entry with failed status after payment failure: ${ledgerEntryInArray.entryId}`);
-                        }
-                        throw new Error('Payment processing failed');
-                      }
-
-                      console.log(`   💰 [${requestId}] Step 9: Verifying and persisting status`);
-                      // CRITICAL: Ensure status is 'processed' and persist (processPayment should have done this, but double-check)
-                      if (ledgerEntryInArray.status !== 'processed') {
-                        console.warn(`   ⚠️ [${requestId}] Ledger entry status is ${ledgerEntryInArray.status}, expected 'processed'. Updating...`);
-                        ledgerEntryInArray.status = 'processed';
-                      }
-                      
-                      console.log(`   💰 [${requestId}] Final entry status:`, ledgerEntryInArray.status);
-                      console.log(`   💰 [${requestId}] Redis available:`, !!redis);
-                      
-                      // Persist the status update (processPayment should have done this, but ensure it's persisted)
-                      if (redis) {
-                        redis.saveLedgerEntries(LEDGER);
-                        console.log(`   💾 [${requestId}] ✅ Persisted ledger entry with processed status after payment: ${ledgerEntryInArray.entryId}`);
-                        // Verify persistence by checking the entry again
-                        const persistedEntry = LEDGER.find(e => e.entryId === ledgerEntryInArray.entryId);
-                        console.log(`   💰 [${requestId}] Verification - Persisted entry status:`, persistedEntry?.status);
-                      } else {
-                        console.error(`   ❌ [${requestId}] Redis not available! Cannot persist processed status for entry: ${ledgerEntryInArray.entryId}`);
-                      }
-
-                      actionResult = {
-                        paymentProcessed: true,
-                        paymentSuccess: true,
-                        amount: paymentAmount,
-                        newBalance: debitResult.newBalance,
-                        ledgerEntry: ledgerEntryInArray
-                      };
-                      updatedContext.paymentSuccess = true;
-                      updatedContext.paymentProcessed = true;
-                      updatedContext.ledgerEntry = ledgerEntryInArray; // Update context with processed entry
-                      
-                      console.log(`   💰 [${requestId}] ========================================`);
-                      console.log(`   💰 [${requestId}] ✅ PAYMENT PROCESSED SUCCESSFULLY`);
-                      console.log(`   💰 [${requestId}] Entry ID: ${ledgerEntryInArray.entryId}`);
-                      console.log(`   💰 [${requestId}] Entry Status: ${ledgerEntryInArray.status}`);
-                      console.log(`   💰 [${requestId}] Cashier processedCount: ${cashierForPayment.processedCount}`);
-                      console.log(`   💰 [${requestId}] Cashier totalProcessed: ${cashierForPayment.totalProcessed}`);
-                      console.log(`   💰 [${requestId}] ========================================`);
-                    } catch (paymentError: any) {
-                      console.error(`   💰 [${requestId}] ========================================`);
-                      console.error(`   💰 [${requestId}] ❌ PAYMENT PROCESSING ERROR`);
-                      console.error(`   💰 [${requestId}] Error:`, paymentError.message);
-                      console.error(`   💰 [${requestId}] Stack:`, paymentError.stack);
-                      console.error(`   💰 [${requestId}] ========================================`);
-                      actionResult = {
-                        paymentProcessed: false,
-                        paymentSuccess: false,
-                        error: paymentError.message
-                      };
-                      updatedContext.paymentSuccess = false;
-                      throw paymentError; // Re-throw to fail the step
-                    }
-                    break;
-
-                  case 'complete_booking':
-                    actionResult = {
-                      bookingId: `booking-${Date.now()}`,
-                      status: 'confirmed',
-                      details: {
-                        movieTitle: updatedContext.selectedListing?.movieTitle,
-                        showtime: updatedContext.selectedListing?.showtime,
-                        price: updatedContext.selectedListing?.price
-                      }
-                    };
-                    break;
-
-                  case 'create_snapshot':
-                    // Use the same logic as the main handler (line 616)
-                    console.log(`📸 [${requestId}] Creating transaction snapshot (executeStepAtomically)`);
-                    try {
-                      const snapshot = {
-                        txId: `tx_${Date.now()}`,
-                        blockTime: Date.now(),
-                        payer: processedAction.payer || updatedContext.user?.email || 'unknown@example.com',
-                        amount: processedAction.amount || updatedContext.moviePrice || updatedContext.selectedListing?.price || 0,
-                        feeSplit: {
-                          indexer: 0,
-                          cashier: 0.1,
-                          provider: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.05,
-                          eden: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.02
-                        }
-                      };
-                      actionResult = { snapshot };
-                      updatedContext.snapshot = snapshot;
-                      updatedContext.iGasCost = updatedContext.iGasCost || 0.00445;
-                      updatedContext.moviePrice = updatedContext.selectedListing?.price || snapshot.amount;
-                      console.log(`📸 [${requestId}] Snapshot created in executeStepAtomically:`, {
-                        txId: snapshot.txId,
-                        payer: snapshot.payer,
-                        amount: snapshot.amount
-                      });
-                    } catch (snapshotError) {
-                      console.error(`❌ [${requestId}] Error creating snapshot:`, snapshotError);
-                      actionResult = { error: snapshotError.message };
-                    }
-                    break;
-
-                  case 'validate_certificate':
-                    // Use the same logic as the main handler (line 650)
-                    console.log(`🔐 [${requestId}] Validating certificate (executeStepAtomically):`, processedAction.providerUuid || updatedContext.selectedListing?.providerId);
-                    actionResult = {
-                      certificateValid: true,
-                      providerUuid: processedAction.providerUuid || updatedContext.selectedListing?.providerId || updatedContext.providerUuid,
-                      validationTimestamp: Date.now()
-                    };
-                    // Store providerUuid in context for template variables
-                    updatedContext.providerUuid = actionResult.providerUuid;
-                    console.log(`🔐 [${requestId}] Certificate validation passed`);
-                    break;
-
-                  case 'add_ledger_entry':
-                    // Use the same logic as the main handler (line 764)
-                    console.log(`🔍 [${requestId}] Executing add_ledger_entry action (executeStepAtomically) - START`);
-                    try {
-                      let snapshot = processedAction.snapshot || updatedContext.snapshot;
-                      if (!snapshot) {
-                        throw new Error('No snapshot available for ledger entry creation');
-                      }
-
-                      // CRITICAL: Handle case where snapshot might be a string (from template replacement)
-                      if (typeof snapshot === 'string') {
-                        console.warn(`⚠️ [${requestId}] Snapshot is a string, attempting to parse: ${snapshot.substring(0, 50)}...`);
-                        try {
-                          // Try to parse if it's JSON
-                          if (snapshot.startsWith('{')) {
-                            snapshot = JSON.parse(snapshot);
-                          } else {
-                            // If it's '[object Object]', get the actual object from context
-                            snapshot = updatedContext.snapshot;
-                            if (typeof snapshot === 'string') {
-                              throw new Error('Snapshot is still a string after fallback to context');
-                            }
-                          }
-                        } catch (parseError) {
-                          console.error(`❌ [${requestId}] Failed to parse snapshot string:`, parseError);
-                          // Fallback to context snapshot
-                          snapshot = updatedContext.snapshot;
-                        }
-                      }
-
-                      // Validate snapshot is an object
-                      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-                        throw new Error(`Invalid snapshot type: ${typeof snapshot}. Expected object, got: ${snapshot}`);
-                      }
-
-                      // Log snapshot details for debugging
-                      console.log(`📸 [${requestId}] Snapshot details:`, {
-                        txId: snapshot.txId,
-                        amount: snapshot.amount,
-                        payer: snapshot.payer,
-                        blockTime: snapshot.blockTime,
-                        hasFeeSplit: !!snapshot.feeSplit
-                      });
-
-                      // CRITICAL: Ensure we have a valid amount before creating ledger entry
-                      const entryAmount = snapshot.amount && snapshot.amount > 0
-                        ? snapshot.amount
-                        : (updatedContext.moviePrice || updatedContext.selectedListing?.price || 0);
-                      
-                      if (!entryAmount || entryAmount === 0) {
-                        throw new Error(`Cannot create ledger entry: amount is ${entryAmount}. Snapshot amount: ${snapshot.amount}, moviePrice: ${updatedContext.moviePrice}, selectedListing.price: ${updatedContext.selectedListing?.price}`);
-                      }
-
-                      // Update snapshot amount if it was 0 or missing
-                      if (!snapshot.amount || snapshot.amount === 0) {
-                        snapshot.amount = entryAmount;
-                        console.log(`⚠️ [${requestId}] Snapshot amount was ${snapshot.amount}, updated to ${entryAmount} from context`);
-                      } else {
-                        console.log(`✅ [${requestId}] Snapshot has valid amount: ${snapshot.amount}`);
-                      }
-
-                      const ledgerEntry = await addLedgerEntry(
-                        snapshot,
-                        processedAction.serviceType || 'movie',
-                        processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
-                        processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
-                        processedAction.merchantName || updatedContext.selectedListing?.providerName || 'AMC Theatres',
-                        processedAction.providerUuid || updatedContext.providerUuid || updatedContext.selectedListing?.providerId || 'amc-001',
-                        {
-                          movieTitle: updatedContext.selectedListing?.movieTitle,
-                          showtime: updatedContext.selectedListing?.showtime,
-                          location: updatedContext.selectedListing?.location,
-                          price: entryAmount // CRITICAL: Include price in bookingDetails as fallback
-                        }
-                      );
-
-                      actionResult = { ledgerEntry };
-                      updatedContext.ledgerEntry = ledgerEntry;
-                      
-                      // CRITICAL: Initialize cashier in context after ledger entry is created
-                      // This ensures cashier is available for the cashier_process_payment step
-                      if (!updatedContext.cashier) {
-                        updatedContext.cashier = getCashierStatus();
-                        console.log(`   💰 [${requestId}] ========================================`);
-                        console.log(`   💰 [${requestId}] 💰 CASHIER INITIALIZED AFTER LEDGER ENTRY CREATION`);
-                        console.log(`   💰 [${requestId}] Ledger Entry ID: ${ledgerEntry.entryId}`);
-                        console.log(`   💰 [${requestId}] Ledger Entry cashierId: ${ledgerEntry.cashierId}`);
-                        console.log(`   💰 [${requestId}] Cashier initialized:`, {
-                          id: updatedContext.cashier.id,
-                          name: updatedContext.cashier.name,
-                          processedCount: updatedContext.cashier.processedCount,
-                          totalProcessed: updatedContext.cashier.totalProcessed
-                        });
-                        console.log(`   💰 [${requestId}] ========================================`);
-                      }
-                      
-                      console.log(`📝 [${requestId}] Ledger entry created in executeStepAtomically:`, {
-                        entryId: ledgerEntry.entryId,
-                        txId: ledgerEntry.txId,
-                        merchant: ledgerEntry.merchant,
-                        amount: ledgerEntry.amount,
-                        cashierId: ledgerEntry.cashierId
-                      });
-                    } catch (ledgerError) {
-                      console.error(`❌ [${requestId}] Error adding ledger entry:`, ledgerError);
-                      actionResult = { error: ledgerError.message };
-                    }
-                    break;
-
-                  default:
-                    console.warn(`   ⚠️ [${requestId}] ========================================`);
-                    console.warn(`   ⚠️ [${requestId}] ⚠️ UNKNOWN ACTION TYPE IN SWITCH`);
-                    console.warn(`   ⚠️ [${requestId}] Action Type: ${action.type}`);
-                    console.warn(`   ⚠️ [${requestId}] Step ID: ${step.id}`);
-                    console.warn(`   ⚠️ [${requestId}] Step Name: ${step.name}`);
-                    console.warn(`   ⚠️ [${requestId}] This action has no handler!`);
-                    console.warn(`   ⚠️ [${requestId}] Available cases: validate, llm_extract_query, query_service_registry, llm_format_response, check_balance, process_payment, complete_booking, create_snapshot, validate_certificate, add_ledger_entry`);
-                    console.warn(`   ⚠️ [${requestId}] ========================================`);
-                    actionResult = { success: true };
-                }
-                
-                console.log(`   🤖 [${requestId}] Switch statement completed for action type: ${action.type}`);
-                console.log(`   🤖 [${requestId}] Action Result Keys:`, Object.keys(actionResult));
-
-                executedActions.push({
-                  type: action.type,
-                  result: actionResult,
-                  timestamp: Date.now()
-                });
-
-                // CRITICAL: Merge actionResult into updatedContext immediately after each action
-                // This ensures that snapshot, ledgerEntry, etc. are available for subsequent actions and websocket events
-                if (actionResult) {
-                  console.log(`   💾 [${requestId}] Before merge - actionResult keys:`, Object.keys(actionResult));
-                  console.log(`   💾 [${requestId}] Before merge - actionResult.snapshot:`, !!actionResult.snapshot);
-                  console.log(`   💾 [${requestId}] Before merge - actionResult.ledgerEntry:`, !!actionResult.ledgerEntry);
-                  Object.assign(updatedContext, actionResult);
-                  console.log(`   💾 [${requestId}] Merged actionResult from ${action.type} into context. Context now has keys:`, Object.keys(updatedContext));
-                  console.log(`   💾 [${requestId}] After merge - updatedContext.snapshot:`, !!updatedContext.snapshot, typeof updatedContext.snapshot);
-                  console.log(`   💾 [${requestId}] After merge - updatedContext.ledgerEntry:`, !!updatedContext.ledgerEntry, typeof updatedContext.ledgerEntry);
-                  if (actionResult.snapshot) {
-                    console.log(`   💾 [${requestId}] Snapshot merged successfully:`, {
-                      txId: updatedContext.snapshot?.txId,
-                      amount: updatedContext.snapshot?.amount
-                    });
-                  }
-                  if (actionResult.ledgerEntry) {
-                    console.log(`   💾 [${requestId}] LedgerEntry merged successfully:`, {
-                      entryId: updatedContext.ledgerEntry?.entryId,
-                      txId: updatedContext.ledgerEntry?.txId,
-                      merchant: updatedContext.ledgerEntry?.merchant
-                    });
-                  }
-                }
-
-              } catch (actionError) {
-                console.error(`   ❌ [${requestId}] Action execution error: ${action.type}`, actionError);
-                return { nextStepId: null, events: [] };
-              }
-            }
-          }
-
-          // Process WebSocket events
-          // CRITICAL: Process websocket events AFTER all actions are executed and merged into context
-          // This ensures that snapshot, ledgerEntry, and other action results are available for template replacement
-          if (step.websocketEvents) {
-            console.log(`   📡 [${requestId}] Processing ${step.websocketEvents.length} websocket events with context keys:`, Object.keys(updatedContext));
-            console.log(`   📡 [${requestId}] Context snapshot value:`, updatedContext.snapshot);
-            console.log(`   📡 [${requestId}] Context has snapshot:`, !!updatedContext.snapshot, typeof updatedContext.snapshot);
-            console.log(`   📡 [${requestId}] Context ledgerEntry value:`, updatedContext.ledgerEntry);
-            console.log(`   📡 [${requestId}] Context has ledgerEntry:`, !!updatedContext.ledgerEntry, typeof updatedContext.ledgerEntry);
-            console.log(`   📡 [${requestId}] Context iGasCost:`, updatedContext.iGasCost);
-            console.log(`   📡 [${requestId}] Context moviePrice:`, updatedContext.moviePrice);
-            console.log(`   📡 [${requestId}] Context providerUuid:`, updatedContext.providerUuid);
-            for (const event of step.websocketEvents) {
-              const processedEvent = replaceTemplateVariables(event, updatedContext);
-              events.push(processedEvent);
-              broadcastEvent(processedEvent);
-            }
-          }
-
-          // Continue to next step if this step completed successfully
-          const transitions = workflow.transitions.filter((t: any) => t.from === stepId);
-          let nextStepId: string | null = null;
-
-          for (const transition of transitions) {
-            try {
-              const conditionMet = evaluateCondition(transition.condition, updatedContext);
-              if (conditionMet) {
-                nextStepId = transition.to;
-                break;
-              }
-            } catch (error) {
-              console.warn(`   ⚠️ [${requestId}] Error evaluating transition condition: ${transition.condition}`, error);
-            }
-          }
-
-          // Return updated context so it can be stored
-          return { nextStepId, events, context: updatedContext };
-        };
-
-        // Determine which step just completed based on the decision type
-        let completedStepId: string;
-        let contextUpdates: any = {};
-
-        if (selectionData) {
-          // This was a selection (user_select_listing step)
-          completedStepId = stepId || 'user_select_listing';
-          contextUpdates = {
-            userSelection: selectionData,
-            selectedListing: selectionData
-          };
-          console.log(`   🎬 [${requestId}] User selected movie:`, selectionData, `from step: ${completedStepId}`);
-        } else {
-          // This was a decision
-          completedStepId = stepId || 'user_confirm_listing'; // fallback for backward compatibility
-          contextUpdates = {
-            userDecision: decision
-          };
-          console.log(`   🤔 [${requestId}] User made decision: ${decision} for step: ${completedStepId}`);
-        }
-
-        // Continue workflow execution with context updates
+        // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
+        // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
+        const executionId = workflowId; // workflowId is actually executionId in new architecture
+        
+        console.log(`   🔐 [${requestId}] Using FlowWiseService to process user decision`);
+        console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${decision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
+
+        // Submit user decision to FlowWiseService
+        // FlowWiseService will automatically execute the next step (including ROOT CA steps)
         try {
-          const result = await continueWorkflowExecution(workflow, workflowId, contextUpdates, completedStepId);
-
-          // Broadcast any events from the continued workflow execution
-          if (result.events && result.events.length > 0) {
-            console.log(`   📡 [${requestId}] Broadcasting ${result.events.length} workflow continuation events`);
-            for (const event of result.events) {
-              try {
-                broadcastEvent(event);
-                console.log(`   📡 [${requestId}] Broadcast event: ${event.type}`);
-              } catch (broadcastError) {
-                console.warn(`   ⚠️ [${requestId}] Failed to broadcast continuation event: ${event.type}`, broadcastError);
-              }
-            }
-          }
+          const result = await submitUserDecisionToFlowWise(executionId, decision, selectionData);
           
-          // Broadcast workflow step changed event if we have a next step
-          if (result.nextStepId) {
-            const nextStep = workflow.steps.find((s: any) => s.id === result.nextStepId);
-            const fullContext = {
-              ...contextUpdates,
-              selectedListing: contextUpdates.selectedListing || contextUpdates.userSelection,
-              listings: contextUpdates.listings || []
-            };
-            broadcastEvent({
-              type: "workflow_step_changed",
-              component: "workflow",
-              message: `Workflow progressed to: ${nextStep?.name || result.nextStepId}`,
-              timestamp: Date.now(),
-              data: {
-                stepId: result.nextStepId,
-                stepName: nextStep?.name,
-                component: nextStep?.component,
-                selectedListing: fullContext.selectedListing,
-                context: fullContext
-              }
-            });
-            console.log(`   📡 [${requestId}] Broadcast workflow_step_changed: ${result.nextStepId}`);
-          }
+          // FlowWiseService handles all broadcasting internally
+          // The result contains the instruction for the next step
+          console.log(`   ✅ [${requestId}] FlowWiseService processed decision successfully`);
+          console.log(`   ✅ [${requestId}] Next instruction type: ${result.instruction.type}`);
           
-          // Send success response
+          // Send success response with instruction
           sendResponse(200, {
             success: true,
             message: `${selectionData ? 'Selection' : 'Decision'} submitted successfully`,
             decision,
             selectionData,
-            nextStepId: result.nextStepId,
-            events: result.events.length
+            instruction: result.instruction
           });
-        } catch (broadcastError) {
-          console.warn(`   ⚠️ [${requestId}] Failed to broadcast decision event`, broadcastError);
-          sendResponse(200, { success: true, message: "Decision submitted (broadcast failed)" });
+        } catch (error: any) {
+          console.error(`   ❌ [${requestId}] Error processing decision with FlowWiseService:`, error.message);
+          console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+          console.error(`   ❌ [${requestId}] Full error:`, error);
+          sendResponse(500, { success: false, error: error.message, stack: error.stack });
         }
       } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error processing decision:`, error.message);
+        console.error(`   ❌ [${requestId}] Error parsing request:`, error.message);
         sendResponse(500, { success: false, error: error.message });
       }
     });
     return;
   }
-  
+
+  // OLD CODE REMOVED - All workflow execution now handled by FlowWiseService
+  // The following large code block was removed:
+  // - continueWorkflowExecution function
+  // - executeStepAtomically function
+  // - All old workflow execution logic
+  // This code is now handled by FlowWiseService in server/src/components/flowwiseService.ts
+
   if (pathname === "/api/chat" && req.method === "POST") {
     console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
     let body = "";
@@ -2477,26 +1621,170 @@ httpServer.on("request", async (req, res) => {
         
         console.log(`📨 Processing chat request from ${email}: "${input.trim()}"`);
         
-        // Process chat input (this is async and may throw errors)
-        // Use Promise.race to ensure we don't hang forever
-        const processPromise = processChatInput(input.trim(), email);
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Processing timeout after 3 minutes")), 180000);
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
+        // Find or create user
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          const nextId = `u${USERS_STATE.length + 1}`;
+          user = {
+            id: nextId,
+            email: email,
+            balance: 0,
+          };
+          USERS_STATE.push(user);
+          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+        }
+        
+        // Sync user balance with wallet (wallet is source of truth)
+        const currentWalletBalance = await getWalletBalance(email);
+        user.balance = currentWalletBalance;
+        
+        // Start workflow from user input using FlowWiseService
+        // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
+        const workflowResult = await startWorkflowFromUserInput(
+          input.trim(),
+          user,
+          "movie" // Default to movie for now, can be determined by LLM later
+        );
+        
+        // Broadcast workflow started event
+        broadcastEvent({
+          type: "workflow_started",
+          component: "workflow",
+          message: `Workflow started: ${workflowResult.executionId}`,
+          timestamp: Date.now(),
+          data: {
+            executionId: workflowResult.executionId,
+            currentStep: workflowResult.currentStep,
+            instruction: workflowResult.instruction,
+            workflowProcessingGas: workflowResult.workflowProcessingGas
+          }
         });
         
+        // Send response with workflow execution details
+        sendResponse(200, {
+          success: true,
+          executionId: workflowResult.executionId,
+          currentStep: workflowResult.currentStep,
+          instruction: workflowResult.instruction,
+          workflowProcessingGas: workflowResult.workflowProcessingGas
+        });
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing chat request:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/chat" && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) {
+        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
+        return;
+      }
+      bodyReceived = true;
+      // Ensure response is sent even if there's an unhandled error
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send:`, data);
+        }
+      };
+
+      let email = 'unknown';
+      
+      try {
+        // Parse and validate request body
+        if (!body || body.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Request body is required" });
+          return;
+        }
+        
+        let parsedBody;
         try {
-          await Promise.race([processPromise, timeoutPromise]);
-          
-          // Success response - ensure it's sent
-          if (!res.headersSent) {
-            sendResponse(200, { success: true, message: "Chat processed successfully" });
-            console.log(`✅ Chat request processed successfully for ${email}`);
-          } else {
-            console.warn(`⚠️  Response already sent, skipping success response`);
+          parsedBody = JSON.parse(body);
+        } catch (parseError: any) {
+          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
+          return;
+        }
+        
+        const { input, email: requestEmail } = parsedBody;
+        email = requestEmail || 'unknown';
+        
+        // Validate input
+        if (!input || typeof input !== 'string' || input.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Valid input message required" });
+          return;
+        }
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          sendResponse(400, { success: false, error: "Valid email address required" });
+          return;
+        }
+        
+        console.log(`📨 Processing chat request from ${email}: "${input.trim()}"`);
+        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
+        // Find or create user
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          const nextId = `u${USERS_STATE.length + 1}`;
+          user = {
+            id: nextId,
+            email: email,
+            balance: 0,
+          };
+          USERS_STATE.push(user);
+          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+        }
+        
+        // Sync user balance with wallet (wallet is source of truth)
+        const currentWalletBalance = await getWalletBalance(email);
+        user.balance = currentWalletBalance;
+        
+        // Start workflow from user input using FlowWiseService
+        // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
+        const workflowResult = await startWorkflowFromUserInput(
+          input.trim(),
+          user,
+          "movie" // Default to movie for now, can be determined by LLM later
+        );
+        
+        // Broadcast workflow started event
+        broadcastEvent({
+          type: "workflow_started",
+          component: "workflow",
+          message: `Workflow started: ${workflowResult.executionId}`,
+          timestamp: Date.now(),
+          data: {
+            executionId: workflowResult.executionId,
+            currentStep: workflowResult.currentStep,
+            instruction: workflowResult.instruction
           }
-        } catch (processError: any) {
-          // If processChatInput throws, it will be caught by outer catch
-          throw processError;
+        });
+        
+        // Success response with workflow execution ID
+        if (!res.headersSent) {
+          sendResponse(200, { 
+            success: true, 
+            message: "Chat processed successfully",
+            executionId: workflowResult.executionId,
+            instruction: workflowResult.instruction
+          });
+          console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
+        } else {
+          console.warn(`⚠️  Response already sent, skipping success response`);
         }
       } catch (error: any) {
         // Log error for debugging
@@ -9543,6 +8831,11 @@ async function main() {
   initializeFlowWise(broadcastEvent, path.join(__dirname, "data"));
   console.log("✅ [FlowWise] Workflow engine initialized");
   
+  // Initialize FlowWiseService as ROOT CA service (NEW ARCHITECTURE)
+  // SECURITY: FlowWiseService MUST be certified by ROOT CA to prevent ghost workflows
+  initializeFlowWiseService(broadcastEvent, path.join(__dirname, "data"), ROOT_CA, ROOT_CA_IDENTITY, redis);
+  console.log("✅ [FlowWiseService] ROOT CA workflow service initialized and certified with Redis instance");
+  
   // Initialize garden module (needed for issueGardenCertificate to use broadcastEvent)
   initializeGarden(broadcastEvent, redis);
   
@@ -9625,11 +8918,9 @@ async function main() {
   // Initialize LLM module with dependencies
   initializeLLM(broadcastEvent);
   
-  // Initialize ServiceRegistry2 (new implementation)
-  console.log("\n📋 Initializing ServiceRegistry2...");
-  initializeServiceRegistry2();
-  const serviceRegistry2 = getServiceRegistry2();
-  console.log(`   ✅ ServiceRegistry2 initialized with ${serviceRegistry2.getCount()} provider(s) from persistence`);
+  // NOTE: ServiceRegistry2 initialization is deferred until AFTER gardens are loaded from persistence
+  // This ensures that providers with gardenId references can be properly loaded
+  // See below where gardens are restored from persistence
   
   // CRITICAL: Add infrastructure providers to ServiceRegistry2 if they don't exist
   // These are the default infrastructure providers that should always be present
@@ -9708,27 +8999,8 @@ async function main() {
     }
   ];
   
-  // Add infrastructure providers to ServiceRegistry2 if they don't exist
-  let infrastructureAdded = 0;
-  for (const provider of infrastructureProviders) {
-    if (!serviceRegistry2.hasProvider(provider.id)) {
-      try {
-        serviceRegistry2.addProvider(provider);
-        infrastructureAdded++;
-        console.log(`   ✅ Added infrastructure provider: ${provider.name} (${provider.id})`);
-      } catch (err: any) {
-        console.warn(`   ⚠️  Failed to add infrastructure provider ${provider.id}: ${err.message}`);
-      }
-    }
-  }
-  
-  if (infrastructureAdded > 0) {
-    console.log(`   ✅ Added ${infrastructureAdded} infrastructure provider(s) to ServiceRegistry2`);
-    // Save immediately to persist infrastructure providers
-    serviceRegistry2.savePersistence();
-  }
-  
-  console.log(`   ✅ ServiceRegistry2 ready with ${serviceRegistry2.getCount()} total provider(s)`);
+  // NOTE: ServiceRegistry2 initialization and infrastructure provider addition
+  // will happen AFTER gardens are loaded from persistence (see below around line 9393)
   
   console.log("   ✅ All modules initialized");
   
@@ -10098,6 +9370,111 @@ async function main() {
     } catch (err: any) {
       console.error(`❌ [Indexer Persistence] Failed to restore indexers: ${err.message}`);
     }
+    
+    // CRITICAL: Initialize ServiceRegistry2 AFTER gardens are loaded from persistence
+    // This ensures that providers with gardenId references (like AMC with garden-1) can be properly loaded
+    console.log("\n📋 Initializing ServiceRegistry2 (AFTER gardens loaded)...");
+    initializeServiceRegistry2();
+    const serviceRegistry2 = getServiceRegistry2();
+    console.log(`   ✅ ServiceRegistry2 initialized with ${serviceRegistry2.getCount()} provider(s) from persistence`);
+    
+    // CRITICAL: Add infrastructure providers to ServiceRegistry2 if they don't exist
+    // These are the default infrastructure providers that should always be present
+    const infrastructureProviders: ServiceProviderWithCert[] = [
+      {
+        id: "stripe-payment-rail-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440100",
+        name: "Stripe Payment Rail",
+        serviceType: "payment-rail",
+        location: "Global",
+        bond: 50000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "https://api.stripe.com/v1",
+        status: 'active'
+      },
+      {
+        id: "settlement-service-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440101",
+        name: "Settlement Service",
+        serviceType: "settlement",
+        location: "ROOT CA",
+        bond: 100000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "internal://settlement",
+        status: 'active'
+      },
+      {
+        id: "service-registry-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440102",
+        name: "Service Registry",
+        serviceType: "registry",
+        location: "ROOT CA",
+        bond: 50000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "internal://service-registry",
+        status: 'active'
+      },
+      {
+        id: "webserver-service-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440103",
+        name: "Web Server",
+        serviceType: "webserver",
+        location: "ROOT CA",
+        bond: 10000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: `http://localhost:${HTTP_PORT}`,
+        status: 'active'
+      },
+      {
+        id: "websocket-service-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440104",
+        name: "WebSocket Service",
+        serviceType: "websocket",
+        location: "ROOT CA",
+        bond: 10000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: `ws://localhost:${HTTP_PORT}`,
+        status: 'active'
+      },
+      {
+        id: "wallet-service-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440105",
+        name: "JesusCoin Wallet Service",
+        serviceType: "wallet",
+        location: "ROOT CA",
+        bond: 200000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "internal://wallet",
+        status: 'active'
+      }
+    ];
+    
+    let infrastructureAdded = 0;
+    for (const provider of infrastructureProviders) {
+      if (!serviceRegistry2.hasProvider(provider.id)) {
+        try {
+          serviceRegistry2.addProvider(provider);
+          infrastructureAdded++;
+          console.log(`   ✅ Added infrastructure provider: ${provider.name} (${provider.id})`);
+        } catch (err: any) {
+          console.warn(`   ⚠️  Failed to add infrastructure provider ${provider.id}: ${err.message}`);
+        }
+      }
+    }
+    
+    if (infrastructureAdded > 0) {
+      console.log(`   ✅ Added ${infrastructureAdded} infrastructure provider(s) to ServiceRegistry2`);
+      // Save immediately to persist infrastructure providers
+      serviceRegistry2.savePersistence();
+    }
+    
+    console.log(`   ✅ ServiceRegistry2 ready with ${serviceRegistry2.getCount()} total provider(s)`);
     
     // CRITICAL: After gardens are loaded, ensure all hardcoded providers are present if their gardens exist
     // This fixes the issue where providers are removed during initial load before gardens exist

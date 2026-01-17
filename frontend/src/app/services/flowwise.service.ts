@@ -106,8 +106,13 @@ export class FlowWiseService {
         console.log('🤔 [FlowWise] Server-side decision required:', event);
 
         // Convert WebSocket event to decision request format
+        // CRITICAL: Use workflowId (executionId) from event.data, not decisionId
+        // decisionId is just an identifier for the decision type, not the workflow execution ID
+        const executionId = event.data.workflowId || event.data.executionId || event.data.decisionId || 'server_decision';
+        console.log(`🔍 [FlowWise] Decision event - workflowId: ${event.data.workflowId}, executionId: ${event.data.executionId}, decisionId: ${event.data.decisionId}, using: ${executionId}`);
+        
         const decisionRequest: UserDecisionRequest = {
-          executionId: event.data.workflowId || event.data.decisionId || 'server_decision',
+          executionId: executionId,
           stepId: event.data.stepId || 'unknown',
           prompt: event.data.prompt || event.message || 'Please make a decision',
           options: event.data.options || [

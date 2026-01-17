@@ -51,14 +51,17 @@ export class ServiceRegistry2 {
           const gardenId = providerData.gardenId || providerData.indexerId; // Backward compatibility
           
           // CRITICAL: Only load providers whose gardens actually exist (or are "HG" for infrastructure)
+          // NOTE: This check happens during server startup, so gardens should already be loaded
+          // If gardens aren't loaded yet, we'll still load the provider and validate later
           const gardenExists = gardenId === 'HG' || 
                               GARDENS.some(g => g.id === gardenId) || 
                               TOKEN_GARDENS.some(tg => tg.id === gardenId);
           
           if (!gardenExists && gardenId) {
-            console.log(`⚠️  [ServiceRegistry2] Skipping provider ${providerData.id} (${providerData.name}): gardenId "${gardenId}" does not exist`);
-            skippedCount++;
-            continue;
+            // WARNING: Garden doesn't exist yet - this might be a timing issue
+            // Load the provider anyway - it will be validated when accessed
+            console.log(`⚠️  [ServiceRegistry2] Loading provider ${providerData.id} (${providerData.name}) with gardenId "${gardenId}" even though garden doesn't exist yet (may be loaded later)`);
+            // Don't skip - load it anyway
           }
           
           // Create provider object

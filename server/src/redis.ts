@@ -718,17 +718,124 @@ export class InMemoryRedisServer extends EventEmitter {
   }
   
   // Public method to save ledger entries
+  // CRITICAL: ROOT CA ledger entries must be persisted IMMEDIATELY (no debounce)
+  // This is a ROOT CA operation - it must be saved synchronously to ensure data integrity
   saveLedgerEntries(ledgerEntries: any[]): void {
     if (!ledgerEntries || !Array.isArray(ledgerEntries)) {
       console.error(`❌ [Redis Persistence] Invalid ledgerEntries provided to saveLedgerEntries:`, typeof ledgerEntries);
       return;
     }
-    console.log(`💾 [Redis Persistence] saveLedgerEntries called with ${ledgerEntries.length} entries`);
+    console.log(`💾 [Redis Persistence] 🔐 ROOT CA: saveLedgerEntries called with ${ledgerEntries.length} entries (IMMEDIATE PERSISTENCE)`);
     if (ledgerEntries.length > 0) {
       const serviceTypes = ledgerEntries.map((e: any) => e.serviceType || 'unknown');
+      const entryIds = ledgerEntries.map((e: any) => e.entryId || 'no-id').slice(0, 5);
       console.log(`💾 [Redis Persistence] Entry service types: ${serviceTypes.join(', ')}`);
+      console.log(`💾 [Redis Persistence] Entry IDs (first 5): ${entryIds.join(', ')}`);
+    } else {
+      console.warn(`⚠️ [Redis Persistence] WARNING: saveLedgerEntries called with EMPTY array! This will overwrite existing entries!`);
     }
-    this.savePersistence(ledgerEntries);
+    
+    // CRITICAL: For ROOT CA ledger entries, save IMMEDIATELY (no debounce)
+    // Clear any pending debounced save for ledger entries
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    
+    // Save immediately (synchronously) for ROOT CA ledger entries
+    this.savePersistenceImmediate(ledgerEntries);
+  }
+  
+  // Immediate persistence for ROOT CA ledger entries (no debounce)
+  private savePersistenceImmediate(ledgerEntries?: any[]): void {
+    try {
+      // CRITICAL: Load existing wallet balances FIRST to preserve them
+      let existingWalletBalances: Record<string, string> = {};
+      
+      if (fs.existsSync(this.persistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
+          const existing = JSON.parse(fileContent);
+          if (existing.walletBalances && typeof existing.walletBalances === 'object') {
+            existingWalletBalances = existing.walletBalances;
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load existing wallet balances: ${err.message}`);
+        }
+      }
+      
+      // Start with existing wallet balances from file (preserve them)
+      const walletBalances: Record<string, string> = { ...existingWalletBalances };
+      
+      // Update wallet balances from in-memory
+      for (const [key, value] of this.data.entries()) {
+        if (key.startsWith('wallet:balance:')) {
+          const balanceValue = typeof value === 'string' ? value : JSON.stringify(value);
+          const balanceNum = parseFloat(balanceValue);
+          if (!isNaN(balanceNum) && balanceNum > 0) {
+            walletBalances[key] = balanceValue;
+          }
+        } else if (key.startsWith('wallet:audit:')) {
+          walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);
+        }
+      }
+
+      // Load existing ledger entries from separate file
+      let existingLedgerEntries: any[] = [];
+      if (fs.existsSync(this.ledgerEntriesFile)) {
+        try {
+          const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
+          const existing = JSON.parse(fileContent);
+          if (existing.ledgerEntries && Array.isArray(existing.ledgerEntries)) {
+            existingLedgerEntries = existing.ledgerEntries;
+          }
+        } catch (err: any) {
+          console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
+        }
+      }
+      
+      // CRITICAL: Use provided ledger entries (ROOT CA is source of truth)
+      // Merge with existing to avoid duplicates, but prefer new entries
+      const finalLedgerEntries = ledgerEntries !== undefined ? ledgerEntries : existingLedgerEntries;
+      
+      // Deduplicate by entryId (prefer newer entries)
+      const deduplicatedEntries = new Map<string, any>();
+      for (const entry of finalLedgerEntries) {
+        if (entry.entryId) {
+          const existing = deduplicatedEntries.get(entry.entryId);
+          if (!existing || (entry.timestamp && existing.timestamp && entry.timestamp > existing.timestamp)) {
+            deduplicatedEntries.set(entry.entryId, entry);
+          }
+        }
+      }
+      const uniqueLedgerEntries = Array.from(deduplicatedEntries.values());
+      
+      // REFACTOR: Save to separate files
+      const timestamp = new Date().toISOString();
+      
+      // Save wallet balances to main file
+      const walletData = {
+        walletBalances,
+        lastSaved: timestamp
+      };
+      fs.writeFileSync(this.persistenceFile, JSON.stringify(walletData, null, 2), 'utf-8');
+      console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
+      
+      // CRITICAL: Save ledger entries IMMEDIATELY to separate file (ROOT CA operation)
+      const ledgerData = {
+        ledgerEntries: uniqueLedgerEntries,
+        lastSaved: timestamp
+      };
+      fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
+      console.log(`💾 [Redis Persistence] 🔐 ROOT CA: IMMEDIATELY saved ${uniqueLedgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
+      if (uniqueLedgerEntries.length > 0) {
+        console.log(`💾 [Redis Persistence] Entry types: ${uniqueLedgerEntries.map((e: any) => e.serviceType || 'unknown').join(', ')}`);
+        console.log(`💾 [Redis Persistence] Entry statuses: ${uniqueLedgerEntries.map((e: any) => e.status || 'unknown').join(', ')}`);
+      }
+    } catch (err: any) {
+      console.error(`❌ [Redis Persistence] CRITICAL: Failed to save ledger entries IMMEDIATELY: ${err.message}`);
+      console.error(`❌ [Redis Persistence] Stack:`, err.stack);
+    }
   }
   
   // Public method to save indexers

@@ -45,7 +45,9 @@ export function getCashierStatus(): Cashier {
   if (!CASHIER) {
     throw new Error("Ledger module not initialized. Call initializeLedger() first.");
   }
-  return { ...CASHIER };
+  // CRITICAL: Return the actual CASHIER object, not a copy, so updates persist
+  // This ensures processedCount and totalProcessed updates are reflected
+  return CASHIER;
 }
 
 /**
@@ -134,12 +136,19 @@ export function addLedgerEntry(
   // Push ledger entry to local ledger (for immediate access)
   LEDGER.push(entry);
   
-  // Persist ledger entry
+  // CRITICAL: Persist ledger entry IMMEDIATELY (ROOT CA operation - no debounce)
+  // ROOT CA ledger entries must be saved synchronously - Eden must have it before Angular
   if (redis) {
-    console.log(`💾 [Ledger] Saving ${LEDGER.length} ledger entries (including new ${entry.serviceType} entry: ${entry.entryId})`);
-    redis.saveLedgerEntries(LEDGER);
+    console.log(`💾 [Ledger] 🔐 ROOT CA: Saving ${LEDGER.length} ledger entries IMMEDIATELY (including new ${entry.serviceType} entry: ${entry.entryId})`);
+    try {
+      redis.saveLedgerEntries(LEDGER);
+      console.log(`💾 [Ledger] ✅ ROOT CA: Ledger entry ${entry.entryId} persisted IMMEDIATELY to disk`);
+    } catch (err: any) {
+      console.error(`❌ [Ledger] CRITICAL: Failed to save ledger entry IMMEDIATELY: ${err.message}`);
+      console.error(`❌ [Ledger] Stack:`, err.stack);
+    }
   } else {
-    console.error(`❌ [Ledger] Redis instance not available! Cannot persist ledger entry: ${entry.entryId}`);
+    console.error(`❌ [Ledger] CRITICAL: Redis instance not available! Cannot persist ledger entry: ${entry.entryId}`);
   }
   
   // ARCHITECTURAL PATTERN: Ledger Push + Settlement Pull
@@ -354,12 +363,12 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
   entry.status = 'processed';
   console.log(`   💰 [Ledger] Entry status (after update): ${entry.status}`);
   
-  // CRITICAL: Persist ledger entry after payment processing
-  console.log(`   💰 [Ledger] Step 6: Persisting ledger entry`);
+  // CRITICAL: Persist ledger entry IMMEDIATELY after payment processing (ROOT CA operation)
+  console.log(`   💰 [Ledger] Step 6: Persisting ledger entry IMMEDIATELY (ROOT CA)`);
   console.log(`   💰 [Ledger] Redis available: ${!!redis}`);
   if (redis) {
     redis.saveLedgerEntries(LEDGER);
-    console.log(`   💾 [Ledger] ✅ Persisted ledger entry ${entry.entryId} after payment processing`);
+    console.log(`   💾 [Ledger] ✅ ROOT CA: Persisted ledger entry ${entry.entryId} IMMEDIATELY after payment processing`);
     // Verify the entry in LEDGER array
     const persistedEntry = LEDGER.find(e => e.entryId === entry.entryId);
     console.log(`   💰 [Ledger] Verification - Entry in LEDGER array:`, persistedEntry ? {
@@ -368,7 +377,7 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
       amount: persistedEntry.amount
     } : 'NOT FOUND');
   } else {
-    console.error(`   ❌ [Ledger] Redis not available! Cannot persist ledger entry`);
+    console.error(`   ❌ [Ledger] CRITICAL: Redis not available! Cannot persist ledger entry!`);
   }
 
   // CRITICAL: Broadcast payment processed event to Angular
