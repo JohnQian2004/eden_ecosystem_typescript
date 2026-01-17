@@ -10,6 +10,12 @@ export const LLM_BASE_COST = 0.001; // Base cost per LLM call
 export const ROUTING_COST_PER_PROVIDER = 0.0001; // Cost per service provider queried
 export const REASONING_COST_MULTIPLIER = 1.5; // Multiplier for complex reasoning
 
+// Workflow Processing Gas Constants (NEW)
+export const WORKFLOW_BASE_COST = 0.001; // Base cost for workflow orchestration
+export const WORKFLOW_STEP_COST = 0.0001; // Cost per workflow step executed
+export const WORKFLOW_ACTION_COST = 0.00005; // Cost per action executed within a step
+export const WORKFLOW_COMPLEXITY_MULTIPLIER = 1.0; // Multiplier for workflow complexity
+
 // DEX Trading Constants
 export const PRICE_IMPACT_PER_TRADE = 0.00001; // 0.001% = 0.00001
 export const ITAX_RATE = 0.000005; // 0.0005% = 0.000005
