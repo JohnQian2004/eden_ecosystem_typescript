@@ -95,11 +95,59 @@
       "uuid": "ad9d31b0-9fc5-4ac9-9000-16957dfed712",
       "apiEndpoint": "https://api.airline.com/v1",
       "gardenId": "garden-1"
+    },
+    {
+      "id": "amc-001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "gardenId": "garden-2"
+    },
+    {
+      "id": "autoparts-b63a26ef",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "bf3a570b-e72b-4b19-9e51-ad0c8711a9b9",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-3"
+    },
+    {
+      "id": "hotel-09641828",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "95e85351-09af-48a5-abde-0c4a35f25fe7",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-4"
+    },
+    {
+      "id": "restaurant-c354dad5",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "87ad75ee-9052-4c68-be70-def48ebd954b",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-5"
     }
   ],
-  "totalProviders": 8,
-  "movieProviders": 0,
+  "totalProviders": 12,
+  "movieProviders": 1,
   "dexProviders": 0,
   "airlineProviders": 2,
-  "lastSaved": "2026-01-17T16:57:56.088Z"
+  "lastSaved": "2026-01-17T23:19:55.586Z"
 }

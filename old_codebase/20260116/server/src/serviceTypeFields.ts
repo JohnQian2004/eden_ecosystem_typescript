@@ -121,6 +121,24 @@ export function extractBookingDetails(serviceType: string, listing: any): Record
     if (listing.flightNumber) details.flightNumber = listing.flightNumber;
     if (listing.destination) details.destination = listing.destination;
     if (listing.date) details.date = listing.date;
+  } else if (serviceType === 'autoparts') {
+    if (listing.partName) details.partName = listing.partName;
+    if (listing.partNumber) details.partNumber = listing.partNumber;
+    if (listing.category) details.category = listing.category;
+    if (listing.warehouse) details.warehouse = listing.warehouse;
+    if (listing.availability) details.availability = listing.availability;
+  } else if (serviceType === 'hotel') {
+    if (listing.hotelName) details.hotelName = listing.hotelName;
+    if (listing.checkIn) details.checkIn = listing.checkIn;
+    if (listing.checkOut) details.checkOut = listing.checkOut;
+    if (listing.roomType) details.roomType = listing.roomType;
+    if (listing.location) details.location = listing.location;
+  } else if (serviceType === 'restaurant') {
+    if (listing.restaurantName) details.restaurantName = listing.restaurantName;
+    if (listing.reservationTime) details.reservationTime = listing.reservationTime;
+    if (listing.cuisine) details.cuisine = listing.cuisine;
+    if (listing.partySize) details.partySize = listing.partySize;
+    if (listing.location) details.location = listing.location;
   }
 
   return details;

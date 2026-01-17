@@ -626,6 +626,22 @@ httpServer.on("request", async (req, res) => {
         // Initialize updatedContext from the provided context
         const updatedContext = { ...context };
         
+        // Set service-type-specific price in context if selectedListing exists
+        if (updatedContext.selectedListing && updatedContext.selectedListing.price) {
+          const currentServiceType = updatedContext.serviceType || serviceType || 'movie';
+          if (currentServiceType === 'hotel') {
+            updatedContext.hotelPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'movie') {
+            updatedContext.moviePrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'airline') {
+            updatedContext.airlinePrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'restaurant') {
+            updatedContext.restaurantPrice = updatedContext.selectedListing.price;
+          }
+          // Also set generic totalCost for backward compatibility
+          updatedContext.totalCost = updatedContext.selectedListing.price;
+        }
+        
         // CRITICAL: Initialize cashier in context if not already set (needed for cashier_process_payment step)
         if (!updatedContext.cashier && (step.component === 'cashier' || step.id === 'cashier_process_payment')) {
           updatedContext.cashier = getCashierStatus();
@@ -821,16 +837,26 @@ httpServer.on("request", async (req, res) => {
                 case 'create_snapshot':
                   console.log(`📸 [${requestId}] Creating transaction snapshot`);
                   try {
+                    const currentServiceType = updatedContext.serviceType || serviceType || 'movie';
+                    const listingPrice = updatedContext.selectedListing?.price || 0;
+                    const snapshotAmount = processedAction.amount || 
+                                          updatedContext.moviePrice || 
+                                          updatedContext.hotelPrice || 
+                                          updatedContext.restaurantPrice ||
+                                          updatedContext.totalCost ||
+                                          listingPrice || 
+                                          0;
+                    
                     const snapshot = {
                       txId: `tx_${Date.now()}`,
                       blockTime: Date.now(),
                       payer: processedAction.payer || updatedContext.user?.email || 'unknown@example.com',
-                      amount: processedAction.amount || updatedContext.moviePrice || updatedContext.selectedListing?.price || 0,
+                      amount: snapshotAmount,
                       feeSplit: {
                         indexer: 0,
                         cashier: 0.1,
-                        provider: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.05,
-                        eden: (processedAction.amount || updatedContext.selectedListing?.price || 0) * 0.02
+                        provider: snapshotAmount * 0.05,
+                        eden: snapshotAmount * 0.02
                       }
                     };
                     actionResult = { snapshot };
@@ -838,14 +864,26 @@ httpServer.on("request", async (req, res) => {
                     updatedContext.snapshot = snapshot;
                     // Also ensure iGasCost is in context
                     updatedContext.iGasCost = updatedContext.iGasCost || 0.00445;
-                    // Also ensure moviePrice is in context for template variables
-                    updatedContext.moviePrice = updatedContext.selectedListing?.price || snapshot.amount;
+                    // Set service-type-specific price in context for template variables
+                    if (currentServiceType === 'movie') {
+                      updatedContext.moviePrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'hotel') {
+                      updatedContext.hotelPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'airline') {
+                      updatedContext.airlinePrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'restaurant') {
+                      updatedContext.restaurantPrice = listingPrice || snapshotAmount;
+                    }
+                    // Also set generic totalCost for backward compatibility
+                    updatedContext.totalCost = listingPrice || snapshotAmount;
+                    
                     console.log(`📸 [${requestId}] Snapshot created:`, {
                       txId: snapshot.txId,
                       payer: snapshot.payer,
-                      amount: snapshot.amount
+                      amount: snapshot.amount,
+                      serviceType: currentServiceType
                     });
-                    console.log(`📸 [${requestId}] Context now has: snapshot=${!!updatedContext.snapshot}, iGasCost=${updatedContext.iGasCost}, moviePrice=${updatedContext.moviePrice}`);
+                    console.log(`📸 [${requestId}] Context now has: snapshot=${!!updatedContext.snapshot}, iGasCost=${updatedContext.iGasCost}, price=${listingPrice || snapshotAmount}`);
                   } catch (snapshotError) {
                     console.error(`❌ [${requestId}] Error creating snapshot:`, snapshotError);
                     actionResult = { error: snapshotError.message };
@@ -923,6 +961,24 @@ httpServer.on("request", async (req, res) => {
                     baseListing.date = ['2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24'][index % 5];
                     baseListing.departure = ['8:00 AM', '10:30 AM', '2:00 PM', '6:00 PM', '9:30 PM'][index % 5];
                     baseListing.arrival = ['11:00 AM', '1:30 PM', '5:00 PM', '9:00 PM', '12:30 AM'][index % 5];
+                  } else if (queryServiceType === 'autoparts') {
+                    baseListing.partName = ['Brake Pads', 'Oil Filter', 'Air Filter', 'Spark Plugs', 'Battery'][index % 5];
+                    baseListing.partNumber = [`BP-${1000 + index}`, `OF-${2000 + index}`, `AF-${3000 + index}`, `SP-${4000 + index}`, `BAT-${5000 + index}`][index % 5];
+                    baseListing.category = ['Brakes', 'Filters', 'Filters', 'Ignition', 'Electrical'][index % 5];
+                    baseListing.warehouse = ['Warehouse A', 'Warehouse B', 'Warehouse C', 'Warehouse D', 'Warehouse E'][index % 5];
+                    baseListing.availability = ['In Stock', 'In Stock', 'Low Stock', 'In Stock', 'In Stock'][index % 5];
+                  } else if (queryServiceType === 'hotel') {
+                    baseListing.hotelName = ['Grand Plaza Hotel', 'Oceanview Resort', 'City Center Inn', 'Mountain Lodge', 'Beachside Suites'][index % 5];
+                    baseListing.checkIn = ['2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24'][index % 5];
+                    baseListing.checkOut = ['2026-01-22', '2026-01-23', '2026-01-24', '2026-01-25', '2026-01-26'][index % 5];
+                    baseListing.roomType = ['Standard', 'Deluxe', 'Suite', 'Executive', 'Presidential'][index % 5];
+                    baseListing.location = ['Downtown', 'Beachfront', 'City Center', 'Airport', 'Resort Area'][index % 5];
+                  } else if (queryServiceType === 'restaurant') {
+                    baseListing.restaurantName = ['The Gourmet Bistro', 'Seaside Grill', 'Mountain View Restaurant', 'Downtown Diner', 'Garden Cafe'][index % 5];
+                    baseListing.reservationTime = ['7:00 PM', '8:00 PM', '6:30 PM', '7:30 PM', '8:30 PM'][index % 5];
+                    baseListing.cuisine = ['Italian', 'French', 'Asian Fusion', 'American', 'Mediterranean'][index % 5];
+                    baseListing.partySize = [2, 4, 2, 6, 4][index % 5];
+                    baseListing.location = ['Downtown', 'Waterfront', 'Uptown', 'Historic District', 'Shopping District'][index % 5];
                   } else {
                     // Generic fallback for other service types
                     baseListing.name = `${provider.name} Service`;
@@ -1007,8 +1063,10 @@ httpServer.on("request", async (req, res) => {
                       amount: snapshot.amount,
                       payer: snapshot.payer,
                       merchant: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
-                      bookingDetails: bookingDetails
+                      bookingDetails: bookingDetails,
+                      selectedListing: updatedContext.selectedListing
                     });
+                    console.log(`📝 [${requestId}] Extracted booking details for ${ledgerServiceType}:`, JSON.stringify(bookingDetails, null, 2));
 
                     console.log(`📝 [${requestId}] Calling addLedgerEntry with:`, {
                       snapshotTxId: snapshot.txId,
@@ -1188,6 +1246,28 @@ httpServer.on("request", async (req, res) => {
                   // If we reach here, it means the async handler didn't catch it
                   console.warn(`⚠️ [${requestId}] start_movie_watching reached switch case - should be handled asynchronously`);
                   actionResult = { movieStarted: false, error: 'Should be handled asynchronously' };
+                  break;
+
+                case 'start_hotel_booking':
+                  console.log(`🏨 [${requestId}] Starting hotel booking`);
+                  const hotelName = processedAction.hotelName || updatedContext.selectedListing?.hotelName || 'Unknown Hotel';
+                  const duration = processedAction.duration || 1;
+                  const confirmationMessage = processedAction.confirmationMessage || `Your booking for ${hotelName} is confirmed!`;
+                  
+                  // Simulate hotel booking process
+                  actionResult = {
+                    hotelBooked: true,
+                    hotelName: hotelName,
+                    duration: duration,
+                    confirmationMessage: confirmationMessage,
+                    bookingId: `hotel_${Date.now()}`
+                  };
+                  
+                  // CRITICAL: Set hotelBooked in context for transition conditions
+                  updatedContext.hotelBooked = true;
+                  updatedContext.confirmationMessage = confirmationMessage;
+                  
+                  console.log(`🏨 [${requestId}] Hotel booking completed: ${hotelName} for ${duration} night(s)`);
                   break;
 
                 case 'complete_booking':

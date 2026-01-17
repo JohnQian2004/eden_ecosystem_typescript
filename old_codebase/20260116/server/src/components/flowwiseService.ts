@@ -648,23 +648,42 @@ async function executeStepActions(
           context.requiredAmount = context.selectedListing?.price || 0;
           break;
 
-        case "create_snapshot":
+        case "create_snapshot": {
           // Create transaction snapshot (FULLY AUTOMATED)
+          const snapshotServiceType = context.serviceType || "movie";
+          const snapshotServiceTypePrice = snapshotServiceType === 'hotel' ? context.hotelPrice :
+                                          snapshotServiceType === 'airline' ? context.airlinePrice :
+                                          snapshotServiceType === 'restaurant' ? context.restaurantPrice :
+                                          snapshotServiceType === 'movie' ? context.moviePrice :
+                                          context.totalCost;
+          const snapshotAmount = processedAction.amount || snapshotServiceTypePrice || context.selectedListing?.price || 0;
+          
           context.snapshot = {
             txId: `tx_${Date.now()}`,
             blockTime: Date.now(),
             payer: context.user?.email || "unknown@example.com",
-            amount: processedAction.amount || context.moviePrice || context.selectedListing?.price || 0,
+            amount: snapshotAmount,
             feeSplit: {
               indexer: 0,
               cashier: 0.1,
-              provider: (processedAction.amount || context.selectedListing?.price || 0) * 0.05,
-              eden: (processedAction.amount || context.selectedListing?.price || 0) * 0.02
+              provider: snapshotAmount * 0.05,
+              eden: snapshotAmount * 0.02
             }
           };
-          context.moviePrice = context.selectedListing?.price || context.snapshot.amount;
+          
+          // Set service-type-specific price in context
+          if (snapshotServiceType === 'hotel') {
+            context.hotelPrice = context.selectedListing?.price || snapshotAmount;
+          } else if (snapshotServiceType === 'movie') {
+            context.moviePrice = context.selectedListing?.price || snapshotAmount;
+          } else if (snapshotServiceType === 'airline') {
+            context.airlinePrice = context.selectedListing?.price || snapshotAmount;
+          } else if (snapshotServiceType === 'restaurant') {
+            context.restaurantPrice = context.selectedListing?.price || snapshotAmount;
+          }
           context.iGasCost = context.iGasCost || 0.00445;
           break;
+        }
 
         case "validate_certificate":
           // Validate provider certificate (FULLY AUTOMATED)
@@ -677,15 +696,22 @@ async function executeStepActions(
           }
           break;
 
-        case "add_ledger_entry":
+        case "add_ledger_entry": {
           // Create ledger entry (FULLY AUTOMATED)
           if (!context.snapshot) {
             throw new Error("Snapshot required for ledger entry");
           }
-          // Ensure snapshot amount is valid
+          // Ensure snapshot amount is valid - check service-type-specific prices
+          const ledgerServiceType = context.serviceType || "movie";
+          const ledgerServiceTypePrice = ledgerServiceType === 'hotel' ? context.hotelPrice :
+                                        ledgerServiceType === 'airline' ? context.airlinePrice :
+                                        ledgerServiceType === 'restaurant' ? context.restaurantPrice :
+                                        ledgerServiceType === 'movie' ? context.moviePrice :
+                                        context.totalCost;
+          
           const entryAmount = context.snapshot.amount && context.snapshot.amount > 0
             ? context.snapshot.amount
-            : (context.moviePrice || context.selectedListing?.price || 0);
+            : (ledgerServiceTypePrice || context.selectedListing?.price || 0);
           
           if (!entryAmount || entryAmount === 0) {
             throw new Error(`Cannot create ledger entry: amount is ${entryAmount}`);
@@ -696,8 +722,7 @@ async function executeStepActions(
             context.snapshot.amount = entryAmount;
           }
 
-          // Get serviceType and build booking details dynamically
-          const ledgerServiceType = context.serviceType || "movie";
+          // Get serviceType and build booking details dynamically (ledgerServiceType already declared above)
           const fields = getServiceTypeFields(ledgerServiceType);
           
           // Build booking details dynamically based on service type
@@ -708,9 +733,13 @@ async function executeStepActions(
           const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
                                       ledgerServiceType === 'airline' ? 'Airline Provider' :
                                       ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
+                                      ledgerServiceType === 'hotel' ? 'Hotel Provider' :
+                                      ledgerServiceType === 'restaurant' ? 'Restaurant Provider' :
                                       `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
           const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
                                    ledgerServiceType === 'airline' ? 'airline-001' :
+                                   ledgerServiceType === 'hotel' ? 'hotel-001' :
+                                   ledgerServiceType === 'restaurant' ? 'restaurant-001' :
                                    `${ledgerServiceType}-001`;
           
           const ledgerEntry = addLedgerEntry(
@@ -728,6 +757,7 @@ async function executeStepActions(
             context.cashier = getCashierStatus();
           }
           break;
+        }
 
         case "process_payment": {
           // Process payment (FULLY AUTOMATED - ROOT CA LEVEL - NO SERVICE PROVIDER CONTROL)
@@ -851,6 +881,22 @@ async function executeStepActions(
           context.movieTitle = processedAction.movieTitle || context.selectedListing?.movieTitle || 'Unknown Movie';
           context.movieProgress = 0;
           context.currentScene = 'garden';
+          break;
+
+        case "start_hotel_booking":
+          // Start hotel booking (FULLY AUTOMATED)
+          const hotelName = processedAction.hotelName || context.selectedListing?.hotelName || 'Unknown Hotel';
+          const duration = processedAction.duration || 1;
+          const confirmationMessage = processedAction.confirmationMessage || `Your booking for ${hotelName} is confirmed!`;
+          
+          context.hotelBooked = true;
+          context.hotelName = hotelName;
+          context.duration = duration;
+          context.confirmationMessage = confirmationMessage;
+          context.bookingId = `hotel_${Date.now()}`;
+          
+          console.log(`   🏨 [FlowWiseService] Hotel booking started: ${hotelName} for ${duration} night(s)`);
+          break;
           
           // Simulate movie watching (async)
           await new Promise<void>((resolve) => {

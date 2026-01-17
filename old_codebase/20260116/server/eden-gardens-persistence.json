@@ -28,7 +28,123 @@
         "expiresAt": 1800193508985,
         "signature": "E+Hrt3fXoNDmp5MuTwMwwFLX5DsBHBI1/s+ty4veEcRg9r1SK59iH5ZIBuc/Wpv58gWTdTWrwHEzitfMiCduCg=="
       }
+    },
+    {
+      "id": "garden-2",
+      "name": "Garden-MOVIE",
+      "stream": "eden:garden:garden-2",
+      "active": true,
+      "uuid": "eden:garden:59d0f322-26da-4918-ad4b-a7b8b24b321f",
+      "serverIp": "localhost",
+      "serverDomain": "garden-movie.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "movie",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:59d0f322-26da-4918-ad4b-a7b8b24b321f",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-MOVIE",
+          "stream": "eden:garden:garden-2"
+        },
+        "issuedAt": 1768669151564,
+        "expiresAt": 1800205151564,
+        "signature": "2tApMmsyGh6CC10uNmjJcBjPFD5DAoXFn39rDuBp7lY5hKBQuchSyTIMd0oJZIK8DCe3pfcWIDcQVaGvwg/iCQ=="
+      }
+    },
+    {
+      "id": "garden-3",
+      "name": "Garden-AUTOPARTS",
+      "stream": "eden:garden:garden-3",
+      "active": true,
+      "uuid": "eden:garden:99d70a8a-276b-4130-9fcb-d201b462926b",
+      "serverIp": "localhost",
+      "serverDomain": "garden-autoparts.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "autoparts",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:99d70a8a-276b-4130-9fcb-d201b462926b",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-AUTOPARTS",
+          "stream": "eden:garden:garden-3"
+        },
+        "issuedAt": 1768669190354,
+        "expiresAt": 1800205190354,
+        "signature": "mfzfqfEACcPShsuT+jl3YEETnHOgYnRY8lSuDNisiQTImqLCY1bgUMm69NFtzjQAvH+A9W1nE2DHXSSkkFcTAw=="
+      }
+    },
+    {
+      "id": "garden-4",
+      "name": "Garden-HOTEL",
+      "stream": "eden:garden:garden-4",
+      "active": true,
+      "uuid": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+      "serverIp": "localhost",
+      "serverDomain": "garden-hotel.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "hotel",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-HOTEL",
+          "stream": "eden:garden:garden-4"
+        },
+        "issuedAt": 1768670548957,
+        "expiresAt": 1800206548957,
+        "signature": "MDmI/rZYZF/lqKYHDi3ktzsjbvZwUT14Un7qhZfOcVU8kuAhCwgxoy5QoV+gAZwAi4zb4pKFMFJllbGGrXbMAQ=="
+      }
+    },
+    {
+      "id": "garden-5",
+      "name": "Garden-RESTAURANT",
+      "stream": "eden:garden:garden-5",
+      "active": true,
+      "uuid": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
+      "serverIp": "localhost",
+      "serverDomain": "garden-restaurant.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "restaurant",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-5",
+          "gardenName": "Garden-RESTAURANT",
+          "stream": "eden:garden:garden-5"
+        },
+        "issuedAt": 1768691767872,
+        "expiresAt": 1800227767872,
+        "signature": "l0YMXKVS94FcSWAGnEhkxx7bP6Z4zte2JUE+hGnDQC6r3JYpp0eWaonrXq9bLXPohiE1KhOo1rRJuDedXoOFDQ=="
+      }
     }
   ],
-  "lastSaved": "2026-01-17T13:45:09.984Z"
+  "lastSaved": "2026-01-17T23:16:09.114Z"
 }
