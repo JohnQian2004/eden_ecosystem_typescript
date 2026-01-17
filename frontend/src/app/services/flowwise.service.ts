@@ -267,6 +267,15 @@ export class FlowWiseService {
 
       currentStepId = nextStepId;
       execution.currentStep = currentStepId;
+      
+      // Update execution history to mark previous step as completed
+      if (execution.history.length > 0) {
+        const lastHistoryEntry = execution.history[execution.history.length - 1];
+        if (lastHistoryEntry.step !== currentStepId) {
+          // Previous step is now completed
+          console.log(`✅ [FlowWise] Step ${lastHistoryEntry.step} completed, moving to ${currentStepId}`);
+        }
+      }
     }
   }
 
@@ -379,8 +388,47 @@ export class FlowWiseService {
           console.log(`📡 [FlowWise] Server broadcast ${response.result.events.length} events`);
         }
 
+        const nextStepId = response.result.nextStepId;
+        const shouldAutoContinue = response.result.shouldAutoContinue;
+
+        // CRITICAL: Auto-continue workflow for steps with "always" transitions
+        // This ensures the workflow automatically progresses from ledger_create_entry to cashier_process_payment
+        if (shouldAutoContinue && nextStepId) {
+          console.log(`🔄 [FlowWise] Auto-continuing workflow: ${step.id} -> ${nextStepId}`);
+          
+          // Find the workflow and next step
+          const workflow = this.workflows.get(execution.serviceType === 'movie' ? 'movie' : 'dex');
+          if (workflow) {
+            const nextStep = workflow.steps.find(s => s.id === nextStepId);
+            if (nextStep) {
+              // Update execution current step
+              execution.currentStep = nextStepId;
+              
+              // Recursively execute the next step (but limit recursion depth to prevent infinite loops)
+              const maxRecursionDepth = 10;
+              const currentDepth = (execution.context['_autoContinueDepth'] || 0) as number;
+              if (currentDepth < maxRecursionDepth) {
+                execution.context['_autoContinueDepth'] = currentDepth + 1;
+                try {
+                  const nextNextStepId = await this.executeStepOnServer(nextStep, execution);
+                  // Reset depth counter
+                  delete execution.context['_autoContinueDepth'];
+                  return nextNextStepId;
+                } catch (error) {
+                  // Reset depth counter on error
+                  delete execution.context['_autoContinueDepth'];
+                  throw error;
+                }
+              } else {
+                console.warn(`⚠️ [FlowWise] Max auto-continuation depth reached, returning nextStepId`);
+                delete execution.context['_autoContinueDepth'];
+              }
+            }
+          }
+        }
+
         // Return the next step ID determined by the server
-        return response.result.nextStepId;
+        return nextStepId;
       } else {
         console.error(`❌ [FlowWise] Step execution failed: ${step.id}`, response.error);
         throw new Error(`Step execution failed: ${response.error}`);

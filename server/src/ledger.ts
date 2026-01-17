@@ -81,31 +81,65 @@ export function addLedgerEntry(
     throw new Error("Ledger module not initialized. Call initializeLedger() first.");
   }
   
+  // CRITICAL: Ensure amount is set (use bookingDetails.price if snapshot.amount is missing/zero)
+  // Priority: snapshot.amount > bookingDetails.price > 0 (but 0 is invalid)
+  let entryAmount = snapshot.amount && snapshot.amount > 0 
+    ? snapshot.amount 
+    : (bookingDetails?.price && bookingDetails.price > 0 ? bookingDetails.price : 0);
+  
+  if (!entryAmount || entryAmount === 0) {
+    console.error(`❌ [Ledger] CRITICAL ERROR: Ledger entry amount is ${entryAmount}!`);
+    console.error(`❌ [Ledger] snapshot.amount: ${snapshot.amount}`);
+    console.error(`❌ [Ledger] bookingDetails?.price: ${bookingDetails?.price}`);
+    console.error(`❌ [Ledger] This will cause payment to fail!`);
+    // Don't create entry with invalid amount - throw error instead
+    throw new Error(`Cannot create ledger entry: amount is ${entryAmount}. Snapshot amount: ${snapshot.amount}, bookingDetails price: ${bookingDetails?.price}`);
+  }
+  
+  console.log(`💰 [Ledger] Using amount: ${entryAmount} (from snapshot: ${snapshot.amount}, bookingDetails: ${bookingDetails?.price})`);
+
+  // CRITICAL: Ensure all required fields are present
+  if (!snapshot.txId) {
+    console.warn(`⚠️ [Ledger] Warning: snapshot.txId is missing, generating one`);
+  }
+  if (!snapshot.payer) {
+    console.warn(`⚠️ [Ledger] Warning: snapshot.payer is missing`);
+  }
+
   const entry: LedgerEntry = {
     entryId: crypto.randomUUID(),
-    txId: snapshot.txId,
-    timestamp: snapshot.blockTime,
-    payer: snapshot.payer, // Email address
-    payerId: snapshot.payer, // Email address (same as payer)
+    txId: snapshot.txId || `tx_${Date.now()}`,
+    timestamp: snapshot.blockTime || Date.now(),
+    payer: snapshot.payer || payerId, // Email address
+    payerId: snapshot.payer || payerId, // Email address (same as payer)
     merchant: merchantName, // Provider name (e.g., "AMC Theatres", "MovieCom", "Cinemark")
     providerUuid: providerUuid || 'MISSING-UUID', // Service provider UUID for certificate issuance
     serviceType: serviceType,
-    amount: snapshot.amount,
+    amount: entryAmount,
     iGasCost: iGasCost,
-    fees: snapshot.feeSplit,
+    fees: snapshot.feeSplit || {},
     status: 'pending',
     cashierId: CASHIER.id,
     bookingDetails: bookingDetails,
   };
   
-  console.log(`📝 Ledger entry created with providerUuid: ${entry.providerUuid}`);
+  console.log(`📝 [Ledger] ✅ Ledger entry created successfully:`);
+  console.log(`📝 [Ledger]   entryId: ${entry.entryId}`);
+  console.log(`📝 [Ledger]   providerUuid: ${entry.providerUuid}`);
+  console.log(`📝 [Ledger]   amount: ${entry.amount}`);
+  console.log(`📝 [Ledger]   txId: ${entry.txId}`);
+  console.log(`📝 [Ledger]   payer: ${entry.payer}`);
+  console.log(`📝 [Ledger]   status: ${entry.status}`);
 
   // Push ledger entry to local ledger (for immediate access)
   LEDGER.push(entry);
   
   // Persist ledger entry
   if (redis) {
+    console.log(`💾 [Ledger] Saving ${LEDGER.length} ledger entries (including new ${entry.serviceType} entry: ${entry.entryId})`);
     redis.saveLedgerEntries(LEDGER);
+  } else {
+    console.error(`❌ [Ledger] Redis instance not available! Cannot persist ledger entry: ${entry.entryId}`);
   }
   
   // ARCHITECTURAL PATTERN: Ledger Push + Settlement Pull
@@ -213,8 +247,41 @@ export async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Pro
 export async function processPayment(cashier: Cashier, entry: LedgerEntry, user: User): Promise<boolean> {
   // NO AUTO-GRANT - User must have balance from Stripe or other credits
   
+  console.log(`   💰 [Ledger] ========================================`);
+  console.log(`   💰 [Ledger] 💳 processPayment FUNCTION CALLED`);
+  console.log(`   💰 [Ledger] Entry ID: ${entry.entryId}`);
+  console.log(`   💰 [Ledger] Entry Amount: ${entry.amount}`);
+  console.log(`   💰 [Ledger] Entry Status (before): ${entry.status}`);
+  console.log(`   💰 [Ledger] User Email: ${user.email}`);
+  console.log(`   💰 [Ledger] Cashier ID: ${cashier.id}`);
+  console.log(`   💰 [Ledger] Cashier processedCount (before): ${cashier.processedCount}`);
+  console.log(`   💰 [Ledger] Cashier totalProcessed (before): ${cashier.totalProcessed}`);
+  console.log(`   💰 [Ledger] ========================================`);
+  
+  // CRITICAL: Validate entry has an amount
+  if (!entry.amount || entry.amount <= 0) {
+    console.error(`   ❌ [Ledger] Cannot process payment: entry ${entry.entryId} has invalid amount: ${entry.amount}`);
+    entry.status = 'failed';
+    broadcastEvent({
+      type: "cashier_payment_failed",
+      component: "cashier",
+      message: `Payment failed: Invalid amount (${entry.amount})`,
+      timestamp: Date.now(),
+      data: { 
+        entry, 
+        cashier, 
+        error: `Invalid amount: ${entry.amount}`,
+        requiredAmount: entry.amount
+      }
+    });
+    return false;
+  }
+  
+  console.log(`   💰 [Ledger] Step 1: Amount validation passed`);
+  
   // EdenCore submits intent to Wallet Service
   // Wallet Service decides and updates balance (single source of truth)
+  console.log(`   💰 [Ledger] Step 2: Calling processWalletIntent`);
   const walletResult = await processWalletIntent({
     intent: "DEBIT",
     email: user.email,
@@ -229,7 +296,14 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
     }
   });
   
+  console.log(`   💰 [Ledger] Wallet result:`, {
+    success: walletResult.success,
+    balance: walletResult.balance,
+    error: walletResult.error
+  });
+  
   if (!walletResult.success) {
+    console.error(`   ❌ [Ledger] Wallet intent failed: ${walletResult.error}`);
     entry.status = 'failed';
     const walletBalance = await getWalletBalance(user.email);
     broadcastEvent({
@@ -249,23 +323,58 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
     return false;
   }
 
+  console.log(`   💰 [Ledger] Step 3: Wallet intent succeeded`);
+  
   // Update user balance for backward compatibility (wallet is source of truth)
   user.balance = walletResult.balance;
+  console.log(`   💰 [Ledger] Updated user balance: ${user.balance}`);
   
-  // Update cashier stats
-  cashier.processedCount++;
-  cashier.totalProcessed += entry.amount;
+  // CRITICAL: Update the actual CASHIER object (not just the parameter copy)
+  // The cashier parameter might be a copy from getCashierStatus(), so we need to update CASHIER directly
+  if (!CASHIER) {
+    throw new Error("CASHIER not initialized");
+  }
+  
+  console.log(`   💰 [Ledger] Step 4: Updating CASHIER object`);
+  console.log(`   💰 [Ledger] CASHIER processedCount (before): ${CASHIER.processedCount}`);
+  console.log(`   💰 [Ledger] CASHIER totalProcessed (before): ${CASHIER.totalProcessed}`);
+  
+  CASHIER.processedCount++;
+  CASHIER.totalProcessed += entry.amount;
+  
+  console.log(`   💰 [Ledger] CASHIER processedCount (after): ${CASHIER.processedCount}`);
+  console.log(`   💰 [Ledger] CASHIER totalProcessed (after): ${CASHIER.totalProcessed}`);
+  
+  // Also update the parameter for backward compatibility (in case it's used elsewhere)
+  cashier.processedCount = CASHIER.processedCount;
+  cashier.totalProcessed = CASHIER.totalProcessed;
+  
+  console.log(`   💰 [Ledger] Step 5: Updating entry status to 'processed'`);
+  console.log(`   💰 [Ledger] Entry status (before update): ${entry.status}`);
   entry.status = 'processed';
+  console.log(`   💰 [Ledger] Entry status (after update): ${entry.status}`);
   
   // CRITICAL: Persist ledger entry after payment processing
+  console.log(`   💰 [Ledger] Step 6: Persisting ledger entry`);
+  console.log(`   💰 [Ledger] Redis available: ${!!redis}`);
   if (redis) {
     redis.saveLedgerEntries(LEDGER);
-    console.log(`💾 [Ledger] Persisted ledger entry ${entry.entryId} after payment processing`);
+    console.log(`   💾 [Ledger] ✅ Persisted ledger entry ${entry.entryId} after payment processing`);
+    // Verify the entry in LEDGER array
+    const persistedEntry = LEDGER.find(e => e.entryId === entry.entryId);
+    console.log(`   💰 [Ledger] Verification - Entry in LEDGER array:`, persistedEntry ? {
+      entryId: persistedEntry.entryId,
+      status: persistedEntry.status,
+      amount: persistedEntry.amount
+    } : 'NOT FOUND');
+  } else {
+    console.error(`   ❌ [Ledger] Redis not available! Cannot persist ledger entry`);
   }
 
   // CRITICAL: Broadcast payment processed event to Angular
+  console.log(`   💰 [Ledger] Step 7: Broadcasting payment processed event`);
   if (!broadcastEvent) {
-    console.error(`❌ [Ledger] broadcastEvent not initialized! Cannot send cashier_payment_processed event`);
+    console.error(`   ❌ [Ledger] broadcastEvent not initialized! Cannot send cashier_payment_processed event`);
   } else {
     const paymentEvent = {
       type: "cashier_payment_processed",
@@ -274,9 +383,16 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
       timestamp: Date.now(),
       data: { entry, cashier, userBalance: walletResult.balance, walletService: "wallet-service-001" }
     };
-    console.log(`📡 [Broadcast] Sending cashier_payment_processed event: ${cashier.name} processed ${entry.amount} JSC`);
+    console.log(`   📡 [Broadcast] Sending cashier_payment_processed event: ${cashier.name} processed ${entry.amount} JSC`);
     broadcastEvent(paymentEvent);
   }
+
+  console.log(`   💰 [Ledger] ========================================`);
+  console.log(`   💰 [Ledger] ✅ processPayment COMPLETED SUCCESSFULLY`);
+  console.log(`   💰 [Ledger] Entry Status: ${entry.status}`);
+  console.log(`   💰 [Ledger] CASHIER processedCount: ${CASHIER.processedCount}`);
+  console.log(`   💰 [Ledger] CASHIER totalProcessed: ${CASHIER.totalProcessed}`);
+  console.log(`   💰 [Ledger] ========================================`);
 
   return true;
 }
@@ -300,10 +416,28 @@ export function completeBooking(entry: LedgerEntry) {
  * Get ledger entries
  */
 export function getLedgerEntries(payerEmail?: string): LedgerEntry[] {
+  let entries: LedgerEntry[];
   if (payerEmail) {
-    return LEDGER.filter(entry => entry.payer === payerEmail);
+    entries = LEDGER.filter(entry => entry.payer === payerEmail);
+  } else {
+    entries = [...LEDGER];
   }
-  return [...LEDGER];
+  
+  // CRITICAL: Normalize numeric fields (iGasCost, amount, timestamp) to ensure they're numbers, not strings
+  // This fixes issues when data is loaded from persistence where JSON might have stored them as strings
+  return entries.map(entry => ({
+    ...entry,
+    iGasCost: typeof entry.iGasCost === 'string' ? parseFloat(entry.iGasCost) : (entry.iGasCost || 0),
+    amount: typeof entry.amount === 'string' ? parseFloat(entry.amount) : (entry.amount || 0),
+    timestamp: typeof entry.timestamp === 'string' ? parseInt(entry.timestamp) : (entry.timestamp || Date.now()),
+    // Normalize fees object if it exists
+    fees: entry.fees ? Object.fromEntries(
+      Object.entries(entry.fees).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? parseFloat(value) : (value || 0)
+      ])
+    ) : {}
+  }));
 }
 
 /**

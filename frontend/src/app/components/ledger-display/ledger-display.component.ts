@@ -145,5 +145,13 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     if (!timestamp) return 'N/A';
     return new Date(timestamp).toLocaleString();
   }
+
+  formatIGasCost(iGasCost: number | string | undefined): string {
+    if (iGasCost === undefined || iGasCost === null) return '0.000000';
+    // Handle both string and number types
+    const num = typeof iGasCost === 'string' ? parseFloat(iGasCost) : iGasCost;
+    if (isNaN(num)) return '0.000000';
+    return num.toFixed(6);
+  }
 }
 

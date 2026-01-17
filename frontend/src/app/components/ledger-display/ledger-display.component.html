@@ -50,7 +50,7 @@
             <td>{{ entry?.merchant || 'N/A' }}</td>
             <td><span class="badge bg-secondary">{{ entry?.serviceType || 'N/A' }}</span></td>
             <td><strong>{{ entry?.amount?.toFixed(2) || '0.00' }} JSC</strong></td>
-            <td>{{ entry?.iGasCost?.toFixed(6) || '0.000000' }}</td>
+            <td>{{ formatIGasCost(entry?.iGasCost) }}</td>
             <td><span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span></td>
             <td>
               <div *ngIf="entry?.bookingDetails?.movieTitle">

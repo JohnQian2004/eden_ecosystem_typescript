@@ -665,8 +665,199 @@
         }
       },
       {
+        "id": "root_ca_ledger_settlement",
+        "name": "5️⃣ ROOT CA: Ledger Settlement",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA validates, settles ledger entry, and updates authoritative balances",
+        "actions": [
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA consuming ledger entry from settlement stream...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "ROOT CA settled ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "status": "settled",
+              "settlementTimestamp": "{{timestamp}}"
+            }
+          },
+          {
+            "type": "root_ca_balances_updated",
+            "component": "root-ca",
+            "message": "ROOT CA updated authoritative balances",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "feeSplit": "{{snapshot.feeSplit}}",
+              "balancesUpdated": true
+            }
+          },
+          {
+            "type": "root_ca_fees_finalized",
+            "component": "root-ca",
+            "message": "ROOT CA finalized fee distributions",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "finalized": true
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "settlementStatus": "settled",
+          "balancesUpdated": true,
+          "feesFinalized": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_settlement_failed",
+              "component": "root-ca",
+              "message": "ROOT CA settlement failed: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "root_ca_cashier_oversight",
+        "name": "6️⃣ ROOT CA: Cashier Oversight",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA oversees and validates cashier payment processing",
+        "actions": [
+          {
+            "type": "root_ca_validate_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentResult": "{{paymentSuccess}}",
+            "cashier": "{{cashier}}"
+          },
+          {
+            "type": "root_ca_verify_balance_update",
+            "userEmail": "{{user.email}}",
+            "expectedBalance": "{{updatedBalance}}",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "root_ca_authorize_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentStatus": "{{paymentSuccess}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_cashier_oversight_start",
+            "component": "root-ca",
+            "message": "ROOT CA overseeing cashier payment processing...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "cashier": "{{cashier.name}}",
+              "amount": "{{ledgerEntry.amount}}"
+            }
+          },
+          {
+            "type": "root_ca_payment_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated payment: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "paymentStatus": "{{paymentSuccess}}",
+              "cashier": "{{cashier.name}}"
+            }
+          },
+          {
+            "type": "root_ca_balance_verified",
+            "component": "root-ca",
+            "message": "ROOT CA verified balance update for {{user.email}}",
+            "data": {
+              "userEmail": "{{user.email}}",
+              "balance": "{{updatedBalance}}",
+              "entryId": "{{ledgerEntry.entryId}}"
+            }
+          },
+          {
+            "type": "root_ca_payment_authorized",
+            "component": "root-ca",
+            "message": "ROOT CA authorized payment: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "authorized": true,
+              "authorizationTimestamp": "{{timestamp}}"
+            }
+          }
+        ],
+        "outputs": {
+          "paymentAuthorized": true,
+          "balanceVerified": true,
+          "cashierOversightComplete": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_payment_rejected",
+              "component": "root-ca",
+              "message": "ROOT CA rejected payment: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
         "id": "snapshot_persist",
-        "name": "5️⃣ Snapshot + Persist",
+        "name": "7️⃣ Snapshot + Persist",
         "type": "process",
         "component": "snapshot",
         "description": "Create and persist transaction snapshot",
@@ -724,7 +915,7 @@
       },
       {
         "id": "complete_booking",
-        "name": "7️⃣ Complete Booking",
+        "name": "9️⃣ Complete Booking",
         "type": "process",
         "component": "ledger",
         "description": "Complete booking and deliver notifications",
@@ -764,7 +955,7 @@
       },
       {
         "id": "apply_review",
-        "name": "8️⃣ Review",
+        "name": "🔟 Review",
         "type": "process",
         "component": "user",
         "description": "Apply review rebate",
@@ -799,7 +990,7 @@
       },
       {
         "id": "summary",
-        "name": "8️⃣ Summary",
+        "name": "1️⃣1️⃣ Summary",
         "type": "output",
         "component": "transaction",
         "description": "Generate transaction summary",
@@ -879,7 +1070,7 @@
       },
       {
         "from": "user_confirm_listing",
-        "to": "watch_movie",
+        "to": "ledger_create_entry",
         "condition": "{{userDecision}} === 'YES'"
       },
       {
@@ -888,29 +1079,49 @@
         "condition": "{{userDecision}} === 'NO'"
       },
       {
-        "from": "watch_movie",
-        "to": "ledger_create_entry",
-        "condition": "{{movieWatched}}"
-      },
-      {
-        "from": "watch_movie",
-        "to": "error_handler",
-        "condition": "!{{movieWatched}}"
-      },
-      {
         "from": "ledger_create_entry",
         "to": "cashier_process_payment",
         "condition": "always"
       },
       {
         "from": "cashier_process_payment",
-        "to": "snapshot_persist",
+        "to": "root_ca_ledger_settlement",
         "condition": "{{paymentSuccess}}"
       },
       {
         "from": "cashier_process_payment",
         "to": "error_handler",
         "condition": "!{{paymentSuccess}}"
+      },
+      {
+        "from": "root_ca_ledger_settlement",
+        "to": "root_ca_cashier_oversight",
+        "condition": "{{settlementStatus}} === 'settled'"
+      },
+      {
+        "from": "root_ca_ledger_settlement",
+        "to": "error_handler",
+        "condition": "{{settlementStatus}} !== 'settled'"
+      },
+      {
+        "from": "root_ca_cashier_oversight",
+        "to": "watch_movie",
+        "condition": "{{paymentAuthorized}}"
+      },
+      {
+        "from": "root_ca_cashier_oversight",
+        "to": "error_handler",
+        "condition": "!{{paymentAuthorized}}"
+      },
+      {
+        "from": "watch_movie",
+        "to": "snapshot_persist",
+        "condition": "{{movieWatched}}"
+      },
+      {
+        "from": "watch_movie",
+        "to": "error_handler",
+        "condition": "!{{movieWatched}}"
       },
       {
         "from": "snapshot_persist",

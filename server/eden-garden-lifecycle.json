@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-09T03:33:16.343Z",
+  "lastSaved": "2026-01-17T01:04:31.705Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -2384,6 +2384,1502 @@
       },
       {
         "timestamp": 1767900416697,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768599369706,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768599369711,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768599369733,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768600134752,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768600134756,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768600134859,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768600519072,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768600519076,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768600519091,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768601196272,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768601196277,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768601196293,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768601640284,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768601640288,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768601640302,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768602832721,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768602832725,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768602832740,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768603186832,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768603186835,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768603186847,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768603942099,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768603942104,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768603942125,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768604218614,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768604218618,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768604218633,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768604648626,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768604648630,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768604648646,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768604842557,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768604842561,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768604842575,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768605254823,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768605254827,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768605254844,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768605478333,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768605478338,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768605478353,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768605673749,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768605673753,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768605673766,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768605908202,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768605908205,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768605908220,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768606082242,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768606082247,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768606082263,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768606297689,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768606297693,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768606297708,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768606530293,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768606530297,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768606530366,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768606713612,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768606713616,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768606713630,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768606901389,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768606901409,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768606901459,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768607079610,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768607079614,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768607079629,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768607373125,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768607373131,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768607373150,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768608046146,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768608046151,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768608046167,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768608220198,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768608220203,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768608220216,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768608503753,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768608503757,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768608503771,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768608743145,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768608743151,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768608743192,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768609126946,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768609126950,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768609126966,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768609297541,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768609297545,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768609297580,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768609429520,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768609429532,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768609429566,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768610107476,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768610107481,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768610107497,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768610553973,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768610553976,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768610554009,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768610851040,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768610851045,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768610851060,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768611249868,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768611249872,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768611249884,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 7,
+          "totalSaved": 7,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-1)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768611561200,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-MOVIE",
+          "serviceType": "movie",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768611561207,
+        "event": "provider-added-to-memory",
+        "data": {
+          "providerId": "amc-001",
+          "providerName": "AMC Theatres",
+          "gardenId": "garden-1",
+          "serviceType": "movie",
+          "totalProviders": 7
+        }
+      },
+      {
+        "timestamp": 1768611561223,
         "event": "service-registry-save",
         "data": {
           "totalInMemory": 7,

@@ -326,13 +326,38 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     this.currentStep = newCurrentStep;
     console.log('🔄 [WorkflowDisplay] FINAL currentStep set to:', this.currentStep?.name || 'null');
 
-    // Update completed steps
+    // Update completed steps from execution history
     if (this.activeExecution) {
       this.completedSteps = this.activeExecution.history.map(h => h.step);
+      // Also mark any step before current step as completed
+      const currentStepIndex = workflow.steps.findIndex(step => step.id === this.activeExecution?.currentStep);
+      if (currentStepIndex > 0) {
+        for (let i = 0; i < currentStepIndex; i++) {
+          const stepId = workflow.steps[i].id;
+          if (!this.completedSteps.includes(stepId)) {
+            this.completedSteps.push(stepId);
+          }
+        }
+      }
     }
 
-    // Find current step index
-    this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
+    // Find current step index - use activeExecution.currentStep if available, otherwise use currentStep
+    if (this.activeExecution && this.activeExecution.currentStep) {
+      this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.activeExecution?.currentStep);
+      // If not found, fall back to currentStep
+      if (this.currentStepIndex === -1) {
+        this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
+      }
+    } else {
+      this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
+    }
+    
+    // Ensure index is at least 0
+    if (this.currentStepIndex < 0) {
+      this.currentStepIndex = 0;
+    }
+    
+    console.log('🔄 [WorkflowDisplay] Step index updated:', this.currentStepIndex + 1, 'of', workflow.steps.length, 'currentStep:', this.currentStep?.name, 'activeExecution.currentStep:', this.activeExecution?.currentStep);
     
     // Clear status cache when step changes
     this.clearStatusCache();
@@ -401,27 +426,42 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   }
 
   getStepStatus(stepId: string): string {
-    // Check cache first to avoid repeated calculations
-    if (this.stepStatusCache.has(stepId)) {
-      return this.stepStatusCache.get(stepId)!;
+    // Don't use cache if we have an active execution - always recalculate
+    // This ensures status updates immediately when workflow progresses
+    if (!this.activeExecution) {
+      // Only use cache when there's no active execution
+      if (this.stepStatusCache.has(stepId)) {
+        return this.stepStatusCache.get(stepId)!;
+      }
     }
 
-    // Calculate status
+    // Calculate status based on active execution state
     let status: string;
     
-    // For now, hardcode the Eden Chat Input step as current
-    if (stepId === 'eden_chat_input') {
-      status = 'current';
-    } else if (this.completedSteps.includes(stepId)) {
+    // Check if step is in completed steps
+    if (this.completedSteps.includes(stepId)) {
       status = 'completed';
-    } else if (this.activeExecution && this.activeExecution.currentStep === stepId) {
+    } 
+    // Check if step is the current step
+    else if (this.activeExecution && this.activeExecution.currentStep === stepId) {
       status = 'current';
-    } else {
+    } 
+    // Check if step is in execution history (completed but not in completedSteps array)
+    else if (this.activeExecution && this.activeExecution.history.some(h => h.step === stepId)) {
+      status = 'completed';
+      // Add to completedSteps for future checks
+      if (!this.completedSteps.includes(stepId)) {
+        this.completedSteps.push(stepId);
+      }
+    }
+    else {
       status = 'pending';
     }
 
-    // Cache the result
-    this.stepStatusCache.set(stepId, status);
+    // Cache the result only if no active execution
+    if (!this.activeExecution) {
+      this.stepStatusCache.set(stepId, status);
+    }
     return status;
   }
 
@@ -869,7 +909,36 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         // Update the current step display when workflow progresses
         // Only update if workflow is loaded
         if (this.selectedWorkflow && ((this.selectedWorkflow === 'movie' && this.movieWorkflow) || (this.selectedWorkflow === 'dex' && this.dexWorkflow))) {
+          // Update active execution current step if available
+          if (this.activeExecution && event.data?.stepId) {
+            const previousStep = this.activeExecution.currentStep;
+            this.activeExecution.currentStep = event.data.stepId;
+            
+            // Mark previous step as completed
+            if (previousStep && previousStep !== event.data.stepId) {
+              if (!this.completedSteps.includes(previousStep)) {
+                this.completedSteps.push(previousStep);
+                console.log(`✅ [WorkflowDisplay] Marked step ${previousStep} as completed`);
+              }
+              // Add to execution history if not already there
+              if (!this.activeExecution.history.some(h => h.step === previousStep)) {
+                this.activeExecution.history.push({
+                  step: previousStep,
+                  timestamp: Date.now(),
+                  data: { completed: true }
+                });
+              }
+            }
+            
+            // Update selectedListing from context if available
+            if (event.data?.selectedListing || this.activeExecution.context['selectedListing']) {
+              this.selectedListing = event.data?.selectedListing || this.activeExecution.context['selectedListing'];
+              console.log('🎬 [WorkflowDisplay] Updated selectedListing:', this.selectedListing);
+            }
+          }
+          
           this.updateCurrentStep();
+          this.clearStatusCache(); // Clear cache to refresh step statuses
           
           // Auto-start movie when watch_movie step is reached
           if (event.data?.stepId === 'watch_movie' && event.data?.component === 'movie_theater') {
@@ -885,6 +954,19 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           }
         } else {
           console.log('🔄 [WorkflowDisplay] Workflow not loaded yet, skipping step update');
+        }
+        break;
+      
+      case 'movie_started':
+        // Update selectedListing when movie starts
+        if (event.data?.movieTitle) {
+          if (!this.selectedListing) {
+            this.selectedListing = {};
+          }
+          this.selectedListing.movieTitle = event.data.movieTitle;
+          this.selectedListing.duration = event.data.duration;
+          console.log('🎬 [WorkflowDisplay] Movie started, updated selectedListing:', this.selectedListing);
+          this.cdr.detectChanges();
         }
         break;
 

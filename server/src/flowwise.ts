@@ -292,9 +292,25 @@ async function executeStep(
  */
 export function replaceTemplateVariables(template: any, context: WorkflowContext): any {
   if (typeof template === "string") {
+    // Check if the entire string is a template variable (e.g., "{{snapshot}}")
+    const fullMatch = template.match(/^\{\{(\w+(?:\.\w+)*)\}\}$/);
+    if (fullMatch) {
+      // If the entire string is a template variable, return the actual value (not stringified)
+      const value = getNestedValue(context, fullMatch[1]);
+      if (value !== undefined && value !== null) {
+        return value; // Return the actual object/value, not stringified
+      }
+      console.warn(`⚠️  [Template] Variable not found in context: ${fullMatch[1]}`);
+      return null;
+    }
+    // Otherwise, replace template variables within the string
     return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
       const value = getNestedValue(context, path);
       if (value !== undefined && value !== null) {
+        // For objects/arrays, stringify them; for primitives, convert to string
+        if (typeof value === 'object') {
+          return JSON.stringify(value);
+        }
         return String(value);
       }
       // If template variable not found, return empty string instead of keeping the template
@@ -328,17 +344,61 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   // Simple condition evaluation - can be enhanced
   if (condition === "always") return true;
 
-  // Handle template syntax {{variable}}
+  // First, replace template variables in the condition
+  let processedCondition = condition;
+  processedCondition = processedCondition.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
+    const value = getNestedValue(context, path);
+    if (value === undefined || value === null) {
+      return 'undefined';
+    }
+    // If value is a string, wrap it in quotes for comparison
+    if (typeof value === 'string') {
+      return `'${value}'`;
+    }
+    return String(value);
+  });
+
+  // Handle comparison operators (===, !==, ==, !=)
+  if (processedCondition.includes(' === ')) {
+    const [left, right] = processedCondition.split(' === ').map(s => s.trim());
+    // Remove quotes if present
+    const leftValue = left.replace(/^'|'$/g, '');
+    const rightValue = right.replace(/^'|'$/g, '');
+    return leftValue === rightValue;
+  }
+  
+  if (processedCondition.includes(' !== ')) {
+    const [left, right] = processedCondition.split(' !== ').map(s => s.trim());
+    const leftValue = left.replace(/^'|'$/g, '');
+    const rightValue = right.replace(/^'|'$/g, '');
+    return leftValue !== rightValue;
+  }
+
+  // Handle logical operators (&&, ||)
+  if (processedCondition.includes(' && ')) {
+    const parts = processedCondition.split(' && ');
+    return parts.every(part => evaluateCondition(part.trim(), context));
+  }
+  
+  if (processedCondition.includes(' || ')) {
+    const parts = processedCondition.split(' || ');
+    return parts.some(part => evaluateCondition(part.trim(), context));
+  }
+
+  // Handle template syntax {{variable}} (simple existence check)
   const templateMatch = condition.match(/\{\{(\w+(?:\.\w+)*)\}\}/);
   if (templateMatch) {
     const path = templateMatch[1];
     return !!getNestedValue(context, path);
   }
 
+  // Handle negation
   if (condition.startsWith("!")) {
     const path = condition.substring(1);
     return !getNestedValue(context, path);
   }
+  
+  // Default: check if value exists and is truthy
   return !!getNestedValue(context, condition);
 }
 

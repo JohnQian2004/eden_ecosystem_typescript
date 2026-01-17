@@ -90,8 +90,21 @@ export class InMemoryRedisServer extends EventEmitter {
           const fileContent = fs.readFileSync(this.ledgerEntriesFile, 'utf-8');
           const persisted = JSON.parse(fileContent);
           if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
-          result.ledgerEntries = persisted.ledgerEntries;
-            console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.ledgerEntriesFile}`);
+            // CRITICAL: Normalize numeric fields when loading from persistence
+            // JSON.parse may have stored numbers as strings, so we need to convert them back
+            result.ledgerEntries = persisted.ledgerEntries.map((entry: any) => ({
+              ...entry,
+              iGasCost: typeof entry.iGasCost === 'string' ? parseFloat(entry.iGasCost) : (entry.iGasCost || 0),
+              amount: typeof entry.amount === 'string' ? parseFloat(entry.amount) : (entry.amount || 0),
+              timestamp: typeof entry.timestamp === 'string' ? parseInt(entry.timestamp) : (entry.timestamp || Date.now()),
+              fees: entry.fees ? Object.fromEntries(
+                Object.entries(entry.fees).map(([key, value]: [string, any]) => [
+                  key,
+                  typeof value === 'string' ? parseFloat(value) : (value || 0)
+                ])
+              ) : {}
+            }));
+            console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from ${this.ledgerEntriesFile} (normalized numeric fields)`);
           }
         } catch (err: any) {
           console.warn(`⚠️  [Redis Persistence] Failed to load ledger entries from separate file: ${err.message}`);
@@ -101,8 +114,20 @@ export class InMemoryRedisServer extends EventEmitter {
         const fileContent = fs.readFileSync(this.persistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
         if (persisted.ledgerEntries && Array.isArray(persisted.ledgerEntries) && persisted.ledgerEntries.length > 0) {
-          result.ledgerEntries = persisted.ledgerEntries;
-          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from old combined file (will migrate on next save)`);
+          // CRITICAL: Normalize numeric fields when loading from persistence
+          result.ledgerEntries = persisted.ledgerEntries.map((entry: any) => ({
+            ...entry,
+            iGasCost: typeof entry.iGasCost === 'string' ? parseFloat(entry.iGasCost) : (entry.iGasCost || 0),
+            amount: typeof entry.amount === 'string' ? parseFloat(entry.amount) : (entry.amount || 0),
+            timestamp: typeof entry.timestamp === 'string' ? parseInt(entry.timestamp) : (entry.timestamp || Date.now()),
+            fees: entry.fees ? Object.fromEntries(
+              Object.entries(entry.fees).map(([key, value]: [string, any]) => [
+                key,
+                typeof value === 'string' ? parseFloat(value) : (value || 0)
+              ])
+            ) : {}
+          }));
+          console.log(`📂 [Redis Persistence] Loaded ${persisted.ledgerEntries.length} ledger entries from old combined file (will migrate on next save, normalized numeric fields)`);
         }
       }
       
@@ -646,13 +671,16 @@ export class InMemoryRedisServer extends EventEmitter {
         console.log(`💾 [Redis Persistence] Saved ${Object.keys(walletBalances).length} wallet entries to ${this.persistenceFile}`);
         
         // Save ledger entries to separate file
-        if (finalLedgerEntries.length > 0 || fs.existsSync(this.ledgerEntriesFile)) {
-          const ledgerData = {
+        // CRITICAL: Always save ledger entries, even if empty, to ensure file exists and is up-to-date
+        // This ensures that when entries are added, they will be persisted correctly
+        const ledgerData = {
           ledgerEntries: finalLedgerEntries,
-            lastSaved: timestamp
-          };
-          fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
-          console.log(`💾 [Redis Persistence] Saved ${finalLedgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
+          lastSaved: timestamp
+        };
+        fs.writeFileSync(this.ledgerEntriesFile, JSON.stringify(ledgerData, null, 2), 'utf-8');
+        console.log(`💾 [Redis Persistence] Saved ${finalLedgerEntries.length} ledger entries to ${this.ledgerEntriesFile}`);
+        if (finalLedgerEntries.length > 0) {
+          console.log(`💾 [Redis Persistence] Entry types: ${finalLedgerEntries.map((e: any) => e.serviceType || 'unknown').join(', ')}`);
         }
         
         // Save gardens to separate file (only if we have gardens or the file exists)
@@ -691,6 +719,15 @@ export class InMemoryRedisServer extends EventEmitter {
   
   // Public method to save ledger entries
   saveLedgerEntries(ledgerEntries: any[]): void {
+    if (!ledgerEntries || !Array.isArray(ledgerEntries)) {
+      console.error(`❌ [Redis Persistence] Invalid ledgerEntries provided to saveLedgerEntries:`, typeof ledgerEntries);
+      return;
+    }
+    console.log(`💾 [Redis Persistence] saveLedgerEntries called with ${ledgerEntries.length} entries`);
+    if (ledgerEntries.length > 0) {
+      const serviceTypes = ledgerEntries.map((e: any) => e.serviceType || 'unknown');
+      console.log(`💾 [Redis Persistence] Entry service types: ${serviceTypes.join(', ')}`);
+    }
     this.savePersistence(ledgerEntries);
   }
   
