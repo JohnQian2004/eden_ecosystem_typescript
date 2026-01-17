@@ -329,7 +329,41 @@
         "providerId": "restaurant-c354dad5",
         "rating": 4.567240768357315
       }
+    },
+    {
+      "entryId": "2b3a6be6-3606-4d39-bd77-c3cd2c2e34db",
+      "txId": "tx_1768693455337",
+      "timestamp": 1768693455337,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "movieTitle": "The Dark Knight",
+        "showtime": "7:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "genre": "Action",
+        "duration": "152 min",
+        "format": "IMAX",
+        "name": "AMC Theatres",
+        "serviceType": "movie",
+        "providerId": "amc-001",
+        "rating": 4.545286392549153
+      }
     }
   ],
-  "lastSaved": "2026-01-17T23:29:31.345Z"
+  "lastSaved": "2026-01-17T23:54:14.803Z"
 }

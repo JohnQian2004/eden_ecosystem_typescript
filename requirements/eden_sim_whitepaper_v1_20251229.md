@@ -1,6 +1,6 @@
 # 🌳 The Garden of Eden (Eden)
 
-**Whitepaper v1.0 – Indexer‑First, Intelligence‑Native Marketplace**
+**Whitepaper v1.17 – Garden‑First, Intelligence‑Native Marketplace**
 
 Author: Bill Draper (CTO)  
 Date: 2026
@@ -11,11 +11,11 @@ Eden separates trust, execution, and intelligence into independent planes govern
 
 ## Abstract
 
-Eden is an **indexer‑first economic and intelligence system** where the traditional blockchain is no longer the parent, but the *child* of the indexer. Eden replaces gas fees, smart‑contract rigidity, and token‑centric governance with **LLM‑governed intelligence fees**, **federated indexers**, and a **ROOT Certificate Authority (ROOT CA)** that certifies trust, services, and replication. Eden introduces a **"Garden of Eden Main Street"** UI that eliminates LLM service type resolution through visual service type selection.
+Eden is a **garden‑first economic and intelligence system** where the traditional blockchain is no longer the parent, but the *child* of the garden. Eden replaces gas fees, smart‑contract rigidity, and token‑centric governance with **LLM‑governed intelligence fees**, **federated gardens**, and a **ROOT Certificate Authority (ROOT CA)** that certifies trust, services, and replication. Eden introduces a **"Garden of Eden Main Street"** UI that eliminates LLM service type resolution through visual service type selection.
 
 Eden is designed to be:
 - Gas‑free
-- Indexer‑driven
+- Garden‑driven
 - LLM‑native
 - Service‑oriented
 - Self‑policing, self‑governing, and self‑replicating
@@ -49,7 +49,7 @@ Eden assumes:
 - Trust is certified, not mined
 - Intelligence is the new gas
 
-Indexers are **priests**, not miners. ROOT CA is **law**, not power. Users are **free actors**, not wallet addresses.
+Gardens are **priests**, not miners. ROOT CA is **law**, not power. Users are **free actors**, not wallet addresses.
 
 ### 1.3 Design Philosophy
 
@@ -67,14 +67,14 @@ This fundamental difference enables:
 
 ### 2.1 ROOT CA (Law / Moses)
 - Global certification authority
-- Certifies indexers and services
+- Certifies gardens and services
 - **Manages centralized ServiceRegistry** (single source of truth for all services)
-- Provides quick post-LLM in-memory service lookup for indexers
+- Provides quick post-LLM in-memory service lookup for gardens
 - Collects minimal intelligence fee (≈0.001%)
 - Guarantees fallback, insurance, and dispute resolution
 - **Settlement authority** (only ROOT CA can settle transactions and update balances)
 
-### 2.2 Indexers (Knowledge Trees)
+### 2.2 Gardens (Knowledge Trees)
 - Federated, Docker‑deployed nodes
 - In‑memory Redis‑like databases
 - Run identical LLM versions (DeepSeek‑class)
@@ -84,19 +84,19 @@ This fundamental difference enables:
 - Provide intelligence, routing, pricing, and policing
 - Execute transactions but never settle them (settlement is ROOT CA's authority)
 
-#### 2.2.1 Regular Indexers
-- General-purpose indexers for all service types
+#### 2.2.1 Regular Gardens
+- General-purpose gardens for all service types
 - Handle movie bookings, content, APIs, marketplaces
 - Process transactions and route to appropriate services
 - Query ROOT CA ServiceRegistry after LLM extraction for quick service lookup
 - Focus on intelligence and routing, not service management
 
-#### 2.2.2 Token Indexers (Specialized)
-- Specialized indexers dedicated to DEX token/pool services
+#### 2.2.2 Token Gardens (Specialized)
+- Specialized gardens dedicated to DEX token/pool services
 - Manage token pools, liquidity, and trading operations
 - Provide DEX-specific routing and pricing intelligence
-- Each token indexer can manage multiple token pools
-- Identified by `TokenIndexer-T1`, `TokenIndexer-T2`, etc.
+- Each token garden can manage multiple token pools
+- Identified by `TokenGarden-T1`, `TokenGarden-T2`, etc.
 - Query ROOT CA ServiceRegistry for DEX pool service discovery
 
 ### 2.3 Users (Humans)
@@ -112,7 +112,7 @@ This fundamental difference enables:
 
 ### 2.4 Service Providers (Apples on Trees)
 - Movies, DEX pools, content, goods, APIs, marketplaces
-- **Register directly with ROOT CA** (not with indexers)
+- **Register directly with ROOT CA** (not with gardens)
 - Registration via `POST /api/root-ca/service-registry/register`
 - Bonded and reputation‑scored
 - Can be legacy platforms (AMC, MovieCom, etc.)
@@ -122,7 +122,7 @@ This fundamental difference enables:
 
 ## 3. The Eden Governance Model (Plain Truth)
 
-> **Indexers act.  
+> **Gardens act.  
 > ROOT CA judges.  
 > GOD settles.**
 
@@ -132,9 +132,9 @@ Or in other words:
 
 This metaphor is not poetic fluff — it is **architecturally precise**. This is the **governing law of Eden**.
 
-### 🔹 Priest = Indexer
+### 🔹 Priest = Garden
 
-Indexers:
+Gardens:
 
 * Execute services
 * Serve users
@@ -174,7 +174,7 @@ Eden reinvents the pattern *without the bloat*.
 Each Eden transaction is a **mini Judgment Day**:
 
 ```
-Indexer executes
+Garden executes
   └─► emits ledger entry (pending)
        └─► GOD verifies
             ├─ valid → settled
@@ -250,7 +250,7 @@ That's Eden.
 
 ---
 
-## 4. Indexer‑First Architecture
+## 4. Garden‑First Architecture
 
 ```
 User (Chat API)
@@ -262,11 +262,11 @@ Garden of Eden Main Street (UI)
      ↓
 Service Router (Federated)
      ↓
-Indexer A —— Indexer B —— Indexer C
+Garden A —— Garden B —— Garden C
   |          |           |
  LocalStore  LocalStore   LocalStore
      ↓           ↓            ↓
-TokenIndexer-T1 —— TokenIndexer-T2
+TokenGarden-T1 —— TokenGarden-T2
   |                    |
 DEX Pools          DEX Pools
      ↓           ↓            ↓
@@ -281,13 +281,13 @@ ROOT CA (ServiceRegistry + Settlement)
 ```
 
 Key rules:
-> **If an indexer can answer it, the chain does not need to exist.**
+> **If a garden can answer it, the chain does not need to exist.**
 
 > **Garden of Eden Main Street eliminates LLM service type resolution.**
 
-> **ROOT CA manages ServiceRegistry. Indexers query ROOT CA.**
+> **ROOT CA manages ServiceRegistry. Gardens query ROOT CA.**
 
-> **Indexers execute transactions. ROOT CA settles them.**
+> **Gardens execute transactions. ROOT CA settles them.**
 
 ---
 
@@ -306,7 +306,7 @@ Eden uses a **database‑level replication model** instead of consensus mining.
 - Stateless consensus
 - Redis Streams compatible
 
-Indexers replicate state, not blocks.
+Gardens replicate state, not blocks.
 
 ---
 
@@ -333,7 +333,7 @@ iGas = (LLM_CALL_COST × llmCalls) + (ROUTING_COST × providersQueried) + (REASO
 | Recipient | Share | Purpose |
 |---------|------|---------|
 | ROOT CA | Governance & insurance | System maintenance, dispute resolution |
-| Indexers | Compute & routing | Infrastructure costs, replication |
+| Gardens | Compute & routing | Infrastructure costs, replication |
 | Service Providers | Quality incentive | Reward for good service |
 | Users | Usage credit | Rebates and loyalty rewards |
 
@@ -345,23 +345,30 @@ This creates a **positive‑sum economy** where all participants benefit from sy
 
 ### 7.1 ROOT CA Service Registry (Centralized Management)
 
-**ServiceRegistry is managed by ROOT CA, not indexers.**
+**ServiceRegistry is managed by ROOT CA, not gardens.**
 
 - All services must be registered with ROOT CA
 - ROOT CA maintains centralized, in-memory ServiceRegistry
-- Provides quick post-LLM in-memory lookup for indexers
+- Provides quick post-LLM in-memory lookup for gardens
 - Single source of truth for all service providers
 - Registration API: `POST /api/root-ca/service-registry/register`
 - Query API: `GET /api/root-ca/service-registry`
 
 Each service registration includes:
 - Service ID and UUID
-- Service type (movie, dex, content, etc.)
+- Service type (movie, dex, airline, autoparts, hotel, restaurant, content, etc.) - **fully extensible, no hardcoding**
 - Location
 - Bond
 - Reputation
-- Associated indexer ID
+- Associated garden ID
 - API endpoint
+
+**Note**: The system is **fully service-type agnostic**. New service types can be added without code changes by:
+1. Adding field mappings to the service type configuration
+2. Creating a workflow JSON file (`{serviceType}.json`)
+3. Registering providers with the new service type
+
+The core systems (workflow execution, ledger creation, service registry) automatically adapt to any service type.
 
 ### 7.2 User Experience Flow (Garden of Eden Main Street)
 
@@ -369,26 +376,28 @@ Each service registration includes:
 
 Eden introduces a **"Garden of Eden Main Street"** UI that eliminates the need for LLM service type resolution:
 
-1. **User browses service type cards** (Movie Tickets, DEX Tokens, Airline Tickets, Auto Parts, Hotel Booking, Restaurant Reservations)
-2. **User clicks a service type card** → Input populated with sample query
+1. **User browses service type cards** (dynamically loaded from ServiceRegistry - Movie Tickets, DEX Tokens, Airline Tickets, Auto Parts, Hotel Booking, Restaurant Reservations, and any future service types)
+2. **User clicks a service type card** → Input populated with sample query, workflow loaded dynamically
 3. **Context sensing** → Service type detected from card selection or user input
 4. **Unified chat input** → Single input with dynamic context (no separate inputs needed)
 5. **LLM extracts intent** → Already knows service type from context
-6. **Indexer queries ROOT CA ServiceRegistry** → Quick in-memory lookup (no LLM needed for service type)
+6. **Garden queries ROOT CA ServiceRegistry** → Quick in-memory lookup (no LLM needed for service type)
 7. **ROOT CA returns matching providers** → Filtered by serviceType, location, reputation
-8. **Indexer queries provider APIs** → Gets actual data (prices, availability)
-9. **LLM formats response** → Best options presented
-10. **EdenCore executes transaction** → Creates snapshot, updates ledger
+8. **Garden queries provider APIs** → Gets actual data (prices, availability)
+9. **LLM formats response** → Best options presented (service-type aware formatting)
+10. **EdenCore executes transaction** → Creates snapshot, updates ledger (service-type agnostic)
 11. **ROOT CA settles transaction** → Updates balances, distributes fees
 
-### 7.3 Indexer Query Flow (Post-LLM)
+**Dynamic Architecture**: All steps are service-type agnostic. The system automatically adapts to any service type without code changes.
 
-Indexers query ROOT CA ServiceRegistry **after** LLM extraction:
+### 7.3 Garden Query Flow (Post-LLM)
+
+Gardens query ROOT CA ServiceRegistry **after** LLM extraction:
 
 1. **LLM extracts user intent** (serviceType, filters, etc.) - serviceType already known from context
-2. **Indexer queries ROOT CA ServiceRegistry** (quick in-memory lookup)
+2. **Garden queries ROOT CA ServiceRegistry** (quick in-memory lookup)
 3. **ROOT CA returns matching providers** (filtered by serviceType, location, reputation)
-4. **Indexer queries provider APIs** for actual data (prices, availability)
+4. **Garden queries provider APIs** for actual data (prices, availability)
 5. **LLM formats response** with best options
 6. **EdenCore executes transaction**
 
@@ -398,7 +407,7 @@ Indexers query ROOT CA ServiceRegistry **after** LLM extraction:
 > User types: "I have 10 USDC. Where can I watch *Catch Me If You Can* tonight at best price?"
 > 
 > 1. LLM extracts service type (movie)
-> 2. Indexer queries ServiceRegistry
+> 2. Garden queries ServiceRegistry
 > 3. ... (rest of flow)
 
 **New Flow (Garden of Eden Main Street):**
@@ -406,8 +415,8 @@ Indexers query ROOT CA ServiceRegistry **after** LLM extraction:
 > 
 > 1. **Service type already known** (movie) - no LLM needed for type resolution
 > 2. **LLM extracts intent**: `filters: { location: "Baltimore", maxPrice: 10 }`
-> 3. **Indexer queries ROOT CA ServiceRegistry** → Returns: AMC, MovieCom, Cinemark
-> 4. **Indexer queries provider APIs** → Gets actual showtimes and prices
+> 3. **Garden queries ROOT CA ServiceRegistry** → Returns: AMC, MovieCom, Cinemark
+> 4. **Garden queries provider APIs** → Gets actual showtimes and prices
 > 5. **LLM aggregates best result** → Selects best option
 > 6. **EdenCore executes transaction** → Creates snapshot, updates ledger
 > 7. **ROOT CA settles transaction** → Updates balances, distributes fees
@@ -423,10 +432,10 @@ Indexers query ROOT CA ServiceRegistry **after** LLM extraction:
 **Why ROOT CA manages ServiceRegistry:**
 
 - ✅ **Quick post-LLM lookup**: In-memory registry enables fast service discovery
-- ✅ **Single source of truth**: No synchronization issues between indexers
-- ✅ **Indexer focus**: Indexers become dedicated intelligent entities (post-LLM regulated)
+- ✅ **Single source of truth**: No synchronization issues between gardens
+- ✅ **Garden focus**: Gardens become dedicated intelligent entities (post-LLM regulated)
 - ✅ **Centralized control**: ROOT CA can revoke/suspend services centrally
-- ✅ **Simplified registration**: Providers register once with ROOT CA, not with each indexer
+- ✅ **Simplified registration**: Providers register once with ROOT CA, not with each garden
 
 **Why Garden of Eden Main Street UI:**
 
@@ -445,9 +454,9 @@ Eden introduces an **intelligent, LLM-governed system prompt generation service*
 
 #### Architecture Overview
 
-**ROOT CA System Prompt Generator Service** (Holy Ghost Indexer):
+**ROOT CA System Prompt Generator Service** (Holy Ghost Garden):
 - **Service Type**: `system-prompt-generator`
-- **Ownership**: ROOT CA (Holy Ghost Indexer)
+- **Ownership**: ROOT CA (Holy Ghost Garden)
 - **Storage**: Redis-backed (`eden:system-prompts:{serviceType}`)
 - **Generation**: LLM-powered prompt creation from natural language descriptions
 - **Costing**: iGas-based intelligent service
@@ -593,12 +602,12 @@ Return JSON with: message (string), listings (array of filtered listings), selec
 - **Purpose**: Delete system prompts (admin only)
 - **Note**: Soft delete (marks as deleted, preserves for audit)
 
-#### Usage by Indexers
+#### Usage by Gardens
 
-**Indexer Query Flow with Dynamic Prompts:**
-1. Indexer receives user query
-2. Indexer determines `serviceType` (from UI context or LLM extraction)
-3. Indexer queries Redis: `GET eden:system-prompts:{serviceType}`
+**Garden Query Flow with Dynamic Prompts:**
+1. Garden receives user query
+2. Garden determines `serviceType` (from UI context or LLM extraction)
+3. Garden queries Redis: `GET eden:system-prompts:{serviceType}`
 4. If prompt exists:
    - Use stored prompts for LLM calls
    - Charge iGas based on prompt complexity
@@ -608,7 +617,7 @@ Return JSON with: message (string), listings (array of filtered listings), selec
 
 **Example Code Flow:**
 ```typescript
-// Indexer retrieves system prompt from Redis
+// Garden retrieves system prompt from Redis
 const promptKey = `eden:system-prompts:${serviceType}`;
 const promptData = await redis.get(promptKey);
 
@@ -663,10 +672,10 @@ if (promptData) {
 **REQ-PROMPT-001**: Redis Storage
 - System prompts stored in Redis with key pattern `eden:system-prompts:{serviceType}`
 - TTL: No expiration (persistent storage)
-- Replication: Prompts replicated across indexers via Redis streams
+- Replication: Prompts replicated across gardens via Redis streams
 
 **REQ-PROMPT-002**: LLM Generation Service
-- ROOT CA System Prompt Generator service in Holy Ghost Indexer
+- ROOT CA System Prompt Generator service in Holy Ghost Garden
 - Uses DeepSeek/OpenAI to generate prompts from natural language
 - Validates generated prompts for completeness and correctness
 - Charges iGas for generation
@@ -695,9 +704,9 @@ Eden provides an **LLM-powered code generation service** that creates ready-to-u
 
 #### Architecture Overview
 
-**ROOT CA Notification Code Generator Service** (Holy Ghost Indexer):
+**ROOT CA Notification Code Generator Service** (Holy Ghost Garden):
 - **Service Type**: `notification-code-generator`
-- **Ownership**: ROOT CA (Holy Ghost Indexer)
+- **Ownership**: ROOT CA (Holy Ghost Garden)
 - **Storage**: Redis-backed (`eden:notification-code:{providerId}`)
 - **Generation**: LLM-powered code generation for multiple languages and frameworks
 - **Costing**: iGas-based intelligent service
@@ -707,19 +716,19 @@ Eden provides an **LLM-powered code generation service** that creates ready-to-u
 Eden provides **three complementary notification mechanisms** for service providers:
 
 **1️⃣ Webhook (Push - Best Effort)**
-- Indexer pushes transaction snapshot to provider's webhook URL
+- Garden pushes transaction snapshot to provider's webhook URL
 - Near-real-time delivery
 - Best effort only (no delivery guarantees)
-- Retry logic handled by indexer
+- Retry logic handled by garden
 
 **2️⃣ Pull/Poll (Safety Net)**
-- Provider queries indexer RPC endpoint periodically
+- Provider queries garden RPC endpoint periodically
 - Provider controls reliability and polling frequency
 - Fallback if webhook fails
 - No inbound firewall rules required
 
 **3️⃣ RPC (Canonical Source)**
-- Provider queries indexer RPC for transaction status
+- Provider queries garden RPC for transaction status
 - Source of truth for transaction data
 - Bot-friendly, cacheable, stateless
 - Same model as Ethereum/Solana RPC
@@ -733,7 +742,7 @@ Eden provides **three complementary notification mechanisms** for service provid
   "providerName": "Multi-Vendor Ecommerce",
   "language": "typescript",
   "framework": "express",
-  "indexerEndpoint": "https://indexer-alpha.eden.io",
+  "gardenEndpoint": "https://garden-alpha.eden.io",
   "webhookUrl": "https://api.vendor-001.com/eden/webhook",
   "notificationMethods": ["webhook", "pull", "rpc"]
 }
@@ -741,7 +750,7 @@ Eden provides **three complementary notification mechanisms** for service provid
 
 **LLM Generation Process:**
 1. **Analyzes provider requirements** → Determines code structure
-2. **Generates webhook receiver code** → Handles POST requests from indexer
+2. **Generates webhook receiver code** → Handles POST requests from garden
 3. **Generates pull/poll code** → Periodic RPC queries with retry logic
 4. **Generates RPC client code** → Query transaction status by payer/snapshot
 5. **Generates integration code** → Combines all three methods
@@ -819,13 +828,13 @@ interface TransactionStatus {
 }
 
 class EdenTransactionPoller {
-  private indexerEndpoint: string;
+  private gardenEndpoint: string;
   private pollInterval: number = 5000; // 5 seconds
   private timeout: number = 300000; // 5 minutes
   private startTime: number;
   
-  constructor(indexerEndpoint: string) {
-    this.indexerEndpoint = indexerEndpoint;
+  constructor(gardenEndpoint: string) {
+    this.gardenEndpoint = gardenEndpoint;
     this.startTime = Date.now();
   }
   
@@ -833,7 +842,7 @@ class EdenTransactionPoller {
     while (Date.now() - this.startTime < this.timeout) {
       try {
         const response = await axios.get(
-          `${this.indexerEndpoint}/rpc/tx/status`,
+          `${this.gardenEndpoint}/rpc/tx/status`,
           { params: { payer: payerEmail } }
         );
         
@@ -854,7 +863,7 @@ class EdenTransactionPoller {
 }
 
 // Usage
-const poller = new EdenTransactionPoller('https://indexer-alpha.eden.io');
+const poller = new EdenTransactionPoller('https://garden-alpha.eden.io');
 const transaction = await poller.pollTransactionStatus('customer@example.com');
 if (transaction) {
   console.log('Transaction found:', transaction);
@@ -866,16 +875,16 @@ if (transaction) {
 import axios from 'axios';
 
 class EdenRPCClient {
-  private indexerEndpoint: string;
-  
-  constructor(indexerEndpoint: string) {
-    this.indexerEndpoint = indexerEndpoint;
+  private gardenEndpoint: string;
+
+  constructor(gardenEndpoint: string) {
+    this.gardenEndpoint = gardenEndpoint;
   }
   
   // Query transaction by payer email
   async getTransactionByPayer(payerEmail: string) {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getTransactionByPayer`,
+      `${this.gardenEndpoint}/rpc/getTransactionByPayer`,
       { params: { payer: payerEmail } }
     );
     return response.data;
@@ -884,7 +893,7 @@ class EdenRPCClient {
   // Query transaction by snapshot ID
   async getTransactionBySnapshot(snapshotId: string) {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getTransactionBySnapshot`,
+      `${this.gardenEndpoint}/rpc/getTransactionBySnapshot`,
       { params: { snapshot_id: snapshotId } }
     );
     return response.data;
@@ -893,7 +902,7 @@ class EdenRPCClient {
   // Get latest snapshot for provider
   async getLatestSnapshot(providerId: string) {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getLatestSnapshot`,
+      `${this.gardenEndpoint}/rpc/getLatestSnapshot`,
       { params: { provider_id: providerId } }
     );
     return response.data;
@@ -902,7 +911,7 @@ class EdenRPCClient {
   // Register webhook URL
   async registerWebhook(providerId: string, webhookUrl: string) {
     const response = await axios.post(
-      `${this.indexerEndpoint}/rpc/webhook/register`,
+      `${this.gardenEndpoint}/rpc/webhook/register`,
       { providerId, webhookUrl }
     );
     return response.data;
@@ -911,7 +920,7 @@ class EdenRPCClient {
   // Unregister webhook
   async unregisterWebhook(providerId: string) {
     const response = await axios.post(
-      `${this.indexerEndpoint}/rpc/webhook/unregister`,
+      `${this.gardenEndpoint}/rpc/webhook/unregister`,
       { providerId }
     );
     return response.data;
@@ -919,7 +928,7 @@ class EdenRPCClient {
 }
 
 // Usage
-const rpc = new EdenRPCClient('https://indexer-alpha.eden.io');
+const rpc = new EdenRPCClient('https://garden-alpha.eden.io');
 
 // Query by payer
 const transactions = await rpc.getTransactionByPayer('customer@example.com');
@@ -940,16 +949,16 @@ from typing import Optional, Dict, Any
 
 app = Flask(__name__)
 
-INDEXER_ENDPOINT = "https://indexer-alpha.eden.io"
+GARDEN_ENDPOINT = "https://garden-alpha.eden.io"
 
 class EdenNotificationClient:
-    def __init__(self, indexer_endpoint: str):
-        self.indexer_endpoint = indexer_endpoint
+    def __init__(self, garden_endpoint: str):
+        self.garden_endpoint = garden_endpoint
     
     def get_transaction_by_payer(self, payer_email: str) -> Optional[Dict[str, Any]]:
         """RPC: Query transaction by payer email"""
         response = requests.get(
-            f"{self.indexer_endpoint}/rpc/getTransactionByPayer",
+            f"{self.garden_endpoint}/rpc/getTransactionByPayer",
             params={"payer": payer_email}
         )
         if response.status_code == 200:
@@ -969,7 +978,7 @@ class EdenNotificationClient:
 # Webhook receiver
 @app.route('/eden/webhook', methods=['POST'])
 def webhook_receiver():
-    """Webhook: Receive push notifications from indexer"""
+    """Webhook: Receive push notifications from garden"""
     data = request.json
     event = data.get('event')
     snapshot = data.get('snapshot', {})
@@ -1020,7 +1029,7 @@ if __name__ == '__main__':
     "providerName": "Multi-Vendor Ecommerce",
     "language": "typescript",
     "framework": "express",
-    "indexerEndpoint": "https://indexer-alpha.eden.io",
+    "gardenEndpoint": "https://garden-alpha.eden.io",
     "webhookUrl": "https://api.vendor-001.com/eden/webhook",
     "notificationMethods": ["webhook", "pull", "rpc"],
     "serviceType": "ecommerce",
@@ -1112,7 +1121,7 @@ if __name__ == '__main__':
 #### Implementation Requirements
 
 **REQ-CODE-001**: Code Generation Service
-- ROOT CA Notification Code Generator service in Holy Ghost Indexer
+- ROOT CA Notification Code Generator service in Holy Ghost Garden
 - Uses DeepSeek/OpenAI to generate code from provider requirements
 - Validates generated code for syntax correctness
 - Charges iGas for generation
@@ -1163,15 +1172,15 @@ This replaces ratings with **economic truth**.
 
 Eden supports DEX/CEX without native tokens.
 
-### 9.1 Token Indexers & DEX Pools
+### 9.1 Token Gardens & DEX Pools
 
-DEX token/pool services are provided by **specialized token indexers**:
+DEX token/pool services are provided by **specialized token gardens**:
 
-- Each token indexer manages one or more token pools
-- Pools are assigned to token indexers at initialization
-- Token indexers provide DEX-specific routing and intelligence
-- LLM routes DEX queries to appropriate token indexers
-- Example: "I want to BUY 2 SOLANA token A" → routed to TokenIndexer-T1 managing TOKENA pool
+- Each token garden manages one or more token pools
+- Pools are assigned to token gardens at initialization
+- Token gardens provide DEX-specific routing and intelligence
+- LLM routes DEX queries to appropriate token gardens
+- Example: "I want to BUY 2 SOLANA token A" → routed to TokenGarden-T1 managing TOKENA pool
 
 ### 9.2 Price Impact & Pool Growth
 
@@ -1189,12 +1198,12 @@ iTax is a **0.0005% commission** on all DEX trades, serving as a second liquidit
 | Recipient | Share | Purpose |
 |---------|------|---------|
 | ROOT CA | 40% | Governance & liquidity growth |
-| Token Indexer | 30% | Reward for providing token pool services |
+| Token Garden | 30% | Reward for providing token pool services |
 | Trader | 30% | Rebate back to buyer/seller |
 
 This creates a **WIN-WIN-WIN** economy where:
 - ROOT CA liquidity pool grows over time
-- Token indexers are rewarded for service provision
+- Token gardens are rewarded for service provision
 - Traders receive rebates, incentivizing participation
 
 #### iTax Flow Example
@@ -1205,7 +1214,7 @@ iTax (0.0005%): 0.000005 SOL
 
 Distribution:
 ├─ ROOT CA: 0.000002 SOL (40%) → Added to ROOT CA liquidity pool
-├─ Indexer: 0.0000015 SOL (30%) → Reward to token indexer
+├─ Garden: 0.0000015 SOL (30%) → Reward to token garden
 └─ Trader: 0.0000015 SOL (30%) → Rebate added to user balance
 ```
 
@@ -1224,12 +1233,12 @@ Distribution:
 2. **Service type already known** (dex) - no LLM needed for type resolution
 3. User submits: "I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price"
 4. LLM extracts: `tokenSymbol: "TOKENA"`, `baseToken: "SOL"`, `action: "BUY"`, `tokenAmount: 2` (serviceType already known from context)
-5. **Indexer queries ROOT CA ServiceRegistry** → Returns DEX pool service providers
-6. Token indexer provides pool listings with real-time prices
+5. **Garden queries ROOT CA ServiceRegistry** → Returns DEX pool service providers
+6. Token garden provides pool listings with real-time prices
 7. LLM selects best pool based on price and liquidity
 8. Trade executes with price impact and iTax calculation
-9. **ROOT CA settles transaction** → Updates balances, distributes iTax: ROOT CA (40%), Indexer (30%), Trader (30%)
-10. Pool state updated, snapshot created, streamed to indexers
+9. **ROOT CA settles transaction** → Updates balances, distributes iTax: ROOT CA (40%), Garden (30%), Trader (30%)
+10. Pool state updated, snapshot created, streamed to gardens
 
 **Key Improvement:** Service type resolution moved from LLM to UI selection, reducing LLM calls and improving latency.
 
@@ -1269,8 +1278,8 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
    - Certificate registry initialized
    - Revocation stream created (`eden:encert:revocations`)
 
-2. **Holy Ghost Indexer Activation**
-   - Holy Ghost indexer loaded (ROOT CA's dedicated infrastructure indexer)
+2. **Holy Ghost Garden Activation**
+   - Holy Ghost garden loaded (ROOT CA's dedicated infrastructure garden)
    - Infrastructure services registered:
      - Stripe Payment Rail Service (`stripe-payment-rail-001`)
      - Settlement Service (`settlement-service-001`)
@@ -1288,11 +1297,11 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
    - Persistence file loaded (`eden-wallet-persistence.json`)
    - Wallet balances restored
    - Ledger entries restored
-   - Dynamic indexers restored (if any)
+   - Dynamic gardens restored (if any)
 
-4. **No Additional Indexers at Startup**
+4. **No Additional Gardens at Startup**
    - Only ROOT CA and Holy Ghost are active
-   - All other indexers (movie, token) are created dynamically via UI
+   - All other gardens (movie, token) are created dynamically via UI
    - System starts minimal and grows organically
 
 **Bootstrap Architecture:**
@@ -1300,7 +1309,7 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 [ ROOT CA ]
      |
      v
-[ Holy Ghost Indexer ]
+[ Holy Ghost Garden ]
      |
      ├─── Stripe Payment Rail
      ├─── Settlement Service
@@ -1313,45 +1322,45 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 
 ---
 
-### 12.2 Dynamic Indexer Creation Workflow
+### 12.2 Dynamic Garden Creation Workflow
 
-All additional indexers (movie, token, etc.) are created **dynamically** via the Angular UI in a wizard-style interface. Indexers are **not** pre-configured at startup.
+All additional gardens (movie, token, etc.) are created **dynamically** via the Angular UI in a wizard-style interface. Gardens are **not** pre-configured at startup.
 
 #### Creation Modes
 
 **GOD Mode:**
 - Full visibility into system architecture
-- Can create any indexer type
+- Can create any garden type
 - Full access to infrastructure services
 - Complete system transparency
 
 **Priest Mode:**
 - Service-focused view
-- Can create service provider indexers
+- Can create service provider gardens
 - Limited visibility into infrastructure
 - Focused on operational needs
 
 #### Wizard-Style Creation Interface
 
-The Angular UI provides a **multi-step wizard** for indexer creation:
+The Angular UI provides a **multi-step wizard** for garden creation:
 
-**Step 1: Indexer Type Selection**
-- Select indexer type: Movie Indexer, Token Indexer, or Custom
+**Step 1: Garden Type Selection**
+- Select garden type: Movie Garden, Token Garden, or Custom
 - View requirements and costs for each type
 - Preview capabilities and service types
 
 **Step 2: Configuration**
-- **Indexer Name**: Human-readable name
+- **Garden Name**: Human-readable name
 - **Network Binding**:
   - Server IP address
   - Server domain (optional)
   - Server port
   - Network type (http/https)
-- **Capabilities**: Selected based on indexer type
-- **Service Types**: Services this indexer will provide
+- **Capabilities**: Selected based on garden type
+- **Service Types**: Services this garden will provide
 
 **Step 3: Funding & Economics**
-- **Deployment Fee**: One-time cost to create indexer (e.g., 110 JSC for movie indexer)
+- **Deployment Fee**: One-time cost to create garden (e.g., 110 JSC for movie garden)
 - **Insurance Fee**: Initial bond/insurance requirement
 - **iGas Reserve**: Estimated iGas costs for operations
 - **Reputation Score**: Initial reputation (default: 4.0)
@@ -1377,35 +1386,35 @@ The Angular UI provides a **multi-step wizard** for indexer creation:
   - Stripe Checkout (if insufficient balance)
 - **Confirmation**: Review all settings before creation
 
-**Step 7: Indexer Activation**
+**Step 7: Garden Activation**
 - **Certificate Issuance**: ENCERT certificate issued by ROOT CA
-- **Service Provider Registration**: Default providers created (for movie indexers)
-- **Persistence**: Indexer saved to Redis persistence file
-- **Activation**: Indexer becomes active and available
+- **Service Provider Registration**: Default providers created (for movie gardens)
+- **Persistence**: Garden saved to Redis persistence file
+- **Activation**: Garden becomes active and available
 
 ---
 
-### 12.3 Movie Indexer Creation Workflow
+### 12.3 Movie Garden Creation Workflow
 
-**Example: Creating a Movie Service Indexer**
+**Example: Creating a Movie Service Garden**
 
 #### Step 1: Type Selection
 ```
-User selects: "Movie Service Indexer"
+User selects: "Movie Service Garden"
 Cost: 110 JSC
-Capabilities: INDEXER, ISSUE_CERT
+Capabilities: GARDEN, ISSUE_CERT
 Service Types: movie, snake (advertising)
 ```
 
 #### Step 2: Configuration
 ```json
 {
-  "indexerName": "Indexer-D",
+  "gardenName": "Garden-D",
   "serverIp": "192.168.1.200",
-  "serverDomain": "indexer-delta.eden.io",
+  "serverDomain": "garden-delta.eden.io",
   "serverPort": 8080,
   "networkType": "https",
-  "indexerId": "indexer-d"
+  "gardenId": "garden-d"
 }
 ```
 
@@ -1421,7 +1430,7 @@ Service Types: movie, snake (advertising)
 ```
 
 **Funding Breakdown:**
-- **Deployment Fee (110 JSC)**: One-time cost to create indexer infrastructure
+- **Deployment Fee (110 JSC)**: One-time cost to create garden infrastructure
 - **Insurance Fee (1000 JSC)**: Initial bond for service providers
 - **iGas Reserve (50 JSC)**: Estimated operational costs
 - **Total Required**: 1160 JSC
@@ -1452,7 +1461,7 @@ movieTitle/showtime/location/price/reviewCount/rating in ledger"
   "language": "typescript",
   "framework": "express",
   "notificationMethods": ["webhook", "pull", "rpc"],
-  "indexerEndpoint": "https://indexer-delta.eden.io"
+  "gardenEndpoint": "https://garden-delta.eden.io"
 }
 ```
 
@@ -1463,7 +1472,7 @@ movieTitle/showtime/location/price/reviewCount/rating in ledger"
 - Integration example (combining all methods)
 
 **Code Stored:**
-- Redis key: `eden:notification-code:indexer-d`
+- Redis key: `eden:notification-code:garden-d`
 - iGas cost: 0.0035 JSC
 
 #### Step 6: Payment Flow
@@ -1485,19 +1494,19 @@ Status: ✅ Sufficient
   - Webhook confirms payment
   - Proceed to activation
 
-#### Step 7: Indexer Activation
+#### Step 7: Garden Activation
 
 **Certificate Issuance:**
 ```json
 {
-  "subject": "eden:indexer:abc123...",
+  "subject": "eden:garden:abc123...",
   "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "constraints": {
-    "indexerId": "indexer-d",
-    "indexerName": "Indexer-D",
+    "gardenId": "garden-d",
+    "gardenName": "Garden-D",
     "serverIp": "192.168.1.200",
-    "serverDomain": "indexer-delta.eden.io",
+    "serverDomain": "garden-delta.eden.io",
     "serverPort": 8080,
     "networkType": "https"
   }
@@ -1505,43 +1514,43 @@ Status: ✅ Sufficient
 ```
 
 **Default Service Providers Created:**
-- Regal Cinemas (`regal-001-indexer-d`)
-- Cineplex (`cineplex-001-indexer-d`)
-- MovieMax (`moviemax-001-indexer-d`)
+- Regal Cinemas (`regal-001-garden-d`)
+- Cineplex (`cineplex-001-garden-d`)
+- MovieMax (`moviemax-001-garden-d`)
 
 **Persistence:**
-- Indexer saved to `eden-wallet-persistence.json`
+- Garden saved to `eden-wallet-persistence.json`
 - Survives server reboot
 - Certificate stored in certificate registry
 
 **Activation:**
-- Indexer added to `INDEXERS` array
-- Stream created: `eden:indexer:D`
-- Indexer becomes active and available for routing
+- Garden added to `GARDENS` array
+- Stream created: `eden:garden:D`
+- Garden becomes active and available for routing
 
 ---
 
-### 12.4 Token Indexer Creation Workflow
+### 12.4 Token Garden Creation Workflow
 
-**Example: Creating a Token Service Indexer**
+**Example: Creating a Token Service Garden**
 
 #### Step 1: Type Selection
 ```
-User selects: "Token Service Indexer"
+User selects: "Token Service Garden"
 Cost: 150 JSC
-Capabilities: INDEXER, ISSUE_CERT
+Capabilities: GARDEN, ISSUE_CERT
 Service Types: dex (token pools)
 ```
 
 #### Step 2: Configuration
 ```json
 {
-  "indexerName": "TokenIndexer-T3",
+  "gardenName": "TokenGarden-T3",
   "serverIp": "192.168.1.300",
-  "serverDomain": "token-indexer-t3.eden.io",
+  "serverDomain": "token-garden-t3.eden.io",
   "serverPort": 8080,
   "networkType": "https",
-  "indexerId": "T3",
+  "gardenId": "T3",
   "tokenServiceType": "dex"
 }
 ```
@@ -1568,13 +1577,13 @@ Service Types: dex (token pools)
 **Service Description Input:**
 ```
 "Need a DEX token pool service provider that needs to persist 
-tokenSymbol/baseToken/price/liquidity/poolId/indexerId in ledger"
+tokenSymbol/baseToken/price/liquidity/poolId/gardenId in ledger"
 ```
 
 **LLM Generates:**
 - Query extraction prompt (for DEX trading queries)
 - Response formatting prompt (for token pool listings)
-- Ledger field mappings (tokenSymbol, baseToken, price, liquidity, poolId, indexerId)
+- Ledger field mappings (tokenSymbol, baseToken, price, liquidity, poolId, gardenId)
 - iTax calculation logic
 
 **Generated Prompts Stored:**
@@ -1590,7 +1599,7 @@ tokenSymbol/baseToken/price/liquidity/poolId/indexerId in ledger"
   "language": "typescript",
   "framework": "express",
   "notificationMethods": ["webhook", "pull", "rpc"],
-  "indexerEndpoint": "https://token-indexer-t3.eden.io",
+  "gardenEndpoint": "https://token-garden-t3.eden.io",
   "serviceType": "dex",
   "requiredFields": ["tokenSymbol", "baseToken", "price", "liquidity"]
 }
@@ -1623,20 +1632,20 @@ Action: Initiate Stripe Checkout
 - Total balance: 2250 JSC
 - Proceed to activation
 
-#### Step 7: Token Indexer Activation
+#### Step 7: Token Garden Activation
 
 **Certificate Issuance:**
 ```json
 {
-  "subject": "eden:token-indexer:def456...",
+  "subject": "eden:token-garden:def456...",
   "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "constraints": {
-    "indexerId": "T3",
-    "indexerName": "TokenIndexer-T3",
+    "gardenId": "T3",
+    "gardenName": "TokenGarden-T3",
     "tokenServiceType": "dex",
     "serverIp": "192.168.1.300",
-    "serverDomain": "token-indexer-t3.eden.io",
+    "serverDomain": "token-garden-t3.eden.io",
     "serverPort": 8080,
     "networkType": "https"
   }
@@ -1649,42 +1658,42 @@ Action: Initiate Stripe Checkout
 - Initial ROOT CA liquidity provided
 
 **Persistence:**
-- Token indexer saved to `eden-wallet-persistence.json`
+- Token garden saved to `eden-wallet-persistence.json`
 - Survives server reboot
 - Certificate stored in certificate registry
 
 **Activation:**
-- Token indexer added to `TOKEN_INDEXERS` array
-- Stream created: `eden:token-indexer:T3`
-- Token indexer becomes active for DEX routing
+- Token garden added to `TOKEN_GARDENS` array
+- Stream created: `eden:token-garden:T3`
+- Token garden becomes active for DEX routing
 
 ---
 
 ### 12.5 Persistence & Recovery
 
 **Persistence Mechanism:**
-- All dynamically created indexers stored in `eden-wallet-persistence.json`
+- All dynamically created gardens stored in `eden-wallet-persistence.json`
 - File structure:
   ```json
   {
-    "indexers": [
+    "gardens": [
       {
-        "id": "indexer-d",
-        "name": "Indexer-D",
-        "stream": "eden:indexer:D",
+        "id": "garden-d",
+        "name": "Garden-D",
+        "stream": "eden:garden:D",
         "active": true,
-        "uuid": "eden:indexer:abc123...",
+        "uuid": "eden:garden:abc123...",
         "createdAt": 1735515100000,
         "createdBy": "bill.draper.auto@gmail.com"
       }
     ],
-    "tokenIndexers": [
+    "tokenGardens": [
       {
         "id": "T3",
-        "name": "TokenIndexer-T3",
-        "stream": "eden:token-indexer:T3",
+        "name": "TokenGarden-T3",
+        "stream": "eden:token-garden:T3",
         "active": true,
-        "uuid": "eden:token-indexer:def456...",
+        "uuid": "eden:token-garden:def456...",
         "tokenServiceType": "dex",
         "createdAt": 1735515200000,
         "createdBy": "bill.draper.auto@gmail.com"
@@ -1695,15 +1704,15 @@ Action: Initiate Stripe Checkout
 
 **Recovery on Startup:**
 1. Load persistence file
-2. Restore indexers to `INDEXERS` array
-3. Restore token indexers to `TOKEN_INDEXERS` array
-4. Issue certificates to restored indexers (if not already issued)
-5. Restore service providers for each indexer
-6. Activate all restored indexers
+2. Restore gardens to `GARDENS` array
+3. Restore token gardens to `TOKEN_GARDENS` array
+4. Issue certificates to restored gardens (if not already issued)
+5. Restore service providers for each garden
+6. Activate all restored gardens
 
 **Persistence Triggers:**
-- **Immediate Save**: On indexer creation (bypass debounce)
-- **Debounced Save**: On indexer updates (1 second debounce)
+- **Immediate Save**: On garden creation (bypass debounce)
+- **Debounced Save**: On garden updates (1 second debounce)
 - **Force Save**: On server shutdown (graceful shutdown handler)
 
 ---
@@ -1712,7 +1721,7 @@ Action: Initiate Stripe Checkout
 
 **Funding Components:**
 
-| Component          | Movie Indexer | Token Indexer | Purpose                    |
+| Component          | Movie Garden | Token Garden | Purpose                    |
 | ------------------ | ------------- | ------------- | -------------------------- |
 | Deployment Fee     | 110 JSC       | 150 JSC       | Infrastructure setup       |
 | Insurance Fee      | 1000 JSC      | 2000 JSC      | Initial bond/insurance     |
@@ -1741,7 +1750,7 @@ Action: Initiate Stripe Checkout
 2. **Form Validation**: Real-time validation of inputs
 3. **Cost Calculator**: Dynamic cost calculation based on selections
 4. **Balance Display**: Real-time wallet balance check
-5. **Preview Panel**: Preview of indexer configuration before creation
+5. **Preview Panel**: Preview of garden configuration before creation
 6. **Code Preview**: Preview generated code samples
 7. **Confirmation Dialog**: Final confirmation before payment
 
@@ -1761,15 +1770,15 @@ Action: Initiate Stripe Checkout
 
 ### 12.8 API Endpoints
 
-**POST `/api/indexer/create`**
-- **Purpose**: Create new indexer via wizard
+**POST `/api/garden/create`**
+- **Purpose**: Create new garden via wizard
 - **Request Body**:
   ```json
   {
-    "indexerType": "movie" | "token" | "custom",
-    "indexerName": "Indexer-D",
+    "gardenType": "movie" | "token" | "custom",
+    "gardenName": "Garden-D",
     "serverIp": "192.168.1.200",
-    "serverDomain": "indexer-delta.eden.io",
+    "serverDomain": "garden-delta.eden.io",
     "serverPort": 8080,
     "networkType": "https",
     "serviceDescription": "Need a movie service provider...",
@@ -1780,25 +1789,25 @@ Action: Initiate Stripe Checkout
     "paymentMethod": "wallet" | "stripe"
   }
   ```
-- **Response**: Indexer configuration and payment instructions
+- **Response**: Garden configuration and payment instructions
 
-**POST `/api/indexer/purchase`**
+**POST `/api/garden/purchase`**
 - **Purpose**: Direct wallet purchase (if sufficient balance)
-- **Request Body**: Indexer configuration
-- **Response**: Created indexer details
+- **Request Body**: Garden configuration
+- **Response**: Created garden details
 
-**POST `/api/indexer/buy`**
-- **Purpose**: Initiate Stripe Checkout for indexer purchase
-- **Request Body**: Indexer configuration
+**POST `/api/garden/buy`**
+- **Purpose**: Initiate Stripe Checkout for garden purchase
+- **Request Body**: Garden configuration
 - **Response**: Stripe Checkout session URL
 
-**GET `/api/indexer/list`**
-- **Purpose**: List all active indexers
-- **Response**: Array of indexer configurations
+**GET `/api/garden/list`**
+- **Purpose**: List all active gardens
+- **Response**: Array of garden configurations
 
-**GET `/api/indexer/:indexerId`**
-- **Purpose**: Get specific indexer details
-- **Response**: Indexer configuration with certificate and services
+**GET `/api/garden/:gardenId`**
+- **Purpose**: Get specific garden details
+- **Response**: Garden configuration with certificate and services
 
 ---
 
@@ -1810,8 +1819,8 @@ Action: Initiate Stripe Checkout
 - Replication bus established
 - Persistence file loaded
 
-**REQ-DEPLOY-002**: Dynamic Indexer Creation
-- Angular UI wizard for indexer creation
+**REQ-DEPLOY-002**: Dynamic Garden Creation
+- Angular UI wizard for garden creation
 - Multi-step workflow with validation
 - GOD/Priest mode support
 - Real-time cost calculation
@@ -1830,7 +1839,7 @@ Action: Initiate Stripe Checkout
 - Combined payment support
 
 **REQ-DEPLOY-005**: Persistence
-- Indexer persistence to Redis/file
+- Garden persistence to Redis/file
 - Certificate persistence
 - Service provider persistence
 - Recovery on startup
@@ -1854,13 +1863,13 @@ Action: Initiate Stripe Checkout
 **For System:**
 - ✅ **Minimal Startup**: Only essential components load
 - ✅ **Dynamic Growth**: System grows organically
-- ✅ **Persistence**: All indexers survive reboots
+- ✅ **Persistence**: All gardens survive reboots
 - ✅ **Standardization**: Consistent creation process
 
 **For Users:**
-- ✅ **Faster Service Activation**: New indexers available quickly
+- ✅ **Faster Service Activation**: New gardens available quickly
 - ✅ **Better Service Quality**: Standardized creation ensures quality
-- ✅ **More Service Options**: Easy to add new indexer types
+- ✅ **More Service Options**: Easy to add new garden types
 
 ---
 
@@ -1875,18 +1884,18 @@ ROOT CA + Holy Ghost + Infrastructure Services + Replication Bus
 ```
 ROOT CA
   └─── Holy Ghost (Infrastructure)
-  └─── Indexer-A (Movie) [Dynamic]
-  └─── Indexer-B (Movie) [Dynamic]
-  └─── Indexer-C (Movie) [Dynamic]
-  └─── TokenIndexer-T1 (DEX) [Dynamic]
-  └─── TokenIndexer-T2 (DEX) [Dynamic]
-  └─── TokenIndexer-T3 (DEX) [Dynamic]
+  └─── Garden-A (Movie) [Dynamic]
+  └─── Garden-B (Movie) [Dynamic]
+  └─── Garden-C (Movie) [Dynamic]
+  └─── TokenGarden-T1 (DEX) [Dynamic]
+  └─── TokenGarden-T2 (DEX) [Dynamic]
+  └─── TokenGarden-T3 (DEX) [Dynamic]
 ```
 
 **Key Principles:**
 - ✅ **Minimal Bootstrap**: Only essentials at startup
-- ✅ **Dynamic Creation**: All indexers created via UI
-- ✅ **Persistent Storage**: All indexers survive reboots
+- ✅ **Dynamic Creation**: All gardens created via UI
+- ✅ **Persistent Storage**: All gardens survive reboots
 - ✅ **Wizard-Driven**: User-friendly creation process
 - ✅ **LLM-Powered**: Intelligent prompt and code generation
 - ✅ **Funding-Aware**: Clear cost requirements and payment options
@@ -1895,35 +1904,35 @@ ROOT CA
 
 ### 12.12 One-Click Automated Deployment
 
-For **simple indexer types** (movie, token), Eden supports **fully automated single-click deployment** that replaces command-line flags with UI-driven configuration. This eliminates the need for command-line arguments like `--indexers=3 --token-indexers=2` and moves all deployment control to the Angular UI.
+For **simple garden types** (movie, token), Eden supports **fully automated single-click deployment** that replaces command-line flags with UI-driven configuration. This eliminates the need for command-line arguments like `--gardens=3 --token-gardens=2` and moves all deployment control to the Angular UI.
 
 #### Overview
 
 **Traditional Command-Line Approach (Deprecated):**
 ```bash
-npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3 --token-indexers=2
+npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --gardens=3 --token-gardens=2
 ```
 
 **New UI-Driven Approach:**
 - Angular UI provides "Quick Deploy" interface
-- Single-click deployment for simple indexer types
+- Single-click deployment for simple garden types
 - LLM services auto-generate all configuration
-- Bulk deployment support (multiple indexers at once)
+- Bulk deployment support (multiple gardens at once)
 - No command-line flags required
 
-#### Supported Simple Indexer Types
+#### Supported Simple Garden Types
 
-**Movie Indexers:**
+**Movie Gardens:**
 - Pre-defined service type: `movie`
-- Standard capabilities: `INDEXER`, `ISSUE_CERT`
+- Standard capabilities: `GARDEN`, `ISSUE_CERT`
 - Default service providers: Auto-generated
-- Standard funding: 1160 JSC per indexer
+- Standard funding: 1160 JSC per garden
 
-**Token Indexers:**
+**Token Gardens:**
 - Pre-defined service type: `dex`
-- Standard capabilities: `INDEXER`, `ISSUE_CERT`
+- Standard capabilities: `GARDEN`, `ISSUE_CERT`
 - Default token pools: Auto-generated
-- Standard funding: 2250 JSC per indexer
+- Standard funding: 2250 JSC per garden
 
 #### Quick Deploy Interface
 
@@ -1931,16 +1940,16 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3
 
 1. **Quick Deploy Card**
    - Prominent card on main dashboard
-   - "Deploy Movie Indexers" button
-   - "Deploy Token Indexers" button
+   - "Deploy Movie Gardens" button
+   - "Deploy Token Gardens" button
    - "Deploy Both" button
 
 2. **Bulk Deployment Dialog**
    ```
    ┌─────────────────────────────────────┐
-   │ Quick Deploy: Movie Indexers        │
+   │ Quick Deploy: Movie Gardens        │
    ├─────────────────────────────────────┤
-   │ Number of Indexers: [3]              │
+   │ Number of Gardens: [3]              │
    │                                       │
    │ Total Cost: 3,480 JSC                 │
    │ (3 × 1,160 JSC)                       │
@@ -1953,7 +1962,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3
 
 3. **Deployment Progress**
    - Real-time progress indicator
-   - Per-indexer status (creating, certifying, activating)
+   - Per-garden status (creating, certifying, activating)
    - Success/failure notifications
    - Summary report
 
@@ -1962,7 +1971,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3
 **LLM-Driven Auto-Configuration:**
 
 **Step 1: System Prompt Generation**
-- **Input**: Indexer type (`movie` or `token`)
+- **Input**: Garden type (`movie` or `token`)
 - **LLM Service**: `system-prompt-generator-001`
 - **Output**: 
   - Query extraction prompt
@@ -1971,7 +1980,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3
 - **iGas Cost**: 0.0025 JSC (movie), 0.0030 JSC (token)
 
 **Step 2: Notification Code Generation**
-- **Input**: Indexer type, language preference, framework preference
+- **Input**: Garden type, language preference, framework preference
 - **LLM Service**: `notification-code-generator-001`
 - **Output**:
   - Webhook receiver code
@@ -1982,35 +1991,35 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --indexers=3
 **Step 3: Network Binding Auto-Assignment**
 - **Auto-Generated**:
   - Server IP: Sequential assignment (192.168.1.200, 192.168.1.201, ...)
-  - Server Domain: `indexer-{id}.eden.io` or `token-indexer-{id}.eden.io`
+  - Server Domain: `garden-{id}.eden.io` or `token-garden-{id}.eden.io`
   - Server Port: 8080 (default)
   - Network Type: `https` (default)
 
-**Step 4: Indexer Naming**
-- **Movie Indexers**: `Indexer-A`, `Indexer-B`, `Indexer-C`, ...
-- **Token Indexers**: `TokenIndexer-T1`, `TokenIndexer-T2`, `TokenIndexer-T3`, ...
+**Step 4: Garden Naming**
+- **Movie Gardens**: `Garden-A`, `Garden-B`, `Garden-C`, ...
+- **Token Gardens**: `TokenGarden-T1`, `TokenGarden-T2`, `TokenGarden-T3`, ...
 
 #### Bulk Deployment Workflow
 
-**Example: Deploy 3 Movie Indexers + 2 Token Indexers**
+**Example: Deploy 3 Movie Gardens + 2 Token Gardens**
 
 **Step 1: User Initiates Quick Deploy**
 ```
 User clicks "Deploy Both" button
-Selects: 3 Movie Indexers, 2 Token Indexers
+Selects: 3 Movie Gardens, 2 Token Gardens
 ```
 
 **Step 2: Cost Calculation**
 ```json
 {
-  "movieIndexers": {
+  "movieGardens": {
     "count": 3,
-    "costPerIndexer": 1160,
+    "costPerGarden": 1160,
     "totalCost": 3480
   },
-  "tokenIndexers": {
+  "tokenGardens": {
     "count": 2,
-    "costPerIndexer": 2250,
+    "costPerGarden": 2250,
     "totalCost": 4500
   },
   "grandTotal": 7980
@@ -2026,30 +2035,30 @@ Status: ✅ Sufficient
 
 **Step 4: Automated Deployment**
 
-**For Each Movie Indexer:**
-1. Generate unique indexer ID (`indexer-a`, `indexer-b`, `indexer-c`)
+**For Each Movie Garden:**
+1. Generate unique garden ID (`garden-a`, `garden-b`, `garden-c`)
 2. LLM generates system prompts (movie service)
 3. LLM generates notification code (TypeScript/Express)
 4. Auto-assign network binding
 5. Issue certificate
 6. Create default service providers (Regal Cinemas, Cineplex, MovieMax)
 7. Register service providers
-8. Persist indexer
-9. Activate indexer
+8. Persist garden
+9. Activate garden
 
-**For Each Token Indexer:**
-1. Generate unique indexer ID (`T1`, `T2`)
+**For Each Token Garden:**
+1. Generate unique garden ID (`T1`, `T2`)
 2. LLM generates system prompts (DEX service)
 3. LLM generates notification code (TypeScript/Express)
 4. Auto-assign network binding
 5. Issue certificate
 6. Create default token pools (TOKENA/SOL, TOKENB/SOL, etc.)
 7. Initialize ROOT CA liquidity
-8. Persist token indexer
-9. Activate token indexer
+8. Persist token garden
+9. Activate token garden
 
 **Step 5: Parallel Processing**
-- All indexers created in parallel (where possible)
+- All gardens created in parallel (where possible)
 - Certificate issuance serialized (ROOT CA constraint)
 - Service provider registration parallelized
 - Progress updates broadcast via WebSocket
@@ -2058,21 +2067,21 @@ Status: ✅ Sufficient
 ```json
 {
   "success": true,
-  "movieIndexers": {
+  "movieGardens": {
     "requested": 3,
     "created": 3,
-    "indexers": [
-      { "id": "indexer-a", "name": "Indexer-A", "status": "active" },
-      { "id": "indexer-b", "name": "Indexer-B", "status": "active" },
-      { "id": "indexer-c", "name": "Indexer-C", "status": "active" }
+    "gardens": [
+      { "id": "garden-a", "name": "Garden-A", "status": "active" },
+      { "id": "garden-b", "name": "Garden-B", "status": "active" },
+      { "id": "garden-c", "name": "Garden-C", "status": "active" }
     ]
   },
-  "tokenIndexers": {
+  "tokenGardens": {
     "requested": 2,
     "created": 2,
-    "indexers": [
-      { "id": "T1", "name": "TokenIndexer-T1", "status": "active" },
-      { "id": "T2", "name": "TokenIndexer-T2", "status": "active" }
+    "gardens": [
+      { "id": "T1", "name": "TokenGarden-T1", "status": "active" },
+      { "id": "T2", "name": "TokenGarden-T2", "status": "active" }
     ]
   },
   "totalCost": 7980,
@@ -2082,16 +2091,16 @@ Status: ✅ Sufficient
 
 #### API Endpoints
 
-**POST `/api/indexer/quick-deploy`**
-- **Purpose**: Bulk deployment of simple indexers
+**POST `/api/garden/quick-deploy`**
+- **Purpose**: Bulk deployment of simple gardens
 - **Request Body**:
   ```json
   {
-    "movieIndexers": {
+    "movieGardens": {
       "count": 3,
       "autoConfigure": true
     },
-    "tokenIndexers": {
+    "tokenGardens": {
       "count": 2,
       "autoConfigure": true
     },
@@ -2100,14 +2109,14 @@ Status: ✅ Sufficient
   }
   ```
 - **Response**: Deployment job ID and progress endpoint
-- **iGas Cost**: 0.005 JSC per indexer (for LLM generation)
+- **iGas Cost**: 0.005 JSC per garden (for LLM generation)
 
-**GET `/api/indexer/deployment-status/:jobId`**
+**GET `/api/garden/deployment-status/:jobId`**
 - **Purpose**: Check deployment progress
-- **Response**: Current status, progress percentage, completed indexers, errors
+- **Response**: Current status, progress percentage, completed gardens, errors
 
-**POST `/api/indexer/quick-deploy-movie`**
-- **Purpose**: Quick deploy movie indexers only
+**POST `/api/garden/quick-deploy-movie`**
+- **Purpose**: Quick deploy movie gardens only
 - **Request Body**:
   ```json
   {
@@ -2115,10 +2124,10 @@ Status: ✅ Sufficient
     "userEmail": "operator@example.com"
   }
   ```
-- **Response**: Created movie indexers
+- **Response**: Created movie gardens
 
-**POST `/api/indexer/quick-deploy-token`**
-- **Purpose**: Quick deploy token indexers only
+**POST `/api/garden/quick-deploy-token`**
+- **Purpose**: Quick deploy token gardens only
 - **Request Body**:
   ```json
   {
@@ -2126,7 +2135,7 @@ Status: ✅ Sufficient
     "userEmail": "operator@example.com"
   }
   ```
-- **Response**: Created token indexers
+- **Response**: Created token gardens
 
 #### LLM Service Integration
 
@@ -2178,39 +2187,39 @@ Status: ✅ Sufficient
 
 #### Default Configurations
 
-**Movie Indexer Defaults:**
+**Movie Garden Defaults:**
 ```json
 {
   "serviceProviders": [
     {
       "name": "Regal Cinemas",
-      "id": "regal-001-{indexerId}",
+      "id": "regal-001-{gardenId}",
       "location": "Baltimore, Maryland",
       "reputation": 4.6,
       "bond": 1100
     },
     {
       "name": "Cineplex",
-      "id": "cineplex-001-{indexerId}",
+      "id": "cineplex-001-{gardenId}",
       "location": "New York, New York",
       "reputation": 4.4,
       "bond": 900
     },
     {
       "name": "MovieMax",
-      "id": "moviemax-001-{indexerId}",
+      "id": "moviemax-001-{gardenId}",
       "location": "Los Angeles, California",
       "reputation": 4.5,
       "bond": 1000
     }
   ],
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "networkType": "https",
   "port": 8080
 }
 ```
 
-**Token Indexer Defaults:**
+**Token Garden Defaults:**
 ```json
 {
   "tokenPools": [
@@ -2227,7 +2236,7 @@ Status: ✅ Sufficient
       "initialLiquidity": 1000
     }
   ],
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "networkType": "https",
   "port": 8080
 }
@@ -2240,8 +2249,8 @@ Status: ✅ Sufficient
 npx tsx .\eden-sim-redis.ts \
   --enable-openai=true \
   --mocked-llm=false \
-  --indexers=3 \
-  --token-indexers=2
+  --gardens=3 \
+  --token-gardens=2
 ```
 
 **New Approach:**
@@ -2249,15 +2258,15 @@ npx tsx .\eden-sim-redis.ts \
 # Server starts with only ROOT CA + Holy Ghost
 npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 
-# All indexers created via Angular UI Quick Deploy
-# No command-line flags needed for indexer creation
+# All gardens created via Angular UI Quick Deploy
+# No command-line flags needed for garden creation
 ```
 
 **Benefits:**
 - ✅ **UI-Driven**: All deployment via Angular UI
 - ✅ **LLM-Powered**: Auto-configuration via LLM services
-- ✅ **Flexible**: Deploy any number of indexers at any time
-- ✅ **Persistent**: All indexers saved automatically
+- ✅ **Flexible**: Deploy any number of gardens at any time
+- ✅ **Persistent**: All gardens saved automatically
 - ✅ **User-Friendly**: No command-line knowledge required
 
 #### Implementation Requirements
@@ -2275,30 +2284,30 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 - Default service provider creation
 
 **REQ-DEPLOY-009**: Bulk Deployment
-- Parallel indexer creation (where possible)
+- Parallel garden creation (where possible)
 - Serialized certificate issuance
 - Progress tracking and reporting
 - Error handling and rollback
 
 **REQ-DEPLOY-010**: Command-Line Flag Removal
-- Remove `--indexers` flag support
-- Remove `--token-indexers` flag support
+- Remove `--gardens` flag support
+- Remove `--token-gardens` flag support
 - Server starts minimal (ROOT CA + Holy Ghost only)
-- All indexers created via UI
+- All gardens created via UI
 
 **REQ-DEPLOY-011**: LLM Service Integration
 - System prompt generator service integration
 - Notification code generator service integration
-- Auto-generation for simple indexer types
+- Auto-generation for simple garden types
 - iGas costing for LLM operations
 
 #### Benefits
 
 **For Operators:**
-- ✅ **One-Click Deployment**: Deploy multiple indexers instantly
+- ✅ **One-Click Deployment**: Deploy multiple gardens instantly
 - ✅ **No CLI Knowledge**: Pure UI-driven deployment
 - ✅ **Auto-Configuration**: LLM handles all configuration
-- ✅ **Bulk Operations**: Deploy many indexers at once
+- ✅ **Bulk Operations**: Deploy many gardens at once
 
 **For System:**
 - ✅ **Minimal Startup**: Server starts with essentials only
@@ -2309,7 +2318,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 **For Developers:**
 - ✅ **No Command-Line Flags**: Simpler server startup
 - ✅ **UI-Driven**: All deployment via Angular
-- ✅ **Extensible**: Easy to add new simple indexer types
+- ✅ **Extensible**: Easy to add new simple garden types
 - ✅ **Testable**: UI-driven deployment easier to test
 
 ---
@@ -2444,7 +2453,7 @@ import { initializeNotificationHandlers } from './notification-handler';
 
 async function main() {
   const serviceType = process.env.SERVICE_TYPE || 'movie';
-  const indexerEndpoint = process.env.INDEXER_ENDPOINT || 'https://indexer-alpha.eden.io';
+  const gardenEndpoint = process.env.GARDEN_ENDPOINT || 'https://garden-alpha.eden.io';
   
   // Load LLM-generated configuration
   console.log('📋 Loading system prompt...');
@@ -2457,13 +2466,13 @@ async function main() {
   const app = createExpressApp(systemPrompt);
   
   // Initialize notification handlers (webhook, pull, RPC)
-  initializeNotificationHandlers(app, notificationCode, indexerEndpoint);
+  initializeNotificationHandlers(app, notificationCode, gardenEndpoint);
   
   // Start server
   const port = process.env.PORT || 3001;
   app.listen(port, () => {
     console.log(`✅ Service Provider (${serviceType}) running on port ${port}`);
-    console.log(`📡 Connected to Eden Indexer: ${indexerEndpoint}`);
+    console.log(`📡 Connected to Eden Garden: ${gardenEndpoint}`);
   });
 }
 
@@ -2505,7 +2514,7 @@ const app = express();
 app.use(express.json());
 
 const SERVICE_TYPE = 'movie';
-const INDEXER_ENDPOINT = process.env.INDEXER_ENDPOINT || 'https://indexer-alpha.eden.io';
+const GARDEN_ENDPOINT = process.env.GARDEN_ENDPOINT || 'https://garden-alpha.eden.io';
 const PROVIDER_ID = process.env.PROVIDER_ID || 'movie-provider-001';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -2519,7 +2528,7 @@ async function main() {
   console.log('✅ Loaded system prompt:', systemPrompt.version);
   
   // Initialize Eden client
-  const edenClient = new EdenClient(INDEXER_ENDPOINT, PROVIDER_ID);
+  const edenClient = new EdenClient(GARDEN_ENDPOINT, PROVIDER_ID);
   
   // Initialize movie service with system prompt and Redis
   const movieService = new MovieService(systemPrompt, redis);
@@ -2567,7 +2576,7 @@ async function main() {
   const port = process.env.PORT || 3001;
   app.listen(port, () => {
     console.log(`🎬 Movie Service Provider running on port ${port}`);
-    console.log(`📡 Indexer: ${INDEXER_ENDPOINT}`);
+    console.log(`📡 Garden: ${GARDEN_ENDPOINT}`);
     console.log(`💾 Redis: ${REDIS_URL}`);
   });
 }
@@ -2782,7 +2791,7 @@ services:
     build: .
     environment:
       - SERVICE_TYPE=movie
-      - INDEXER_ENDPOINT=https://indexer-alpha.eden.io
+      - GARDEN_ENDPOINT=https://garden-alpha.eden.io
       - PROVIDER_ID=movie-provider-001
       - EDEN_API_KEY=${EDEN_API_KEY}
       - REDIS_URL=redis://redis:6379
@@ -3021,14 +3030,14 @@ export class NotificationHandler {
   // Pull handler (generated by LLM)
   async handlePull(payerEmail: string): Promise<any> {
     // Code generated by Notification Code Generator Service
-    // Polls Eden indexer for transaction status
+    // Polls Eden garden for transaction status
     return await this.edenClient.getTransactionByPayer(payerEmail);
   }
   
   // RPC handler (generated by LLM)
   async handleRPC(method: string, params: any): Promise<any> {
     // Code generated by Notification Code Generator Service
-    // Handles RPC queries from Eden indexer
+    // Handles RPC queries from Eden garden
     switch (method) {
       case 'getTransactionByPayer':
         return await this.edenClient.getTransactionByPayer(params.payer);
@@ -3050,18 +3059,18 @@ export class NotificationHandler {
 import axios from 'axios';
 
 export class EdenClient {
-  private indexerEndpoint: string;
+  private gardenEndpoint: string;
   private providerId: string;
   
-  constructor(indexerEndpoint: string, providerId: string) {
-    this.indexerEndpoint = indexerEndpoint;
+  constructor(gardenEndpoint: string, providerId: string) {
+    this.gardenEndpoint = gardenEndpoint;
     this.providerId = providerId;
   }
   
-  // Register webhook URL with Eden indexer
+  // Register webhook URL with Eden garden
   async registerWebhook(webhookUrl: string): Promise<void> {
     await axios.post(
-      `${this.indexerEndpoint}/rpc/webhook/register`,
+      `${this.gardenEndpoint}/rpc/webhook/register`,
       {
         providerId: this.providerId,
         webhookUrl
@@ -3072,7 +3081,7 @@ export class EdenClient {
   // Get transaction by payer email
   async getTransactionByPayer(payerEmail: string): Promise<any> {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getTransactionByPayer`,
+      `${this.gardenEndpoint}/rpc/getTransactionByPayer`,
       { params: { payer: payerEmail } }
     );
     return response.data;
@@ -3081,7 +3090,7 @@ export class EdenClient {
   // Get transaction by snapshot ID
   async getTransactionBySnapshot(snapshotId: string): Promise<any> {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getTransactionBySnapshot`,
+      `${this.gardenEndpoint}/rpc/getTransactionBySnapshot`,
       { params: { snapshot_id: snapshotId } }
     );
     return response.data;
@@ -3090,7 +3099,7 @@ export class EdenClient {
   // Get latest snapshot for provider
   async getLatestSnapshot(): Promise<any> {
     const response = await axios.get(
-      `${this.indexerEndpoint}/rpc/getLatestSnapshot`,
+      `${this.gardenEndpoint}/rpc/getLatestSnapshot`,
       { params: { provider_id: this.providerId } }
     );
     return response.data;
@@ -3099,7 +3108,7 @@ export class EdenClient {
   // Acknowledge webhook receipt
   async acknowledgeWebhook(txId: string): Promise<void> {
     await axios.post(
-      `${this.indexerEndpoint}/rpc/webhook/acknowledge`,
+      `${this.gardenEndpoint}/rpc/webhook/acknowledge`,
       { txId, providerId: this.providerId }
     );
   }
@@ -3116,7 +3125,7 @@ cd service-provider-movie
 docker build -t movie-provider .
 docker run -d \
   -e SERVICE_TYPE=movie \
-  -e INDEXER_ENDPOINT=https://indexer-alpha.eden.io \
+  -e GARDEN_ENDPOINT=https://garden-alpha.eden.io \
   -e PROVIDER_ID=movie-provider-001 \
   -e EDEN_API_KEY=your_api_key \
   -p 3001:3001 \
@@ -3153,8 +3162,8 @@ spec:
         env:
         - name: SERVICE_TYPE
           value: "movie"
-        - name: INDEXER_ENDPOINT
-          value: "https://indexer-alpha.eden.io"
+        - name: GARDEN_ENDPOINT
+          value: "https://garden-alpha.eden.io"
         - name: PROVIDER_ID
           value: "movie-provider-001"
         ports:
@@ -3169,7 +3178,7 @@ cd service-provider-movie
 npm install
 npm run build
 SERVICE_TYPE=movie \
-INDEXER_ENDPOINT=https://indexer-alpha.eden.io \
+GARDEN_ENDPOINT=https://garden-alpha.eden.io \
 PROVIDER_ID=movie-provider-001 \
 EDEN_API_KEY=your_api_key \
 node dist/main.js
@@ -3309,7 +3318,7 @@ It certifies the **service type contract itself**.
 | **Service Type Generator**      | Declares service intent & capabilities |
 | **System Prompt Generator**     | Produces LLM governance prompts        |
 | **Notification Code Generator** | Produces integration adapters          |
-| **Indexer (Mock)**              | Hosts the service type                 |
+| **Garden (Mock)**              | Hosts the service type                 |
 | **Provider (Mock)**             | Simulates external service             |
 | **User (Mock)**                 | Simulates consumer                     |
 | **EdenCore (Mock)**             | Executes ledger, wallet, cashier logic |
@@ -3339,7 +3348,7 @@ This declaration is immutable once testing begins.
 
 The STT spins up a **deterministic sandbox** consisting of:
 
-* Mock Indexer (same Docker image as production)
+* Mock Garden (same Docker image as production)
 * Mock Provider API
 * Mock Wallet (Redis-backed)
 * Mock Ledger
@@ -3422,7 +3431,7 @@ Certification record:
 
 Once certified:
 
-* Indexers may host the service type
+* Gardens may host the service type
 * Providers may register under it
 * Users may consume it
 
@@ -3473,7 +3482,7 @@ Purpose: economic + architectural validation
 | Smart contracts | Dynamic reasoning |
 | Rug pulls | Bonded services |
 | MEV | Certified transparency |
-| Fragmentation | Federated indexers |
+| Fragmentation | Federated gardens |
 
 ---
 
@@ -3491,11 +3500,11 @@ Eden covers **all first-order primitives** of a sovereign ecosystem:
 - ✅ Revocation via Redis Streams (real-time, event-driven)
 
 #### Execution Plane
-- ✅ Indexers as priests (local authority, delegated execution)
+- ✅ Gardens as priests (local authority, delegated execution)
 - ✅ EdenCore as truth engine (ledger, cashier, snapshot)
-- ✅ HOLY GHOST as ROOT Indexer / settlement / oversight
+- ✅ HOLY GHOST as ROOT Garden / settlement / oversight
 - ✅ Deterministic replay via snapshots
-- ✅ Separation: Indexers execute, ROOT CA settles
+- ✅ Separation: Gardens execute, ROOT CA settles
 
 #### Intelligence Plane
 - ✅ LLM-governed routing and service discovery
@@ -3508,8 +3517,8 @@ Eden covers **all first-order primitives** of a sovereign ecosystem:
 #### Economy
 - ✅ No web3 dependency (pure fiat-backed economy)
 - ✅ JesusCoin = 1 USD (closed loop, zero volatility)
-- ✅ Stripe rail abstracted behind ROOT Indexer
-- ✅ Fee redistribution (user + provider + indexer + GOD)
+- ✅ Stripe rail abstracted behind ROOT Garden
+- ✅ Fee redistribution (user + provider + garden + GOD)
 - ✅ Anti-rug via certification + bonding
 - ✅ Wallet Service as authoritative balance source
 
@@ -3519,7 +3528,7 @@ Eden covers **all first-order primitives** of a sovereign ecosystem:
 - ✅ Stream-based replication bus
 - ✅ External service compatibility (AMC, MovieCom, etc.)
 - ✅ Sample service providers with Redis persistence
-- ✅ One-click automated deployment for simple indexers
+- ✅ One-click automated deployment for simple gardens
 
 **This is a complete GENESIS layer.**
 Eden intentionally replaces blockchain features, not replicates them.
@@ -3535,7 +3544,7 @@ Eden intentionally replaces blockchain features, not replicates them.
 **Mode A — HTTPS with Self-Issued Certs:**
 - ROOT CA issues short-lived ENCERT certificates
 - Browsers won't trust it → **fine** (not needed for service-to-service)
-- Indexer-to-Indexer traffic works with Eden mTLS
+- Garden-to-Garden traffic works with Eden mTLS
 - UI talks to gateway (Holy Ghost) over real HTTPS
 
 **Mode B — HTTP + EdenAuth (Recommended Initially):**
@@ -3549,7 +3558,7 @@ Every request includes:
 }
 ```
 
-ROOT CA / Indexers verify:
+ROOT CA / Gardens verify:
 - Cert validity (from ENCERT registry)
 - Capability authorization
 - Signature verification
@@ -3557,9 +3566,9 @@ ROOT CA / Indexers verify:
 
 **This avoids all third-party CA pain while maintaining security.**
 
-### 16.3 ROOT Indexer (HOLY GHOST) — Design Rationale
+### 16.3 ROOT Garden (HOLY GHOST) — Design Rationale
 
-Making ROOT CA also run a **ROOT INDEXER** solves three hard problems simultaneously:
+Making ROOT CA also run a **ROOT GARDEN** solves three hard problems simultaneously:
 
 1. **Settlement Finality**: HOLY GHOST is the canonical accountant
 2. **Audit Authority**: Single source of truth for all transactions
@@ -3581,7 +3590,7 @@ This is novel and architecturally correct.
 
 **Question:** Wallet coupled or decoupled from EdenCore?
 
-**Answer:** **Logically decoupled, operationally co-located (at ROOT Indexer).**
+**Answer:** **Logically decoupled, operationally co-located (at ROOT Garden).**
 
 **Why:**
 - EdenCore = truth of *events* (ledger entries)
@@ -3623,14 +3632,14 @@ Eden avoids the biggest trap: **letting ads dominate truth**.
 
 **Current Approach (v1):**
 - ROOT CA Redis = authoritative
-- Indexer Redis = hot cache + local streams
+- Garden Redis = hot cache + local streams
 - Periodic reconciliation (not synchronous blocking)
 
 **This is sound for Genesis v1.**
 
 **Future Considerations (Phase 2):**
 - ROOT CA Redis = authoritative truth
-- Indexer Redis = hot cache + local streams
+- Garden Redis = hot cache + local streams
 - Asynchronous reconciliation (not blocking)
 - Eventual consistency model
 
@@ -3683,7 +3692,7 @@ The system is:
 > *It is a living system.*
 
 ROOT CA gives law.  
-Indexers give wisdom.  
+Gardens give wisdom.  
 Humans give meaning.
 
 **The Garden grows.**
@@ -3695,7 +3704,7 @@ Humans give meaning.
 ### Redis Stream Schema — Revocation Events
 
 **Status:** Draft v1  
-**Applies to:** ROOT CA, Indexers, Service Providers  
+**Applies to:** ROOT CA, Gardens, Service Providers  
 **Transport:** Redis Streams  
 **Philosophy:** Event-driven trust, append-only authority
 
@@ -3728,7 +3737,7 @@ eden:encert:revocations
 
 ```text
 eden:encert:revocations:{region}
-eden:encert:revocations:{indexer_id}
+eden:encert:revocations:{garden_id}
 ```
 
 ENCERT v1 **SHOULD** begin with a single global stream.
@@ -3744,21 +3753,21 @@ Each ENCERT certificate represents **one authority grant** from issuer to subjec
 | Field         | Type            | Required | Description                                    |
 | ------------- | --------------- | -------- | ---------------------------------------------- |
 | `subject`     | EdenUUID        | ✅        | Identity being certified                       |
-| `issuer`      | EdenUUID        | ✅        | Entity issuing certificate (ROOT CA or Indexer) |
+| `issuer`      | EdenUUID        | ✅        | Entity issuing certificate (ROOT CA or Garden) |
 | `capabilities` | Capability[]    | ✅        | Array of granted capabilities                  |
 | `constraints` | Record<string>  | ❌        | Additional constraints (network binding, etc.) |
 | `issuedAt`    | Timestamp       | ✅        | Unix timestamp (ms)                            |
 | `expiresAt`   | Timestamp       | ✅        | Expiration timestamp (ms)                      |
 | `signature`   | string          | ✅        | Base64 Ed25519 signature                       |
 
-#### Indexer Certificate Constraints
+#### Garden Certificate Constraints
 
-Indexer certificates **MUST** include network binding information in the `constraints` field:
+Garden certificates **MUST** include network binding information in the `constraints` field:
 
 | Constraint Field | Type   | Required | Description                                    |
 | ---------------- | ------ | -------- | ---------------------------------------------- |
-| `indexerId`      | string | ✅        | Unique indexer identifier (e.g., "A", "B", "HG") |
-| `indexerName`    | string | ✅        | Human-readable indexer name                    |
+| `gardenId`      | string | ✅        | Unique garden identifier (e.g., "A", "B", "HG") |
+| `gardenName`    | string | ✅        | Human-readable garden name                    |
 | `stream`         | string | ✅        | Redis stream identifier                        |
 | `serverIp`       | string | ✅        | Server IP address (IPv4 or IPv6)               |
 | `serverDomain`   | string | ❌        | Server domain name (if applicable)             |
@@ -3766,9 +3775,9 @@ Indexer certificates **MUST** include network binding information in the `constr
 | `networkType`    | string | ✅        | Network protocol type: `"http"` or `"https"`   |
 
 **Network Binding Purpose:**
-- **Server IP**: Identifies the physical or virtual network location of the indexer
-- **Server Domain**: Optional human-readable domain name (e.g., "indexer-alpha.eden.io")
-- **Server Port**: Network port where the indexer accepts connections
+- **Server IP**: Identifies the physical or virtual network location of the garden
+- **Server Domain**: Optional human-readable domain name (e.g., "garden-alpha.eden.io")
+- **Server Port**: Network port where the garden accepts connections
 - **Network Type**: Protocol type (`http` or `https`) determines encryption and security requirements
 
 **Security Implications:**
@@ -3777,22 +3786,22 @@ Indexer certificates **MUST** include network binding information in the `constr
 - Enables network-level access control and routing decisions
 - Supports revocation based on network location changes
 
-#### Sample Indexer Certificate
+#### Sample Garden Certificate
 
 ```json
 {
-  "subject": "eden:indexer:c48b64e0-03a5-49e6-a078-822edbd42efb",
+  "subject": "eden:garden:c48b64e0-03a5-49e6-a078-822edbd42efb",
   "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
   "capabilities": [
-    "INDEXER",
+    "GARDEN",
     "ISSUE_CERT"
   ],
   "constraints": {
-    "indexerId": "A",
-    "indexerName": "Indexer-A",
-    "stream": "eden:indexer:A",
+    "gardenId": "A",
+    "gardenName": "Garden-A",
+    "stream": "eden:garden:A",
     "serverIp": "192.168.1.100",
-    "serverDomain": "indexer-alpha.eden.io",
+    "serverDomain": "garden-alpha.eden.io",
     "serverPort": 8080,
     "networkType": "https"
   },
@@ -3834,7 +3843,7 @@ Each Redis Stream entry represents **one immutable revocation fact**.
 | Field          | Type   | Required | Description                        |
 | -------------- | ------ | -------- | ---------------------------------- |
 | `revoked_uuid` | string | ✅        | Identity being revoked             |
-| `revoked_type` | string | ✅        | `indexer` | `service` | `provider` |
+| `revoked_type` | string | ✅        | `garden` | `service` | `provider` |
 | `issuer_uuid`  | string | ✅        | Entity issuing revocation          |
 | `reason`       | string | ✅        | Human-readable explanation         |
 | `issued_at`    | int64  | ✅        | Unix timestamp (ms)                |
@@ -3857,7 +3866,7 @@ Each Redis Stream entry represents **one immutable revocation fact**.
 XADD eden:encert:revocations * \
   revoked_uuid "eden:service:moviecom" \
   revoked_type "service" \
-  issuer_uuid "eden:indexer:abc123" \
+  issuer_uuid "eden:garden:abc123" \
   reason "fraudulent pricing" \
   issued_at 1735071200123 \
   effective_at 1735071200123 \
@@ -3876,15 +3885,15 @@ The issuer **MUST sign** the canonical JSON payload (excluding signature):
 
 ```json
 {
-  "subject": "eden:indexer:c48b64e0-03a5-49e6-a078-822edbd42efb",
+  "subject": "eden:garden:c48b64e0-03a5-49e6-a078-822edbd42efb",
   "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "constraints": {
-    "indexerId": "A",
-    "indexerName": "Indexer-A",
-    "stream": "eden:indexer:A",
+    "gardenId": "A",
+    "gardenName": "Garden-A",
+    "stream": "eden:garden:A",
     "serverIp": "192.168.1.100",
-    "serverDomain": "indexer-alpha.eden.io",
+    "serverDomain": "garden-alpha.eden.io",
     "serverPort": 8080,
     "networkType": "https"
   },
@@ -3901,7 +3910,7 @@ The issuer **MUST sign** the canonical JSON payload:
 {
   "revoked_uuid": "eden:service:moviecom",
   "revoked_type": "service",
-  "issuer_uuid": "eden:indexer:abc123",
+  "issuer_uuid": "eden:garden:abc123",
   "reason": "fraudulent pricing",
   "issued_at": 1735071200123,
   "effective_at": 1735071200123,
@@ -3922,11 +3931,11 @@ The issuer **MUST sign** the canonical JSON payload:
 
 | Revoker | Allowed Targets       |
 | ------- | --------------------- |
-| ROOT CA | Indexers, Services    |
-| Indexer | Services it certified |
+| ROOT CA | Gardens, Services    |
+| Garden | Services it certified |
 | Service | ❌ Not allowed         |
 
-Indexers **MUST reject** revocations if:
+Gardens **MUST reject** revocations if:
 
 * Signature verification fails
 * Issuer lacks authority
@@ -3934,17 +3943,17 @@ Indexers **MUST reject** revocations if:
 
 #### Network Binding Validation
 
-When validating indexer certificates:
+When validating garden certificates:
 
-1. **Network Endpoint Verification**: Certificate `constraints.serverIp` and `constraints.serverPort` **MUST** match the actual network endpoint of the indexer
+1. **Network Endpoint Verification**: Certificate `constraints.serverIp` and `constraints.serverPort` **MUST** match the actual network endpoint of the garden
 2. **Domain Resolution**: If `constraints.serverDomain` is present, DNS resolution **MUST** match `constraints.serverIp`
-3. **Port Binding**: Certificate port **MUST** match the port where the indexer accepts connections
+3. **Port Binding**: Certificate port **MUST** match the port where the garden accepts connections
 4. **Network Change Detection**: If network binding changes, certificate becomes invalid and **MUST** be reissued
 
 **Example Validation Flow:**
 ```
-1. Indexer connects from IP: 192.168.1.100, Port: 8080, Protocol: https
-2. Certificate lookup: Find certificate for indexer UUID
+1. Garden connects from IP: 192.168.1.100, Port: 8080, Protocol: https
+2. Certificate lookup: Find certificate for garden UUID
 3. Validate constraints:
    - certificate.constraints.serverIp === "192.168.1.100" ✅
    - certificate.constraints.serverPort === 8080 ✅
@@ -3958,7 +3967,7 @@ When validating indexer certificates:
 
 ### 18.8 Consumption Model
 
-Each indexer **MUST**:
+Each garden **MUST**:
 
 1. Create a consumer group
 2. Track last processed stream ID
@@ -3967,7 +3976,7 @@ Each indexer **MUST**:
 #### Example
 
 ```bash
-XGROUP CREATE eden:encert:revocations indexer-A $ MKSTREAM
+XGROUP CREATE eden:encert:revocations garden-A $ MKSTREAM
 ```
 
 Processing steps:
@@ -3983,7 +3992,7 @@ Processing steps:
 ### 18.9 Replay & Audit
 
 * Redis Streams are append-only
-* Indexers can rebuild trust state from genesis
+* Gardens can rebuild trust state from genesis
 * Auditors can inspect revocation lineage
 * Network binding history preserved in certificate constraints
 
@@ -4006,14 +4015,14 @@ Optional: archive to cold storage after N days.
 
 | Scenario          | Behavior                            |
 | ----------------- | ----------------------------------- |
-| Indexer offline   | Applies revocation on reconnect     |
+| Garden offline   | Applies revocation on reconnect     |
 | Redis restart     | Stream recovered from AOF/RDB       |
 | Network partition | Eventual consistency with authority |
 | Network binding change | Certificate invalidated, reissue required |
 
 **Network Binding Change Handling:**
-- If indexer's IP/domain/port/networkType changes, existing certificate becomes invalid
-- Indexer **MUST** request new certificate from ROOT CA with updated network binding
+- If garden's IP/domain/port/networkType changes, existing certificate becomes invalid
+- Garden **MUST** request new certificate from ROOT CA with updated network binding
 - Old certificate **SHOULD** be revoked to prevent confusion
 - Network binding changes **MUST** be logged for audit purposes
 - Protocol changes (http ↔ https) require certificate reissuance
@@ -4025,7 +4034,7 @@ Optional: archive to cold storage after N days.
 This design:
 
 * Eliminates CRLs and OCSP
-* Aligns with Eden's indexer-first architecture
+* Aligns with Eden's garden-first architecture
 * Scales horizontally
 * Is human-explainable
 * Is machine-enforceable
@@ -4034,7 +4043,7 @@ This design:
 **Network Binding Rationale:**
 * Prevents certificate theft and reuse across different servers
 * Enables network-level access control and routing
-* Provides audit trail of indexer network locations
+* Provides audit trail of garden network locations
 * Supports dynamic network reconfiguration with certificate reissuance
 
 > **Trust is not queried.  
@@ -4065,7 +4074,7 @@ It is **PKI built for intelligence systems**, not browsers.
 
 ## 20. Federation Design & Trust Architecture
 
-Eden implements a **lightweight PKI-based trust fabric** that provides HTTPS-equivalent security without relying on third-party Certificate Authorities (CAs). This design enables secure federation between ROOT CA, indexers, and service providers while maintaining sovereignty and avoiding browser trust dependencies.
+Eden implements a **lightweight PKI-based trust fabric** that provides HTTPS-equivalent security without relying on third-party Certificate Authorities (CAs). This design enables secure federation between ROOT CA, gardens, and service providers while maintaining sovereignty and avoiding browser trust dependencies.
 
 ### 20.1 Trust Layer Separation
 
@@ -4081,7 +4090,7 @@ Eden separates **three distinct HTTPS trust problems**:
 
 **Key Principle:**
 - Browsers don't need to trust Eden
-- Indexers and services trust Eden
+- Gardens and services trust Eden
 - Eden PKI provides mutual trust without third-party dependencies
 
 ### 20.2 Eden Trust Model
@@ -4090,14 +4099,14 @@ Eden's trust architecture follows a **Kubernetes-style model**, not browser PKI:
 
 **Trust Hierarchy:**
 - **ROOT CA (GOD)** → Ultimate trust anchor
-- **Indexers (Priests)** → Delegated authorities
+- **Gardens (Priests)** → Delegated authorities
 - **Service Providers (Trees/Apples/Snake)** → Certified actors
 - **Users** → Identity via Google (orthogonal to PKI)
 
 **Trust Boundaries:**
-- ROOT CA ↔ Indexer: Eden mTLS
-- Indexer ↔ Indexer: Eden mTLS
-- Indexer ↔ Service Provider: Eden mTLS or signed payloads
+- ROOT CA ↔ Garden: Eden mTLS
+- Garden ↔ Garden: Eden mTLS
+- Garden ↔ Service Provider: Eden mTLS or signed payloads
 - Browser ↔ Eden UI: Public HTTPS (optional, edge-only)
 
 ### 20.3 ROOT CA HTTPS Without Public CA
@@ -4113,11 +4122,11 @@ Eden issues **ENCERT certificates**, not X.509 certificates from public CAs.
   - `eden-root-ca.pem` (public certificate)
   - `eden-root-ca.key` (private key)
 
-**2. Indexer Provisioning:**
-- Indexer container receives:
+**2. Garden Provisioning:**
+- Garden container receives:
   - Eden Root CA public certificate (for verification)
-  - Indexer's own Eden-issued certificate (for identity)
-  - Indexer's private key
+  - Garden's own Eden-issued certificate (for identity)
+  - Garden's private key
 
 **3. Traffic Security:**
 - All traffic uses:
@@ -4139,13 +4148,13 @@ Eden issues **ENCERT certificates**, not X.509 certificates from public CAs.
 
 **This is how Kubernetes, etcd, Consul, Vault work.**
 
-### 20.4 Indexer HTTP with TLS Termination
+### 20.4 Garden HTTP with TLS Termination
 
-**Problem:** What if indexers run HTTP only (for simplicity)?
+**Problem:** What if gardens run HTTP only (for simplicity)?
 
 **Solution: TLS Termination at the Eden Edge**
 
-Indexers can remain **pure HTTP** while maintaining network security through a gateway pattern.
+Gardens can remain **pure HTTP** while maintaining network security through a gateway pattern.
 
 #### Architecture
 
@@ -4156,19 +4165,19 @@ Indexers can remain **pure HTTP** while maintaining network security through a g
 [ Eden Secure Gateway ]  <-- TLS with Eden certs
            |
            v
-[ Indexer HTTP :8080 ]   <-- Plain HTTP (trusted boundary)
+[ Garden HTTP :8080 ]   <-- Plain HTTP (trusted boundary)
 ```
 
 #### Key Components
 
 **Eden Secure Gateway:**
 - Verifies Eden certificates
-- Verifies indexer identity
+- Verifies garden identity
 - Terminates TLS connections
-- Forwards traffic internally to indexer HTTP endpoint
+- Forwards traffic internally to garden HTTP endpoint
 - Handles certificate validation and revocation checks
 
-**Indexer:**
+**Garden:**
 - Runs pure HTTP (no TLS complexity)
 - Never touches certificates directly
 - Focuses on service logic
@@ -4176,30 +4185,30 @@ Indexers can remain **pure HTTP** while maintaining network security through a g
 
 #### Benefits
 
-- ✅ **Indexer simplicity**: No TLS configuration or certificate management
+- ✅ **Garden simplicity**: No TLS configuration or certificate management
 - ✅ **Network security**: All external traffic encrypted via gateway
 - ✅ **Eden-controlled trust**: Gateway enforces Eden PKI policies
-- ✅ **Lightweight indexers**: Reduced operational complexity
+- ✅ **Lightweight gardens**: Reduced operational complexity
 
-### 20.5 Indexer Authorization & Network Binding
+### 20.5 Garden Authorization & Network Binding
 
 When ROOT CA issues an ENCERT certificate, it includes **network binding constraints**:
 
 ```json
 {
-  "subject": "eden:indexer:c48b64e0-03a5-49e6-a078-822edbd42efb",
+  "subject": "eden:garden:c48b64e0-03a5-49e6-a078-822edbd42efb",
   "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "constraints": {
-    "indexerId": "A",
-    "indexerName": "Indexer-A",
-    "stream": "eden:indexer:A",
+    "gardenId": "A",
+    "gardenName": "Garden-A",
+    "stream": "eden:garden:A",
     "serverIp": "192.168.1.100",
-    "serverDomain": "indexer-alpha.eden.io",
+    "serverDomain": "garden-alpha.eden.io",
     "serverPort": 8080,
     "networkType": "https",
     "allowedEndpoints": [
-      "https://indexer-alpha.eden.io:443"
+      "https://garden-alpha.eden.io:443"
     ],
     "internalHttp": "http://127.0.0.1:8080"
   },
@@ -4210,9 +4219,9 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 ```
 
 **Network Law:**
-- Certificate constraints define **where** the indexer lives
+- Certificate constraints define **where** the garden lives
 - Constraints define **how** traffic should route
-- Constraints define **what** the indexer is allowed to do
+- Constraints define **what** the garden is allowed to do
 - This becomes **network law**, not configuration
 
 **Validation:**
@@ -4226,10 +4235,10 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 
 | Traffic                  | Secured by                        | Certificate Type |
 | ------------------------ | --------------------------------- | ---------------- |
-| ROOT CA ↔ Indexer        | Eden mTLS                         | ENCERT           |
-| Indexer ↔ Indexer        | Eden mTLS                         | ENCERT           |
-| Indexer ↔ Service        | Eden mTLS or signed payload       | ENCERT           |
-| Indexer ↔ Local services | HTTP (trusted boundary)           | None             |
+| ROOT CA ↔ Garden        | Eden mTLS                         | ENCERT           |
+| Garden ↔ Garden        | Eden mTLS                         | ENCERT           |
+| Garden ↔ Service        | Eden mTLS or signed payload       | ENCERT           |
+| Garden ↔ Local services | HTTP (trusted boundary)           | None             |
 | Browser ↔ Eden UI        | Public HTTPS (optional edge only) | X.509 (optional) |
 
 **Key Points:**
@@ -4245,13 +4254,13 @@ Eden's revocation system is **stronger than traditional OCSP**:
 **Redis Streams Revocation:**
 ```
 eden:encert:revocations (global stream)
-eden:indexer:*:auth (per-indexer streams)
+eden:garden:*:auth (per-garden streams)
 ```
 
 **Revocation Flow:**
 1. ROOT CA issues revocation event → Redis Stream
-2. Indexers subscribe to revocation stream
-3. Indexers invalidate certificates immediately
+2. Gardens subscribe to revocation stream
+3. Gardens invalidate certificates immediately
 4. No CRL fetch required
 5. No OCSP lag
 6. Event-driven, real-time revocation
@@ -4271,7 +4280,7 @@ eden:indexer:*:auth (per-indexer streams)
 
 **Eden PKI provides:**
 - ✅ **Identity**: Certificate-bound identity (UUID-based)
-- ✅ **Capabilities**: Explicit permissions (INDEXER, ISSUE_CERT, etc.)
+- ✅ **Capabilities**: Explicit permissions (GARDEN, ISSUE_CERT, etc.)
 - ✅ **Reputation**: Reputation scores in certificate constraints
 - ✅ **Bond**: Economic bond information
 - ✅ **Role**: Service provider role and type
@@ -4280,12 +4289,12 @@ eden:indexer:*:auth (per-indexer streams)
 
 **Example:**
 A DigiCert certificate cannot say:
-> "This indexer can settle money but not mint."
+> "This garden can settle money but not mint."
 
 An Eden ENCERT certificate **can**:
 ```json
 {
-  "capabilities": ["INDEXER", "ISSUE_CERT"],
+  "capabilities": ["GARDEN", "ISSUE_CERT"],
   "constraints": {
     "canSettle": true,
     "canMint": false,
@@ -4300,39 +4309,39 @@ An Eden ENCERT certificate **can**:
 
 **Components:**
 - **ROOT CA**: Generates root certificate and key
-- **Certificate Issuance**: ROOT CA issues ENCERT certificates to indexers
+- **Certificate Issuance**: ROOT CA issues ENCERT certificates to gardens
 - **TLS Library**: Standard TLS library (OpenSSL, Node.js crypto)
 - **Certificate Store**: Redis-backed certificate registry
 - **Revocation**: Redis Streams for real-time revocation
 
 **Flow:**
 1. ROOT CA generates `eden-root-ca.pem` and `eden-root-ca.key`
-2. Indexer requests certificate from ROOT CA
+2. Garden requests certificate from ROOT CA
 3. ROOT CA issues ENCERT certificate with network binding
-4. Indexer configures TLS with Eden root CA and its certificate
+4. Garden configures TLS with Eden root CA and its certificate
 5. All traffic uses mTLS with Eden certificates
 6. Revocation events propagate via Redis Streams
 
-#### Option 2: TLS Termination Gateway (For HTTP Indexers)
+#### Option 2: TLS Termination Gateway (For HTTP Gardens)
 
 **Components:**
 - **Eden Secure Gateway**: TLS termination and certificate validation
 - **Gateway Certificates**: Eden-issued certificates for gateway
-- **Indexer**: Pure HTTP, no certificate management
-- **Internal Routing**: Gateway forwards to indexer HTTP endpoint
+- **Garden**: Pure HTTP, no certificate management
+- **Internal Routing**: Gateway forwards to garden HTTP endpoint
 
 **Flow:**
 1. External client connects to gateway (HTTPS with Eden cert)
 2. Gateway validates client certificate (if mTLS)
-3. Gateway verifies indexer certificate and network binding
-4. Gateway forwards request to indexer HTTP endpoint
-5. Indexer processes request (no TLS complexity)
+3. Gateway verifies garden certificate and network binding
+4. Gateway forwards request to garden HTTP endpoint
+5. Garden processes request (no TLS complexity)
 6. Gateway returns response over HTTPS
 
 ### 20.10 Certificate Constraints & Network Law
 
 **Network Binding Constraints:**
-- `serverIp`: IP address where indexer accepts connections
+- `serverIp`: IP address where garden accepts connections
 - `serverDomain`: Domain name (if applicable)
 - `serverPort`: Port number
 - `networkType`: Protocol (`http` or `https`)
@@ -4340,12 +4349,12 @@ An Eden ENCERT certificate **can**:
 - `internalHttp`: Internal HTTP endpoint (for gateway pattern)
 
 **Authorization Constraints:**
-- `capabilities`: What the indexer can do
-- `canSettle`: Whether indexer can settle transactions
-- `canMint`: Whether indexer can mint currency
+- `capabilities`: What the garden can do
+- `canSettle`: Whether garden can settle transactions
+- `canMint`: Whether garden can mint currency
 - `maxSettlementAmount`: Maximum settlement amount
-- `indexerId`: Unique identifier
-- `indexerName`: Human-readable name
+- `gardenId`: Unique identifier
+- `gardenName`: Human-readable name
 
 **Network Law Enforcement:**
 - Gateway validates certificate matches network endpoint
@@ -4357,27 +4366,27 @@ An Eden ENCERT certificate **can**:
 
 **REQ-FED-001**: Root CA Certificate Generation
 - ROOT CA generates self-signed root certificate
-- Root certificate distributed to all indexers
+- Root certificate distributed to all gardens
 - Root certificate stored securely (not in Redis)
 
-**REQ-FED-002**: Indexer Certificate Issuance
+**REQ-FED-002**: Garden Certificate Issuance
 - ROOT CA issues ENCERT certificates with network binding
 - Certificates include IP/domain/port/networkType constraints
 - Certificates stored in Redis certificate registry
 
 **REQ-FED-003**: TLS Configuration
-- Indexers configure TLS with Eden root CA
-- Indexers use Eden-issued certificates for mTLS
+- Gardens configure TLS with Eden root CA
+- Gardens use Eden-issued certificates for mTLS
 - Standard TLS libraries (no custom crypto)
 
 **REQ-FED-004**: Gateway Pattern (Optional)
 - Eden Secure Gateway for TLS termination
 - Gateway validates certificates and network binding
-- Gateway forwards to indexer HTTP endpoints
+- Gateway forwards to garden HTTP endpoints
 
 **REQ-FED-005**: Revocation Propagation
 - Revocation events published to Redis Streams
-- Indexers subscribe and invalidate certificates immediately
+- Gardens subscribe and invalidate certificates immediately
 - No CRL or OCSP required
 
 **REQ-FED-006**: Network Binding Validation
@@ -4392,9 +4401,9 @@ An Eden ENCERT certificate **can**:
 - ✅ **Security**: HTTPS-grade security without public CA
 - ✅ **Flexibility**: Network binding and capability constraints
 - ✅ **Performance**: Real-time revocation via Redis Streams
-- ✅ **Simplicity**: Indexers can use HTTP internally
+- ✅ **Simplicity**: Gardens can use HTTP internally
 
-**For Indexers:**
+**For Gardens:**
 - ✅ **Lightweight**: Optional TLS termination at gateway
 - ✅ **Simple**: No complex certificate management
 - ✅ **Secure**: All external traffic encrypted
@@ -4528,7 +4537,7 @@ Everything costs JSC:
 * Tokens (now Eden tokens, not crypto)
 * Services
 * Snake apples
-* Indexer operations
+* Garden operations
 * Certification fees
 
 Every action produces:
@@ -4558,7 +4567,7 @@ This is where Eden becomes **cleaner than Web3 ever was**.
 * Distributed by GOD:
 
   * Root CA
-  * Indexers
+  * Gardens
   * Rebates to users
   * Snake insurance pool
 
@@ -4575,9 +4584,9 @@ But now:
 
 ---
 
-### 20.6 Indexers in a Non-Web3 Eden
+### 20.6 Gardens in a Non-Web3 Eden
 
-Indexers:
+Gardens:
 
 * Do **not** hold crypto
 * Do **not** mint currency
@@ -4605,7 +4614,7 @@ Since there is no chain:
 
 * ServiceRegistry lives entirely in memory
 * ROOT CA owns global registry
-* Indexers register capabilities via certs
+* Gardens register capabilities via certs
 * Routing is instant
 
 This aligns with Eden's centralized ServiceRegistry architecture.
@@ -4617,7 +4626,7 @@ This aligns with Eden's centralized ServiceRegistry architecture.
 Let's say it plainly:
 
 * GOD (ROOT CA) creates money
-* Priests (Indexers) serve
+* Priests (Gardens) serve
 * Snake tempts (paid)
 * Humans choose
 * Ledger remembers everything
@@ -4757,7 +4766,7 @@ Holy Ghost decides:
 * Is balance sufficient?
 * Are fees correct?
 * Is provider certified?
-* Is indexer authorized?
+* Is garden authorized?
 
 Only then:
 
@@ -4895,21 +4904,21 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 #### System Architecture Sidebar Enhancements
 
 **REQ-UI-SIDEBAR-001**: View Mode Toggle
-- **GOD Mode**: Shows complete system architecture including ROOT CA and Holy Ghost indexer
+- **GOD Mode**: Shows complete system architecture including ROOT CA and Holy Ghost garden
   - Displays all infrastructure services (Stripe payment rail, settlement, service registry, web server, websocket, wallet service)
   - Shows ROOT CA's role as the central authority
   - Complete visibility into system hierarchy
-- **Priest Mode**: Hides ROOT CA and Holy Ghost, showing only regular and token indexers
-  - Focuses on service provider indexers
+- **Priest Mode**: Hides ROOT CA and Holy Ghost, showing only regular and token gardens
+  - Focuses on service provider gardens
   - Hides infrastructure complexity
   - Provides a "priest's view" of the system
 - **Mode Persistence**: Selected view mode saved to localStorage
 - **Visual Toggle**: Two-button toggle at top of sidebar ("GOD" / "Priest")
-- **Dynamic Filtering**: Indexer tabs and components filtered based on selected mode
+- **Dynamic Filtering**: Garden tabs and components filtered based on selected mode
 
 **REQ-UI-SIDEBAR-002**: Holy Ghost Tab Filtering
-- **Priest Mode Behavior**: Holy Ghost indexer tab automatically hidden in Priest mode
-- **Auto-Selection**: If Holy Ghost is selected when switching to Priest mode, automatically selects first available non-HG indexer
+- **Priest Mode Behavior**: Holy Ghost garden tab automatically hidden in Priest mode
+- **Auto-Selection**: If Holy Ghost is selected when switching to Priest mode, automatically selects first available non-HG garden
 - **GOD Mode Behavior**: Holy Ghost tab always visible in GOD mode
 - **Consistent Filtering**: All Holy Ghost-related components filtered consistently across sidebar
 
@@ -4923,7 +4932,7 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 
 **REQ-UI-DESIGN-001**: Styling Enhancements
 - **Tab Styling**: Modern Bootstrap tab design with active state indicators
-- **Sidebar Theming**: Color-coded indexer types (✨ Holy Ghost, 🔷 Token Indexers, 🌳 Regular Indexers)
+- **Sidebar Theming**: Color-coded garden types (✨ Holy Ghost, 🔷 Token Gardens, 🌳 Regular Gardens)
 - **Mode Toggle Styling**: Gradient buttons with active/inactive states
 - **Consistent Spacing**: Improved padding and margins throughout UI
 - **Professional Appearance**: Clean, modern design language
@@ -4957,7 +4966,7 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 - [x] Tab state persistence (localStorage)
 - [x] View mode toggle (GOD / Priest) in System Architecture sidebar
 - [x] Holy Ghost tab filtering based on view mode
-- [x] Auto-selection of valid indexer when switching modes
+- [x] Auto-selection of valid garden when switching modes
 - [x] Visual design improvements (styling, animations, transitions)
 - [x] Mode persistence (localStorage)
 
@@ -4968,6 +4977,90 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 - [ ] Wallet transaction history UI
 - [ ] Balance export/import functionality
 - [ ] Advanced audit trail visualization
+
+---
+
+## 14. Version History & Changelog
+
+### Version 1.17 (January 2026) - Service-Type Agnostic Architecture
+
+**Major Architectural Improvements:**
+
+#### 14.1 Fully Dynamic Service Type System
+- **Eliminated all hardcoded service type dependencies** throughout the codebase
+- **Service-Type Agnostic Backend**: All workflow execution, ledger creation, and service registry operations now work dynamically with any service type
+- **Dynamic Workflow Loading**: Workflows are loaded on-demand based on service type (`{serviceType}.json`) instead of hardcoded paths
+- **Generic Type Definitions**: Ledger entry `bookingDetails` changed from hardcoded fields to `Record<string, any>`, supporting unlimited service types
+
+#### 14.2 Enhanced Service Registry
+- **Multi-Service Type Support**: Full support for airline, autoparts, hotel, and restaurant service types in addition to movie and DEX
+- **Dynamic Provider Creation**: Default providers are automatically created for new service types without code changes
+- **Service Type Field Mapping**: Centralized `serviceTypeFields.ts` utility provides dynamic field extraction and formatting for all service types
+- **Startup Validation**: Automatic detection and creation of missing providers for existing gardens on server startup
+
+#### 14.3 Workflow System Refactoring
+- **Dynamic Workflow Execution**: Workflow steps execute service-type-agnostic actions
+- **Dynamic Mock Data Generation**: Mock listings and LLM responses generated based on service type configuration
+- **Service-Type Aware Decision Prompts**: Selection and decision prompts dynamically display relevant fields for each service type
+- **Context Management**: Workflow context variables (prices, booking details) dynamically extracted based on service type
+
+#### 14.4 Ledger Service Improvements
+- **Generic Booking Details**: Ledger entries support any service type's booking details without type changes
+- **Dynamic Provider Defaults**: Helper functions `getDefaultProviderName()` and `getDefaultProviderId()` provide service-type-specific defaults
+- **Dynamic Booking Extraction**: `extractBookingDetails()` function automatically extracts relevant fields for any service type
+- **Frontend Display**: Ledger display component uses configuration-driven formatting instead of hardcoded service type checks
+
+#### 14.5 Frontend Enhancements
+- **Dynamic Service Type Cards**: Main Street displays all available service types from the service registry
+- **On-Demand Workflow Loading**: Workflows loaded only when needed, reducing initial load time
+- **Dynamic Selection Prompts**: Selection cards display service-type-specific fields (flight numbers, hotel names, part numbers, etc.)
+- **Generic Mock Data**: Frontend mock data generation is fully service-type aware
+
+#### 14.6 Technical Improvements
+- **Type Safety**: All TypeScript types support generic service types while maintaining type safety
+- **Code Reusability**: Shared utilities for service type field mapping, booking extraction, and provider defaults
+- **Extensibility**: New service types can be added by:
+  1. Adding field mapping to `serviceTypeFields.ts`
+  2. Creating `{serviceType}.json` workflow file
+  3. No code changes required in core systems
+
+#### 14.7 Files Refactored
+- `server/src/serviceTypeFields.ts` - New utility for service-type field mapping
+- `server/src/types.ts` - Generic `bookingDetails` type
+- `server/src/ledger.ts` - Generic ledger entry creation
+- `server/eden-sim-redis.ts` - Dynamic workflow execution and ledger creation
+- `server/src/components/flowwiseService.ts` - Service-type agnostic workflow actions
+- `frontend/src/app/services/flowwise.service.ts` - Dynamic workflow loading and mock data
+- `frontend/src/app/components/workflow-display/workflow-display.component.ts` - Dynamic workflow display
+- `frontend/src/app/components/ledger-display/ledger-display.component.ts` - Configuration-driven ledger formatting
+
+#### 14.8 Benefits
+- **Zero Hardcoding**: No service-type-specific logic in core systems
+- **Easy Extension**: Add new service types in minutes, not hours
+- **Consistent Patterns**: All service types follow the same architectural patterns
+- **Type Safety**: Full TypeScript support while remaining flexible
+- **Maintainability**: Single source of truth for service type configurations
+
+### Version 1.16 (January 2026) - Workflow System Enhancements
+- Improved decision/selection prompt handling
+- Enhanced WebSocket event broadcasting for workflow state changes
+- Better error handling in workflow execution
+
+### Version 1.15 (January 2026) - Service Registry Persistence
+- Implemented persistent service registry storage
+- Added startup validation for service provider consistency
+- Improved garden-to-provider relationship management
+
+### Version 1.14 (January 2026) - Multi-Service Type Support
+- Initial support for airline, autoparts, hotel, and restaurant service types
+- Enhanced garden creation wizard for custom providers
+- Improved service type selection UI
+
+### Version 1.13 (January 2026) - Foundation
+- Core workflow execution system
+- Service registry implementation
+- Basic movie and DEX service support
+- Ledger entry management
 
 ---
 
