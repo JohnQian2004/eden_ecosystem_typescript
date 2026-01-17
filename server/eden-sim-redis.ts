@@ -99,6 +99,7 @@ import {
   deliverWebhook,
   getCashierStatus
 } from "./src/ledger";
+import { callLLM } from "./src/llm";
 import {
   initializeFlowWise,
   loadWorkflow,
@@ -279,8 +280,88 @@ httpServer.on("request", async (req, res) => {
   }
 
   // API Routes
-  // GET /api/workflow/:serviceType - Get workflow definition
-  if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision") {
+  // GET /api/workflow/list - List all available workflows (MUST BE BEFORE /api/workflow/:serviceType)
+  if (pathname === "/api/workflow/list" && req.method === "GET") {
+    console.log(`   📋 [${requestId}] GET /api/workflow/list - Listing available workflows`);
+    
+    try {
+      const dataPath = path.join(__dirname, "data");
+      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
+      const workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
+      
+      for (const serviceType of serviceTypes) {
+        const filename = `${serviceType}.json`;
+        let filePath = path.join(dataPath, filename);
+        let exists = fs.existsSync(filePath);
+        let stepCount: number | undefined = undefined;
+        
+        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+        if (!exists && serviceType === "movie") {
+          const legacyPath = path.join(dataPath, "amc_cinema.json");
+          if (fs.existsSync(legacyPath)) {
+            exists = true;
+            filePath = legacyPath;
+            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
+          }
+        }
+        
+        // Also check for dex.json
+        if (serviceType === "dex" && !exists) {
+          const dexPath = path.join(dataPath, "dex.json");
+          if (fs.existsSync(dexPath)) {
+            exists = true;
+            filePath = dexPath;
+            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
+          }
+        }
+        
+        // If workflow exists, load it and count steps
+        if (exists) {
+          try {
+            const fileContent = fs.readFileSync(filePath, "utf-8");
+            const data = JSON.parse(fileContent);
+            if (data.flowwiseWorkflow && data.flowwiseWorkflow.steps && Array.isArray(data.flowwiseWorkflow.steps)) {
+              stepCount = data.flowwiseWorkflow.steps.length;
+              console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${stepCount} steps`);
+            } else {
+              console.log(`   ⚠️ [${requestId}] Workflow ${serviceType}: ${filename} - exists but no steps found`);
+            }
+          } catch (parseError: any) {
+            console.error(`   ⚠️ [${requestId}] Error parsing workflow ${serviceType}: ${parseError.message}`);
+          }
+        } else {
+          console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - NOT FOUND`);
+        }
+        
+        workflows.push({ serviceType, filename, exists, stepCount });
+      }
+      
+      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        workflows
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error listing workflows:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // GET /api/workflow/:serviceType - Get workflow definition (MUST BE AFTER /api/workflow/list)
+  if (pathname.startsWith("/api/workflow/") && req.method === "GET" && pathname !== "/api/workflow/decision" && pathname !== "/api/workflow/list") {
     const serviceType = pathname.split("/").pop();
     console.log(`   📋 [${requestId}] GET /api/workflow/${serviceType} - Loading workflow definition`);
 
@@ -1495,6 +1576,132 @@ httpServer.on("request", async (req, res) => {
 
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error executing step atomically:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  // GET /api/workflow/list - List all available workflows
+  if (pathname === "/api/workflow/list" && req.method === "GET") {
+    console.log(`   📋 [${requestId}] GET /api/workflow/list - Listing available workflows`);
+    
+    try {
+      const dataPath = path.join(__dirname, "data");
+      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
+      const workflows: Array<{serviceType: string, filename: string, exists: boolean}> = [];
+      
+      for (const serviceType of serviceTypes) {
+        const filename = `${serviceType}.json`;
+        let filePath = path.join(dataPath, filename);
+        let exists = fs.existsSync(filePath);
+        
+        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
+        if (!exists && serviceType === "movie") {
+          const legacyPath = path.join(dataPath, "amc_cinema.json");
+          if (fs.existsSync(legacyPath)) {
+            exists = true;
+            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
+          }
+        }
+        
+        // Also check for dex.json
+        if (serviceType === "dex" && !exists) {
+          const dexPath = path.join(dataPath, "dex.json");
+          exists = fs.existsSync(dexPath);
+          if (exists) {
+            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
+          }
+        }
+        
+        workflows.push({ serviceType, filename, exists });
+        console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+      }
+      
+      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        workflows
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error listing workflows:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // POST /api/workflow/generate - Generate workflow using LLM
+  if (pathname === "/api/workflow/generate" && req.method === "POST") {
+    console.log(`   🔧 [${requestId}] POST /api/workflow/generate - Generating workflow`);
+    let body = "";
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify(data));
+        }
+      };
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { serviceType } = parsedBody;
+        
+        if (!serviceType) {
+          sendResponse(400, { success: false, error: "serviceType is required" });
+          return;
+        }
+        
+        // Load template (try movie.json first, fallback to amc_cinema.json)
+        let templatePath = path.join(__dirname, "data", "movie.json");
+        if (!fs.existsSync(templatePath)) {
+          templatePath = path.join(__dirname, "data", "amc_cinema.json");
+          if (!fs.existsSync(templatePath)) {
+            sendResponse(404, { success: false, error: "Template workflow not found" });
+            return;
+          }
+        }
+        
+        const templateContent = fs.readFileSync(templatePath, "utf-8");
+        const template = JSON.parse(templateContent);
+        
+        // Generate workflow using LLM
+        console.log(`   🤖 [${requestId}] Generating workflow for service type: ${serviceType}`);
+        const generatedWorkflow = await generateWorkflowFromTemplate(template, serviceType);
+        
+        // Save to file
+        const outputPath = path.join(__dirname, "data", `${serviceType}.json`);
+        const outputContent = JSON.stringify(generatedWorkflow, null, 2);
+        fs.writeFileSync(outputPath, outputContent, "utf-8");
+        
+        console.log(`   ✅ [${requestId}] Workflow generated and saved: ${outputPath}`);
+        
+        sendResponse(200, {
+          success: true,
+          workflow: generatedWorkflow.flowwiseWorkflow,
+          filename: `${serviceType}.json`
+        });
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error generating workflow:`, error.message);
         sendResponse(500, { success: false, error: error.message });
       }
     });
@@ -5329,6 +5536,74 @@ function _initializeDEXPools_DEPRECATED(): void {
   }
 }
 
+/**
+ * Generate workflow JSON from template using LLM
+ */
+async function generateWorkflowFromTemplate(template: any, serviceType: string): Promise<any> {
+  const serviceTypeDescriptions: Record<string, string> = {
+    movie: "Movie ticket booking service - Users can search for movies, select showtimes, and purchase tickets",
+    dex: "Decentralized exchange token pools - Users can buy and sell tokens through DEX pools",
+    airline: "Airline ticket booking service - Users can search for flights, select seats, and purchase tickets",
+    autoparts: "Automotive parts marketplace - Users can search for auto parts, compare prices, and purchase parts",
+    hotel: "Hotel reservation service - Users can search for hotels, view availability, and book rooms",
+    restaurant: "Restaurant booking service - Users can search for restaurants, view menus, and make reservations",
+    snake: "Snake (Advertiser) - Advertising service provider that displays ads to users"
+  };
+  
+  const description = serviceTypeDescriptions[serviceType] || `Service type: ${serviceType}`;
+  
+  const prompt = `You are a workflow designer for the Eden ecosystem. Generate a FlowWise workflow JSON file based on the provided template.
+
+SERVICE TYPE: ${serviceType}
+DESCRIPTION: ${description}
+
+TEMPLATE WORKFLOW:
+${JSON.stringify(template, null, 2)}
+
+INSTRUCTIONS:
+1. Adapt the template workflow to the new service type (${serviceType})
+2. Update all serviceType references from "movie" to "${serviceType}"
+3. Update step names, descriptions, and actions to match the new service type
+4. Keep the same workflow structure (steps, transitions, actions)
+5. Update component names if needed (e.g., "movie_theater" → appropriate component for ${serviceType})
+6. Update field names in actions (e.g., "movieTitle" → appropriate field for ${serviceType})
+7. Ensure all transitions and step IDs are valid
+8. Keep ROOT CA ledger and payment steps unchanged
+9. Return ONLY the complete JSON object with the same structure as the template
+
+CRITICAL: Return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanations. Just the JSON object.`;
+
+  try {
+    const llmResponse = await callLLM(prompt, ENABLE_OPENAI);
+    
+    // Try to parse the response as JSON
+    let generatedWorkflow: any;
+    try {
+      // Remove markdown code blocks if present
+      const cleanedResponse = llmResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      generatedWorkflow = JSON.parse(cleanedResponse);
+    } catch (parseError: any) {
+      // If parsing fails, try to extract JSON from the response
+      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        generatedWorkflow = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error(`Failed to parse LLM response as JSON: ${parseError.message}`);
+      }
+    }
+    
+    // Validate that the generated workflow has the required structure
+    if (!generatedWorkflow.flowwiseWorkflow) {
+      throw new Error("Generated workflow missing 'flowwiseWorkflow' property");
+    }
+    
+    return generatedWorkflow;
+  } catch (error: any) {
+    console.error(`❌ [Workflow Generation] Error:`, error.message);
+    throw error;
+  }
+}
+
 // LLM System Prompts
 // (LLM prompts moved to src/llm.ts)
 const _LLM_QUERY_EXTRACTION_PROMPT_DEPRECATED = `
@@ -8732,77 +9007,8 @@ Return JSON with:
   }
 }
 
-// Helper function to call LLM (reuse existing LLM infrastructure)
-async function callLLM(prompt: string, useOpenAI: boolean): Promise<string> {
-  if (useOpenAI) {
-    // Use OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY || ""}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      throw new Error(`Invalid OpenAI API response: ${JSON.stringify(data)}`);
-    }
-    
-    return data.choices[0]?.message?.content || "";
-  } else {
-    // Use DeepSeek API
-    return new Promise((resolve, reject) => {
-      const payload = JSON.stringify({
-        model: "deepseek-chat",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7
-      });
-      
-      const req = https.request({
-        hostname: "api.deepseek.com",
-        path: "/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY || ""}`
-        }
-      }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => { data += chunk.toString(); });
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            
-            if (!parsed || !parsed.choices || !Array.isArray(parsed.choices) || parsed.choices.length === 0) {
-              reject(new Error(`Invalid DeepSeek API response: ${JSON.stringify(parsed)}`));
-              return;
-            }
-            
-            resolve(parsed.choices[0]?.message?.content || "");
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-      
-      req.on("error", reject);
-      req.write(payload);
-      req.end();
-    });
-  }
-}
+// NOTE: callLLM is imported from src/llm.ts (line 102 and 127)
+// The local callLLM function has been removed to use the imported one with hardcoded API key
 
 // Main Server Initialization
 async function main() {

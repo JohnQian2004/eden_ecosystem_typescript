@@ -77,6 +77,14 @@ export class SystemConfigComponent implements OnInit {
   resetError: string | null = null;
   resetSuccess: boolean = false;
 
+  // Workflow Designer state
+  availableWorkflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
+  selectedWorkflowServiceType: string = '';
+  isGeneratingWorkflow: boolean = false;
+  workflowGenerationError: string | null = null;
+  workflowGenerationSuccess: boolean = false;
+  generatedWorkflow: any = null;
+
   @Output() gardensRefreshed = new EventEmitter<void>();
 
   private apiUrl = window.location.port === '4200' 
@@ -133,6 +141,7 @@ export class SystemConfigComponent implements OnInit {
     // Load wallet balance and service types
     this.loadWalletBalance();
     this.loadServiceTypes();
+    this.loadAvailableWorkflows();
   }
 
   loadWalletBalance() {
@@ -538,6 +547,103 @@ export class SystemConfigComponent implements OnInit {
           reject(err);
         }
       });
+    });
+  }
+
+  loadAvailableWorkflows() {
+    console.log('🔧 [Workflow Designer] Loading available workflows...');
+    
+    // Load existing workflows from server
+    this.http.get<{success: boolean, workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}>}>(`${this.apiUrl}/api/workflow/list`)
+      .subscribe({
+        next: (response) => {
+          console.log('🔧 [Workflow Designer] Workflow list response:', response);
+          if (response.success && response.workflows) {
+            // Use workflows directly from server response
+            this.availableWorkflows = response.workflows;
+            console.log(`🔧 [Workflow Designer] Loaded ${this.availableWorkflows.length} workflows:`, this.availableWorkflows);
+          } else {
+            console.error('🔧 [Workflow Designer] Failed to load workflows: response.success = false');
+            // Fallback: Initialize with default list
+            this.availableWorkflows = [
+              { serviceType: 'movie', filename: 'movie.json', exists: false },
+              { serviceType: 'dex', filename: 'dex.json', exists: false },
+              { serviceType: 'airline', filename: 'airline.json', exists: false },
+              { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+              { serviceType: 'hotel', filename: 'hotel.json', exists: false },
+              { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
+              { serviceType: 'snake', filename: 'snake.json', exists: false }
+            ];
+          }
+        },
+        error: (err) => {
+          console.error('🔧 [Workflow Designer] Failed to load available workflows:', err);
+          // Fallback: Initialize with default list
+          this.availableWorkflows = [
+            { serviceType: 'movie', filename: 'movie.json', exists: false },
+            { serviceType: 'dex', filename: 'dex.json', exists: false },
+            { serviceType: 'airline', filename: 'airline.json', exists: false },
+            { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+            { serviceType: 'hotel', filename: 'hotel.json', exists: false },
+            { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
+            { serviceType: 'snake', filename: 'snake.json', exists: false }
+          ];
+        }
+      });
+  }
+
+  generateWorkflow() {
+    if (!this.selectedWorkflowServiceType) {
+      this.workflowGenerationError = 'Please select a service type';
+      return;
+    }
+
+    this.isGeneratingWorkflow = true;
+    this.workflowGenerationError = null;
+    this.workflowGenerationSuccess = false;
+    this.generatedWorkflow = null;
+
+    console.log(`🔧 [Workflow Designer] Generating workflow for service type: ${this.selectedWorkflowServiceType}`);
+
+    this.http.post<{success: boolean, workflow?: any, filename?: string, error?: string}>(
+      `${this.apiUrl}/api/workflow/generate`,
+      {
+        serviceType: this.selectedWorkflowServiceType
+      }
+    ).subscribe({
+      next: (response) => {
+        if (response.success && response.workflow) {
+          this.generatedWorkflow = response.workflow;
+          this.workflowGenerationSuccess = true;
+          console.log(`✅ [Workflow Designer] Workflow generated successfully: ${response.filename}`);
+          console.log(`📋 [Workflow Designer] Generated workflow:`, this.generatedWorkflow);
+          
+          // Update the workflow status in the table immediately
+          const workflowIndex = this.availableWorkflows.findIndex(w => w.serviceType === this.selectedWorkflowServiceType);
+          if (workflowIndex >= 0) {
+            this.availableWorkflows[workflowIndex].exists = true;
+            console.log(`✅ [Workflow Designer] Updated workflow status for ${this.selectedWorkflowServiceType}: exists = true`);
+          }
+          
+          // Also reload from server to ensure consistency
+          setTimeout(() => {
+            this.loadAvailableWorkflows();
+          }, 500);
+          
+          // Hide success message after 5 seconds
+          setTimeout(() => {
+            this.workflowGenerationSuccess = false;
+          }, 5000);
+        } else {
+          this.workflowGenerationError = response.error || 'Failed to generate workflow';
+        }
+        this.isGeneratingWorkflow = false;
+      },
+      error: (err) => {
+        console.error('Failed to generate workflow:', err);
+        this.workflowGenerationError = err.error?.error || err.message || 'Failed to generate workflow';
+        this.isGeneratingWorkflow = false;
+      }
     });
   }
 
