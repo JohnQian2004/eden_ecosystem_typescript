@@ -2,18 +2,20 @@
   "gardens": [
     {
       "id": "garden-1",
-      "name": "Garden-AIRLINE",
+      "name": "Garden-AUTOPARTS",
       "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:2e28ec45-bb9b-495c-b09b-c236d75ef104",
+      "uuid": "eden:garden:7a9a894b-00dc-41ec-a15d-4ebf56f20382",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
-      "serverDomain": "garden-airline.eden.local",
+      "serverDomain": "garden-autoparts.eden.local",
       "serverPort": 3001,
       "networkType": "http",
-      "serviceType": "airline",
+      "serviceType": "autoparts",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:2e28ec45-bb9b-495c-b09b-c236d75ef104",
+        "subject": "eden:garden:7a9a894b-00dc-41ec-a15d-4ebf56f20382",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -21,12 +23,12 @@
         ],
         "constraints": {
           "gardenId": "garden-1",
-          "gardenName": "Garden-AIRLINE",
+          "gardenName": "Garden-AUTOPARTS",
           "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1768657508985,
-        "expiresAt": 1800193508985,
-        "signature": "E+Hrt3fXoNDmp5MuTwMwwFLX5DsBHBI1/s+ty4veEcRg9r1SK59iH5ZIBuc/Wpv58gWTdTWrwHEzitfMiCduCg=="
+        "issuedAt": 1768744089138,
+        "expiresAt": 1800280089138,
+        "signature": "JqdA6jVu6ihTI0kquXO9D4cd/Rs3GwAgu3tfBtIB+t3sHDfUgYJA6d+amlo0LgIVHM+rV8MJxNFLcH9HmSBPDA=="
       }
     },
     {
@@ -34,7 +36,9 @@
       "name": "Garden-MOVIE",
       "stream": "eden:garden:garden-2",
       "active": true,
-      "uuid": "eden:garden:59d0f322-26da-4918-ad4b-a7b8b24b321f",
+      "uuid": "eden:garden:d4de76eb-cc01-48ac-887a-918ec311a62b",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
       "serverDomain": "garden-movie.eden.local",
       "serverPort": 3001,
@@ -42,7 +46,7 @@
       "serviceType": "movie",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:59d0f322-26da-4918-ad4b-a7b8b24b321f",
+        "subject": "eden:garden:d4de76eb-cc01-48ac-887a-918ec311a62b",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -53,46 +57,19 @@
           "gardenName": "Garden-MOVIE",
           "stream": "eden:garden:garden-2"
         },
-        "issuedAt": 1768669151564,
-        "expiresAt": 1800205151564,
-        "signature": "2tApMmsyGh6CC10uNmjJcBjPFD5DAoXFn39rDuBp7lY5hKBQuchSyTIMd0oJZIK8DCe3pfcWIDcQVaGvwg/iCQ=="
+        "issuedAt": 1768744098527,
+        "expiresAt": 1800280098527,
+        "signature": "/wmCWJkOJifJ+JrLcG8viFbHcGui0N46+u6Y22zpgA4PiB7486/gAvf2b4QwKI6DlFU9tnZUkIcWTQgMvwuhCg=="
       }
     },
     {
       "id": "garden-3",
-      "name": "Garden-AUTOPARTS",
+      "name": "Garden-HOTEL",
       "stream": "eden:garden:garden-3",
       "active": true,
-      "uuid": "eden:garden:99d70a8a-276b-4130-9fcb-d201b462926b",
-      "serverIp": "localhost",
-      "serverDomain": "garden-autoparts.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "autoparts",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:99d70a8a-276b-4130-9fcb-d201b462926b",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-3",
-          "gardenName": "Garden-AUTOPARTS",
-          "stream": "eden:garden:garden-3"
-        },
-        "issuedAt": 1768669190354,
-        "expiresAt": 1800205190354,
-        "signature": "mfzfqfEACcPShsuT+jl3YEETnHOgYnRY8lSuDNisiQTImqLCY1bgUMm69NFtzjQAvH+A9W1nE2DHXSSkkFcTAw=="
-      }
-    },
-    {
-      "id": "garden-4",
-      "name": "Garden-HOTEL",
-      "stream": "eden:garden:garden-4",
-      "active": true,
-      "uuid": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+      "uuid": "eden:garden:8015aabd-b847-4a43-b5f3-44417f8a5628",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
       "serverDomain": "garden-hotel.eden.local",
       "serverPort": 3001,
@@ -100,81 +77,22 @@
       "serviceType": "hotel",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:f96e1920-2733-437c-a7b6-6d05825f24e2",
+        "subject": "eden:garden:8015aabd-b847-4a43-b5f3-44417f8a5628",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
           "ISSUE_CERT"
         ],
         "constraints": {
-          "gardenId": "garden-4",
+          "gardenId": "garden-3",
           "gardenName": "Garden-HOTEL",
-          "stream": "eden:garden:garden-4"
+          "stream": "eden:garden:garden-3"
         },
-        "issuedAt": 1768670548957,
-        "expiresAt": 1800206548957,
-        "signature": "MDmI/rZYZF/lqKYHDi3ktzsjbvZwUT14Un7qhZfOcVU8kuAhCwgxoy5QoV+gAZwAi4zb4pKFMFJllbGGrXbMAQ=="
+        "issuedAt": 1768744158677,
+        "expiresAt": 1800280158677,
+        "signature": "HvNX+DbcIym5J/F0plwB6IZ/vegVupPL8DmJCj5tHQP4qrtMd2Akiw6nR2GqJ5k8H3arxUHBUKB1nLTtW4frCg=="
       }
-    },
-    {
-      "id": "garden-5",
-      "name": "Garden-RESTAURANT",
-      "stream": "eden:garden:garden-5",
-      "active": true,
-      "uuid": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
-      "serverIp": "localhost",
-      "serverDomain": "garden-restaurant.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "restaurant",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:3436a9ed-5d37-42fe-b477-07285b3c0fe4",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-5",
-          "gardenName": "Garden-RESTAURANT",
-          "stream": "eden:garden:garden-5"
-        },
-        "issuedAt": 1768691767872,
-        "expiresAt": 1800227767872,
-        "signature": "l0YMXKVS94FcSWAGnEhkxx7bP6Z4zte2JUE+hGnDQC6r3JYpp0eWaonrXq9bLXPohiE1KhOo1rRJuDedXoOFDQ=="
-      }
-    },
-    {
-      "id": "T1",
-      "name": "Garden-DEX",
-      "stream": "eden:token-garden:T1",
-      "active": true,
-      "uuid": "eden:garden:a08719f1-7574-4361-addd-3af63a077d11",
-      "serverIp": "localhost",
-      "serverDomain": "garden-dex.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "dex",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:a08719f1-7574-4361-addd-3af63a077d11",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "T1",
-          "gardenName": "Garden-DEX",
-          "stream": "eden:token-garden:T1"
-        },
-        "issuedAt": 1768712037092,
-        "expiresAt": 1800248037092,
-        "signature": "vcIX/js6eTdV34yUM8c/alyucW3gLjCxtyQhh3Iu5QYeujQBuYj7/kFb+iZ4Z1h57qEI7Si+BsBVyMMqCQ3WAg=="
-      },
-      "tokenServiceType": "dex"
     }
   ],
-  "lastSaved": "2026-01-18T06:22:38.182Z"
+  "lastSaved": "2026-01-18T13:49:19.678Z"
 }

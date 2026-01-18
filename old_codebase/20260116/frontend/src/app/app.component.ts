@@ -48,9 +48,15 @@ export class AppComponent implements OnInit, OnDestroy {
   isProcessing: boolean = false;
   userEmail: string = ''; // Will be set from localStorage or default
   showSignInModal: boolean = false; // Control modal visibility
+  showStripePaymentModal: boolean = false; // Control Stripe Payment Rail modal visibility
+  checkBalanceAfterSignIn: boolean = false; // Flag to check balance after sign-in
   signInEmail: string = ''; // Email for sign-in form
   signInPassword: string = 'Qweasdzxc1!'; // Password for sign-in form
   isSigningIn: boolean = false; // Loading state for email/password sign-in
+  selectedAdminMode: 'god' | 'priest' = 'god'; // Admin mode selection (GOD or Priest) - selected BEFORE login
+  selectedMode: 'god' | 'priest' | 'user' = 'user'; // Mode selection before login (can be GOD, Priest, or USER)
+  showModeSelection: boolean = true; // Show mode selection before login
+  showLoginForm: boolean = false; // Show login form after mode selection
   
   // Context sensing - tracks which service type is selected
   selectedServiceType: string | null = null;
@@ -115,9 +121,27 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   
+  // Admin email constant
+  readonly adminEmail = 'bill.draper.auto@gmail.com';
+  
   // FlowWise decision prompt
   pendingDecision: UserDecisionRequest | null = null;
   showDecisionPrompt: boolean = false;
+  
+  // Garden shutdown dialog
+  showGardenShutdownDialog: boolean = false;
+  priestGardens: Array<{
+    id: string;
+    name: string;
+    active: boolean;
+    uuid: string;
+    serviceType?: string;
+    hasCertificate: boolean;
+  }> = [];
+  isLoadingGardens: boolean = false;
+  isShuttingDown: boolean = false;
+  shutdownReason: string = '';
+  selectedGardenForShutdown: string | null = null;
   
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -125,6 +149,126 @@ export class AppComponent implements OnInit, OnDestroy {
 
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
+  
+  showSidebar: boolean = true; // Control sidebar visibility (hidden in USER and PRIEST modes)
+
+  // Get current view mode from localStorage
+  get currentViewMode(): 'god' | 'priest' | 'user' {
+    return (localStorage.getItem('edenViewMode') as 'god' | 'priest' | 'user') || 'user';
+  }
+
+  // Check if we're in user mode (non-admin)
+  get isUserMode(): boolean {
+    return this.userEmail !== this.adminEmail;
+  }
+
+  // Check if sidebar should be shown (only in GOD mode)
+  get shouldShowSidebar(): boolean {
+    // Sidebar is only shown in GOD mode
+    // Hidden in both PRIEST and USER modes
+    return this.currentViewMode === 'god' && this.userEmail === this.adminEmail;
+  }
+
+  // Ensure active tab is visible in current mode
+  ensureValidTab(): void {
+    if (this.isUserMode) {
+      // In user mode, only 'workflow-chat' and 'ledger' are visible
+      const visibleTabs: Array<'workflow-chat' | 'ledger'> = ['workflow-chat', 'ledger'];
+      if (!visibleTabs.includes(this.activeTab as any)) {
+        // Switch to first visible tab
+        this.activeTab = 'workflow-chat';
+        console.log(`🔄 [App] Switched to visible tab: ${this.activeTab} (user mode)`);
+      }
+    }
+  }
+
+  // Apply admin mode selection (GOD or Priest)
+  applyAdminMode(): void {
+    if (this.userEmail === this.adminEmail) {
+      localStorage.setItem('edenViewMode', this.selectedAdminMode);
+      console.log(`⛪ [App] Admin mode applied: ${this.selectedAdminMode}`);
+      // Update sidebar visibility based on mode
+      this.updateSidebarVisibility();
+      if (this.sidebarComponent) {
+        this.sidebarComponent.setViewMode(this.selectedAdminMode);
+      }
+    }
+  }
+
+  // Update sidebar visibility based on view mode
+  updateSidebarVisibility(): void {
+    // Sidebar is only shown in GOD mode
+    // Hidden in both PRIEST and USER modes
+    const viewMode = this.currentViewMode;
+    this.showSidebar = viewMode === 'god' && this.userEmail === this.adminEmail;
+    console.log(`📊 [App] Sidebar visibility updated: ${this.showSidebar} (mode: ${viewMode}, email: ${this.userEmail})`);
+  }
+
+  // Change admin mode (called from UI)
+  changeAdminMode(mode: 'god' | 'priest'): void {
+    if (this.userEmail === this.adminEmail) {
+      this.selectedAdminMode = mode;
+      this.applyAdminMode();
+      this.cdr.detectChanges();
+    }
+  }
+
+  // Proceed to login after mode selection
+  proceedToLogin(): void {
+    console.log(`🔐 [Login] Mode selected: ${this.selectedMode}, proceeding to login`);
+    this.showModeSelection = false;
+    this.showLoginForm = true;
+    // Store selected mode temporarily (will be validated after login)
+    localStorage.setItem('pendingViewMode', this.selectedMode);
+    // If GOD or Priest selected, also update selectedAdminMode
+    if (this.selectedMode === 'god' || this.selectedMode === 'priest') {
+      this.selectedAdminMode = this.selectedMode;
+    }
+    this.cdr.detectChanges();
+    // Render Google Sign-In button now that login form is shown (after change detection)
+    setTimeout(() => {
+      this.renderGoogleSignInButton();
+    }, 200);
+  }
+
+  // Go back to mode selection
+  goBackToModeSelection(): void {
+    this.showModeSelection = true;
+    this.showLoginForm = false;
+    this.cdr.detectChanges();
+  }
+
+  // Reset login flow
+  resetLoginFlow(): void {
+    this.showModeSelection = true;
+    this.showLoginForm = false;
+    this.signInEmail = 'bill.draper.auto@gmail.com'; // Hardcoded email
+    this.signInPassword = 'Qweasdzxc1!'; // Hardcoded password
+    this.selectedMode = 'user'; // Reset to default
+    localStorage.removeItem('pendingViewMode');
+  }
+
+  // Render Google Sign-In button when login form is shown
+  renderGoogleSignInButton(): void {
+    if (this.showLoginForm && !this.isGoogleSignedIn && typeof (window as any).google !== 'undefined' && (window as any).google.accounts) {
+      const signInButtonElement = document.getElementById('google-signin-button-modal');
+      if (signInButtonElement) {
+        signInButtonElement.innerHTML = '';
+        (window as any).google.accounts.id.renderButton(
+          signInButtonElement,
+          {
+            type: 'standard',
+            theme: 'filled_blue',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+            width: 250
+          }
+        );
+      }
+    }
+  }
 
   constructor(
     public wsService: WebSocketService,
@@ -200,6 +344,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const savedCredential = localStorage.getItem('googleCredential');
     this.userEmail = savedEmail || 'bill.draper.auto@gmail.com';
     this.isGoogleSignedIn = !!(savedEmail && savedCredential);
+    
+    // Set sidebar visibility: only show in GOD mode (hide in PRIEST and USER modes)
+    this.updateSidebarVisibility();
     console.log(`📧 Initial email set: ${this.userEmail}, isGoogleSignedIn: ${this.isGoogleSignedIn}`);
     
     // Update title to include email
@@ -212,17 +359,35 @@ export class AppComponent implements OnInit, OnDestroy {
       }, 1000); // Delay to ensure page is fully loaded
     }
     
-    // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
-    const adminEmail = 'bill.draper.auto@gmail.com';
-    if (this.userEmail !== adminEmail) {
-      console.log(`🛐 [App] Non-admin user detected (${this.userEmail}), setting PRIEST mode`);
-      localStorage.setItem('edenViewMode', 'priest');
+    // Set sidebar visibility: only show in GOD mode (hide in PRIEST and USER modes)
+    this.updateSidebarVisibility();
+    
+    // Set view mode based on email: 
+    // - Non-admin users: Force USER mode (no sidebar, filtered views)
+    // - Admin users: Use saved mode or prompt for selection
+    if (this.userEmail !== this.adminEmail) {
+      console.log(`👤 [App] Non-admin user detected (${this.userEmail}), forcing USER mode`);
+      localStorage.setItem('edenViewMode', 'user');
+      // Ensure active tab is visible in user mode
+      this.ensureValidTab();
     } else {
-      // Admin can use GOD mode (or keep existing mode)
+      // Admin: Check for saved mode, if none exists, will prompt for selection
       const savedMode = localStorage.getItem('edenViewMode');
-      if (!savedMode || savedMode === 'priest') {
+      if (savedMode === 'god' || savedMode === 'priest') {
+        this.selectedAdminMode = savedMode;
+        console.log(`⛪ [App] Admin user mode restored: ${savedMode}`);
+      } else if (savedMode === 'user') {
+        // Admin should never be in USER mode - reset to GOD
+        console.log(`⛪ [App] Admin user was in USER mode, resetting to GOD mode`);
+        this.selectedAdminMode = 'god';
         localStorage.setItem('edenViewMode', 'god');
+      } else {
+        // No saved mode - will prompt admin to choose
+        console.log(`⛪ [App] Admin user - no saved mode, will prompt for selection`);
+        this.selectedAdminMode = 'god'; // Default to GOD
       }
+      // Update sidebar visibility after mode is set
+      this.updateSidebarVisibility();
     }
     
     // Load wallet balance immediately with default email
@@ -317,7 +482,13 @@ export class AppComponent implements OnInit, OnDestroy {
       // Update email if different from default (set in ngOnInit)
       if (this.userEmail !== savedEmail) {
         this.userEmail = savedEmail;
+        // Set flag to check balance after sign-in (for existing saved credentials)
+        this.checkBalanceAfterSignIn = true;
         this.loadWalletBalance(); // Reload balance with Google email
+      } else {
+        // Email is already set, but check balance anyway if it's below 100
+        this.checkBalanceAfterSignIn = true;
+        this.loadWalletBalance();
       }
       this.isGoogleSignedIn = true;
       this.updateTitle(); // Ensure title is updated
@@ -351,8 +522,8 @@ export class AppComponent implements OnInit, OnDestroy {
         use_fedcm_for_prompt: true
       });
       
-      // Render the sign-in button in the modal (only if modal is open and not already signed in)
-      if (this.showSignInModal && !this.isGoogleSignedIn) {
+      // Render the sign-in button in the modal (only if modal is open, login form is shown, and not already signed in)
+      if (this.showSignInModal && this.showLoginForm && !this.isGoogleSignedIn) {
         const signInButtonElement = document.getElementById('google-signin-button-modal');
         if (signInButtonElement) {
           // Clear any existing content first
@@ -405,17 +576,30 @@ export class AppComponent implements OnInit, OnDestroy {
         // Update title to show user email
         this.updateTitle();
         
+        // Set flag to check balance after sign-in
+        this.checkBalanceAfterSignIn = true;
+        
         // Load wallet balance for the new user
         this.loadWalletBalance();
         
         // Close modal after successful sign-in
         this.closeSignInModal();
         
-        // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
-        const adminEmail = 'bill.draper.auto@gmail.com';
-        if (email !== adminEmail) {
-          console.log(`🛐 [App] Non-admin user detected (${email}), setting PRIEST mode`);
-          localStorage.setItem('edenViewMode', 'priest');
+        // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use USER mode (hide sidebar)
+        this.showSidebar = email === this.adminEmail;
+        
+        // Check for pending mode selection (selected before login)
+        const pendingMode = localStorage.getItem('pendingViewMode');
+        localStorage.removeItem('pendingViewMode');
+        
+        if (email !== this.adminEmail) {
+          console.log(`👤 [App] Non-admin user detected (${email}), forcing USER mode (sidebar hidden)`);
+          // Non-admin users always get USER mode, regardless of selection
+          localStorage.setItem('edenViewMode', 'user');
+          // Ensure active tab is visible in user mode
+          this.ensureValidTab();
+          // Update sidebar visibility (will be hidden for USER mode)
+          this.updateSidebarVisibility();
           // Update sidebar - use setTimeout to ensure ViewChild is ready
           setTimeout(() => {
             if (this.sidebarComponent) {
@@ -431,20 +615,33 @@ export class AppComponent implements OnInit, OnDestroy {
             }
           }, 100);
         } else {
-          console.log(`⛪ [App] Admin user detected (${email}), allowing GOD mode`);
-          // Admin can use GOD mode (or keep existing mode)
-          const savedMode = localStorage.getItem('edenViewMode');
-          if (!savedMode || savedMode === 'priest') {
-            localStorage.setItem('edenViewMode', 'god');
-            setTimeout(() => {
-              if (this.sidebarComponent) {
-                this.sidebarComponent.updateModeFromEmail();
-              }
-            }, 100);
+          console.log(`⛪ [App] Admin user detected (${email})`);
+          // Admin: Use pending mode (selected before login) or saved mode
+          if (pendingMode === 'god' || pendingMode === 'priest') {
+            this.selectedAdminMode = pendingMode;
+            localStorage.setItem('edenViewMode', pendingMode);
+            console.log(`⛪ [App] Admin mode set from pre-login selection: ${this.selectedAdminMode}`);
+          } else {
+            // Check for saved mode
+            const savedMode = localStorage.getItem('edenViewMode');
+            if (savedMode === 'god' || savedMode === 'priest') {
+              this.selectedAdminMode = savedMode;
+              console.log(`⛪ [App] Admin mode restored from saved: ${this.selectedAdminMode}`);
+            } else {
+              // Default to GOD
+              this.selectedAdminMode = 'god';
+              localStorage.setItem('edenViewMode', 'god');
+              console.log(`⛪ [App] Admin mode defaulted to: ${this.selectedAdminMode}`);
+            }
           }
+          // Apply the selected mode (this will update sidebar visibility)
+          this.applyAdminMode();
+          setTimeout(() => {
+            if (this.sidebarComponent) {
+              this.sidebarComponent.updateModeFromEmail();
+            }
+          }, 100);
         }
-        
-        this.loadWalletBalance();
       }
     } catch (err) {
       console.error('Error processing Google Sign-In:', err);
@@ -489,11 +686,13 @@ export class AppComponent implements OnInit, OnDestroy {
   
   openSignInModal() {
     this.showSignInModal = true;
+    // Reset to mode selection step
+    this.resetLoginFlow();
     this.cdr.detectChanges();
     
-    // Re-render Google Sign-In button in modal if needed
+    // Re-render Google Sign-In button in modal if needed (only when login form is shown)
     setTimeout(() => {
-      if (!this.isGoogleSignedIn && typeof (window as any).google !== 'undefined' && (window as any).google.accounts) {
+      if (this.showLoginForm && !this.isGoogleSignedIn && typeof (window as any).google !== 'undefined' && (window as any).google.accounts) {
         const signInButtonElement = document.getElementById('google-signin-button-modal');
         if (signInButtonElement) {
           signInButtonElement.innerHTML = '';
@@ -516,7 +715,123 @@ export class AppComponent implements OnInit, OnDestroy {
   
   closeSignInModal() {
     this.showSignInModal = false;
+    this.resetLoginFlow();
     this.cdr.detectChanges();
+  }
+  
+  closeStripePaymentModal() {
+    this.showStripePaymentModal = false;
+    this.cdr.detectChanges();
+  }
+
+  // Garden shutdown dialog methods
+  openGardenShutdownDialog(): void {
+    if (!this.isGoogleSignedIn || !this.userEmail) {
+      console.warn('⚠️  Cannot open shutdown dialog: user not signed in');
+      return;
+    }
+    
+    this.showGardenShutdownDialog = true;
+    this.isLoadingGardens = true;
+    this.priestGardens = [];
+    this.shutdownReason = '';
+    this.selectedGardenForShutdown = null;
+    this.cdr.detectChanges();
+    
+    // Load gardens for this Priest user
+    this.loadPriestGardens();
+  }
+
+  closeGardenShutdownDialog(): void {
+    this.showGardenShutdownDialog = false;
+    this.priestGardens = [];
+    this.shutdownReason = '';
+    this.selectedGardenForShutdown = null;
+    this.cdr.detectChanges();
+  }
+
+  loadPriestGardens(): void {
+    if (!this.userEmail) {
+      console.warn('⚠️  Cannot load gardens: no user email');
+      this.isLoadingGardens = false;
+      return;
+    }
+
+    const apiUrl = `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`;
+    this.http.get<{success: boolean, gardens: any[], count: number}>(apiUrl).subscribe({
+      next: (response) => {
+        if (response.success && response.gardens) {
+          this.priestGardens = response.gardens.filter(g => g.active); // Only show active gardens
+          console.log(`📋 [Shutdown] Loaded ${this.priestGardens.length} active gardens for ${this.userEmail}`);
+        } else {
+          this.priestGardens = [];
+          console.log(`📋 [Shutdown] No gardens found for ${this.userEmail}`);
+        }
+        this.isLoadingGardens = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ [Shutdown] Failed to load gardens:', err);
+        this.priestGardens = [];
+        this.isLoadingGardens = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  confirmGardenShutdown(gardenId: string): void {
+    if (!this.shutdownReason.trim()) {
+      alert('Please provide a reason for shutting down this garden.');
+      return;
+    }
+
+    const garden = this.priestGardens.find(g => g.id === gardenId);
+    if (!confirm(`⚠️  WARNING: This will permanently revoke the certificate for ${garden?.name || gardenId}.\n\nThis action cannot be easily undone. Are you sure you want to proceed?`)) {
+      return;
+    }
+
+    this.isShuttingDown = true;
+    this.selectedGardenForShutdown = gardenId;
+    this.cdr.detectChanges();
+
+    const apiUrl = `${this.apiUrl}/api/garden/shutdown`;
+    this.http.post<{success: boolean, revocation: any, garden: any, revokedProvidersCount: number}>(apiUrl, {
+      gardenId: gardenId,
+      reason: this.shutdownReason,
+      requestedBy: this.userEmail,
+      revokeProviders: true
+    }).subscribe({
+      next: (response) => {
+        if (response.success) {
+          console.log(`✅ [Shutdown] Garden ${gardenId} shut down successfully`);
+          console.log(`   Revoked ${response.revokedProvidersCount} provider(s)`);
+          
+          // Remove from list
+          this.priestGardens = this.priestGardens.filter(g => g.id !== gardenId);
+          
+          // Refresh gardens list
+          this.refreshGardens();
+          
+          alert(`✅ Garden shut down successfully!\n\nRevoked ${response.revokedProvidersCount} provider(s).`);
+          
+          // Reset form
+          this.shutdownReason = '';
+          this.selectedGardenForShutdown = null;
+        } else {
+          alert(`❌ Failed to shutdown garden: ${(response as any).error || 'Unknown error'}`);
+        }
+        this.isShuttingDown = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ [Shutdown] Failed to shutdown garden:', err);
+        const errorMsg = err.error?.error || err.message || 'Unknown error';
+        alert(`❌ Failed to shutdown garden: ${errorMsg}`);
+        this.isShuttingDown = false;
+        this.selectedGardenForShutdown = null;
+        this.cdr.detectChanges();
+      }
+    });
   }
   
   signOut() {
@@ -525,6 +840,10 @@ export class AppComponent implements OnInit, OnDestroy {
     localStorage.removeItem('googleCredential');
     this.userEmail = 'bill.draper.auto@gmail.com'; // Reset to default
     this.isGoogleSignedIn = false;
+    
+    // Update sidebar visibility based on view mode
+    this.updateSidebarVisibility();
+    
     this.updateTitle();
     this.loadWalletBalance();
     this.cdr.detectChanges(); // Force change detection
@@ -555,6 +874,50 @@ export class AppComponent implements OnInit, OnDestroy {
       this.userEmail = this.signInEmail;
       this.isGoogleSignedIn = true; // Mark as signed in (even though it's email/password)
       localStorage.setItem('userEmail', this.signInEmail);
+      
+      // Check for pending mode selection (selected before login)
+      const pendingMode = localStorage.getItem('pendingViewMode');
+      localStorage.removeItem('pendingViewMode');
+      
+      // Set view mode
+      if (this.userEmail !== this.adminEmail) {
+        // Non-admin users always get USER mode
+        localStorage.setItem('edenViewMode', 'user');
+        // Ensure active tab is visible in user mode
+        this.ensureValidTab();
+        // Update sidebar visibility (will be hidden for USER mode)
+        this.updateSidebarVisibility();
+        setTimeout(() => {
+          if (this.sidebarComponent) {
+            this.sidebarComponent.updateModeFromEmail();
+          }
+        }, 100);
+      } else {
+        // Admin: Use pending mode (selected before login) or default to GOD
+        if (pendingMode === 'god' || pendingMode === 'priest') {
+          this.selectedAdminMode = pendingMode;
+          localStorage.setItem('edenViewMode', pendingMode);
+          console.log(`⛪ [App] Admin mode set from pre-login selection: ${this.selectedAdminMode}`);
+        } else {
+          // Check for saved mode
+          const savedMode = localStorage.getItem('edenViewMode');
+          if (savedMode === 'god' || savedMode === 'priest') {
+            this.selectedAdminMode = savedMode;
+          } else {
+            // Default to GOD
+            this.selectedAdminMode = 'god';
+            localStorage.setItem('edenViewMode', 'god');
+          }
+        }
+        // Apply selected mode (this will update sidebar visibility)
+        this.applyAdminMode();
+        setTimeout(() => {
+          if (this.sidebarComponent) {
+            this.sidebarComponent.updateModeFromEmail();
+          }
+        }, 100);
+      }
+      
       // Note: In production, you'd store a session token instead
       
       this.updateTitle();
@@ -563,7 +926,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
       
       // Clear form
-      this.signInEmail = '';
+      this.signInEmail = 'bill.draper.auto@gmail.com';
       this.signInPassword = 'Qweasdzxc1!';
       this.isSigningIn = false;
       
@@ -597,9 +960,42 @@ export class AppComponent implements OnInit, OnDestroy {
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} JSC for ${this.userEmail}`);
+          console.log(`💳 [App] checkBalanceAfterSignIn flag: ${this.checkBalanceAfterSignIn}`);
+          console.log(`💳 [App] Balance check: ${this.walletBalance} < 100 = ${this.walletBalance < 100}`);
+          
+          // Check if we need to show Stripe Payment Rail modal after sign-in
+          // Show modal if balance < 100 JSC and user is signed in (either via flag or already signed in)
+          // Also check localStorage to see if user has signed in credentials
+          const hasSignedInCredentials = !!(localStorage.getItem('userEmail') && localStorage.getItem('googleCredential'));
+          const shouldCheckBalance = this.checkBalanceAfterSignIn || this.isGoogleSignedIn || hasSignedInCredentials;
+          
+          if (this.walletBalance < 100 && shouldCheckBalance && !this.showStripePaymentModal) {
+            console.log(`💳 [App] ✅ Balance (${this.walletBalance.toFixed(2)} JSC) is below 100 JSC, showing Stripe Payment Rail modal`);
+            console.log(`💳 [App] checkBalanceAfterSignIn: ${this.checkBalanceAfterSignIn}, isGoogleSignedIn: ${this.isGoogleSignedIn}, hasSignedInCredentials: ${hasSignedInCredentials}`);
+            setTimeout(() => {
+              if (this.walletBalance < 100 && !this.showStripePaymentModal) {
+                this.showStripePaymentModal = true;
+                this.checkBalanceAfterSignIn = false; // Reset flag
+                console.log(`💳 [App] ✅ Stripe Payment Rail modal should now be visible: ${this.showStripePaymentModal}`);
+                this.cdr.detectChanges();
+              }
+            }, 500); // Small delay to ensure sign-in modal is closed
+          } else if (this.checkBalanceAfterSignIn) {
+            console.log(`💳 [App] Balance is sufficient (${this.walletBalance.toFixed(2)} JSC >= 100 JSC), not showing modal`);
+            this.checkBalanceAfterSignIn = false; // Reset flag even if balance is sufficient
+          }
         } else {
           console.error('❌ Failed to load balance:', response.error);
           this.walletBalance = 0;
+          // Still check if we need to show modal even if balance load failed
+          if (this.checkBalanceAfterSignIn) {
+            console.log(`💳 [App] Balance load failed but checkBalanceAfterSignIn is true, showing modal`);
+            setTimeout(() => {
+              this.showStripePaymentModal = true;
+              this.checkBalanceAfterSignIn = false;
+              this.cdr.detectChanges();
+            }, 500);
+          }
         }
         this.isLoadingBalance = false;
         this.cdr.detectChanges();
@@ -636,7 +1032,10 @@ export class AppComponent implements OnInit, OnDestroy {
           console.log(`🔍 [Main Street] Valid garden IDs: ${Array.from(validGardenIds).join(', ')}`);
           
           // Now load service registry
-          this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+          // In Priest mode (non-admin user), filter by ownerEmail to show only providers from user's gardens
+          const isPriestMode = this.isGoogleSignedIn && this.userEmail && this.userEmail !== this.adminEmail;
+          const ownerEmailParam = isPriestMode && this.userEmail ? `?ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
+          this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry${ownerEmailParam}`)
             .subscribe({
               next: (response) => {
                 if (response.success && response.providers) {

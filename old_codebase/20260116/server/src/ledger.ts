@@ -92,16 +92,23 @@ export function addLedgerEntry(
   if (!snapshot.txId) {
     console.warn(`⚠️ [Ledger] Warning: snapshot.txId is missing, generating one`);
   }
-  if (!snapshot.payer) {
-    console.warn(`⚠️ [Ledger] Warning: snapshot.payer is missing`);
+  
+  // CRITICAL: Always use payerId (user email) as the primary source for payer email
+  // Priority: payerId (explicitly passed) > snapshot.payer > fallback
+  const payerEmail = payerId || snapshot.payer || 'unknown@example.com';
+  
+  if (!snapshot.payer && !payerId) {
+    console.warn(`⚠️ [Ledger] Warning: Both snapshot.payer and payerId are missing, using fallback: ${payerEmail}`);
+  } else if (snapshot.payer !== payerEmail) {
+    console.log(`📧 [Ledger] Using payerId (${payerEmail}) instead of snapshot.payer (${snapshot.payer})`);
   }
 
   const entry: LedgerEntry = {
     entryId: crypto.randomUUID(),
     txId: snapshot.txId || `tx_${Date.now()}`,
     timestamp: snapshot.blockTime || Date.now(),
-    payer: snapshot.payer || payerId, // Email address
-    payerId: snapshot.payer || payerId, // Email address (same as payer)
+    payer: payerEmail, // Email address - always use payerId (user email from server)
+    payerId: payerEmail, // Email address (same as payer)
     merchant: merchantName, // Provider name (e.g., "AMC Theatres", "MovieCom", "Cinemark")
     providerUuid: providerUuid || 'MISSING-UUID', // Service provider UUID for certificate issuance
     serviceType: serviceType,

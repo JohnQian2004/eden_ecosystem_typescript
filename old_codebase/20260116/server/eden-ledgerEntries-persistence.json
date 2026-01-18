@@ -719,7 +719,184 @@
         "providerId": "restaurant-c354dad5",
         "rating": 4.585548723758768
       }
+    },
+    {
+      "entryId": "d6102ec7-ca5a-49b5-9dda-f0bbda4f255f",
+      "txId": "tx_1768717707138",
+      "timestamp": 1768717707138,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-HOTEL Provider",
+      "providerUuid": "hotel-09641828",
+      "serviceType": "hotel",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "hotelName": "Grand Plaza Hotel",
+        "checkIn": "2026-01-20",
+        "location": "Downtown",
+        "providerName": "Garden-HOTEL Provider",
+        "checkOut": "2026-01-22",
+        "roomType": "Standard",
+        "name": "Garden-HOTEL Provider",
+        "serviceType": "hotel",
+        "providerId": "hotel-09641828",
+        "rating": 4.6556892501871685
+      }
+    },
+    {
+      "entryId": "39012cb4-6618-424c-8863-23973fc2eb48",
+      "txId": "9ddbff3d-b878-4d46-aae8-99a1cef778e8",
+      "timestamp": 1768718286624,
+      "payer": "stripe:pi_3SqpcdP4h6MOSVxD1SdcX41J",
+      "payerId": "pi_3SqpcdP4h6MOSVxD1SdcX41J",
+      "merchant": "billdraper2026@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3SqpcdP4h6MOSVxD1SdcX41J",
+        "stripePaymentMethodId": "pm_1SqpcdP4h6MOSVxD4qfNJOom",
+        "stripeSessionId": "cs_test_a1khpyUCpgtcAGHBZDugGInWCmNE6B4JuHkI3LESTnE8gpyUumMDpFq0z2"
+      }
+    },
+    {
+      "entryId": "91efdec1-0800-4446-8bda-c3d0a788be13",
+      "txId": "tx_1768719752764",
+      "timestamp": 1768719752764,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-AUTOPARTS Provider",
+      "providerUuid": "autoparts-b63a26ef",
+      "serviceType": "autoparts",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partName": "Brake Pads",
+        "availability": "In Stock",
+        "warehouse": "Warehouse A",
+        "providerName": "Garden-AUTOPARTS Provider",
+        "partNumber": "BP-1000",
+        "category": "Brakes",
+        "name": "Garden-AUTOPARTS Provider",
+        "serviceType": "autoparts",
+        "location": "Unknown",
+        "providerId": "autoparts-b63a26ef",
+        "rating": 4.69185376651537
+      }
+    },
+    {
+      "entryId": "b020ce97-ce41-46e6-959f-1aff81d42f0c",
+      "txId": "tx_1768721890366",
+      "timestamp": 1768721890366,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AIRLINE Provider",
+      "providerUuid": "airline-b4f263fc",
+      "serviceType": "airline",
+      "amount": 299.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 14.999500000000001,
+        "eden": 5.9998000000000005
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 299.99,
+        "flightNumber": "AA123",
+        "date": "2026-01-20",
+        "destination": "Los Angeles",
+        "providerName": "Garden-AIRLINE Provider",
+        "departure": "8:00 AM",
+        "arrival": "11:00 AM",
+        "name": "Garden-AIRLINE Provider",
+        "serviceType": "airline",
+        "location": "Unknown",
+        "providerId": "airline-b4f263fc",
+        "rating": 4.9919686260730805
+      }
+    },
+    {
+      "entryId": "8a9b681f-bcd7-42f0-8fa1-180c5ce03716",
+      "txId": "tx_1768722604994",
+      "timestamp": 1768722604994,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AUTOPARTS Provider",
+      "providerUuid": "autoparts-b63a26ef",
+      "serviceType": "autoparts",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partName": "Brake Pads",
+        "availability": "In Stock",
+        "warehouse": "Warehouse A",
+        "providerName": "Garden-AUTOPARTS Provider",
+        "partNumber": "BP-1000",
+        "category": "Brakes",
+        "name": "Garden-AUTOPARTS Provider",
+        "serviceType": "autoparts",
+        "location": "Unknown",
+        "providerId": "autoparts-b63a26ef",
+        "rating": 4.779969845306827
+      }
+    },
+    {
+      "entryId": "3321f1bd-e864-4366-bef0-59fe587f6afe",
+      "txId": "c7e12304-c147-4c6c-98d5-e51a4198aae5",
+      "timestamp": 1768744266947,
+      "payer": "stripe:pi_3SqwNfP4h6MOSVxD0kz0thXZ",
+      "payerId": "pi_3SqwNfP4h6MOSVxD0kz0thXZ",
+      "merchant": "rashardgarcia@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3SqwNfP4h6MOSVxD0kz0thXZ",
+        "stripePaymentMethodId": "pm_1SqwNfP4h6MOSVxDQKsgmQEG",
+        "stripeSessionId": "cs_test_a1XjC1FCX4MaYQASVp3Dsfz6HpFwlP5J4OcbpKrBKT4VkafE5ubgBYtt7I"
+      }
     }
   ],
-  "lastSaved": "2026-01-18T06:23:00.735Z"
+  "lastSaved": "2026-01-18T13:51:06.955Z"
 }

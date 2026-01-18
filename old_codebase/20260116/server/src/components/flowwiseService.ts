@@ -903,10 +903,16 @@ async function executeStepActions(
           
           console.log(`   💰 [FlowWiseService] ✅ Snapshot amount validated: ${snapshotAmount} JSC (serviceType: ${snapshotServiceType})`);
           
+          // CRITICAL: Always use user email from context for payer
+          const userEmail = context.user?.email || "unknown@example.com";
+          if (!context.user?.email) {
+            console.warn(`   ⚠️ [FlowWiseService] Warning: context.user.email is missing, using fallback: ${userEmail}`);
+          }
+          
           context.snapshot = {
             txId: `tx_${Date.now()}`,
             blockTime: Date.now(),
-            payer: context.user?.email || "unknown@example.com",
+            payer: userEmail, // Always use user email from context
             amount: snapshotAmount,
             feeSplit: {
               indexer: 0,
@@ -915,6 +921,8 @@ async function executeStepActions(
               eden: snapshotAmount * 0.02
             }
           };
+          
+          console.log(`   📧 [FlowWiseService] Snapshot created with payer email: ${userEmail}`);
           
           // Set service-type-specific price in context
           if (snapshotServiceType === 'hotel') {

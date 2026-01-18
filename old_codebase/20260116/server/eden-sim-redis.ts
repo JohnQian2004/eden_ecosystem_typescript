@@ -847,10 +847,17 @@ httpServer.on("request", async (req, res) => {
                                           listingPrice || 
                                           0;
                     
+                    // CRITICAL: Always use user email from context as payer
+                    // Priority: updatedContext.user?.email > processedAction.payer > fallback
+                    const userEmail = updatedContext.user?.email || processedAction.payer || 'unknown@example.com';
+                    if (!updatedContext.user?.email && processedAction.payer) {
+                      console.log(`📧 [${requestId}] Using processedAction.payer (${processedAction.payer}) as user email is not in context`);
+                    }
+                    
                     const snapshot = {
                       txId: `tx_${Date.now()}`,
                       blockTime: Date.now(),
-                      payer: processedAction.payer || updatedContext.user?.email || 'unknown@example.com',
+                      payer: userEmail, // Always use user email from context
                       amount: snapshotAmount,
                       feeSplit: {
                         indexer: 0,
@@ -859,6 +866,8 @@ httpServer.on("request", async (req, res) => {
                         eden: snapshotAmount * 0.02
                       }
                     };
+                    
+                    console.log(`📧 [${requestId}] Snapshot created with payer email: ${userEmail}`);
                     actionResult = { snapshot };
                     // CRITICAL: Store snapshot in context for next actions and websocket events
                     updatedContext.snapshot = snapshot;
@@ -2255,6 +2264,7 @@ httpServer.on("request", async (req, res) => {
     
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
+    const ownerEmail = url.searchParams.get('ownerEmail'); // Optional filter by owner email (for Priest mode)
     
     // Use ServiceRegistry2 (new implementation)
     const serviceRegistry2 = getServiceRegistry2();
@@ -2276,35 +2286,100 @@ httpServer.on("request", async (req, res) => {
     }
     console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, airline=${allProviders.filter(p => p.serviceType === 'airline').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
     
-    let providers = allProviders.map(p => ({
-      id: p.id,
-      name: p.name,
-      serviceType: p.serviceType, // Snake is a service type (serviceType: "snake")
-      location: p.location,
-      bond: p.bond,
-      reputation: p.reputation,
-      gardenId: p.gardenId, // Use gardenId directly - everything is in sync
-      status: p.status || 'active',
-      // Snake service fields (transparent in ServiceRegistry)
-      insuranceFee: p.insuranceFee,
-      iGasMultiplier: p.iGasMultiplier || 1.0,
-      iTaxMultiplier: p.iTaxMultiplier || 1.0,
-      maxInfluence: p.maxInfluence,
-      contextsAllowed: p.contextsAllowed,
-      contextsForbidden: p.contextsForbidden,
-      adCapabilities: p.adCapabilities
-    }));
+    // Helper function to get ownerEmail for a provider based on its gardenId
+    const getOwnerEmailForProvider = (gardenId: string): string | undefined => {
+      if (gardenId === 'HG') {
+        return undefined; // Holy Ghost doesn't have an owner
+      }
+      // Find garden in GARDENS or TOKEN_GARDENS
+      const garden = GARDENS.find(g => g.id === gardenId) || TOKEN_GARDENS.find(g => g.id === gardenId);
+      if (!garden) {
+        console.warn(`   ⚠️  [Service Registry API] Provider has gardenId "${gardenId}" but garden not found - this provider may be orphaned`);
+        return undefined;
+      }
+      return garden?.ownerEmail || garden?.priestEmail || undefined;
+    };
+    
+    // Clean up providers that belong to non-existent gardens (except HG)
+    const validGardenIds = new Set([...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(g => g.id), 'HG']);
+    const orphanedProviders = allProviders.filter(p => p.gardenId && p.gardenId !== 'HG' && !validGardenIds.has(p.gardenId));
+    if (orphanedProviders.length > 0) {
+      console.warn(`   ⚠️  [Service Registry API] Found ${orphanedProviders.length} orphaned provider(s) with invalid gardenIds: ${orphanedProviders.map(p => `${p.id} (gardenId: ${p.gardenId})`).join(', ')}`);
+      // Remove orphaned providers from ServiceRegistry2 and ROOT_CA_SERVICE_REGISTRY
+      const serviceRegistry2 = getServiceRegistry2();
+      for (const orphaned of orphanedProviders) {
+        try {
+          // Check if provider exists before trying to remove it
+          if (serviceRegistry2.hasProvider(orphaned.id)) {
+            serviceRegistry2.removeProvider(orphaned.id);
+            console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ServiceRegistry2`);
+          } else {
+            console.log(`   ℹ️  Orphaned provider ${orphaned.id} not found in ServiceRegistry2 (may have been already removed)`);
+          }
+        } catch (err: any) {
+          console.warn(`   ⚠️  Failed to remove orphaned provider ${orphaned.id}: ${err.message}`);
+        }
+        // Also remove from ROOT_CA_SERVICE_REGISTRY
+        const index = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.id === orphaned.id || p.uuid === orphaned.uuid);
+        if (index !== -1) {
+          ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
+          console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ROOT_CA_SERVICE_REGISTRY`);
+        }
+      }
+      // Filter out orphaned providers from the response
+      allProviders = allProviders.filter(p => !orphanedProviders.includes(p));
+      // Save cleaned registry
+      try {
+        serviceRegistry2.savePersistence();
+        console.log(`   💾 Service registry saved after removing ${orphanedProviders.length} orphaned provider(s)`);
+      } catch (saveErr: any) {
+        console.warn(`   ⚠️  Failed to save service registry after cleanup: ${saveErr.message}`);
+      }
+    }
+    
+    let providers = allProviders.map(p => {
+      const providerOwnerEmail = getOwnerEmailForProvider(p.gardenId);
+      return {
+        id: p.id,
+        name: p.name,
+        serviceType: p.serviceType, // Snake is a service type (serviceType: "snake")
+        location: p.location,
+        bond: p.bond,
+        reputation: p.reputation,
+        gardenId: p.gardenId, // Use gardenId directly - everything is in sync
+        status: p.status || 'active',
+        ownerEmail: providerOwnerEmail, // Add ownerEmail field
+        // Snake service fields (transparent in ServiceRegistry)
+        insuranceFee: p.insuranceFee,
+        iGasMultiplier: p.iGasMultiplier || 1.0,
+        iTaxMultiplier: p.iTaxMultiplier || 1.0,
+        maxInfluence: p.maxInfluence,
+        contextsAllowed: p.contextsAllowed,
+        contextsForbidden: p.contextsForbidden,
+        adCapabilities: p.adCapabilities
+      };
+    });
     
     // Filter by service type if provided (e.g., "snake" for Snake services)
     if (serviceType) {
       providers = providers.filter(p => p.serviceType === serviceType);
     }
     
+    // Filter by ownerEmail if provided (for Priest mode)
+    if (ownerEmail) {
+      const ownerEmailLower = ownerEmail.toLowerCase();
+      providers = providers.filter(p => {
+        if (!p.ownerEmail) return false; // Exclude providers without ownerEmail (e.g., HG infrastructure)
+        return p.ownerEmail.toLowerCase() === ownerEmailLower;
+      });
+      console.log(`   🔍 [Service Registry API] Filtered by ownerEmail: ${ownerEmail} → ${providers.length} provider(s)`);
+    }
+    
     // Debug: Log movie providers and their gardenId assignments
     const movieProviders = providers.filter(p => p.serviceType === 'movie');
     const nonHGProviders = movieProviders.filter(p => p.gardenId !== 'HG');
     if (movieProviders.length > 0) {
-      console.log(`   🔍 [Service Registry API] Movie providers: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
+      console.log(`   🔍 [Service Registry API] Movie providers: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}, ownerEmail: ${p.ownerEmail || 'N/A'}`).join(', ')}`);
       console.log(`   🔍 [Service Registry API] Non-HG movie providers: ${nonHGProviders.length} (${nonHGProviders.map(p => p.name).join(', ')})`);
     }
     
@@ -2529,7 +2604,8 @@ httpServer.on("request", async (req, res) => {
         active: HOLY_GHOST_GARDEN.active,
         uuid: HOLY_GHOST_GARDEN.uuid,
         hasCertificate: !!HOLY_GHOST_GARDEN.certificate,
-        type: 'root' as const
+        type: 'root' as const,
+        ownerEmail: undefined // ROOT CA doesn't have an owner
       },
       // Return in-memory gardens (source of truth) + persisted gardens not in memory
       ...Array.from(allRegularGardens.values()).map(i => ({
@@ -2539,7 +2615,8 @@ httpServer.on("request", async (req, res) => {
         active: i.active,
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
-        type: 'regular' as const
+        type: 'regular' as const,
+        ownerEmail: i.ownerEmail || i.priestEmail || undefined
       })),
       ...Array.from(allTokenGardens.values()).map(i => ({
         id: i.id,
@@ -2548,7 +2625,8 @@ httpServer.on("request", async (req, res) => {
         active: i.active,
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
-        type: 'token' as const
+        type: 'token' as const,
+        ownerEmail: i.ownerEmail || i.priestEmail || undefined
       }))
     ];
     
@@ -2596,7 +2674,7 @@ httpServer.on("request", async (req, res) => {
     req.on("data", (chunk) => {
       body += chunk.toString();
     });
-    req.on("end", () => {
+    req.on("end", async () => {
       try {
         const { uuid, reason, revoked_type, severity } = JSON.parse(body);
         if (!uuid || !reason) {
@@ -2609,7 +2687,7 @@ httpServer.on("request", async (req, res) => {
         let revokedType: "indexer" | "service" | "provider" = revoked_type || "provider";
         if (!revokedType) {
           // Auto-detect based on UUID pattern
-          if (uuid.includes("indexer")) {
+          if (uuid.includes("indexer") || uuid.includes("garden")) {
             revokedType = "indexer";
           } else if (uuid.includes("service")) {
             revokedType = "service";
@@ -2618,16 +2696,352 @@ httpServer.on("request", async (req, res) => {
           }
         }
         
+        const revokeSeverity = severity || "hard";
         const revocation = revokeCertificate(
           uuid, 
           reason, 
           revokedType,
-          severity || "hard"
+          revokeSeverity
         );
+        
+        // If hard revocation of indexer, also revoke all providers in that garden
+        let revokedProvidersCount = 0;
+        if (revokeSeverity === 'hard' && revokedType === 'indexer') {
+          // Find the garden to get its ID
+          const garden = GARDENS.find(g => g.uuid === uuid) || TOKEN_GARDENS.find(g => g.uuid === uuid);
+          if (garden) {
+            // Revoke all providers in this garden
+            const providers = ROOT_CA_SERVICE_REGISTRY.filter(
+              p => p.gardenId === garden.id || (p as any).gardenId === garden.id
+            );
+            for (const provider of providers) {
+              try {
+                revokeCertificate(
+                  provider.uuid,
+                  `Garden revoked: ${reason}`,
+                  "provider",
+                  "hard"
+                );
+                revokedProvidersCount++;
+              } catch (err: any) {
+                console.warn(`⚠️  Failed to revoke provider ${provider.id}: ${err.message}`);
+              }
+            }
+          }
+        }
+        
+        // Save persistence if hard revocation - remove revoked entities from JSON files
+        if (revokeSeverity === 'hard') {
+          try {
+            await ensureRedisConnection();
+            
+            // Save gardens to JSON file (remove revoked gardens)
+            const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+            if (fs.existsSync(gardensFile)) {
+              try {
+                const fileContent = fs.readFileSync(gardensFile, 'utf-8');
+                const persisted = JSON.parse(fileContent);
+                if (persisted.gardens && Array.isArray(persisted.gardens)) {
+                  // Remove revoked gardens from the file
+                  const activeGardens = persisted.gardens.filter((g: any) => {
+                    const isRevoked = REVOCATION_REGISTRY.has(g.uuid);
+                    return !isRevoked;
+                  });
+                  
+                  const gardensData = {
+                    gardens: activeGardens,
+                    lastSaved: new Date().toISOString()
+                  };
+                  fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+                  console.log(`   💾 Removed revoked gardens from ${gardensFile} (${activeGardens.length} gardens remaining)`);
+                }
+              } catch (fileErr: any) {
+                console.warn(`⚠️  Failed to update gardens persistence file: ${fileErr.message}`);
+              }
+            }
+            
+            // Also save current in-memory gardens (which already have revoked ones removed)
+            const allGardens = [...GARDENS, ...TOKEN_GARDENS];
+            const gardensData = {
+              gardens: allGardens,
+              lastSaved: new Date().toISOString()
+            };
+            fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+            console.log(`   💾 Saved ${allGardens.length} active gardens to ${gardensFile}`);
+            
+            // Save service registry to JSON file (remove revoked providers)
+            const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
+            if (fs.existsSync(serviceRegistryFile)) {
+              try {
+                const fileContent = fs.readFileSync(serviceRegistryFile, 'utf-8');
+                const persisted = JSON.parse(fileContent);
+                if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry)) {
+                  // Remove revoked providers from the file
+                  const activeProviders = persisted.serviceRegistry.filter((p: any) => {
+                    const isRevoked = REVOCATION_REGISTRY.has(p.uuid);
+                    return !isRevoked;
+                  });
+                  
+                  const registryData = {
+                    serviceRegistry: activeProviders,
+                    lastSaved: new Date().toISOString()
+                  };
+                  fs.writeFileSync(serviceRegistryFile, JSON.stringify(registryData, null, 2), 'utf-8');
+                  console.log(`   💾 Removed revoked providers from ${serviceRegistryFile} (${activeProviders.length} providers remaining)`);
+                }
+              } catch (fileErr: any) {
+                console.warn(`⚠️  Failed to update service registry persistence file: ${fileErr.message}`);
+              }
+            }
+            
+            // Also save current in-memory service registry (which already has revoked ones removed)
+            if (redis) {
+              redis.saveServiceRegistry();
+              console.log(`   💾 Saved service registry to persistence (${ROOT_CA_SERVICE_REGISTRY.length} providers remaining)`);
+            }
+          } catch (persistErr: any) {
+            console.warn(`⚠️  Failed to save persistence after revocation: ${persistErr.message}`);
+          }
+        }
+        
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           success: true,
           revocation,
+          revokedProvidersCount: revokedType === 'indexer' ? revokedProvidersCount : 0,
+          timestamp: Date.now()
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Get gardens by owner email (for Priest users)
+  if (pathname === "/api/gardens/by-owner" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/gardens/by-owner - Getting gardens by owner email`);
+    try {
+      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const ownerEmail = url.searchParams.get('email');
+      
+      if (!ownerEmail) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "email query parameter required" }));
+        return;
+      }
+      
+      // Get all gardens (regular and token) that belong to this owner
+      const ownerGardens = [
+        ...GARDENS.filter(g => (g.ownerEmail || g.priestEmail)?.toLowerCase() === ownerEmail.toLowerCase()),
+        ...TOKEN_GARDENS.filter(g => (g.ownerEmail || g.priestEmail)?.toLowerCase() === ownerEmail.toLowerCase())
+      ].map(g => ({
+        id: g.id,
+        name: g.name,
+        stream: g.stream,
+        active: g.active,
+        uuid: g.uuid,
+        ownerEmail: g.ownerEmail || g.priestEmail,
+        serviceType: (g as any).serviceType,
+        hasCertificate: !!g.certificate,
+        certificate: g.certificate
+      }));
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        gardens: ownerGardens,
+        count: ownerGardens.length
+      }));
+    } catch (err: any) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // Hard shutdown garden (revoke certificate)
+  if (pathname === "/api/garden/shutdown" && req.method === "POST") {
+    console.log(`   ✅ [${requestId}] POST /api/garden/shutdown - Hard shutdown garden`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { gardenId, reason, requestedBy, revokeProviders = true } = JSON.parse(body);
+        
+        if (!gardenId || !reason || !requestedBy) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "gardenId, reason, and requestedBy are required" }));
+          return;
+        }
+        
+        // Find garden by ID or UUID
+        const garden = GARDENS.find(g => g.id === gardenId || g.uuid === gardenId) ||
+                      TOKEN_GARDENS.find(g => g.id === gardenId || g.uuid === gardenId);
+        
+        if (!garden) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Garden not found: ${gardenId}` }));
+          return;
+        }
+        
+        // Authorization check: Only owner or ROOT CA can shutdown
+        const ownerEmail = (garden.ownerEmail || garden.priestEmail)?.toLowerCase();
+        const requestedByLower = requestedBy.toLowerCase();
+        const isRootCA = requestedByLower === 'bill.draper.auto@gmail.com' || requestedByLower === (ROOT_CA_EMAIL || 'bill.draper.auto@gmail.com')?.toLowerCase();
+        
+        if (!isRootCA && ownerEmail !== requestedByLower) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Unauthorized: Only garden owner (${ownerEmail}) or ROOT CA can shutdown this garden` 
+          }));
+          return;
+        }
+        
+        // Revoke certificate (hard shutdown)
+        const revocation = revokeCertificate(
+          garden.uuid,
+          reason,
+          "indexer",
+          "hard",
+          { requestedBy, gardenId, revokeProviders }
+        );
+        
+        // Optionally revoke all providers in this garden
+        let revokedProvidersCount = 0;
+        const providersToRevoke: any[] = [];
+        if (revokeProviders) {
+          const providers = ROOT_CA_SERVICE_REGISTRY.filter(
+            p => p.gardenId === gardenId || (p as any).gardenId === garden.id
+          );
+          providersToRevoke.push(...providers);
+          for (const provider of providers) {
+            try {
+              revokeCertificate(
+                provider.uuid,
+                `Garden shutdown: ${reason}`,
+                "provider",
+                "hard",
+                { requestedBy, gardenId }
+              );
+              revokedProvidersCount++;
+            } catch (err: any) {
+              console.warn(`⚠️  Failed to revoke provider ${provider.id}: ${err.message}`);
+            }
+          }
+        }
+        
+        // Remove revoked providers from ROOT_CA_SERVICE_REGISTRY
+        for (const provider of providersToRevoke) {
+          const providerIndex = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.uuid === provider.uuid);
+          if (providerIndex !== -1) {
+            ROOT_CA_SERVICE_REGISTRY.splice(providerIndex, 1);
+            console.log(`   🗑️  Removed provider ${provider.id} (${provider.name}) from ROOT_CA_SERVICE_REGISTRY`);
+          }
+        }
+        
+        // Remove garden from GARDENS or TOKEN_GARDENS array
+        const gardenIndex = GARDENS.findIndex(g => g.id === gardenId || g.uuid === garden.uuid);
+        if (gardenIndex !== -1) {
+          GARDENS.splice(gardenIndex, 1);
+          console.log(`   🗑️  Removed garden ${garden.id} (${garden.name}) from GARDENS array`);
+        } else {
+          const tokenGardenIndex = TOKEN_GARDENS.findIndex(g => g.id === gardenId || g.uuid === garden.uuid);
+          if (tokenGardenIndex !== -1) {
+            TOKEN_GARDENS.splice(tokenGardenIndex, 1);
+            console.log(`   🗑️  Removed garden ${garden.id} (${garden.name}) from TOKEN_GARDENS array`);
+          }
+        }
+        
+        // Save persistence (gardens and service registry) - remove revoked entities from JSON files
+        try {
+          await ensureRedisConnection();
+          
+          // Save gardens to JSON file (remove revoked gardens)
+          const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+          if (fs.existsSync(gardensFile)) {
+            try {
+              const fileContent = fs.readFileSync(gardensFile, 'utf-8');
+              const persisted = JSON.parse(fileContent);
+              if (persisted.gardens && Array.isArray(persisted.gardens)) {
+                // Remove revoked gardens from the file
+                const activeGardens = persisted.gardens.filter((g: any) => {
+                  const isRevoked = REVOCATION_REGISTRY.has(g.uuid);
+                  return !isRevoked;
+                });
+                
+                const gardensData = {
+                  gardens: activeGardens,
+                  lastSaved: new Date().toISOString()
+                };
+                fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+                console.log(`   💾 Removed revoked gardens from ${gardensFile} (${activeGardens.length} gardens remaining)`);
+              }
+            } catch (fileErr: any) {
+              console.warn(`⚠️  Failed to update gardens persistence file: ${fileErr.message}`);
+            }
+          }
+          
+          // Also save current in-memory gardens (which already have revoked ones removed)
+          const allGardens = [...GARDENS, ...TOKEN_GARDENS];
+          const gardensData = {
+            gardens: allGardens,
+            lastSaved: new Date().toISOString()
+          };
+          fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
+          console.log(`   💾 Saved ${allGardens.length} active gardens to ${gardensFile}`);
+          
+          // Save service registry to JSON file (remove revoked providers)
+          const serviceRegistryFile = path.join(__dirname, 'eden-serviceRegistry-persistence.json');
+          if (fs.existsSync(serviceRegistryFile)) {
+            try {
+              const fileContent = fs.readFileSync(serviceRegistryFile, 'utf-8');
+              const persisted = JSON.parse(fileContent);
+              if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry)) {
+                // Remove revoked providers from the file
+                const activeProviders = persisted.serviceRegistry.filter((p: any) => {
+                  const isRevoked = REVOCATION_REGISTRY.has(p.uuid);
+                  return !isRevoked;
+                });
+                
+                const registryData = {
+                  serviceRegistry: activeProviders,
+                  lastSaved: new Date().toISOString()
+                };
+                fs.writeFileSync(serviceRegistryFile, JSON.stringify(registryData, null, 2), 'utf-8');
+                console.log(`   💾 Removed revoked providers from ${serviceRegistryFile} (${activeProviders.length} providers remaining)`);
+              }
+            } catch (fileErr: any) {
+              console.warn(`⚠️  Failed to update service registry persistence file: ${fileErr.message}`);
+            }
+          }
+          
+          // Also save current in-memory service registry (which already has revoked ones removed)
+          if (redis) {
+            redis.saveServiceRegistry();
+            console.log(`   💾 Saved service registry to persistence (${ROOT_CA_SERVICE_REGISTRY.length} providers remaining)`);
+          }
+        } catch (persistErr: any) {
+          console.warn(`⚠️  Failed to save persistence after shutdown: ${persistErr.message}`);
+        }
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          revocation,
+          garden: {
+            id: garden.id,
+            name: garden.name,
+            uuid: garden.uuid,
+            active: false,
+            removed: true
+          },
+          revokedProvidersCount,
+          removedProvidersCount: providersToRevoke.length,
           timestamp: Date.now()
         }));
       } catch (err: any) {
@@ -4343,6 +4757,8 @@ httpServer.on("request", async (req, res) => {
                  (serviceType === "dex" ? `eden:token-garden:${gardenId}` : `eden:garden:${gardenId}`),
           active: true,
           uuid: `eden:garden:${crypto.randomUUID()}`,
+          ownerEmail: email, // CRITICAL: Store Priest user email for garden ownership and lifecycle management
+          priestEmail: email, // Alias for backward compatibility
         };
         
         // Add network configuration
@@ -4352,6 +4768,8 @@ httpServer.on("request", async (req, res) => {
         (gardenConfig as any).networkType = networkType || "http";
         (gardenConfig as any).serviceType = serviceType;
         (gardenConfig as any).isSnake = isSnake || false;
+        
+        console.log(`   👤 [${requestId}] Garden ownership assigned to Priest user: ${email}`);
         
         // CRITICAL: Issue certificate BEFORE adding to array AND BEFORE saving
         // This ensures the certificate is included in the gardenConfig object
@@ -4435,6 +4853,7 @@ httpServer.on("request", async (req, res) => {
               gardenName: gardenConfig.name,
               serviceType: (gardenConfig as any).serviceType,
               hasCertificate: !!gardenConfig.certificate,
+              ownerEmail: gardenConfig.ownerEmail, // Include owner email for lifecycle management
               totalGardens: GARDENS.length
             }
           });
@@ -4618,36 +5037,45 @@ httpServer.on("request", async (req, res) => {
           // For non-movie, non-dex service types (like airline), create a default provider if none were specified
           // This ensures the service type appears in the service registry
           if (serviceType !== "movie" && serviceType !== "dex" && serviceType !== "snake") {
-            console.log(`   🔧 Creating default provider for ${serviceType} garden ${gardenConfig.id}...`);
-            try {
-              const defaultProviderConfig = {
-                name: `${gardenConfig.name} Provider`,
-                location: 'Unknown',
-                bond: 1000,
-                reputation: 5.0,
-                apiEndpoint: `https://api.${serviceType}.com/v1`
-              };
-              
-              providerResults = createServiceProvidersForGarden(
-                serviceType,
-                gardenConfig.id,
-                [defaultProviderConfig],
-                undefined
-              );
-              
-              providersCreated = providerResults.filter(r => r.created || r.assigned).length;
-              console.log(`   ✅ Created default provider for ${serviceType} garden: ${providerResults.map(r => r.providerName).join(', ')}`);
-              
-              // CRITICAL: Ensure service registry is saved to persistence after default provider creation
+            // Check if a provider already exists for this garden to prevent duplicates
+            const serviceRegistry2 = getServiceRegistry2();
+            const existingProvidersForGarden = serviceRegistry2.getAllProviders().filter(
+              p => p.gardenId === gardenConfig.id && p.serviceType === serviceType
+            );
+            
+            if (existingProvidersForGarden.length > 0) {
+              console.log(`   ⚠️  Garden ${gardenConfig.id} already has ${existingProvidersForGarden.length} provider(s) for ${serviceType}, skipping default provider creation`);
+            } else {
+              console.log(`   🔧 Creating default provider for ${serviceType} garden ${gardenConfig.id}...`);
               try {
-                const serviceRegistry2 = getServiceRegistry2();
-                serviceRegistry2.savePersistence();
-                console.log(`   💾 Service registry saved to persistence after default provider creation`);
-              } catch (saveErr: any) {
-                console.error(`   ❌ Failed to save service registry after default provider creation:`, saveErr.message);
+                const defaultProviderConfig = {
+                  name: `${gardenConfig.name} Provider`,
+                  location: 'Unknown',
+                  bond: 1000,
+                  reputation: 5.0,
+                  apiEndpoint: `https://api.${serviceType}.com/v1`
+                };
+                
+                providerResults = createServiceProvidersForGarden(
+                  serviceType,
+                  gardenConfig.id,
+                  [defaultProviderConfig],
+                  undefined
+                );
+                
+                providersCreated = providerResults.filter(r => r.created || r.assigned).length;
+                console.log(`   ✅ Created default provider for ${serviceType} garden: ${providerResults.map(r => r.providerName).join(', ')}`);
+                
+                // CRITICAL: Ensure service registry is saved to persistence after default provider creation
+                try {
+                  serviceRegistry2.savePersistence();
+                  console.log(`   💾 Service registry saved to persistence after default provider creation`);
+                } catch (saveErr: any) {
+                  console.error(`   ❌ Failed to save service registry after default provider creation:`, saveErr.message);
+                }
+              } catch (defaultProviderErr: any) {
+                console.warn(`   ⚠️  Failed to create default provider for ${serviceType} garden:`, defaultProviderErr.message);
               }
-            } catch (defaultProviderErr: any) {
-              console.warn(`   ⚠️  Failed to create default provider for ${serviceType} garden:`, defaultProviderErr.message);
             }
           }
         }
@@ -5182,10 +5610,12 @@ httpServer.on("request", async (req, res) => {
             name: gardenConfig.name,
             uuid: gardenConfig.uuid,
             port: (gardenConfig as any).serverPort,
-            hasCertificate: !!gardenConfig.certificate
+            hasCertificate: !!gardenConfig.certificate,
+            ownerEmail: gardenConfig.ownerEmail // Include owner email for lifecycle management
           },
           balance: debitResult.balance, // Return updated balance
-          createdBy: email, // Return the Google user email
+          createdBy: email, // Return the Google user email (same as ownerEmail)
+          ownerEmail: gardenConfig.ownerEmail, // Explicit owner email field
           providersCreated: providersCreated // Return number of providers created
         }));
       } catch (err: any) {
@@ -7533,20 +7963,59 @@ function revokeCertificate(
   // Remove certificate from registry
   CERTIFICATE_REGISTRY.delete(uuid);
   
-  // Mark indexer or provider as inactive/revoked
+  // Handle indexer/garden revocation
   const indexer = GARDENS.find(i => i.uuid === uuid);
   if (indexer) {
-    indexer.active = false;
-    indexer.certificate = undefined;
-    console.log(`   Indexer ${indexer.name} marked as inactive`);
+    if (severity === 'hard' && revokedType === 'indexer') {
+      // Hard revocation: Remove from array
+      const index = GARDENS.findIndex(i => i.uuid === uuid);
+      if (index !== -1) {
+        GARDENS.splice(index, 1);
+        console.log(`   🗑️  Removed garden ${indexer.id} (${indexer.name}) from GARDENS array`);
+      }
+    } else {
+      // Soft revocation: Just mark as inactive
+      indexer.active = false;
+      indexer.certificate = undefined;
+      console.log(`   Indexer ${indexer.name} marked as inactive`);
+    }
   }
   
+  // Also check TOKEN_GARDENS
+  const tokenIndexer = TOKEN_GARDENS.find(i => i.uuid === uuid);
+  if (tokenIndexer) {
+    if (severity === 'hard' && revokedType === 'indexer') {
+      // Hard revocation: Remove from array
+      const index = TOKEN_GARDENS.findIndex(i => i.uuid === uuid);
+      if (index !== -1) {
+        TOKEN_GARDENS.splice(index, 1);
+        console.log(`   🗑️  Removed garden ${tokenIndexer.id} (${tokenIndexer.name}) from TOKEN_GARDENS array`);
+      }
+    } else {
+      // Soft revocation: Just mark as inactive
+      tokenIndexer.active = false;
+      tokenIndexer.certificate = undefined;
+      console.log(`   Token indexer ${tokenIndexer.name} marked as inactive`);
+    }
+  }
+  
+  // Handle provider revocation
   const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === uuid);
   if (provider) {
-    provider.certificate = undefined;
-    provider.status = 'revoked'; // Mark provider as revoked in ROOT_CA_SERVICE_REGISTRY
-    console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked`);
-    console.log(`   Provider will be filtered out from service queries`);
+    if (severity === 'hard' && revokedType === 'provider') {
+      // Hard revocation: Remove from array
+      const index = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.uuid === uuid);
+      if (index !== -1) {
+        ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
+        console.log(`   🗑️  Removed provider ${provider.id} (${provider.name}) from ROOT_CA_SERVICE_REGISTRY`);
+      }
+    } else {
+      // Soft revocation: Just mark as revoked
+      provider.certificate = undefined;
+      provider.status = 'revoked';
+      console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked`);
+      console.log(`   Provider will be filtered out from service queries`);
+    }
   }
   
   console.log(`🚫 Certificate revoked: ${uuid}`);
@@ -7875,27 +8344,59 @@ async function processRevocationMessage(message: any, indexerName: string): Prom
       return;
     }
     
-    // Apply revocation idempotently
-    const now = Date.now();
-    if (now >= revocation.effective_at) {
-      REVOCATION_REGISTRY.set(revocation.revoked_uuid, revocation);
-      
-      // Mark entity as inactive
-      const indexer = GARDENS.find(i => i.uuid === revocation.revoked_uuid);
-      if (indexer) {
-        indexer.active = false;
-        indexer.certificate = undefined;
-      }
-      
-      const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
-      if (provider) {
-        provider.certificate = undefined;
-        provider.status = 'revoked';
-        console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in ROOT_CA_SERVICE_REGISTRY`);
-      }
-      
-      console.log(`🚫 [${indexerName}] Applied revocation: ${revocation.revoked_uuid}`);
-      console.log(`   Reason: ${revocation.reason}`);
+      // Apply revocation idempotently
+      const now = Date.now();
+      if (now >= revocation.effective_at) {
+        REVOCATION_REGISTRY.set(revocation.revoked_uuid, revocation);
+        
+        // Handle indexer/garden revocation
+        const indexer = GARDENS.find(i => i.uuid === revocation.revoked_uuid);
+        if (indexer) {
+          indexer.active = false;
+          indexer.certificate = undefined;
+          // For hard shutdowns, remove from array
+          if (revocation.severity === 'hard' && revocation.revoked_type === 'indexer') {
+            const index = GARDENS.findIndex(i => i.uuid === revocation.revoked_uuid);
+            if (index !== -1) {
+              GARDENS.splice(index, 1);
+              console.log(`   🗑️  Removed garden ${indexer.id} (${indexer.name}) from GARDENS array`);
+            }
+          }
+        }
+        
+        // Also check TOKEN_GARDENS
+        const tokenIndexer = TOKEN_GARDENS.find(i => i.uuid === revocation.revoked_uuid);
+        if (tokenIndexer) {
+          tokenIndexer.active = false;
+          tokenIndexer.certificate = undefined;
+          // For hard shutdowns, remove from array
+          if (revocation.severity === 'hard' && revocation.revoked_type === 'indexer') {
+            const index = TOKEN_GARDENS.findIndex(i => i.uuid === revocation.revoked_uuid);
+            if (index !== -1) {
+              TOKEN_GARDENS.splice(index, 1);
+              console.log(`   🗑️  Removed garden ${tokenIndexer.id} (${tokenIndexer.name}) from TOKEN_GARDENS array`);
+            }
+          }
+        }
+        
+        // Handle provider revocation
+        const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === revocation.revoked_uuid);
+        if (provider) {
+          provider.certificate = undefined;
+          provider.status = 'revoked';
+          console.log(`   Service provider ${provider.name} (${provider.id}) marked as revoked in ROOT_CA_SERVICE_REGISTRY`);
+          // For hard shutdowns, remove from array
+          if (revocation.severity === 'hard' && revocation.revoked_type === 'provider') {
+            const index = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.uuid === revocation.revoked_uuid);
+            if (index !== -1) {
+              ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
+              console.log(`   🗑️  Removed provider ${provider.id} (${provider.name}) from ROOT_CA_SERVICE_REGISTRY`);
+            }
+          }
+        }
+        
+        console.log(`🚫 [${indexerName}] Applied revocation: ${revocation.revoked_uuid}`);
+        console.log(`   Reason: ${revocation.reason}`);
       
       broadcastEvent({
         type: "revocation_applied",
@@ -10063,10 +10564,12 @@ async function main() {
           gardenServiceType !== "movie" && 
           gardenServiceType !== "dex" && 
           gardenServiceType !== "snake") {
-        const providersForGarden = serviceRegistry2.queryProviders(gardenServiceType, {});
-        const hasProviderForThisGarden = providersForGarden.some(p => p.gardenId === garden.id);
+        // Query providers specifically for this garden (not all providers of this service type)
+        const allProviders = serviceRegistry2.getAllProviders();
+        const providersForThisGarden = allProviders.filter(p => p.gardenId === garden.id && p.serviceType === gardenServiceType);
+        const hasProviderForThisGarden = providersForThisGarden.length > 0;
         
-        console.log(`   🔍 [Startup] Garden ${garden.id} (${gardenServiceType}): ${providersForGarden.length} provider(s) found, hasProviderForThisGarden=${hasProviderForThisGarden}`);
+        console.log(`   🔍 [Startup] Garden ${garden.id} (${gardenServiceType}): ${providersForThisGarden.length} provider(s) found for this garden, hasProviderForThisGarden=${hasProviderForThisGarden}`);
         
         if (!hasProviderForThisGarden) {
           console.log(`   🔧 [Startup] Garden ${garden.id} (${gardenServiceType}) has no providers, creating default provider...`);
