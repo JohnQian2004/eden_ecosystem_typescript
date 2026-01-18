@@ -200,13 +200,16 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   applyFilter(): void {
     if (this.isUserMode) {
       // Filter to show only entries specifically for the logged-in Google user
-      // Match by payer email (case-insensitive) or payerId
+      // Match by payer email (case-insensitive), payerId, or merchant email
+      // Note: Some transactions (like mint operations) may have user email in merchant field
       this.filteredLedgerEntries = this.ledgerEntries.filter(entry => {
         const payerMatch = entry.payer && 
                           entry.payer.toLowerCase() === this.userEmail.toLowerCase();
         const payerIdMatch = entry.payerId && 
                             entry.payerId.toLowerCase() === this.userEmail.toLowerCase();
-        return payerMatch || payerIdMatch;
+        const merchantMatch = entry.merchant && 
+                             entry.merchant.toLowerCase() === this.userEmail.toLowerCase();
+        return payerMatch || payerIdMatch || merchantMatch;
       });
       console.log(`📡 [LedgerDisplay] Filtered to ${this.filteredLedgerEntries.length} entries for logged-in Google user: ${this.userEmail}`);
       console.log(`📡 [LedgerDisplay] Total entries: ${this.ledgerEntries.length}, User entries: ${this.filteredLedgerEntries.length}`);

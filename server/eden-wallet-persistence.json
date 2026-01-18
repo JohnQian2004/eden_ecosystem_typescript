@@ -326,8 +326,9 @@
     "wallet:balance:reshardgarcia@gmail.com": "400",
     "wallet:audit:reshardgarcia@gmail.com:1768746597872": "{\"intent\":\"CREDIT\",\"email\":\"reshardgarcia@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"d729caf4-448d-4e5c-9fad-717b9932ac4b\",\"reason\":\"Stripe payment confirmed: pi_3SqwzGP4h6MOSVxD1DxLK4Sn\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SqwzGP4h6MOSVxD1DxLK4Sn\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1768746597872}",
     "wallet:audit:reshardgarcia@gmail.com:1768748193020": "{\"intent\":\"DEBIT\",\"email\":\"reshardgarcia@gmail.com\",\"amount\":100,\"previousBalance\":500,\"newBalance\":400,\"txId\":\"8838dfce-857a-45d7-986f-d93a17e0c50e\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"restaurant\",\"gardenName\":\"Garden-RESTAURANT\",\"createdBy\":\"reshardgarcia@gmail.com\"},\"timestamp\":1768748193020}",
-    "wallet:balance:billdraper25@gmail.com": "500",
-    "wallet:audit:billdraper25@gmail.com:1768748862860": "{\"intent\":\"CREDIT\",\"email\":\"billdraper25@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"d64c3c28-4e4c-4355-ac20-f8390f012fcc\",\"reason\":\"Stripe payment confirmed: pi_3SqxZnP4h6MOSVxD0orX6wnv\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SqxZnP4h6MOSVxD0orX6wnv\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1768748862860}"
+    "wallet:balance:billdraper25@gmail.com": "484.01",
+    "wallet:audit:billdraper25@gmail.com:1768748862860": "{\"intent\":\"CREDIT\",\"email\":\"billdraper25@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"d64c3c28-4e4c-4355-ac20-f8390f012fcc\",\"reason\":\"Stripe payment confirmed: pi_3SqxZnP4h6MOSVxD0orX6wnv\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3SqxZnP4h6MOSVxD0orX6wnv\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1768748862860}",
+    "wallet:audit:billdraper25@gmail.com:1768749250237": "{\"intent\":\"DEBIT\",\"email\":\"billdraper25@gmail.com\",\"amount\":15.99,\"previousBalance\":500,\"newBalance\":484.01,\"txId\":\"tx_1768749250089\",\"reason\":\"Payment to Garden-RESTAURANT Provider (restaurant)\",\"metadata\":{\"merchant\":\"Garden-RESTAURANT Provider\",\"serviceType\":\"restaurant\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1768749250237}"
   },
-  "lastSaved": "2026-01-18T15:07:42.885Z"
+  "lastSaved": "2026-01-18T15:14:10.428Z"
 }
