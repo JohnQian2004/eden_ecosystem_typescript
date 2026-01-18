@@ -2904,7 +2904,7 @@ httpServer.on("request", async (req, res) => {
         // Authorization check: Only owner or ROOT CA can shutdown
         const ownerEmail = (garden.ownerEmail || garden.priestEmail)?.toLowerCase();
         const requestedByLower = requestedBy.toLowerCase();
-        const isRootCA = requestedByLower === 'bill.draper.auto@gmail.com' || requestedByLower === (ROOT_CA_EMAIL || 'bill.draper.auto@gmail.com')?.toLowerCase();
+        const isRootCA = requestedByLower === 'bill.draper.auto@gmail.com';
         const isOwner = ownerEmail === requestedByLower;
         
         // Check priesthood certification for non-admin owners

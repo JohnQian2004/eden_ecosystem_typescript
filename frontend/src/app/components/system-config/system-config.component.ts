@@ -103,6 +103,14 @@ export class SystemConfigComponent implements OnInit {
     ? 'http://localhost:3000' 
     : '';
 
+  // Check if current user is in GOD mode
+  get isGodMode(): boolean {
+    const viewMode = localStorage.getItem('edenViewMode');
+    const userEmail = localStorage.getItem('userEmail') || '';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    return viewMode === 'god' && userEmail === adminEmail;
+  }
+
   constructor(private http: HttpClient) {
     // Listen for Google Sign-In changes
     window.addEventListener('storage', (e) => {

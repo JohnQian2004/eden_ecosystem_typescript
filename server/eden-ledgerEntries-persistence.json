@@ -1069,7 +1069,27 @@
         "providerId": "restaurant-108acc56",
         "rating": 4.507732593520013
       }
+    },
+    {
+      "entryId": "4134ee67-7300-4abf-875d-6835a337a028",
+      "txId": "priesthood_app_fee_1768779020798_940c2c6921d4bec8",
+      "timestamp": 1768779020799,
+      "payer": "reshardgarcia@gmail.com",
+      "payerId": "reshardgarcia@gmail.com",
+      "merchant": "Eden Treasury",
+      "providerUuid": "eden:root:ca:priesthood",
+      "serviceType": "priesthood",
+      "amount": 1,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "application_fee",
+        "description": "Priesthood Application Fee (Non-refundable)",
+        "price": 1
+      }
     }
   ],
-  "lastSaved": "2026-01-18T23:06:54.264Z"
+  "lastSaved": "2026-01-18T23:30:21.848Z"
 }

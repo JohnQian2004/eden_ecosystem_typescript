@@ -338,7 +338,7 @@
                   ⏳ Application Pending
                 </span>
                 <span 
-                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert"
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && (userEmail !== adminEmail || currentViewMode === 'priest')"
                   class="badge bg-success align-self-center"
                   (click)="switchToPriestMode()"
                   style="cursor: pointer;"
@@ -347,7 +347,7 @@
                 </span>
                 <!-- Membership Activation Button (for approved priests - FREE) -->
                 <button 
-                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && (priesthoodStatus === 'approved' || priesthoodStatus === 'suspended')"
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && (priesthoodStatus === 'approved' || priesthoodStatus === 'suspended') && (userEmail !== adminEmail || currentViewMode === 'priest')"
                   class="btn btn-success btn-sm"
                   (click)="activateMembership()"
                   title="Activate membership (FREE - trust-based authority)">
@@ -355,20 +355,20 @@
                 </button>
                 <!-- Membership Status (if certified) -->
                 <span 
-                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && priesthoodCertification?.membershipActiveUntil"
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && priesthoodCertification?.membershipActiveUntil && (userEmail !== adminEmail || currentViewMode === 'priest')"
                   class="badge bg-info align-self-center ms-2">
                   Active until: {{ (priesthoodCertification.membershipActiveUntil | date:'short') || 'N/A' }}
                 </span>
                 <!-- Trust Score Display -->
                 <span 
-                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && priesthoodCertification?.trustScore !== undefined"
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && priesthoodCertification?.trustScore !== undefined && (userEmail !== adminEmail || currentViewMode === 'priest')"
                   class="badge bg-primary align-self-center ms-2"
                   title="Trust Score: Authority scales with trust, not payment">
                   Trust: {{ priesthoodCertification.trustScore || 0 }}/100
                 </span>
-                <!-- Shutdown Gardens Button (PRIEST mode) -->
+                <!-- Shutdown Gardens Button (PRIEST mode and GOD mode) -->
                 <button 
-                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== '' && (hasPriesthoodCert || userEmail === adminEmail)"
+                  *ngIf="isUserSignedIn && userEmail && userEmail !== '' && ((hasPriesthoodCert && currentViewMode === 'priest') || (userEmail === adminEmail && (currentViewMode === 'priest' || currentViewMode === 'god')))"
                   class="btn btn-danger btn-sm"
                   (click)="openGardenShutdownDialog()"
                   title="Hard shutdown your gardens (revoke certificates)">
@@ -376,7 +376,7 @@
                 </button>
                 <!-- Priesthood Management Button (GOD mode) -->
                 <button 
-                  *ngIf="isGoogleSignedIn && userEmail === adminEmail && currentViewMode === 'god'"
+                  *ngIf="isUserSignedIn && userEmail === adminEmail && currentViewMode === 'god'"
                   class="btn btn-info btn-sm"
                   (click)="showPriesthoodManagementPanel = true; loadPriesthoodApplications(); loadPriesthoodStats()"
                   title="Manage Priesthood certifications">

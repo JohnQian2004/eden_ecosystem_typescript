@@ -29,8 +29,88 @@
       </div>
       <small class="text-muted d-block mt-1">Admin Mode Selection</small>
     </div>
+    
+    <!-- Architecture View Toggle (GOD Mode Only) -->
+    <div class="architecture-view-toggle mt-2" *ngIf="isAdmin && viewMode === 'god'">
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': architectureViewMode === 'tree', 'btn-outline-primary': architectureViewMode !== 'tree'}"
+          (click)="setArchitectureViewMode('tree')"
+          title="Tree View: Hierarchical system architecture">
+          🌳 Tree View
+        </button>
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': architectureViewMode === 'table', 'btn-outline-primary': architectureViewMode !== 'table'}"
+          (click)="setArchitectureViewMode('table')"
+          title="Table View: Scalable garden listing">
+          📊 Table View
+        </button>
+      </div>
+    </div>
   </div>
   
+  <!-- Table View (GOD Mode Only) -->
+  <div *ngIf="isAdmin && viewMode === 'god' && architectureViewMode === 'table'" class="gardens-table-container">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Garden ID</th>
+            <th>Name</th>
+            <th>Service Type</th>
+            <th>Owner Email</th>
+            <th>Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="isLoadingGardensTable">
+            <td colspan="6" class="text-center py-3">
+              <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!isLoadingGardensTable && gardensTableData.length === 0">
+            <td colspan="6" class="text-center text-muted py-3">No gardens found</td>
+          </tr>
+          <tr *ngFor="let garden of gardensTableData" [class.table-success]="garden.active" [class.table-secondary]="!garden.active">
+            <td><code>{{ garden.id }}</code></td>
+            <td><strong>{{ garden.name }}</strong></td>
+            <td>
+              <span class="badge" 
+                    [ngClass]="getServiceTypeBadgeClass(garden.serviceType)">
+                {{ garden.serviceType }}
+              </span>
+            </td>
+            <td><small>{{ garden.ownerEmail }}</small></td>
+            <td>
+              <span class="badge" 
+                    [ngClass]="{
+                      'bg-info': garden.type === 'root',
+                      'bg-primary': garden.type === 'token',
+                      'bg-secondary': garden.type === 'regular' || !garden.type
+                    }">
+                {{ garden.type || 'regular' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="{'bg-success': garden.active, 'bg-secondary': !garden.active}">
+                {{ garden.active ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Tree View (GOD Mode Only) -->
+  <div *ngIf="isAdmin && viewMode === 'god' && architectureViewMode === 'tree'">
   <!-- ROOT CA at the top (only shown in GOD mode) -->
   <div *ngFor="let group of groups" class="component-group">
     <ng-container *ngIf="group.category === 'root' && viewMode === 'god'">
@@ -347,6 +427,7 @@
   
   <div *ngIf="groups.length === 0" class="empty-state">
     <small class="text-muted">Waiting for events...</small>
+  </div>
   </div>
 </div>
 

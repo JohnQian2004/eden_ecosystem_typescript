@@ -15,6 +15,7 @@
         </div>
       </div>
       <button 
+        *ngIf="isGodMode"
         type="button" 
         class="btn btn-danger" 
         (click)="resetWalletPersistence()"
@@ -512,8 +513,8 @@
     </div>
   </div>
   
-  <!-- Workflow Designer Section -->
-  <div class="mt-5">
+  <!-- Workflow Designer Section (GOD mode only) -->
+  <div class="mt-5" *ngIf="isGodMode">
     <div class="card">
       <div class="card-header bg-info text-white">
         <h4 class="mb-0">🔧 Workflow Designer</h4>

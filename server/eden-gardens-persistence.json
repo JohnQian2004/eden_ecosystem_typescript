@@ -92,38 +92,7 @@
         "expiresAt": 1800280158677,
         "signature": "HvNX+DbcIym5J/F0plwB6IZ/vegVupPL8DmJCj5tHQP4qrtMd2Akiw6nR2GqJ5k8H3arxUHBUKB1nLTtW4frCg=="
       }
-    },
-    {
-      "id": "garden-4",
-      "name": "Garden-RESTAURANT",
-      "stream": "eden:garden:garden-4",
-      "active": true,
-      "uuid": "eden:garden:7bc9b687-521b-45b9-8464-48ffbb71d601",
-      "ownerEmail": "reshardgarcia@gmail.com",
-      "priestEmail": "reshardgarcia@gmail.com",
-      "serverIp": "localhost",
-      "serverDomain": "garden-restaurant.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "restaurant",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:7bc9b687-521b-45b9-8464-48ffbb71d601",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-4",
-          "gardenName": "Garden-RESTAURANT",
-          "stream": "eden:garden:garden-4"
-        },
-        "issuedAt": 1768748193024,
-        "expiresAt": 1800284193024,
-        "signature": "VE4FCXbTner120TRUd+oUKRn1m87RVDWbVVJJ62PnzKRpK63R2UDOUuv136xvRxdzND0Bd5Awj3M3Kjds28NBg=="
-      }
     }
   ],
-  "lastSaved": "2026-01-18T15:54:36.293Z"
+  "lastSaved": "2026-01-18T23:40:29.827Z"
 }

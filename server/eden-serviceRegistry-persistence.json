@@ -107,19 +107,7 @@
       "uuid": "96f4802b-6783-403f-8a15-2ec69d583570",
       "apiEndpoint": "https://api.hotel.com/v1",
       "gardenId": "garden-3"
-    },
-    {
-      "id": "restaurant-108acc56",
-      "name": "Garden-RESTAURANT Provider",
-      "serviceType": "restaurant",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "fdc874c4-ce7c-41b4-97d7-fa2384b4ad99",
-      "apiEndpoint": "https://api.restaurant.com/v1",
-      "gardenId": "garden-4"
     }
   ],
-  "lastSaved": "2026-01-18T23:14:36.447Z"
+  "lastSaved": "2026-01-18T23:45:42.891Z"
 }

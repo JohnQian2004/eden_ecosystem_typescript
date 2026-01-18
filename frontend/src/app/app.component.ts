@@ -896,7 +896,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Garden shutdown dialog methods
   openGardenShutdownDialog(): void {
-    if (!this.isGoogleSignedIn || !this.userEmail) {
+    if (!this.isUserSignedIn || !this.userEmail) {
       console.warn('⚠️  Cannot open shutdown dialog: user not signed in');
       return;
     }
