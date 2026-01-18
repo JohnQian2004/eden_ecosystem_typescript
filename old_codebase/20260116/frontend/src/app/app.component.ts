@@ -49,7 +49,7 @@ export class AppComponent implements OnInit, OnDestroy {
   userEmail: string = ''; // Will be set from localStorage or default
   showSignInModal: boolean = false; // Control modal visibility
   signInEmail: string = ''; // Email for sign-in form
-  signInPassword: string = ''; // Password for sign-in form
+  signInPassword: string = 'Qweasdzxc1!'; // Password for sign-in form
   isSigningIn: boolean = false; // Loading state for email/password sign-in
   
   // Context sensing - tracks which service type is selected
@@ -564,7 +564,7 @@ export class AppComponent implements OnInit, OnDestroy {
       
       // Clear form
       this.signInEmail = '';
-      this.signInPassword = '';
+      this.signInPassword = 'Qweasdzxc1!';
       this.isSigningIn = false;
       
       console.log(`✅ Email/Password Sign-In successful: ${this.userEmail}`);

@@ -1,12 +1,12 @@
 <div class="container-fluid">
   <div class="row">
-    <!-- Sidebar -->
-    <div class="col-md-3 sidebar">
-      <app-sidebar></app-sidebar>
+    <!-- Sidebar (hidden in USER and PRIEST modes, only shown in GOD mode) -->
+    <div class="col-md-3 sidebar" *ngIf="showSidebar">
+      <app-sidebar #sidebarComponent></app-sidebar>
     </div>
     
     <!-- Main Content -->
-    <div class="col-md-9">
+    <div [ngClass]="{'col-md-9': showSidebar, 'col-md-12': !showSidebar}">
       <div class="container-fluid py-3">
         <div class="d-flex align-items-center mb-4">
           <!-- Sign In/Out Button -->
@@ -30,48 +30,131 @@
               </div>
               <div class="modal-body">
                 <div *ngIf="!isGoogleSignedIn">
-                  <!-- Email/Password Sign-In Form -->
-                  <form (ngSubmit)="signInWithEmail()" class="mb-4">
-                    <div class="mb-3">
-                      <label for="email" class="form-label">Email Address</label>
-                      <input 
-                        type="email" 
-                        class="form-control form-control-lg" 
-                        id="email" 
-                        [(ngModel)]="signInEmail"
-                        name="email"
-                        placeholder="Enter your email"
-                        required>
+                  <!-- Step 1: Mode Selection (BEFORE login) -->
+                  <div *ngIf="showModeSelection && !showLoginForm" class="mb-4">
+                    <div class="text-center mb-4">
+                      <h5 class="mb-2">🌳 Welcome to Eden Simulator</h5>
+                      <p class="text-muted mb-3">Please select your view mode before signing in</p>
                     </div>
-                    <div class="mb-3">
-                      <label for="password" class="form-label">Password</label>
-                      <input 
-                        type="password" 
-                        class="form-control form-control-lg" 
-                        id="password" 
-                        [(ngModel)]="signInPassword"
-                        name="password"
-                        placeholder="Enter your password"
-                        required>
+                    <div class="row g-3">
+                      <!-- GOD Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-primary': selectedMode === 'god', 'btn-outline-primary': selectedMode !== 'god'}"
+                          (click)="selectedMode = 'god'; proceedToLogin()"
+                          title="GOD Mode: Shows ROOT CA and all infrastructure (Admin only)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">⛪ GOD Mode</strong>
+                              <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'god'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Shows ROOT CA and all infrastructure. Full system access for administrators.</small>
+                        </button>
+                      </div>
+                      
+                      <!-- Priest Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-success': selectedMode === 'priest', 'btn-outline-success': selectedMode !== 'priest'}"
+                          (click)="selectedMode = 'priest'; proceedToLogin()"
+                          title="Priest Mode: Hides ROOT CA, shows only gardens (Admin only)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">🛐 Priest Mode</strong>
+                              <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'priest'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Hides system architecture sidebar (like User mode). For administrators who want a cleaner view without infrastructure details.</small>
+                        </button>
+                      </div>
+                      
+                      <!-- USER Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-secondary': selectedMode === 'user', 'btn-outline-secondary': selectedMode !== 'user'}"
+                          (click)="selectedMode = 'user'; proceedToLogin()"
+                          title="USER Mode: Standard user view (no sidebar)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">👤 USER Mode</strong>
+                              <span class="badge bg-info text-white ms-2">Standard</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'user'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Standard user view with no sidebar. Filtered views showing only your bookings and services.</small>
+                        </button>
+                      </div>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" [disabled]="isSigningIn">
-                      <span *ngIf="!isSigningIn">Sign In</span>
-                      <span *ngIf="isSigningIn">
-                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                        Signing In...
-                      </span>
-                    </button>
-                  </form>
-                  
-                  <!-- Divider -->
-                  <div class="text-center mb-3">
-                    <span class="text-muted">OR</span>
+                    
+                    <div class="alert alert-info mt-3 mb-0">
+                      <small>
+                        <strong>Note:</strong> After signing in, the system will validate your selection. 
+                        Non-admin users will automatically use USER mode regardless of selection.
+                      </small>
+                    </div>
                   </div>
                   
-                  <!-- Google Sign-In Button -->
-                  <div class="text-center">
-                    <p class="mb-3">Sign in with your Google account</p>
-                    <div id="google-signin-button-modal" style="min-width: 200px; min-height: 40px; margin: 0 auto;"></div>
+                  <!-- Step 2: Login Form (AFTER mode selection) -->
+                  <div *ngIf="showLoginForm || isGoogleSignedIn">
+                    <!-- Email/Password Sign-In Form -->
+                    <form (ngSubmit)="signInWithEmail()" class="mb-4">
+                      <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input 
+                          type="email" 
+                          class="form-control form-control-lg" 
+                          id="email" 
+                          [(ngModel)]="signInEmail"
+                          name="email"
+                          placeholder="Enter your email"
+                          required>
+                      </div>
+                      <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input 
+                          type="password" 
+                          class="form-control form-control-lg" 
+                          id="password" 
+                          [(ngModel)]="signInPassword"
+                          name="password"
+                          placeholder="Enter your password"
+                          required>
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" [disabled]="isSigningIn">
+                        <span *ngIf="!isSigningIn">Sign In</span>
+                        <span *ngIf="isSigningIn">
+                          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                          Signing In...
+                        </span>
+                      </button>
+                    </form>
+                    
+                    <!-- Divider -->
+                    <div class="text-center mb-3">
+                      <span class="text-muted">OR</span>
+                    </div>
+                    
+                    <!-- Google Sign-In Button -->
+                    <div class="text-center">
+                      <p class="mb-3">Sign in with your Google account</p>
+                      <div id="google-signin-button-modal" style="min-width: 200px; min-height: 40px; margin: 0 auto;"></div>
+                    </div>
+                    
+                    <!-- Back button to change mode -->
+                    <div class="text-center mt-3">
+                      <button type="button" class="btn btn-link btn-sm" (click)="goBackToModeSelection()">
+                        ← Change Mode Selection
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div *ngIf="isGoogleSignedIn" class="text-center">
@@ -79,6 +162,34 @@
                     <p class="mb-2"><strong>Signed in as:</strong></p>
                     <p class="text-primary fs-5">{{ userEmail }}</p>
                   </div>
+                  
+                  <!-- Admin Mode Selection (only for admin users) -->
+                  <div *ngIf="userEmail === adminEmail" class="mb-4">
+                    <label class="form-label"><strong>Select View Mode:</strong></label>
+                    <div class="btn-group w-100" role="group">
+                      <button 
+                        type="button" 
+                        class="btn"
+                        [ngClass]="{'btn-primary': selectedAdminMode === 'god', 'btn-outline-primary': selectedAdminMode !== 'god'}"
+                        (click)="changeAdminMode('god')"
+                        title="GOD Mode: Shows ROOT CA and all infrastructure">
+                        ⛪ GOD
+                      </button>
+                      <button 
+                        type="button" 
+                        class="btn"
+                        [ngClass]="{'btn-success': selectedAdminMode === 'priest', 'btn-outline-success': selectedAdminMode !== 'priest'}"
+                        (click)="changeAdminMode('priest')"
+                        title="Priest Mode: Hides ROOT CA, shows only gardens">
+                        🛐 Priest
+                      </button>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                      <span *ngIf="selectedAdminMode === 'god'">Shows ROOT CA and all infrastructure (sidebar visible)</span>
+                      <span *ngIf="selectedAdminMode === 'priest'">Hides system architecture sidebar (like User mode)</span>
+                    </small>
+                  </div>
+                  
                   <button class="btn btn-danger btn-lg" (click)="signOutAndClose()">
                     Sign Out
                   </button>
@@ -92,6 +203,69 @@
         </div>
         <div *ngIf="showSignInModal" class="modal-backdrop fade show" (click)="closeSignInModal()"></div>
         
+        <!-- Stripe Payment Rail Modal (shown when balance < 100 JSC after sign-in) -->
+        <div class="modal fade" id="stripePaymentModal" tabindex="-1" aria-labelledby="stripePaymentModalLabel" aria-hidden="true" [class.show]="showStripePaymentModal" [style.display]="showStripePaymentModal ? 'block' : 'none'">
+          <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="stripePaymentModalLabel">
+                  💳 Stripe Payment Rail - Refill Your Wallet
+                </h5>
+                <button type="button" class="btn-close btn-close-white" (click)="closeStripePaymentModal()" aria-label="Close"></button>
+              </div>
+              <div class="modal-body text-center">
+                <div class="mb-4">
+                  <div class="mb-3">
+                    <h4>💰 Low Wallet Balance Detected</h4>
+                    <p class="text-muted">Your current wallet balance is <strong>{{ walletBalance.toFixed(2) }} JSC</strong></p>
+                    <p class="lead">To continue using Eden Simulator services, we recommend maintaining at least <strong>100 JSC</strong> in your wallet.</p>
+                  </div>
+                  
+                  <div class="card border-primary mb-4">
+                    <div class="card-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                      <h5 class="card-title mb-3">💳 Stripe Payment Rail</h5>
+                      <div class="mb-3">
+                        <div class="fs-4 mb-2"><strong>500 JSC = $500 USD</strong></div>
+                        <div class="small">Purchase JesusCoin (JSC) to refill your wallet</div>
+                      </div>
+                      <div class="mb-3" *ngIf="userEmail">
+                        <div><strong>Email:</strong> {{ userEmail }}</div>
+                        <div *ngIf="!isLoadingBalance">
+                          <strong>Current Balance:</strong> {{ walletBalance.toFixed(2) }} JSC
+                        </div>
+                      </div>
+                      <button 
+                        class="btn btn-light btn-lg w-100 mb-2" 
+                        (click)="buyJesusCoin(500); closeStripePaymentModal()"
+                        [disabled]="isProcessingStripe || !userEmail">
+                        <span *ngIf="!isProcessingStripe">💳 BUY 500 JSC ($500 USD)</span>
+                        <span *ngIf="isProcessingStripe">
+                          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                          Processing...
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="alert alert-info">
+                    <small>
+                      <strong>Why 100 JSC?</strong> This ensures you have sufficient balance for multiple service requests and iGas costs. 
+                      You can always purchase more JSC later if needed.
+                    </small>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" (click)="closeStripePaymentModal()">Maybe Later</button>
+                <button type="button" class="btn btn-primary" (click)="buyJesusCoin(500); closeStripePaymentModal()" [disabled]="isProcessingStripe || !userEmail">
+                  Purchase 500 JSC
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="showStripePaymentModal" class="modal-backdrop fade show" (click)="closeStripePaymentModal()"></div>
+        
         <!-- iGas Display -->
         <div class="row mb-4">
           <div class="col-12">
@@ -103,7 +277,16 @@
         <!-- Main Street always shows hardcoded service types -->
         <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0">
           <div class="col-12">
-            <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">🌳 Garden of Eden Main Street</h5>
+              <button 
+                *ngIf="isGoogleSignedIn && userEmail && userEmail !== ''"
+                class="btn btn-danger btn-sm"
+                (click)="openGardenShutdownDialog()"
+                title="Hard shutdown your gardens (revoke certificates)">
+                🛑 Shutdown Gardens
+              </button>
+            </div>
             <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
             <div class="row g-2">
               <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
@@ -285,7 +468,7 @@
         <div class="row">
           <div class="col-12">
             <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
-              <li class="nav-item" role="presentation">
+              <li class="nav-item" role="presentation" *ngIf="!isUserMode">
                 <button 
                   class="nav-link" 
                   [ngClass]="{'active': activeTab === 'workflow'}"
@@ -315,10 +498,11 @@
                   type="button" 
                   (click)="activeTab = 'ledger'"
                   role="tab">
-                  📋 Ledger - All Eden Bookings
+                  <span *ngIf="!isUserMode">📋 Ledger - All Eden Bookings</span>
+                  <span *ngIf="isUserMode">📋 Ledger - All User Bookings</span>
                 </button>
               </li>
-              <li class="nav-item" role="presentation">
+              <li class="nav-item" role="presentation" *ngIf="!isUserMode">
                 <button 
                   class="nav-link" 
                   [ngClass]="{'active': activeTab === 'certificates'}"
@@ -329,7 +513,7 @@
                   🔐 Certificates
                 </button>
               </li>
-                  <li class="nav-item" role="presentation">
+                  <li class="nav-item" role="presentation" *ngIf="!isUserMode">
                     <button 
                       class="nav-link" 
                       [ngClass]="{'active': activeTab === 'chat'}"
@@ -340,7 +524,7 @@
                       💬 Simulator Chat
                     </button>
                   </li>
-                  <li class="nav-item" role="presentation">
+                  <li class="nav-item" role="presentation" *ngIf="!isUserMode">
                     <button 
                       class="nav-link" 
                       [ngClass]="{'active': activeTab === 'config'}"
@@ -359,7 +543,8 @@
                 class="tab-pane fade" 
                 [ngClass]="{'show active': activeTab === 'workflow'}"
                 id="workflow-pane" 
-                role="tabpanel">
+                role="tabpanel"
+                *ngIf="!isUserMode">
                 <app-workflow-display></app-workflow-display>
               </div>
               
@@ -386,7 +571,8 @@
                 class="tab-pane fade" 
                 [ngClass]="{'show active': activeTab === 'certificates'}"
                 id="certificates-pane" 
-                role="tabpanel">
+                role="tabpanel"
+                *ngIf="!isUserMode">
                 <app-certificate-display></app-certificate-display>
               </div>
               
@@ -395,7 +581,8 @@
                 class="tab-pane fade"
                 [ngClass]="{'show active': activeTab === 'chat'}"
                 id="chat-pane"
-                role="tabpanel">
+                role="tabpanel"
+                *ngIf="!isUserMode">
                 <!-- AMC Workflow Active Indicator -->
                 <div *ngIf="amcWorkflowActive" class="alert alert-success mb-3">
                   <h6>🎬 AMC Cinema Workflow Active (Atomic Server Execution)</h6>
@@ -471,7 +658,8 @@
                 class="tab-pane fade" 
                 [ngClass]="{'show active': activeTab === 'config'}"
                 id="config-pane" 
-                role="tabpanel">
+                role="tabpanel"
+                *ngIf="!isUserMode">
                 <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
               </div>
             </div>
@@ -480,5 +668,83 @@
       </div>
     </div>
   </div>
+  
+  <!-- Garden Shutdown Dialog -->
+  <div class="modal fade" id="gardenShutdownModal" tabindex="-1" aria-labelledby="gardenShutdownModalLabel" aria-hidden="true" [class.show]="showGardenShutdownDialog" [style.display]="showGardenShutdownDialog ? 'block' : 'none'">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title" id="gardenShutdownModalLabel">
+            🛑 Hard Shutdown Gardens
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="closeGardenShutdownDialog()" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div *ngIf="isLoadingGardens" class="text-center py-4">
+            <div class="spinner-border text-danger" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading your gardens...</p>
+          </div>
+          
+          <div *ngIf="!isLoadingGardens && priestGardens.length === 0" class="alert alert-info">
+            <p class="mb-0">You don't have any active gardens to shut down.</p>
+          </div>
+          
+          <div *ngIf="!isLoadingGardens && priestGardens.length > 0">
+            <div class="alert alert-warning">
+              <strong>⚠️ Warning:</strong> Hard shutdown will permanently revoke the garden's certificate. This action cannot be easily undone.
+            </div>
+            
+            <div class="mb-3">
+              <label for="shutdownReason" class="form-label">Shutdown Reason <span class="text-danger">*</span></label>
+              <textarea 
+                class="form-control" 
+                id="shutdownReason" 
+                rows="3" 
+                [(ngModel)]="shutdownReason" 
+                placeholder="Enter reason for shutting down the garden..."
+                [disabled]="isShuttingDown">
+              </textarea>
+            </div>
+            
+            <h6 class="mb-3">Your Gardens:</h6>
+            <div class="list-group">
+              <div 
+                *ngFor="let garden of priestGardens" 
+                class="list-group-item d-flex justify-content-between align-items-start">
+                <div class="ms-2 me-auto">
+                  <div class="fw-bold">{{ garden.name }}</div>
+                  <small class="text-muted">
+                    ID: {{ garden.id }} | 
+                    Service: {{ garden.serviceType || 'N/A' }} | 
+                    Status: <span [ngClass]="{'text-success': garden.active, 'text-danger': !garden.active}">{{ garden.active ? 'Active' : 'Inactive' }}</span>
+                  </small>
+                </div>
+                <button 
+                  class="btn btn-danger btn-sm"
+                  (click)="confirmGardenShutdown(garden.id)"
+                  [disabled]="isShuttingDown || selectedGardenForShutdown === garden.id || !shutdownReason.trim()">
+                  <span *ngIf="selectedGardenForShutdown === garden.id">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Shutting Down...
+                  </span>
+                  <span *ngIf="selectedGardenForShutdown !== garden.id">
+                    🛑 Revoke Certificate
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeGardenShutdownDialog()" [disabled]="isShuttingDown">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showGardenShutdownDialog" class="modal-backdrop fade show" (click)="closeGardenShutdownDialog()"></div>
 </div>
 

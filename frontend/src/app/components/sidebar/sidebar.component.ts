@@ -39,7 +39,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   selectedGardenTab: string = '';
   selectedGardenComponents: ComponentStatus[] = [];
   serviceProviders: Map<string, {id: string, name: string, serviceType: string, gardenId: string}> = new Map(); // Store service providers from ServiceRegistry
-  viewMode: 'god' | 'priest' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it
+  viewMode: 'god' | 'priest' | 'user' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it, User mode hides entire sidebar
   isAdmin: boolean = false; // Track if current user is admin
   private subscription: any;
   private emailCheckInterval: any; // Interval for checking email changes
@@ -53,20 +53,27 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    // Set view mode based on user email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
+    // Set view mode based on user email:
+    // - Non-admin users: Force USER mode (sidebar hidden)
+    // - Admin users: Default to GOD mode, but allow PRIEST if explicitly chosen
     const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
     const adminEmail = 'bill.draper.auto@gmail.com';
     this.isAdmin = userEmail === adminEmail;
     
     if (!this.isAdmin) {
-      console.log(`🛐 [Sidebar] Non-admin user detected (${userEmail}), forcing PRIEST mode`);
-      this.viewMode = 'priest';
-      localStorage.setItem('edenViewMode', 'priest');
+      console.log(`👤 [Sidebar] Non-admin user detected (${userEmail}), forcing USER mode (sidebar hidden)`);
+      this.viewMode = 'user';
+      localStorage.setItem('edenViewMode', 'user');
     } else {
-      // Admin can use saved mode or default to 'god'
+      // Admin: Default to GOD mode, but allow saved PRIEST mode if explicitly chosen
       const savedMode = localStorage.getItem('edenViewMode');
       if (savedMode === 'god' || savedMode === 'priest') {
         this.viewMode = savedMode;
+      } else if (savedMode === 'user') {
+        // Admin should never be in USER mode - reset to GOD
+        console.log(`⛪ [Sidebar] Admin user was in USER mode, resetting to GOD mode`);
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
       } else {
         this.viewMode = 'god'; // Default for admin
         localStorage.setItem('edenViewMode', 'god');
@@ -141,14 +148,19 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.isAdmin = userEmail === adminEmail;
     
     if (!this.isAdmin) {
-      console.log(`🛐 [Sidebar] Non-admin user detected (${userEmail}), forcing PRIEST mode`);
-      this.viewMode = 'priest';
-      localStorage.setItem('edenViewMode', 'priest');
+      console.log(`👤 [Sidebar] Non-admin user detected (${userEmail}), forcing USER mode (sidebar hidden)`);
+      this.viewMode = 'user';
+      localStorage.setItem('edenViewMode', 'user');
     } else {
-      // Admin can use saved mode or default to 'god'
+      // Admin: Default to GOD mode, but allow saved PRIEST mode if explicitly chosen
       const savedMode = localStorage.getItem('edenViewMode');
       if (savedMode === 'god' || savedMode === 'priest') {
         this.viewMode = savedMode;
+      } else if (savedMode === 'user') {
+        // Admin should never be in USER mode - reset to GOD
+        console.log(`⛪ [Sidebar] Admin user was in USER mode, resetting to GOD mode`);
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
       } else {
         this.viewMode = 'god';
         localStorage.setItem('edenViewMode', 'god');
@@ -156,14 +168,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
   }
   
-  setViewMode(mode: 'god' | 'priest') {
-    // Check if user is admin - only admin can use GOD mode
+  setViewMode(mode: 'god' | 'priest' | 'user') {
+    // Check if user is admin - only admin can use GOD or PRIEST mode
     const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
     const adminEmail = 'bill.draper.auto@gmail.com';
     
-    if (mode === 'god' && userEmail !== adminEmail) {
-      console.warn(`⚠️ [Sidebar] Non-admin user (${userEmail}) cannot use GOD mode, forcing PRIEST mode`);
-      mode = 'priest';
+    if ((mode === 'god' || mode === 'priest') && userEmail !== adminEmail) {
+      console.warn(`⚠️ [Sidebar] Non-admin user (${userEmail}) cannot use GOD or PRIEST mode, forcing USER mode`);
+      mode = 'user';
     }
     
     this.viewMode = mode;

@@ -110,8 +110,12 @@ export async function registerNewMovieGarden(
     name: gardenName,
     stream: streamName,
     active: true,
-    uuid: gardenUuid
+    uuid: gardenUuid,
+    ownerEmail: email, // CRITICAL: Store Priest user email for garden ownership and lifecycle management
+    priestEmail: email // Alias for backward compatibility
   };
+  
+  console.log(`👤 [Garden Registration] Garden ownership assigned to Priest user: ${email}`);
   
   // Add to GARDENS array
   GARDENS.push(newGarden);

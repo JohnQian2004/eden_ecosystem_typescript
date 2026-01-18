@@ -172,6 +172,21 @@ export function createServiceProvidersForGarden(
       }
     } else {
       // Generate ID if not provided
+      // CRITICAL: Check if a provider with this name already exists for this garden to prevent duplicates
+      const existingProviderWithSameName = serviceRegistry2.getAllProviders().find(
+        p => p.name === providerConfig.name && p.gardenId === gardenId && p.serviceType === serviceType
+      );
+      if (existingProviderWithSameName) {
+        console.log(`   ⚠️  Provider with name "${providerConfig.name}" already exists for garden ${gardenId}, skipping duplicate creation`);
+        results.push({
+          providerId: existingProviderWithSameName.id,
+          providerName: existingProviderWithSameName.name,
+          created: false,
+          assigned: false
+        });
+        continue; // Skip creating duplicate
+      }
+      
       providerId = `${serviceType}-${crypto.randomUUID().substring(0, 8)}`;
       providerData = {
         id: providerId,

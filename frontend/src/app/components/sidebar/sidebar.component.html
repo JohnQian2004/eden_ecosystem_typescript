@@ -7,16 +7,15 @@
       </div>
     </div>
     
-    <!-- Mode Filter Toggle -->
-    <div class="mode-filter">
+    <!-- Mode Filter Toggle (Admin Only) -->
+    <div class="mode-filter" *ngIf="isAdmin">
       <div class="btn-group btn-group-sm w-100" role="group">
         <button 
           type="button" 
           class="btn"
           [ngClass]="{'btn-primary': viewMode === 'god', 'btn-outline-primary': viewMode !== 'god'}"
-          [disabled]="!isAdmin"
           (click)="setViewMode('god')"
-          [title]="isAdmin ? 'GOD Mode: Shows ROOT CA' : 'GOD Mode: Admin only (bill.draper.auto@gmail.com)'">
+          title="GOD Mode: Shows ROOT CA and all infrastructure">
           ⛪ GOD
         </button>
         <button 
@@ -24,10 +23,11 @@
           class="btn"
           [ngClass]="{'btn-success': viewMode === 'priest', 'btn-outline-success': viewMode !== 'priest'}"
           (click)="setViewMode('priest')"
-          title="Priest Mode: Hides ROOT CA">
+          title="Priest Mode: Hides ROOT CA (infrastructure), shows only gardens">
           🛐 Priest
         </button>
       </div>
+      <small class="text-muted d-block mt-1">Admin Mode Selection</small>
     </div>
   </div>
   

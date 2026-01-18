@@ -9,6 +9,8 @@ export interface GardenConfig {
   uuid: string;
   certificate?: EdenCertificate;
   pki?: any; // Store PKI instance for signing revocations
+  ownerEmail?: string; // Priest user email who owns this garden (for lifecycle management)
+  priestEmail?: string; // Alias for ownerEmail (backward compatibility)
 }
 
 export interface TokenGardenConfig extends GardenConfig {

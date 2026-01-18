@@ -72,8 +72,11 @@ interface Cashier {
 })
 export class LedgerDisplayComponent implements OnInit, OnDestroy {
   ledgerEntries: LedgerEntry[] = [];
+  filteredLedgerEntries: LedgerEntry[] = []; // Filtered entries for display
   cashier: Cashier | null = null;
   private wsSubscription: any;
+  userEmail: string = '';
+  readonly adminEmail = 'bill.draper.auto@gmail.com';
 
   constructor(
     private http: HttpClient,
@@ -81,9 +84,49 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef
   ) {}
 
+  // Check if we're in user mode (non-admin) and have a Google user signed in
+  get isUserMode(): boolean {
+    // Only consider user mode if:
+    // 1. Email is not admin email
+    // 2. Email is not empty
+    // 3. There's a Google credential (actual Google Sign-In, not just default)
+    const hasGoogleCredential = !!localStorage.getItem('googleCredential');
+    return this.userEmail !== this.adminEmail && 
+           this.userEmail !== '' && 
+           (hasGoogleCredential || this.userEmail !== 'bill.draper.auto@gmail.com');
+  }
+
+  // Get the title based on mode
+  get ledgerTitle(): string {
+    return this.isUserMode ? '📖 Ledger - All User Bookings' : '📖 Ledger - All Eden Bookings';
+  }
+
   ngOnInit() {
     console.log(`📡 [LedgerDisplay] ⭐ Component initialized - ngOnInit() called`);
     console.log(`📡 [LedgerDisplay] Initial state - ledgerEntries.length: ${this.ledgerEntries.length}, cashier: ${this.cashier ? 'exists' : 'null'}`);
+    
+    // Get user email from localStorage (set by Google Sign-In)
+    this.updateUserEmail();
+    
+    // Listen for email changes (when Google user signs in/out)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'userEmail' || e.key === 'googleCredential') {
+        this.updateUserEmail();
+        this.applyFilter();
+        this.cdr.detectChanges();
+      }
+    });
+    
+    // Also check periodically for email changes (for same-window updates)
+    setInterval(() => {
+      const currentEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+      if (this.userEmail !== currentEmail) {
+        this.updateUserEmail();
+        this.applyFilter();
+        this.cdr.detectChanges();
+      }
+    }, 1000);
+    
     this.loadLedger();
     this.loadCashierStatus();
     
@@ -95,6 +138,8 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
           event.type === 'ledger_booking_completed' ||
           event.type === 'cashier_payment_processed') {
         console.log(`📡 [LedgerDisplay] ⭐ Processing ${event.type} event - reloading ledger and cashier`);
+        // Update user email in case it changed
+        this.updateUserEmail();
         this.loadLedger();
         this.loadCashierStatus();
       }
@@ -104,6 +149,21 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     if (this.wsSubscription) {
       this.wsSubscription.unsubscribe();
+    }
+  }
+
+  // Update user email from localStorage (from Google Sign-In)
+  updateUserEmail(): void {
+    const savedEmail = localStorage.getItem('userEmail');
+    const hasGoogleCredential = !!localStorage.getItem('googleCredential');
+    
+    // Only use saved email if it's from Google Sign-In or if it's the admin email
+    if (savedEmail) {
+      this.userEmail = savedEmail;
+      console.log(`📡 [LedgerDisplay] User email updated: ${this.userEmail} (Google signed in: ${hasGoogleCredential})`);
+    } else {
+      // Default to admin email if no email is set
+      this.userEmail = 'bill.draper.auto@gmail.com';
     }
   }
 
@@ -122,8 +182,9 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
           console.log(`📡 [LedgerDisplay] ✅ Loaded ${entries.length} ledger entries`);
           console.log(`📡 [LedgerDisplay] Entry data:`, entries);
           this.ledgerEntries = entries;
+          this.applyFilter(); // Apply filter after loading
           this.cdr.detectChanges(); // Force change detection
-          console.log(`📡 [LedgerDisplay] After assignment, ledgerEntries.length = ${this.ledgerEntries.length}`);
+          console.log(`📡 [LedgerDisplay] After assignment, ledgerEntries.length = ${this.ledgerEntries.length}, filteredEntries.length = ${this.filteredLedgerEntries.length}`);
         } else {
           console.warn(`📡 [LedgerDisplay] ⚠️ Ledger API returned success=false:`, response);
         }
@@ -133,6 +194,27 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
         console.error('📡 [LedgerDisplay] Error details:', error.message, error.status, error.url);
       }
     });
+  }
+
+  // Apply filter based on user mode
+  applyFilter(): void {
+    if (this.isUserMode) {
+      // Filter to show only entries specifically for the logged-in Google user
+      // Match by payer email (case-insensitive) or payerId
+      this.filteredLedgerEntries = this.ledgerEntries.filter(entry => {
+        const payerMatch = entry.payer && 
+                          entry.payer.toLowerCase() === this.userEmail.toLowerCase();
+        const payerIdMatch = entry.payerId && 
+                            entry.payerId.toLowerCase() === this.userEmail.toLowerCase();
+        return payerMatch || payerIdMatch;
+      });
+      console.log(`📡 [LedgerDisplay] Filtered to ${this.filteredLedgerEntries.length} entries for logged-in Google user: ${this.userEmail}`);
+      console.log(`📡 [LedgerDisplay] Total entries: ${this.ledgerEntries.length}, User entries: ${this.filteredLedgerEntries.length}`);
+    } else {
+      // Show all entries for admin
+      this.filteredLedgerEntries = this.ledgerEntries;
+      console.log(`📡 [LedgerDisplay] Showing all ${this.filteredLedgerEntries.length} entries (admin mode)`);
+    }
   }
 
   loadCashierStatus() {

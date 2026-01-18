@@ -73,27 +73,15 @@
       "gardenId": "HG"
     },
     {
-      "id": "airline-b4f263fc",
-      "name": "Garden-AIRLINE Provider",
-      "serviceType": "airline",
+      "id": "autoparts-3c464392",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "uuid": "b5f2acb2-ecdc-4920-bbc7-dbb989bbe24e",
-      "apiEndpoint": "https://api.airline.com/v1",
-      "gardenId": "garden-1"
-    },
-    {
-      "id": "airline-e954d555",
-      "name": "Garden-AIRLINE Provider",
-      "serviceType": "airline",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "ad9d31b0-9fc5-4ac9-9000-16957dfed712",
-      "apiEndpoint": "https://api.airline.com/v1",
+      "uuid": "70ea6a54-66f0-4ab0-acd1-dcf26877faf6",
+      "apiEndpoint": "https://api.autoparts.com/v1",
       "gardenId": "garden-1"
     },
     {
@@ -109,57 +97,21 @@
       "gardenId": "garden-2"
     },
     {
-      "id": "autoparts-b63a26ef",
-      "name": "Garden-AUTOPARTS Provider",
-      "serviceType": "autoparts",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "bf3a570b-e72b-4b19-9e51-ad0c8711a9b9",
-      "apiEndpoint": "https://api.autoparts.com/v1",
-      "gardenId": "garden-3"
-    },
-    {
-      "id": "hotel-09641828",
+      "id": "hotel-58fd3671",
       "name": "Garden-HOTEL Provider",
       "serviceType": "hotel",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "uuid": "95e85351-09af-48a5-abde-0c4a35f25fe7",
+      "uuid": "96f4802b-6783-403f-8a15-2ec69d583570",
       "apiEndpoint": "https://api.hotel.com/v1",
-      "gardenId": "garden-4"
-    },
-    {
-      "id": "restaurant-c354dad5",
-      "name": "Garden-RESTAURANT Provider",
-      "serviceType": "restaurant",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "87ad75ee-9052-4c68-be70-def48ebd954b",
-      "apiEndpoint": "https://api.restaurant.com/v1",
-      "gardenId": "garden-5"
-    },
-    {
-      "id": "dex-pool-tokena",
-      "name": "TOKENA Pool (Garden-DEX)",
-      "serviceType": "dex",
-      "location": "Eden DEX",
-      "bond": 5000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "bde07ec4-580f-456a-87a2-0c406f18df14",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokena",
-      "gardenId": "T1"
+      "gardenId": "garden-3"
     }
   ],
-  "totalProviders": 13,
+  "totalProviders": 9,
   "movieProviders": 1,
-  "dexProviders": 1,
-  "airlineProviders": 2,
-  "lastSaved": "2026-01-18T06:25:36.753Z"
+  "dexProviders": 0,
+  "airlineProviders": 0,
+  "lastSaved": "2026-01-18T13:53:50.267Z"
 }
