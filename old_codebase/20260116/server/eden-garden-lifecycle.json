@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-18T13:54:09.424Z",
+  "lastSaved": "2026-01-18T15:17:18.226Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -5469,6 +5469,42 @@
             "autoparts-3c464392(garden-1)",
             "amc-001(garden-2)",
             "hotel-58fd3671(garden-3)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768748193027,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-RESTAURANT",
+          "serviceType": "restaurant",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768748193047,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "restaurant-108acc56(garden-4)"
           ]
         }
       }

@@ -119,6 +119,19 @@ import {
   getWorkflowState
 } from "./src/components/flowwiseService";
 import {
+  initializePriesthoodCertification,
+  applyForPriesthood,
+  approvePriesthood,
+  rejectPriesthood,
+  revokePriesthood,
+  getCertificationStatus,
+  hasPriesthoodCertification,
+  getAllCertifications,
+  getCertificationsByStatus,
+  getCertificationStats,
+  type PriesthoodCertification
+} from "./src/priesthoodCertification";
+import {
   initializeLLM,
   extractQueryWithOpenAI,
   formatResponseWithOpenAI,
@@ -2892,8 +2905,22 @@ httpServer.on("request", async (req, res) => {
         const ownerEmail = (garden.ownerEmail || garden.priestEmail)?.toLowerCase();
         const requestedByLower = requestedBy.toLowerCase();
         const isRootCA = requestedByLower === 'bill.draper.auto@gmail.com' || requestedByLower === (ROOT_CA_EMAIL || 'bill.draper.auto@gmail.com')?.toLowerCase();
+        const isOwner = ownerEmail === requestedByLower;
         
-        if (!isRootCA && ownerEmail !== requestedByLower) {
+        // Check priesthood certification for non-admin owners
+        if (isOwner && !isRootCA) {
+          const hasCert = hasPriesthoodCertification(requestedBy);
+          if (!hasCert) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: "Priesthood certification required to shutdown gardens. Please apply for priesthood certification first."
+            }));
+            return;
+          }
+        }
+        
+        if (!isRootCA && !isOwner) {
           res.writeHead(403, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ 
             success: false, 
@@ -4581,6 +4608,19 @@ httpServer.on("request", async (req, res) => {
         const gardenName = requestData.gardenName || requestData.indexerName;
         const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
         
+        // Check priesthood certification for non-admin users
+        if (email && email !== 'bill.draper.auto@gmail.com') {
+          const hasCert = hasPriesthoodCertification(email);
+          if (!hasCert) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: "Priesthood certification required to create gardens. Please apply for priesthood certification first." 
+            }));
+            return;
+          }
+        }
+        
         // Log received data for debugging
         console.log(`   📥 [${requestId}] Received create-garden request:`, {
           serviceType,
@@ -5623,6 +5663,259 @@ httpServer.on("request", async (req, res) => {
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });
+    return;
+  }
+
+  // ============================================
+  // PRIESTHOOD CERTIFICATION API
+  // ============================================
+  
+  // POST /api/priesthood/apply - User applies for priesthood
+  if (pathname === "/api/priesthood/apply" && req.method === "POST") {
+    console.log(`   📜 [${requestId}] POST /api/priesthood/apply - Applying for priesthood`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { email, reason } = JSON.parse(body);
+        if (!email) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "email required" }));
+          return;
+        }
+        
+        const certification = applyForPriesthood(email, reason);
+        
+        // Broadcast event
+        broadcastEvent({
+          type: "priesthood_application_submitted",
+          component: "priesthood-certification",
+          message: `New priesthood application from ${email}`,
+          timestamp: Date.now(),
+          data: {
+            email,
+            status: certification.status,
+            appliedAt: certification.appliedAt
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          certification
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error applying for priesthood:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+  
+  // GET /api/priesthood/status?email={email} - Get user's certification status
+  if (pathname === "/api/priesthood/status" && req.method === "GET") {
+    console.log(`   📜 [${requestId}] GET /api/priesthood/status - Getting certification status`);
+    try {
+      const parsedUrl = url.parse(req.url || "/", true);
+      const email = parsedUrl.query.email as string;
+      
+      if (!email) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "email query parameter required" }));
+        return;
+      }
+      
+      const certification = getCertificationStatus(email);
+      const hasCert = hasPriesthoodCertification(email);
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        certification,
+        hasCertification: hasCert
+      }));
+    } catch (err: any) {
+      console.error(`   ❌ [${requestId}] Error getting certification status:`, err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+  
+  // GET /api/priesthood/applications - GOD: Get all applications
+  if (pathname === "/api/priesthood/applications" && req.method === "GET") {
+    console.log(`   📜 [${requestId}] GET /api/priesthood/applications - Getting all applications (GOD mode)`);
+    try {
+      const parsedUrl = url.parse(req.url || "/", true);
+      const status = parsedUrl.query.status as string | undefined;
+      
+      let certifications: PriesthoodCertification[];
+      if (status) {
+        certifications = getCertificationsByStatus(status as any);
+      } else {
+        certifications = getAllCertifications();
+      }
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        certifications,
+        count: certifications.length
+      }));
+    } catch (err: any) {
+      console.error(`   ❌ [${requestId}] Error getting applications:`, err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+  
+  // POST /api/priesthood/approve - GOD: Approve application
+  if (pathname === "/api/priesthood/approve" && req.method === "POST") {
+    console.log(`   📜 [${requestId}] POST /api/priesthood/approve - Approving priesthood application`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { email, approvedBy, reason } = JSON.parse(body);
+        if (!email || !approvedBy) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "email and approvedBy required" }));
+          return;
+        }
+        
+        const certification = approvePriesthood(email, approvedBy, reason);
+        
+        // Broadcast event
+        broadcastEvent({
+          type: "priesthood_application_approved",
+          component: "priesthood-certification",
+          message: `Priesthood application approved for ${email}`,
+          timestamp: Date.now(),
+          data: {
+            email,
+            approvedBy,
+            approvedAt: certification.approvedAt
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          certification
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error approving application:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+  
+  // POST /api/priesthood/reject - GOD: Reject application
+  if (pathname === "/api/priesthood/reject" && req.method === "POST") {
+    console.log(`   📜 [${requestId}] POST /api/priesthood/reject - Rejecting priesthood application`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { email, rejectedBy, reason } = JSON.parse(body);
+        if (!email || !rejectedBy) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "email and rejectedBy required" }));
+          return;
+        }
+        
+        const certification = rejectPriesthood(email, rejectedBy, reason);
+        
+        // Broadcast event
+        broadcastEvent({
+          type: "priesthood_application_rejected",
+          component: "priesthood-certification",
+          message: `Priesthood application rejected for ${email}`,
+          timestamp: Date.now(),
+          data: {
+            email,
+            rejectedBy,
+            rejectedAt: certification.rejectedAt
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          certification
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error rejecting application:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+  
+  // POST /api/priesthood/revoke - GOD: Revoke certification
+  if (pathname === "/api/priesthood/revoke" && req.method === "POST") {
+    console.log(`   📜 [${requestId}] POST /api/priesthood/revoke - Revoking priesthood certification`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { email, revokedBy, reason } = JSON.parse(body);
+        if (!email || !revokedBy) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "email and revokedBy required" }));
+          return;
+        }
+        
+        const certification = revokePriesthood(email, revokedBy, reason);
+        
+        // Broadcast event
+        broadcastEvent({
+          type: "priesthood_certification_revoked",
+          component: "priesthood-certification",
+          message: `Priesthood certification revoked for ${email}`,
+          timestamp: Date.now(),
+          data: {
+            email,
+            revokedBy,
+            revokedAt: certification.revokedAt
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          certification
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error revoking certification:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+  
+  // GET /api/priesthood/stats - Get statistics for dashboard
+  if (pathname === "/api/priesthood/stats" && req.method === "GET") {
+    console.log(`   📜 [${requestId}] GET /api/priesthood/stats - Getting certification statistics`);
+    try {
+      const stats = getCertificationStats();
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        stats
+      }));
+    } catch (err: any) {
+      console.error(`   ❌ [${requestId}] Error getting stats:`, err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -9919,6 +10212,10 @@ async function main() {
   
   // Initialize LLM module with dependencies
   initializeLLM(broadcastEvent);
+  
+  // Initialize PriestHood Certification Service
+  initializePriesthoodCertification();
+  console.log("✅ [PriestHood Certification] Service initialized");
   
   // NOTE: ServiceRegistry2 initialization is deferred until AFTER gardens are loaded from persistence
   // This ensures that providers with gardenId references can be properly loaded

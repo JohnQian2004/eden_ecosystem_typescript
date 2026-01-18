@@ -896,7 +896,82 @@
         "stripePaymentMethodId": "pm_1SqwNfP4h6MOSVxDQKsgmQEG",
         "stripeSessionId": "cs_test_a1XjC1FCX4MaYQASVp3Dsfz6HpFwlP5J4OcbpKrBKT4VkafE5ubgBYtt7I"
       }
+    },
+    {
+      "entryId": "511772a3-7d14-4ccb-b760-2baff6ff9f97",
+      "txId": "6e704c8c-6d1c-4638-ad7f-3ea4ec12e06d",
+      "timestamp": 1768746597876,
+      "payer": "stripe:pi_3SqwzGP4h6MOSVxD1DxLK4Sn",
+      "payerId": "pi_3SqwzGP4h6MOSVxD1DxLK4Sn",
+      "merchant": "reshardgarcia@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3SqwzGP4h6MOSVxD1DxLK4Sn",
+        "stripePaymentMethodId": "pm_1SqwzGP4h6MOSVxDk8qJaESy",
+        "stripeSessionId": "cs_test_a1mMI2cefS61R95TcFLj3Kem3WmZeCvpGkmV048h23z2qxFNRVBlWxbjau"
+      }
+    },
+    {
+      "entryId": "a1fccfc5-8ed7-46eb-b720-5d65bc1b9163",
+      "txId": "4e502462-d8de-41dc-ba33-f73258f0a8c1",
+      "timestamp": 1768748862865,
+      "payer": "stripe:pi_3SqxZnP4h6MOSVxD0orX6wnv",
+      "payerId": "pi_3SqxZnP4h6MOSVxD0orX6wnv",
+      "merchant": "billdraper25@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3SqxZnP4h6MOSVxD0orX6wnv",
+        "stripePaymentMethodId": "pm_1SqxZmP4h6MOSVxDBG6hdw96",
+        "stripeSessionId": "cs_test_a1yH5hvWp5aRPZq5b78Kfbg3wNDsaJfhneGcLj0lY9Jg3s044t62Mqr0mX"
+      }
+    },
+    {
+      "entryId": "5563d18a-22f6-4176-8f01-69121b99838e",
+      "txId": "tx_1768749250089",
+      "timestamp": 1768749250089,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-108acc56",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-108acc56",
+        "rating": 4.867505752552339
+      }
     }
   ],
-  "lastSaved": "2026-01-18T13:51:06.955Z"
+  "lastSaved": "2026-01-18T15:14:10.428Z"
 }
