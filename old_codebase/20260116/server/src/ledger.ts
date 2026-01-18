@@ -58,21 +58,9 @@ export function addLedgerEntry(
   serviceType: string,
   iGasCost: number,
   payerId: string,
-  merchantName: string, // Provider name (e.g., "AMC Theatres")
+  merchantName: string, // Provider name (e.g., "AMC Theatres", "Airline Provider", etc.)
   providerUuid: string, // Service provider UUID for certificate issuance
-  bookingDetails?: { 
-    movieTitle?: string; 
-    showtime?: string; 
-    location?: string;
-    // DEX trade details
-    tokenSymbol?: string;
-    baseToken?: string;
-    action?: 'BUY' | 'SELL';
-    tokenAmount?: number;
-    baseAmount?: number;
-    price?: number;
-    iTax?: number;
-  }
+  bookingDetails?: Record<string, any> // Generic booking details - service-type agnostic
 ): LedgerEntry {
   // payerId should be the email address (same as payer)
   if (!providerUuid) {
@@ -287,10 +275,25 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
   }
   
   console.log(`   💰 [Ledger] Step 1: Amount validation passed`);
-  
+  console.log(`   💰 [Ledger] Validated amount: ${entry.amount} JSC`);
+
+  // Get current balance before creating intent
+  const { getWalletBalance } = await import("./wallet");
+  const balanceBeforeIntent = await getWalletBalance(user.email);
+  console.log(`   💰 [Ledger] Step 1.5: Current wallet balance: ${balanceBeforeIntent} JSC`);
+
   // EdenCore submits intent to Wallet Service
   // Wallet Service decides and updates balance (single source of truth)
   console.log(`   💰 [Ledger] Step 2: Calling processWalletIntent`);
+  console.log(`   💰 [Ledger] Intent details:`, {
+    intent: "DEBIT",
+    email: user.email,
+    amount: entry.amount,
+    txId: entry.txId,
+    entryId: entry.entryId,
+    reason: `Payment to ${entry.merchant} (${entry.serviceType})`
+  });
+  
   const walletResult = await processWalletIntent({
     intent: "DEBIT",
     email: user.email,
@@ -305,10 +308,22 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
     }
   });
   
+  console.log(`   💰 [Ledger] Step 2.5: Wallet intent completed`);
   console.log(`   💰 [Ledger] Wallet result:`, {
     success: walletResult.success,
     balance: walletResult.balance,
+    previousBalance: walletResult.previousBalance,
     error: walletResult.error
+  });
+  
+  // Verify balance changed
+  const balanceAfterIntent = await getWalletBalance(user.email);
+  console.log(`   💰 [Ledger] Balance verification:`, {
+    before: balanceBeforeIntent,
+    after: balanceAfterIntent,
+    expectedChange: entry.amount,
+    actualChange: balanceBeforeIntent - balanceAfterIntent,
+    matches: (balanceBeforeIntent - balanceAfterIntent) === entry.amount
   });
   
   if (!walletResult.success) {

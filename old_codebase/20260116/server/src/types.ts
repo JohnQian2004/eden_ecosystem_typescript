@@ -48,16 +48,41 @@ export type LedgerEntry = {
   status: 'pending' | 'processed' | 'completed' | 'failed';
   cashierId: string;
   bookingDetails?: {
+    // Generic fields - service-type agnostic
+    price?: number;
+    providerName?: string;
+    location?: string;
+    // Movie-specific fields
     movieTitle?: string;
     showtime?: string;
-    location?: string;
+    // Airline-specific fields
+    flightNumber?: string;
+    destination?: string;
+    date?: string;
+    departure?: string;
+    arrival?: string;
+    // Autoparts-specific fields
+    partName?: string;
+    partNumber?: string;
+    category?: string;
+    warehouse?: string;
+    availability?: string;
+    // Hotel-specific fields
+    hotelName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    roomType?: string;
+    // Restaurant-specific fields
+    restaurantName?: string;
+    reservationTime?: string;
+    cuisine?: string;
+    partySize?: number;
     // DEX trade details
     tokenSymbol?: string;
     baseToken?: string;
     action?: 'BUY' | 'SELL';
     tokenAmount?: number;
     baseAmount?: number;
-    price?: number;
     iTax?: number;
     // JSC Mint details (Stripe payment rail)
     stripePaymentIntentId?: string;
@@ -65,6 +90,8 @@ export type LedgerEntry = {
     stripePaymentMethodId?: string;
     stripeSessionId?: string;
     asset?: string; // 'JSC' for JesusCoin
+    // Generic catch-all for any other service type fields
+    [key: string]: any;
   };
 };
 

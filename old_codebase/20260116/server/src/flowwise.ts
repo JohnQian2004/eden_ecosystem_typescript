@@ -374,10 +374,12 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   // Handle comparison operators (===, !==, ==, !=)
   if (processedCondition.includes(' === ')) {
     const [left, right] = processedCondition.split(' === ').map(s => s.trim());
-    // Remove quotes if present
-    const leftValue = left.replace(/^'|'$/g, '');
-    const rightValue = right.replace(/^'|'$/g, '');
-    return leftValue === rightValue;
+    // Remove quotes if present (handle both single and double quotes)
+    const leftValue = left.replace(/^['"]|['"]$/g, '');
+    const rightValue = right.replace(/^['"]|['"]$/g, '');
+    const result = leftValue === rightValue;
+    console.log(`   🔍 [evaluateCondition] Comparison: "${leftValue}" === "${rightValue}" = ${result}`);
+    return result;
   }
   
   if (processedCondition.includes(' !== ')) {

@@ -483,18 +483,18 @@ export class InMemoryRedisServer extends EventEmitter {
         // Start with existing wallet balances from file (preserve them)
         const walletBalances: Record<string, string> = { ...existingWalletBalances };
         
-        // CRITICAL: Only update wallet balances from in-memory if they exist AND are valid
-        // Do NOT overwrite with 0 or missing values - preserve existing balances
+        // CRITICAL: Update wallet balances from in-memory (including 0 balances)
+        // 0 is a valid balance state after debits, so we must save it
         for (const [key, value] of this.data.entries()) {
           if (key.startsWith('wallet:balance:')) {
-            // Only update balance if it exists in memory and is not 0 or empty
+            // Always update balance if it exists in memory (including 0)
             const balanceValue = typeof value === 'string' ? value : JSON.stringify(value);
             const balanceNum = parseFloat(balanceValue);
-            // Only update if balance exists in memory AND is a valid positive number
-            if (!isNaN(balanceNum) && balanceNum > 0) {
+            // Update if balance exists in memory AND is a valid number (including 0)
+            if (!isNaN(balanceNum) && balanceNum >= 0) {
               walletBalances[key] = balanceValue;
             }
-            // If balance is 0 or invalid in memory, preserve existing from file (don't overwrite)
+            // If balance is invalid (NaN or negative), preserve existing from file
           } else if (key.startsWith('wallet:audit:')) {
             // Always update audit logs (they're append-only)
             walletBalances[key] = typeof value === 'string' ? value : JSON.stringify(value);

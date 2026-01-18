@@ -271,19 +271,45 @@ export async function debitWallet(email: string, amount: number, txId: string, r
   }
 
   try {
+    console.log(`💸 [Wallet] ========================================`);
+    console.log(`💸 [Wallet] debitWallet FUNCTION CALLED`);
+    console.log(`💸 [Wallet] Parameters:`, {
+      email,
+      amount,
+      txId,
+      reason,
+      metadata
+    });
+    
     await ensureRedisConnection();
     
     const key = `${WALLET_BALANCE_PREFIX}${email}`;
+    console.log(`💸 [Wallet] Redis key: ${key}`);
+    
     const currentBalance = await getWalletBalance(email);
+    console.log(`💸 [Wallet] Current balance from Redis: ${currentBalance} JSC`);
     
     if (currentBalance < amount) {
+      console.error(`💸 [Wallet] ❌ Insufficient balance: ${currentBalance} < ${amount}`);
       return { success: false, balance: currentBalance, error: "Insufficient balance" };
     }
     
     const newBalance = currentBalance - amount;
+    console.log(`💸 [Wallet] Calculation: ${currentBalance} - ${amount} = ${newBalance} JSC`);
     
     // Atomic decrement
+    console.log(`💸 [Wallet] Setting Redis key ${key} to ${newBalance.toString()}`);
     await redis.set(key, newBalance.toString());
+    console.log(`💸 [Wallet] ✅ Redis key updated successfully`);
+    
+    // Verify the update
+    const verifyBalance = await getWalletBalance(email);
+    console.log(`💸 [Wallet] Verification: Balance after update: ${verifyBalance} JSC`);
+    if (verifyBalance !== newBalance) {
+      console.error(`💸 [Wallet] ❌ CRITICAL: Balance mismatch! Expected ${newBalance}, got ${verifyBalance}`);
+    } else {
+      console.log(`💸 [Wallet] ✅ Balance verification passed`);
+    }
     
     // Audit log
     const auditKey = `${WALLET_AUDIT_PREFIX}${email}:${Date.now()}`;
@@ -359,7 +385,20 @@ export async function processWalletIntent(intent: WalletIntent): Promise<WalletR
     
     case "DEBIT":
       // Verify balance before debiting
+      console.log(`🔐 [Wallet Service] DEBIT intent received`);
+      console.log(`🔐 [Wallet Service] Intent details:`, {
+        email: intent.email,
+        amount: intent.amount,
+        txId: intent.txId,
+        entryId: intent.entryId,
+        reason: intent.reason
+      });
+      
       const balance = await getWalletBalance(intent.email);
+      console.log(`🔐 [Wallet Service] Current balance: ${balance} JSC`);
+      console.log(`🔐 [Wallet Service] Required amount: ${intent.amount} JSC`);
+      console.log(`🔐 [Wallet Service] Sufficient balance: ${balance >= intent.amount} (${balance} >= ${intent.amount})`);
+      
       if (balance < intent.amount) {
         // Broadcast insufficient balance event
         broadcastEvent({
@@ -375,9 +414,19 @@ export async function processWalletIntent(intent: WalletIntent): Promise<WalletR
             indexerId: "HG",
           }
         });
+        console.error(`🔐 [Wallet Service] ❌ Insufficient balance! Cannot debit ${intent.amount} JSC from ${balance} JSC`);
         return { success: false, balance, error: "Insufficient balance" };
       }
-      return await debitWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
+      
+      console.log(`🔐 [Wallet Service] ✅ Balance sufficient, proceeding with debit...`);
+      const debitResult = await debitWallet(intent.email, intent.amount, intent.txId, intent.reason, intent.metadata);
+      console.log(`🔐 [Wallet Service] Debit result:`, {
+        success: debitResult.success,
+        balance: debitResult.balance,
+        previousBalance: debitResult.previousBalance,
+        error: debitResult.error
+      });
+      return debitResult;
     
     case "HOLD":
       // Place hold on balance (for pending transactions)

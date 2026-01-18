@@ -1050,14 +1050,10 @@ httpServer.on("request", async (req, res) => {
                     // Build booking details dynamically based on service type
                     const bookingDetails = extractBookingDetails(ledgerServiceType, updatedContext.selectedListing || {});
                     
-                    // Get default provider info based on service type
-                    const defaultProviderName = ledgerServiceType === 'movie' ? 'AMC Theatres' : 
-                                                ledgerServiceType === 'airline' ? 'Airline Provider' :
-                                                ledgerServiceType === 'autoparts' ? 'Auto Parts Provider' :
-                                                `${ledgerServiceType.charAt(0).toUpperCase() + ledgerServiceType.slice(1)} Provider`;
-                    const defaultProviderId = ledgerServiceType === 'movie' ? 'amc-001' : 
-                                             ledgerServiceType === 'airline' ? 'airline-001' :
-                                             `${ledgerServiceType}-001`;
+                    // Get default provider info based on service type (dynamic)
+                    const { getDefaultProviderName, getDefaultProviderId } = await import("./src/serviceTypeFields");
+                    const defaultProviderName = getDefaultProviderName(ledgerServiceType);
+                    const defaultProviderId = getDefaultProviderId(ledgerServiceType);
                     
                     console.log(`📝 [${requestId}] Adding ledger entry for ${ledgerServiceType} booking:`, {
                       amount: snapshot.amount,
@@ -1915,14 +1911,20 @@ httpServer.on("request", async (req, res) => {
           return;
         }
 
+        console.log(`   ✅ [${requestId}] ========================================`);
+        console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
         console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
+        console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
         // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
         const executionId = workflowId; // workflowId is actually executionId in new architecture
         
+        console.log(`   🔐 [${requestId}] ========================================`);
         console.log(`   🔐 [${requestId}] Using FlowWiseService to process user decision`);
         console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${decision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
+        console.log(`   🔐 [${requestId}] About to call submitUserDecisionToFlowWise...`);
+        console.log(`   🔐 [${requestId}] ========================================`);
 
         // Submit user decision to FlowWiseService
         // FlowWiseService will automatically execute the next step (including ROOT CA steps)
@@ -5386,25 +5388,7 @@ type LedgerEntry = {
   fees: Record<string, number>;
   status: 'pending' | 'processed' | 'completed' | 'failed';
   cashierId: string;
-  bookingDetails?: {
-    movieTitle?: string;
-    showtime?: string;
-    location?: string;
-    // DEX trade details
-    tokenSymbol?: string;
-    baseToken?: string;
-    action?: 'BUY' | 'SELL';
-    tokenAmount?: number;
-    baseAmount?: number;
-    price?: number;
-    iTax?: number;
-    // JSC Mint details (Stripe payment rail)
-    stripePaymentIntentId?: string;
-    stripeCustomerId?: string;
-    stripePaymentMethodId?: string;
-    stripeSessionId?: string;
-    asset?: string; // 'JSC' for JesusCoin
-  };
+  bookingDetails?: Record<string, any>; // Generic booking details - service-type agnostic (allows any fields)
 };
 
 type Cashier = {
@@ -7092,19 +7076,7 @@ function _addLedgerEntry_DEPRECATED(
   payerId: string,
   merchantName: string, // Provider name (e.g., "AMC Theatres")
   providerUuid: string, // Service provider UUID for certificate issuance
-  bookingDetails?: { 
-    movieTitle?: string; 
-    showtime?: string; 
-    location?: string;
-    // DEX trade details
-    tokenSymbol?: string;
-    baseToken?: string;
-    action?: 'BUY' | 'SELL';
-    tokenAmount?: number;
-    baseAmount?: number;
-    price?: number;
-    iTax?: number;
-  }
+  bookingDetails?: Record<string, any> // Generic booking details - service-type agnostic
 ): LedgerEntry {
   // payerId should be the email address (same as payer)
   if (!providerUuid) {
@@ -8941,18 +8913,27 @@ async function processChatInput(input: string, email: string) {
   // Add ledger entry for this booking
   // NOTE: addLedgerEntry() in src/ledger.ts should broadcast "ledger_entry_added" event
   // But we also broadcast here to ensure it happens (fallback)
+  // Determine service type from selected listing or default to 'service'
+  const detectedServiceType = selectedListing.serviceType || 
+                              (selectedListing.movieTitle ? 'movie' : 
+                               selectedListing.flightNumber ? 'airline' :
+                               selectedListing.hotelName ? 'hotel' :
+                               selectedListing.restaurantName ? 'restaurant' :
+                               selectedListing.partName ? 'autoparts' :
+                               selectedListing.tokenSymbol ? 'dex' : 'service');
+  
+  // Import extractBookingDetails to dynamically extract booking details
+  const { extractBookingDetails } = await import("./src/serviceTypeFields");
+  const bookingDetails = extractBookingDetails(detectedServiceType, selectedListing);
+  
   const ledgerEntry = addLedgerEntry(
     snapshot,
-    llmResponse.listings[0]?.providerName ? 'movie' : 'service',
+    detectedServiceType,
     llmResponse.iGasCost,
     user.email, // Pass email address (payerId will be set to email)
-    selectedListing.providerName, // Provider name (e.g., "AMC Theatres", "MovieCom", "Cinemark")
+    selectedListing.providerName, // Provider name (e.g., "AMC Theatres", "Airline Provider", etc.)
     providerUuid, // Service provider UUID for certificate issuance
-    {
-      movieTitle: selectedListing.movieTitle,
-      showtime: selectedListing.showtime,
-      location: selectedListing.location,
-    }
+    bookingDetails // Dynamically extracted booking details based on service type
   );
 
   // CRITICAL: Broadcast ledger_entry_created event (matches old codebase pattern exactly)

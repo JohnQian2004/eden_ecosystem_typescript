@@ -115,33 +115,58 @@ export function extractBookingDetails(serviceType: string, listing: any): Record
 
   // Also include any additional fields from the listing that might be useful
   // This ensures we capture all relevant booking information
-  if (serviceType === 'airline') {
-    if (listing.departure) details.departure = listing.departure;
-    if (listing.arrival) details.arrival = listing.arrival;
-    if (listing.flightNumber) details.flightNumber = listing.flightNumber;
-    if (listing.destination) details.destination = listing.destination;
-    if (listing.date) details.date = listing.date;
-  } else if (serviceType === 'autoparts') {
-    if (listing.partName) details.partName = listing.partName;
-    if (listing.partNumber) details.partNumber = listing.partNumber;
-    if (listing.category) details.category = listing.category;
-    if (listing.warehouse) details.warehouse = listing.warehouse;
-    if (listing.availability) details.availability = listing.availability;
-  } else if (serviceType === 'hotel') {
-    if (listing.hotelName) details.hotelName = listing.hotelName;
-    if (listing.checkIn) details.checkIn = listing.checkIn;
-    if (listing.checkOut) details.checkOut = listing.checkOut;
-    if (listing.roomType) details.roomType = listing.roomType;
-    if (listing.location) details.location = listing.location;
-  } else if (serviceType === 'restaurant') {
-    if (listing.restaurantName) details.restaurantName = listing.restaurantName;
-    if (listing.reservationTime) details.reservationTime = listing.reservationTime;
-    if (listing.cuisine) details.cuisine = listing.cuisine;
-    if (listing.partySize) details.partySize = listing.partySize;
-    if (listing.location) details.location = listing.location;
-  }
+  // Dynamically extract all mapped fields from the listing
+  Object.keys(fields).forEach(key => {
+    const fieldName = fields[key];
+    if (listing[fieldName] !== undefined && listing[fieldName] !== null) {
+      details[fieldName] = listing[fieldName];
+    }
+  });
+
+  // Also include any other fields from the listing that might be relevant
+  // This ensures we capture all booking information regardless of service type
+  Object.keys(listing).forEach(key => {
+    if (!details[key] && listing[key] !== undefined && listing[key] !== null) {
+      // Only include fields that look like booking details (not internal fields)
+      if (!key.startsWith('_') && key !== 'id' && key !== 'gardenId' && key !== 'indexerId') {
+        details[key] = listing[key];
+      }
+    }
+  });
 
   return details;
+}
+
+/**
+ * Get default provider name for a service type
+ */
+export function getDefaultProviderName(serviceType: string): string {
+  const defaults: Record<string, string> = {
+    movie: 'AMC Theatres',
+    airline: 'Airline Provider',
+    autoparts: 'Auto Parts Provider',
+    hotel: 'Hotel Provider',
+    restaurant: 'Restaurant Provider',
+    dex: 'DEX Provider'
+  };
+
+  return defaults[serviceType] || `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Provider`;
+}
+
+/**
+ * Get default provider ID for a service type
+ */
+export function getDefaultProviderId(serviceType: string): string {
+  const defaults: Record<string, string> = {
+    movie: 'amc-001',
+    airline: 'airline-001',
+    autoparts: 'autoparts-001',
+    hotel: 'hotel-001',
+    restaurant: 'restaurant-001',
+    dex: 'dex-001'
+  };
+
+  return defaults[serviceType] || `${serviceType}-001`;
 }
 
 /**

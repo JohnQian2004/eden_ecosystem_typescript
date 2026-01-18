@@ -8,7 +8,89 @@
     <!-- Main Content -->
     <div class="col-md-9">
       <div class="container-fluid py-3">
-        <h1 class="mb-4">🌳 Eden Simulator Dashboard</h1>
+        <div class="d-flex align-items-center mb-4">
+          <!-- Sign In/Out Button -->
+          <button class="btn btn-primary btn-lg me-3" (click)="openSignInModal()">
+            <span *ngIf="!isGoogleSignedIn">🔐 Sign In</span>
+            <span *ngIf="isGoogleSignedIn">👤 {{ userEmail }}</span>
+          </button>
+          <h1 class="mb-0">🌳 Eden Simulator Dashboard<span *ngIf="userEmail" class="text-muted"> for {{ userEmail }}</span></h1>
+        </div>
+        
+        <!-- Sign In/Out Modal -->
+        <div class="modal fade" id="signInModal" tabindex="-1" aria-labelledby="signInModalLabel" aria-hidden="true" [class.show]="showSignInModal" [style.display]="showSignInModal ? 'block' : 'none'">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="signInModalLabel">
+                  <span *ngIf="!isGoogleSignedIn">🔐 Sign In to Eden Simulator</span>
+                  <span *ngIf="isGoogleSignedIn">👤 Account Settings</span>
+                </h5>
+                <button type="button" class="btn-close" (click)="closeSignInModal()" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div *ngIf="!isGoogleSignedIn">
+                  <!-- Email/Password Sign-In Form -->
+                  <form (ngSubmit)="signInWithEmail()" class="mb-4">
+                    <div class="mb-3">
+                      <label for="email" class="form-label">Email Address</label>
+                      <input 
+                        type="email" 
+                        class="form-control form-control-lg" 
+                        id="email" 
+                        [(ngModel)]="signInEmail"
+                        name="email"
+                        placeholder="Enter your email"
+                        required>
+                    </div>
+                    <div class="mb-3">
+                      <label for="password" class="form-label">Password</label>
+                      <input 
+                        type="password" 
+                        class="form-control form-control-lg" 
+                        id="password" 
+                        [(ngModel)]="signInPassword"
+                        name="password"
+                        placeholder="Enter your password"
+                        required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" [disabled]="isSigningIn">
+                      <span *ngIf="!isSigningIn">Sign In</span>
+                      <span *ngIf="isSigningIn">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Signing In...
+                      </span>
+                    </button>
+                  </form>
+                  
+                  <!-- Divider -->
+                  <div class="text-center mb-3">
+                    <span class="text-muted">OR</span>
+                  </div>
+                  
+                  <!-- Google Sign-In Button -->
+                  <div class="text-center">
+                    <p class="mb-3">Sign in with your Google account</p>
+                    <div id="google-signin-button-modal" style="min-width: 200px; min-height: 40px; margin: 0 auto;"></div>
+                  </div>
+                </div>
+                <div *ngIf="isGoogleSignedIn" class="text-center">
+                  <div class="mb-4">
+                    <p class="mb-2"><strong>Signed in as:</strong></p>
+                    <p class="text-primary fs-5">{{ userEmail }}</p>
+                  </div>
+                  <button class="btn btn-danger btn-lg" (click)="signOutAndClose()">
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" (click)="closeSignInModal()">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="showSignInModal" class="modal-backdrop fade show" (click)="closeSignInModal()"></div>
         
         <!-- iGas Display -->
         <div class="row mb-4">
@@ -18,8 +100,8 @@
         </div>
         
         <!-- Garden of Eden Main Street - Service Type Cards -->
-        <!-- Only show Main Street if there are service gardens (non-root) available -->
-        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0 && hasServiceIndexers">
+        <!-- Main Street always shows hardcoded service types -->
+        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0">
           <div class="col-12">
             <h5 class="mb-2">🌳 Garden of Eden Main Street</h5>
             <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
@@ -74,51 +156,6 @@
                     <div class="small">
                       <span class="badge bg-info" *ngFor="let context of snakeProvider.contextsAllowed">{{ context }}</span>
                     </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Stripe Payment Rail - Buy JesusCoin -->
-              <div class="col-6 col-md-4 col-lg-3">
-                <div class="card service-card-compact h-100" style="border: 2px solid #635bff; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                  <div class="card-body text-center p-2">
-                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">💳</div>
-                    <h6 class="card-title mb-1 small fw-bold">Stripe Payment Rail</h6>
-                    <div class="small mb-2">
-                      <div><strong>Buy JesusCoin</strong></div>
-                      <div>500 JSC = $500 USD</div>
-                    </div>
-                    <div class="mb-2 small" *ngIf="userEmail">
-                      <div><strong>Email:</strong> {{ userEmail }}</div>
-                      <div *ngIf="isLoadingBalance" class="text-light">
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Loading balance...
-                      </div>
-                      <div *ngIf="!isLoadingBalance" class="text-light">
-                        <strong>Balance:</strong> {{ walletBalance.toFixed(2) }} JSC
-                      </div>
-                    </div>
-                    <button 
-                      class="btn btn-light btn-sm w-100 mb-2" 
-                      (click)="buyJesusCoin(500); $event.stopPropagation()"
-                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
-                      <span *ngIf="!isProcessingStripe">BUY 500 JSC</span>
-                      <span *ngIf="isProcessingStripe">
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Processing...
-                      </span>
-                    </button>
-                    <button 
-                      class="btn btn-warning btn-sm w-100" 
-                      (click)="buyMovieIndexer(110); $event.stopPropagation()"
-                      [disabled]="isProcessingStripe || isProcessingGarden || !userEmail">
-                      <span *ngIf="!isProcessingGarden">Install Movie Garden</span>
-                      <span *ngIf="isProcessingGarden">
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Installing...
-                      </span>
-                      <div class="small mt-1">110 JSC</div>
-                    </button>
                   </div>
                 </div>
               </div>
@@ -192,12 +229,43 @@
                         'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
                       }"
                       type="submit"
-                      [disabled]="isProcessing || !userInput?.trim()">
+                      [disabled]="isProcessing || !userInput?.trim() || !hasSufficientBalance()"
+                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Please purchase JSC first.' : ''">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...
                       </span>
                     </button>
+                  </div>
+                  <!-- Insufficient Balance Warning -->
+                  <div *ngIf="!hasSufficientBalance() && !isLoadingBalance" class="alert alert-warning mt-2 mb-2" role="alert">
+                    <div class="d-flex align-items-center">
+                      <span class="me-2">⚠️</span>
+                      <div class="flex-grow-1">
+                        <strong>Insufficient Balance:</strong> Your wallet balance is {{ walletBalance.toFixed(2) }} JSC. 
+                        You need at least 0.01 JSC (for iGas) to send messages.
+                        <div class="mt-2">
+                          <button class="btn btn-sm btn-primary" (click)="buyJesusCoin(500)">
+                            💳 Buy 500 JSC ($500 USD) via Stripe
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Zero Balance - Stripe Payment Rail -->
+                  <div *ngIf="walletBalance === 0 && !isLoadingBalance" class="alert alert-danger mt-2 mb-2" role="alert">
+                    <div class="d-flex align-items-center">
+                      <span class="me-2">💳</span>
+                      <div class="flex-grow-1">
+                        <strong>Stripe Payment Rail:</strong> Your wallet balance is 0.00 JSC. 
+                        Purchase JesusCoin (JSC) to continue using Eden Simulator services.
+                        <div class="mt-2">
+                          <button class="btn btn-sm btn-success" (click)="buyJesusCoin(500)">
+                            💳 Buy 500 JSC = $500 USD
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <small class="text-muted mt-2 d-block" *ngIf="selectedServiceType">
                     <span *ngIf="selectedServiceType === 'movie'">🎬 Context: Movie service - ROOT CA ServiceRegistry will find the best movie providers</span>
@@ -226,6 +294,17 @@
                   (click)="activeTab = 'workflow'"
                   role="tab">
                   🔄 FlowWise Workflows
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow-chat'}"
+                  id="workflow-chat-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow-chat'"
+                  role="tab">
+                  💬 FlowWise Workflows Chat
                 </button>
               </li>
               <li class="nav-item" role="presentation">
@@ -282,6 +361,15 @@
                 id="workflow-pane" 
                 role="tabpanel">
                 <app-workflow-display></app-workflow-display>
+              </div>
+              
+              <!-- Workflow Chat Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow-chat'}"
+                id="workflow-chat-pane" 
+                role="tabpanel">
+                <app-workflow-chat-display></app-workflow-chat-display>
               </div>
               
               <!-- Ledger Tab -->

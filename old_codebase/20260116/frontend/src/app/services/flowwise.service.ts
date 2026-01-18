@@ -476,7 +476,8 @@ export class FlowWiseService {
     const execution = this.activeExecutions.get(executionId);
     if (execution && execution.context['userSelection']) {
       payload.selectionData = execution.context['userSelection'];
-      console.log(`🎬 [FlowWise] Submitting movie selection:`, payload.selectionData);
+      const serviceType = execution.serviceType || 'service';
+      console.log(`🎬 [FlowWise] Submitting ${serviceType} selection:`, payload.selectionData);
     }
 
     return this.http.post(`${baseUrl}/api/workflow/decision`, payload)
@@ -722,78 +723,157 @@ export class FlowWiseService {
   }
 
   /**
-   * Get mock LLM results for self-play
+   * Generate service-type-specific mock listing data
+   */
+  private generateMockListing(serviceType: string, index: number = 0): any {
+    const baseListing: any = {
+      id: `${serviceType}-${1000 + index}`,
+      name: `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Provider`,
+      serviceType: serviceType,
+      location: 'Demo Location',
+      providerId: `${serviceType}-001`,
+      providerName: `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Provider`,
+      price: 15.99 + (index * 2.5),
+      rating: 4.5 + (Math.random() * 0.5)
+    };
+
+    // Add service-type-specific fields
+    switch (serviceType) {
+      case 'movie':
+        baseListing.movieTitle = ['The Dark Knight', 'Inception', 'Avatar'][index % 3];
+        baseListing.showtime = ['7:00 PM', '8:30 PM', '6:15 PM'][index % 3];
+        baseListing.genre = 'Action';
+        break;
+      case 'airline':
+        baseListing.flightNumber = ['AA123', 'UA456', 'DL789'][index % 3];
+        baseListing.destination = ['Los Angeles', 'New York', 'Chicago'][index % 3];
+        baseListing.date = '2026-01-20';
+        baseListing.departure = '8:00 AM';
+        baseListing.arrival = '11:00 AM';
+        baseListing.price = 299.99;
+        break;
+      case 'autoparts':
+        baseListing.partName = ['Brake Pads', 'Oil Filter', 'Air Filter'][index % 3];
+        baseListing.partNumber = `BP-${1000 + index}`;
+        baseListing.category = 'Brakes';
+        baseListing.warehouse = 'Warehouse A';
+        baseListing.availability = 'In Stock';
+        break;
+      case 'hotel':
+        baseListing.hotelName = ['Grand Plaza Hotel', 'Oceanview Resort', 'City Center Inn'][index % 3];
+        baseListing.checkIn = '2026-01-20';
+        baseListing.checkOut = '2026-01-22';
+        baseListing.roomType = 'Standard';
+        baseListing.price = 99.99;
+        break;
+      case 'restaurant':
+        baseListing.restaurantName = ['The Gourmet Bistro', 'Seaside Grill', 'Mountain View Restaurant'][index % 3];
+        baseListing.reservationTime = '7:00 PM';
+        baseListing.cuisine = 'Italian';
+        baseListing.partySize = 2;
+        baseListing.price = 45.99;
+        break;
+      case 'dex':
+        baseListing.tokenSymbol = 'SOL';
+        baseListing.baseToken = 'USDC';
+        baseListing.action = 'BUY';
+        baseListing.tokenAmount = 1;
+        baseListing.baseAmount = 100;
+        baseListing.price = 100;
+        break;
+      default:
+        // Generic fallback
+        baseListing.name = `${serviceType} Service`;
+    }
+
+    return baseListing;
+  }
+
+  /**
+   * Get service-type-specific price field name
+   */
+  private getServiceTypePriceField(serviceType: string): string {
+    const priceFields: Record<string, string> = {
+      movie: 'moviePrice',
+      airline: 'airlinePrice',
+      hotel: 'hotelPrice',
+      restaurant: 'restaurantPrice',
+      autoparts: 'autopartsPrice'
+    };
+    return priceFields[serviceType] || 'totalCost';
+  }
+
+  /**
+   * Get service-type-specific provider name
+   */
+  private getServiceTypeProviderName(serviceType: string): string {
+    const providerNames: Record<string, string> = {
+      movie: 'AMC Theatres',
+      airline: 'Airline Provider',
+      hotel: 'Hotel Provider',
+      restaurant: 'Restaurant Provider',
+      autoparts: 'Auto Parts Provider',
+      dex: 'DEX Pool Provider'
+    };
+    return providerNames[serviceType] || `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Provider`;
+  }
+
+  /**
+   * Get mock LLM results for self-play (now service-type aware)
    */
   private getMockLLMResults(actionType: string, context: any): any {
-    console.log(`🎭 [FlowWise] Generating self-play LLM results for: ${actionType}`);
+    const serviceType = context.serviceType || 'movie';
+    console.log(`🎭 [FlowWise] Generating self-play LLM results for: ${actionType}, serviceType: ${serviceType}`);
 
     switch (actionType) {
       case 'llm_extract_query':
         return {
           queryResult: {
-            serviceType: 'movie',
+            serviceType: serviceType,
             query: {
-              filters: {
+              filters: serviceType === 'movie' ? {
                 genre: 'sci-fi',
                 time: 'evening'
-              }
+              } : serviceType === 'airline' ? {
+                destination: 'any',
+                date: 'any'
+              } : {}
             }
           }
         };
 
-      case 'query_service_registry':
+      case 'query_service_registry': {
+        const mockListing = this.generateMockListing(serviceType, 0);
         return {
-          listings: [{
-            id: 'amc-001',
-            name: 'AMC Theatres',
-            serviceType: 'movie',
-            location: 'Demo Location',
-            providerId: 'amc-001',
-            providerName: 'AMC Theatres',
-            movieTitle: 'Demo Movie',
-            showtime: '7:00 PM',
-            price: 15.99,
-            rating: 4.5
-          }],
+          listings: [mockListing],
           providers: [{
-            id: 'amc-001',
-            name: 'AMC Theatres',
-            serviceType: 'movie',
-            location: 'Demo Location'
+            id: mockListing.providerId,
+            name: mockListing.providerName,
+            serviceType: serviceType,
+            location: mockListing.location
           }]
         };
+      }
 
-      case 'llm_format_response':
+      case 'llm_format_response': {
+        const mockListing = this.generateMockListing(serviceType, 0);
+        const messages: Record<string, string> = {
+          movie: 'Found great movie options! Here are the best matches for your request.',
+          airline: 'Found great flight options! Here are the best matches for your request.',
+          hotel: 'Found great hotel options! Here are the best matches for your request.',
+          restaurant: 'Found great restaurant options! Here are the best matches for your request.',
+          autoparts: 'Found great auto parts! Here are the best matches for your request.',
+          dex: 'Found great token pools! Here are the best matches for your request.'
+        };
         return {
           llmResponse: {
-            message: 'Found great movie options! Here are the best matches for your request.',
-            selectedListing: {
-              id: 'amc-001',
-              name: 'AMC Theatres',
-              serviceType: 'movie',
-              location: 'Demo Location',
-              providerId: 'amc-001',
-              providerName: 'AMC Theatres',
-              movieTitle: 'Demo Movie',
-              showtime: '7:00 PM',
-              price: 15.99,
-              rating: 4.5
-            },
+            message: messages[serviceType] || `Found great ${serviceType} options! Here are the best matches for your request.`,
+            selectedListing: mockListing,
             iGasCost: 0.004450
           },
-          selectedListing: {
-            id: 'amc-001',
-            name: 'AMC Theatres',
-            serviceType: 'movie',
-            location: 'Demo Location',
-            providerId: 'amc-001',
-            providerName: 'AMC Theatres',
-            movieTitle: 'Demo Movie',
-            showtime: '7:00 PM',
-            price: 15.99,
-            rating: 4.5
-          }
+          selectedListing: mockListing
         };
+      }
 
       case 'validate':
         return {
@@ -813,48 +893,38 @@ export class FlowWiseService {
   }
 
   /**
-   * Get mock results for demo actions
+   * Get mock results for demo actions (now service-type aware)
    */
   private getMockActionResults(actionType: string, context: any): any {
+    const serviceType = context.serviceType || 'movie';
+    const mockListing = context.selectedListing || this.generateMockListing(serviceType, 0);
+    const messages: Record<string, string> = {
+      movie: 'Movie ticket selected successfully',
+      airline: 'Flight ticket selected successfully',
+      hotel: 'Hotel booking selected successfully',
+      restaurant: 'Restaurant reservation selected successfully',
+      autoparts: 'Auto part selected successfully',
+      dex: 'Token trade selected successfully'
+    };
+
     switch (actionType) {
       case 'llm_extract_query':
         return {
           llmResponse: {
-            selectedListing: context.selectedListing || {
-              movieTitle: 'Demo Movie',
-              showtime: '7:00 PM',
-              price: 15.99,
-              providerId: 'amc-001',
-              providerName: 'AMC Theatres',
-              location: 'Demo Location'
-            },
+            selectedListing: mockListing,
             iGasCost: 0.004450
           },
-          selectedListing: context.selectedListing || {
-            movieTitle: 'Demo Movie',
-            showtime: '7:00 PM',
-            price: 15.99,
-            providerId: 'amc-001',
-            providerName: 'AMC Theatres',
-            location: 'Demo Location'
-          }
+          selectedListing: mockListing
         };
       case 'query_service_registry':
         return {
-          listings: [context.selectedListing || {
-            movieTitle: 'Demo Movie',
-            showtime: '7:00 PM',
-            price: 15.99,
-            providerId: 'amc-001',
-            providerName: 'AMC Theatres',
-            location: 'Demo Location'
-          }]
+          listings: [mockListing]
         };
       case 'llm_format_response':
         return {
           llmResponse: context.llmResponse || {
-            message: 'Movie ticket selected successfully',
-            selectedListing: context.selectedListing
+            message: messages[serviceType] || `${serviceType} selected successfully`,
+            selectedListing: mockListing
           }
         };
       default:
@@ -863,51 +933,40 @@ export class FlowWiseService {
   }
 
   /**
-   * Get fallback results when actions fail
+   * Get fallback results when actions fail (now service-type aware)
    */
-  private getFallbackActionResults(actionType: string): any {
-    console.log(`🔄 [FlowWise] Providing fallback data for: ${actionType}`);
+  private getFallbackActionResults(actionType: string, serviceType: string = 'movie'): any {
+    console.log(`🔄 [FlowWise] Providing fallback data for: ${actionType}, serviceType: ${serviceType}`);
 
-    // Provide comprehensive fallback data to prevent workflow errors
-    const baseFallback = {
+    const mockListing = this.generateMockListing(serviceType, 0);
+    const priceField = this.getServiceTypePriceField(serviceType);
+    const providerName = this.getServiceTypeProviderName(serviceType);
+    const messages: Record<string, string> = {
+      movie: 'Movie selected successfully',
+      airline: 'Flight selected successfully',
+      hotel: 'Hotel selected successfully',
+      restaurant: 'Restaurant selected successfully',
+      autoparts: 'Auto part selected successfully',
+      dex: 'Token trade selected successfully'
+    };
+
+    // Build dynamic fallback with service-type-specific fields
+    const baseFallback: any = {
       paymentSuccess: true,
       userDecision: 'YES',
-      totalCost: 16.004450,
-      moviePrice: 15.99,
+      totalCost: mockListing.price + 0.004450,
       iGasCost: 0.004450,
       updatedBalance: 9999.99,
-      // Ensure LLM response has selected listing
       llmResponse: {
-        selectedListing: {
-          movieTitle: 'Demo Movie',
-          showtime: '7:00 PM',
-          price: 15.99,
-          providerId: 'amc-001',
-          providerName: 'AMC Theatres',
-          location: 'Demo Location'
-        },
+        selectedListing: mockListing,
         iGasCost: 0.004450,
-        message: 'Movie selected successfully'
+        message: messages[serviceType] || `${serviceType} selected successfully`
       },
-      selectedListing: {
-        movieTitle: 'Demo Movie',
-        showtime: '7:00 PM',
-        price: 15.99,
-        providerId: 'amc-001',
-        providerName: 'AMC Theatres',
-        location: 'Demo Location'
-      },
-      trade: {
-        action: 'BUY',
-        tokenAmount: 1,
-        baseAmount: 100,
-        price: 100,
-        iTax: 0.5
-      },
+      selectedListing: mockListing,
       ledgerEntry: {
         entryId: `entry_${Date.now()}`,
-        amount: 15.99,
-        merchant: 'AMC Theatres',
+        amount: mockListing.price,
+        merchant: providerName,
         status: 'completed',
         txId: `tx_${Date.now()}`
       },
@@ -920,11 +979,24 @@ export class FlowWiseService {
         }
       },
       providerUuid: 'provider-uuid-demo',
-      // Ensure all workflow conditions pass
       error: null,
       validationPassed: true,
       certificateValidated: true
     };
+
+    // Add service-type-specific price field
+    baseFallback[priceField] = mockListing.price;
+
+    // Add DEX-specific trade data if needed
+    if (serviceType === 'dex') {
+      baseFallback.trade = {
+        action: 'BUY',
+        tokenAmount: 1,
+        baseAmount: 100,
+        price: 100,
+        iTax: 0.5
+      };
+    }
 
     return baseFallback;
   }
