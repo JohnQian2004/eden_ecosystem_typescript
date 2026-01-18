@@ -304,6 +304,19 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         break;
 
       case 'cashier_payment_processed':
+        // Payment processed - show confirmation with iGas cost
+        if (event.data?.entry) {
+          const iGasCost = event.data.entry.iGasCost || event.data.iGasCost || 0.00445;
+          const formattedIGasCost = typeof iGasCost === 'number' 
+            ? iGasCost.toFixed(6) 
+            : parseFloat(iGasCost || '0.00445').toFixed(6);
+          
+          this.addChatMessage({
+            type: 'system',
+            content: `✅ Your choice has been confirmed and processed that costs ${formattedIGasCost} iGas`,
+            timestamp: event.timestamp || Date.now()
+          });
+        }
         // Reload wallet balance after payment is processed (update header)
         setTimeout(() => {
           this.loadWalletBalance(false);
@@ -569,24 +582,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         stepId
       ).then(() => {
         console.log('💬 [WorkflowChat] Decision/selection submitted successfully');
-        
-        // Get iGas cost from execution context, message data, or use default
-        const iGasCost = this.activeExecution?.context?.['iGasCost'] || 
-                        message?.data?.iGasCost || 
-                        (this as any).lastIGasCost || 
-                        0.00445;
-        
-        // Format iGas cost to 6 decimal places
-        const formattedIGasCost = typeof iGasCost === 'number' 
-          ? iGasCost.toFixed(6) 
-          : parseFloat(iGasCost || '0.00445').toFixed(6);
-        
-        // Add system confirmation with iGas cost
-        this.addChatMessage({
-          type: 'system',
-          content: `✅ Your choice has been confirmed and processed that costs ${formattedIGasCost} iGas`,
-          timestamp: Date.now()
-        });
+        // NOTE: Do NOT add confirmation message here - wait for workflow_completed or ledger_booking_completed event
+        // The confirmation will be added when the workflow actually completes payment processing
       }).catch((error) => {
         console.error('💬 [WorkflowChat] Failed to submit decision/selection:', error);
         // Show error message

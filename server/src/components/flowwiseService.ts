@@ -491,12 +491,31 @@ export async function executeNextStep(executionId: string): Promise<{
   console.log(`🔄 [FlowWiseService] Found ${transitions.length} transitions from step: ${currentStep}`);
   let nextStepId: string | null = null;
 
+  if (currentStep === 'user_confirm_listing' || currentStep === 'user_select_listing') {
+    console.log(`🔄 [FlowWiseService] ⚠️ USER CONFIRM/SELECT LISTING STEP - Checking transitions`);
+    console.log(`🔄 [FlowWiseService] Current step: ${currentStep}`);
+    console.log(`🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+    console.log(`🔄 [FlowWiseService] Context userSelection: ${context.userSelection ? 'exists' : 'missing'}`);
+    console.log(`🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+  }
+  
   for (const transition of transitions) {
     const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
     console.log(`🔄 [FlowWiseService] Transition: ${currentStep} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
+    
+    if (transition.to === 'root_ca_ledger_and_payment') {
+      console.log(`🔄 [FlowWiseService] ⚠️⚠️⚠️ TRANSITION TO PAYMENT STEP DETECTED! ⚠️⚠️⚠️`);
+      console.log(`🔄 [FlowWiseService] Condition: ${transition.condition || 'always'}`);
+      console.log(`🔄 [FlowWiseService] Condition met: ${conditionMet}`);
+    }
+    
     if (conditionMet) {
       nextStepId = transition.to;
       console.log(`🔄 [FlowWiseService] ✅ Selected next step: ${nextStepId}`);
+      
+      if (nextStepId === 'root_ca_ledger_and_payment') {
+        console.log(`🔄 [FlowWiseService] 🎯🎯🎯 TRANSITIONING TO PAYMENT STEP! 🎯🎯🎯`);
+      }
       break;
     }
   }
@@ -627,6 +646,21 @@ async function executeStepActions(
     const processedAction = replaceTemplateVariables(action, context);
     
     console.log(`   ⚙️ [FlowWiseService] [${i + 1}/${step.actions.length}] Executing action: ${processedAction.type} (step: ${step.id})`);
+    console.log(`   ⚙️ [FlowWiseService] Action details:`, {
+      type: processedAction.type,
+      stepId: step.id,
+      stepName: step.name,
+      actionIndex: i + 1,
+      totalActions: step.actions.length
+    });
+    
+    if (processedAction.type === 'process_payment') {
+      console.log(`   💰 [FlowWiseService] ========================================`);
+      console.log(`   💰 [FlowWiseService] 🎯 PROCESS_PAYMENT ACTION DETECTED!`);
+      console.log(`   💰 [FlowWiseService] Step: ${step.id} (${step.name})`);
+      console.log(`   💰 [FlowWiseService] Action index: ${i + 1}/${step.actions.length}`);
+      console.log(`   💰 [FlowWiseService] ========================================`);
+    }
 
     try {
       switch (processedAction.type) {
@@ -698,7 +732,35 @@ async function executeStepActions(
                                           snapshotServiceType === 'restaurant' ? (context.diningPrice || context.restaurantPrice) :
                                           snapshotServiceType === 'movie' ? context.moviePrice :
                                           context.totalCost;
-          const snapshotAmount = processedAction.amount || snapshotServiceTypePrice || context.selectedListing?.price || 0;
+          
+          // CRITICAL: For restaurant, ensure diningPrice is set from selectedListing if not already set
+          if (snapshotServiceType === 'restaurant' && !context.diningPrice && context.selectedListing?.price) {
+            context.diningPrice = context.selectedListing.price;
+            console.log(`   🍴 [FlowWiseService] CRITICAL: Set diningPrice from selectedListing: ${context.diningPrice} JSC`);
+          }
+          
+          // If processedAction.amount is null (template variable not found), use fallback
+          let snapshotAmount = processedAction.amount;
+          if (snapshotAmount === null || snapshotAmount === undefined || snapshotAmount === 0) {
+            snapshotAmount = snapshotServiceTypePrice || context.selectedListing?.price || 0;
+            console.log(`   ⚠️ [FlowWiseService] Template variable amount was null/0, using fallback: ${snapshotAmount} JSC`);
+          }
+          
+          // Final validation - if still 0, this is an error
+          if (!snapshotAmount || snapshotAmount === 0) {
+            console.error(`   ❌ [FlowWiseService] CRITICAL: Snapshot amount is 0!`, {
+              processedActionAmount: processedAction.amount,
+              snapshotServiceTypePrice,
+              selectedListingPrice: context.selectedListing?.price,
+              diningPrice: context.diningPrice,
+              restaurantPrice: context.restaurantPrice,
+              totalCost: context.totalCost,
+              serviceType: snapshotServiceType
+            });
+            throw new Error(`Cannot create snapshot: amount is 0. Check diningPrice/restaurantPrice in context.`);
+          }
+          
+          console.log(`   💰 [FlowWiseService] ✅ Snapshot amount validated: ${snapshotAmount} JSC (serviceType: ${snapshotServiceType})`);
           
           context.snapshot = {
             txId: `tx_${Date.now()}`,
@@ -788,6 +850,13 @@ async function executeStepActions(
           const defaultProviderName = getDefaultProviderName(ledgerServiceType);
           const defaultProviderId = getDefaultProviderId(ledgerServiceType);
           
+          console.log(`   💰 [FlowWiseService] Creating ledger entry with:`, {
+            snapshotAmount: context.snapshot.amount,
+            serviceType: ledgerServiceType,
+            bookingDetailsPrice: bookingDetails.price,
+            entryAmount: entryAmount
+          });
+          
           const ledgerEntry = addLedgerEntry(
             context.snapshot,
             ledgerServiceType,
@@ -797,6 +866,25 @@ async function executeStepActions(
             context.providerUuid || context.selectedListing?.providerId || defaultProviderId,
             bookingDetails
           );
+          
+          console.log(`   💰 [FlowWiseService] Ledger entry created:`, {
+            entryId: ledgerEntry.entryId,
+            amount: ledgerEntry.amount,
+            status: ledgerEntry.status,
+            serviceType: ledgerEntry.serviceType
+          });
+          
+          // CRITICAL: Verify amount is set correctly
+          if (!ledgerEntry.amount || ledgerEntry.amount === 0) {
+            console.error(`   ❌ [FlowWiseService] CRITICAL: Ledger entry amount is 0!`, {
+              snapshotAmount: context.snapshot.amount,
+              entryAmount: entryAmount,
+              bookingDetailsPrice: bookingDetails.price,
+              selectedListingPrice: context.selectedListing?.price
+            });
+            throw new Error(`Ledger entry created with 0 amount! Snapshot amount: ${context.snapshot.amount}, Entry amount: ${entryAmount}`);
+          }
+          
           context.ledgerEntry = ledgerEntry;
           // Initialize cashier in context for payment step
           if (!context.cashier) {
@@ -808,6 +896,7 @@ async function executeStepActions(
         case "process_payment": {
           // Process payment (FULLY AUTOMATED - ROOT CA LEVEL - NO SERVICE PROVIDER CONTROL)
           console.log(`   💰 [FlowWiseService] ========================================`);
+          console.log(`   💰 [FlowWiseService] 🎯🎯🎯 PROCESS_PAYMENT CASE ENTERED! 🎯🎯🎯`);
           console.log(`   💰 [FlowWiseService] 🔐 ROOT CA: PROCESSING PAYMENT (ATOMIC)`);
           console.log(`   💰 [FlowWiseService] ========================================`);
           
@@ -849,10 +938,39 @@ async function executeStepActions(
 
           // Process payment (processPayment handles wallet debiting internally via processWalletIntent)
           // This will update ledger entry status to 'processed' and persist
-          console.log(`   💰 [FlowWiseService] Calling processPayment function...`);
+          console.log(`   💰 [FlowWiseService] ========================================`);
+          console.log(`   💰 [FlowWiseService] About to call processPayment function`);
+          console.log(`   💰 [FlowWiseService] Parameters:`, {
+            cashierId: cashier.id,
+            cashierName: cashier.name,
+            entryId: ledgerEntryInArray.entryId,
+            entryAmount: ledgerEntryInArray.amount,
+            userEmail: context.user.email,
+            userBalance: context.user.balance
+          });
+          console.log(`   💰 [FlowWiseService] ========================================`);
+          
+          // Get current wallet balance BEFORE payment
+          const { getWalletBalance } = await import("../wallet");
+          const balanceBeforePayment = await getWalletBalance(context.user.email);
+          console.log(`   💰 [FlowWiseService] Wallet balance BEFORE payment: ${balanceBeforePayment} JSC`);
+          console.log(`   💰 [FlowWiseService] Amount to debit: ${ledgerEntryInArray.amount} JSC`);
+          console.log(`   💰 [FlowWiseService] Expected balance AFTER: ${balanceBeforePayment - ledgerEntryInArray.amount} JSC`);
+          
           const paymentResult = await processPayment(cashier, ledgerEntryInArray, context.user);
           
-          console.log(`   💰 [FlowWiseService] Payment result:`, paymentResult);
+          // Get current wallet balance AFTER payment
+          const balanceAfterPayment = await getWalletBalance(context.user.email);
+          console.log(`   💰 [FlowWiseService] ========================================`);
+          console.log(`   💰 [FlowWiseService] Payment result: ${paymentResult}`);
+          console.log(`   💰 [FlowWiseService] Wallet balance AFTER payment: ${balanceAfterPayment} JSC`);
+          console.log(`   💰 [FlowWiseService] Balance change: ${balanceBeforePayment - balanceAfterPayment} JSC`);
+          if (balanceBeforePayment - balanceAfterPayment !== ledgerEntryInArray.amount) {
+            console.error(`   ❌ [FlowWiseService] CRITICAL: Balance change (${balanceBeforePayment - balanceAfterPayment}) does NOT match entry amount (${ledgerEntryInArray.amount})!`);
+          } else {
+            console.log(`   ✅ [FlowWiseService] Balance change matches entry amount - deduction successful!`);
+          }
+          console.log(`   💰 [FlowWiseService] ========================================`);
           console.log(`   💰 [FlowWiseService] Ledger entry status after payment:`, ledgerEntryInArray.status);
           console.log(`   💰 [FlowWiseService] Cashier after payment:`, {
             id: cashier.id,
@@ -1252,6 +1370,13 @@ export async function submitUserDecision(
     throw new Error(`WorkflowExecutions Map not initialized. This should not happen.`);
   }
   
+  console.log(`   🔄 [FlowWiseService] ========================================`);
+  console.log(`   🔄 [FlowWiseService] 🎯 submitUserDecision FUNCTION CALLED! 🎯`);
+  console.log(`   🔄 [FlowWiseService] ExecutionId: ${executionId}`);
+  console.log(`   🔄 [FlowWiseService] Decision: ${decision}`);
+  console.log(`   🔄 [FlowWiseService] SelectionData: ${selectionData ? 'provided' : 'none'}`);
+  console.log(`   🔄 [FlowWiseService] ========================================`);
+  
   const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
   console.log(`   🔍 [FlowWiseService] Looking for executionId: ${executionId}`);
   console.log(`   🔍 [FlowWiseService] workflowExecutions size: ${workflowExecutions.size}`);
@@ -1264,6 +1389,13 @@ export async function submitUserDecision(
     console.error(`   ❌ [FlowWiseService] Available executions:`, Array.from(workflowExecutions.keys()));
     throw new Error(`Execution not found: ${executionId}. Available executions: ${Array.from(workflowExecutions.keys()).join(', ')}`);
   }
+  
+  console.log(`   🔄 [FlowWiseService] Execution found:`, {
+    executionId: execution.executionId,
+    currentStep: execution.currentStep,
+    serviceType: execution.serviceType,
+    workflowName: execution.workflow?.name
+  });
 
   // Ensure execution has all required properties
   if (!execution.workflow) {
@@ -1402,9 +1534,23 @@ export async function submitUserDecision(
     }
     
     let nextStepId: string | null = null;
+    
+    if (currentStep === 'user_confirm_listing') {
+      console.log(`   🔄 [FlowWiseService] ⚠️⚠️⚠️ EVALUATING TRANSITIONS FROM user_confirm_listing ⚠️⚠️⚠️`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+    }
+    
     for (const transition of transitions) {
       try {
         const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
+        
+        if (currentStep === 'user_confirm_listing' && transition.to === 'root_ca_ledger_and_payment') {
+          console.log(`   🔄 [FlowWiseService] 🎯🎯🎯 CHECKING TRANSITION TO PAYMENT STEP! 🎯🎯🎯`);
+          console.log(`   🔄 [FlowWiseService] Condition: ${transition.condition}`);
+          console.log(`   🔄 [FlowWiseService] Condition met: ${conditionMet}`);
+          console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+        }
         console.log(`   🔄 [FlowWiseService] Transition: ${currentStep} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
         if (conditionMet) {
           nextStepId = transition.to;
@@ -1420,7 +1566,7 @@ export async function submitUserDecision(
     
     if (!nextStepId) {
       console.warn(`   ⚠️ [FlowWiseService] No valid transition found from step: ${currentStep} after user decision`);
-      console.warn(`   ⚠️ [FlowWiseService] Available transitions:`, transitions.map(t => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+      console.warn(`   ⚠️ [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
       throw new Error(`No valid transition found from step: ${currentStep}. User decision: ${context.userDecision}`);
     }
     

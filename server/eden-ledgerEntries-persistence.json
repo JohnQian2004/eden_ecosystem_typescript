@@ -397,7 +397,31 @@
         "providerId": "amc-001",
         "rating": 4.907086674112266
       }
+    },
+    {
+      "entryId": "f56e2ecf-3ae1-48ba-aae4-0ddc4fc8bd4e",
+      "txId": "tx_1768705172892",
+      "timestamp": 1768705172892,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Restaurant Provider",
+      "providerUuid": "YES",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "providerId": "YES"
+      }
     }
   ],
-  "lastSaved": "2026-01-18T00:15:56.084Z"
+  "lastSaved": "2026-01-18T02:59:33.039Z"
 }

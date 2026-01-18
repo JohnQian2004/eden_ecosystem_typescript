@@ -1911,14 +1911,20 @@ httpServer.on("request", async (req, res) => {
           return;
         }
 
+        console.log(`   ✅ [${requestId}] ========================================`);
+        console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
         console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
+        console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
         // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
         const executionId = workflowId; // workflowId is actually executionId in new architecture
         
+        console.log(`   🔐 [${requestId}] ========================================`);
         console.log(`   🔐 [${requestId}] Using FlowWiseService to process user decision`);
         console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${decision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
+        console.log(`   🔐 [${requestId}] About to call submitUserDecisionToFlowWise...`);
+        console.log(`   🔐 [${requestId}] ========================================`);
 
         // Submit user decision to FlowWiseService
         // FlowWiseService will automatically execute the next step (including ROOT CA steps)
