@@ -14,7 +14,7 @@
           <strong>Processed:</strong> {{ cashier.processedCount }} transactions
         </div>
         <div class="col-md-4">
-          <strong>Total:</strong> {{ cashier.totalProcessed?.toFixed(2) || '0.00' }} JSC
+          <strong>Total:</strong> {{ cashier.totalProcessed?.toFixed(2) || '0.00' }} 🍎 APPLES
         </div>
       </div>
     </div>
@@ -54,7 +54,7 @@
             <td><small>{{ entry?.payer || entry?.payerId || 'N/A' }}</small></td>
             <td>{{ entry?.merchant || 'N/A' }}</td>
             <td><span class="badge bg-secondary">{{ entry?.serviceType || 'N/A' }}</span></td>
-            <td><strong>{{ entry?.amount?.toFixed(2) || '0.00' }} JSC</strong></td>
+            <td><strong>{{ entry?.amount?.toFixed(2) || '0.00' }} 🍎 APPLES</strong></td>
             <td>{{ formatIGasCost(entry?.iGasCost) }}</td>
             <td><span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span></td>
             <td>

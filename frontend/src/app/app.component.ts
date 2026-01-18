@@ -149,6 +149,7 @@ export class AppComponent implements OnInit, OnDestroy {
   showPriesthoodApplicationModal: boolean = false;
   priesthoodApplicationReason: string = '';
   isSubmittingApplication: boolean = false;
+  priesthoodCertification: any = null; // Store full certification details including billing info
   
   // GOD Mode: Priesthood Management
   showPriesthoodManagementPanel: boolean = false;
@@ -474,6 +475,19 @@ export class AppComponent implements OnInit, OnDestroy {
         setTimeout(() => {
           this.checkServiceGardens();
           this.loadServices();
+        }, 500);
+      }
+      
+      // Listen for ledger events to update wallet balance (event-driven, no polling)
+      if (event.type === 'ledger_entry_added' || 
+          event.type === 'ledger_entry_created' || 
+          event.type === 'ledger_booking_completed' ||
+          event.type === 'cashier_payment_processed' ||
+          event.type === 'wallet_balance_updated') {
+        console.log(`💰 [App] Ledger event detected (${event.type}), updating wallet balance...`);
+        // Update wallet balance when ledger events occur
+        setTimeout(() => {
+          this.loadWalletBalance();
         }, 500);
       }
     });
@@ -1096,7 +1110,7 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (response) => {
         if (response.success) {
           this.walletBalance = response.balance || 0;
-          console.log(`✅ Wallet balance loaded: ${this.walletBalance} JSC for ${this.userEmail}`);
+          console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES for ${this.userEmail}`);
           console.log(`💳 [App] checkBalanceAfterSignIn flag: ${this.checkBalanceAfterSignIn}`);
           console.log(`💳 [App] Balance check: ${this.walletBalance} < 100 = ${this.walletBalance < 100}`);
           
@@ -1107,7 +1121,7 @@ export class AppComponent implements OnInit, OnDestroy {
           const shouldCheckBalance = this.checkBalanceAfterSignIn || this.isGoogleSignedIn || hasSignedInCredentials;
           
           if (this.walletBalance < 100 && shouldCheckBalance && !this.showStripePaymentModal) {
-            console.log(`💳 [App] ✅ Balance (${this.walletBalance.toFixed(2)} JSC) is below 100 JSC, showing Stripe Payment Rail modal`);
+            console.log(`💳 [App] ✅ Balance (${this.walletBalance.toFixed(2)} 🍎 APPLES) is below 100 🍎 APPLES, showing Stripe Payment Rail modal`);
             console.log(`💳 [App] checkBalanceAfterSignIn: ${this.checkBalanceAfterSignIn}, isGoogleSignedIn: ${this.isGoogleSignedIn}, hasSignedInCredentials: ${hasSignedInCredentials}`);
             setTimeout(() => {
               if (this.walletBalance < 100 && !this.showStripePaymentModal) {
@@ -1118,7 +1132,7 @@ export class AppComponent implements OnInit, OnDestroy {
               }
             }, 500); // Small delay to ensure sign-in modal is closed
           } else if (this.checkBalanceAfterSignIn) {
-            console.log(`💳 [App] Balance is sufficient (${this.walletBalance.toFixed(2)} JSC >= 100 JSC), not showing modal`);
+            console.log(`💳 [App] Balance is sufficient (${this.walletBalance.toFixed(2)} 🍎 APPLES >= 100 🍎 APPLES), not showing modal`);
             this.checkBalanceAfterSignIn = false; // Reset flag even if balance is sufficient
           }
         } else {
@@ -1384,18 +1398,18 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (response) => {
         if (response.success) {
           if (response.alreadyMinted) {
-            console.log(`✅ JSC already minted for this session. Balance: ${response.balance} JSC`);
+            console.log(`✅ 🍎 APPLES already minted for this session. Balance: ${response.balance} 🍎 APPLES`);
             this.walletBalance = response.balance || 0;
-            alert(`✅ Payment confirmed! Your balance: ${response.balance} JSC`);
+            alert(`✅ Payment confirmed! Your balance: ${response.balance} 🍎 APPLES`);
           } else if (response.minted) {
-            console.log(`✅ JSC minted successfully! Amount: ${response.amount} JSC, Balance: ${response.balance} JSC`);
+            console.log(`✅ 🍎 APPLES minted successfully! Amount: ${response.amount} 🍎 APPLES, Balance: ${response.balance} 🍎 APPLES`);
             this.walletBalance = response.balance || 0;
-            alert(`✅ ${response.amount} JSC deposited successfully! Your balance: ${response.balance} JSC`);
+            alert(`✅ ${response.amount} 🍎 APPLES deposited successfully! Your balance: ${response.balance} 🍎 APPLES`);
           } else if (response.registered || response.alreadyRegistered) {
             console.log(`✅ Garden registered: ${response.indexerId || response.indexerName}`);
             this.walletBalance = response.balance || 0;
             this.isProcessingGarden = false;
-            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nBalance: ${response.balance} JSC`);
+            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nBalance: ${response.balance} 🍎 APPLES`);
             // Refresh garden list (sidebar will auto-update via WebSocket)
           } else {
             console.log(`⏳ Payment not completed yet. Status: ${response.paymentStatus}`);
@@ -1439,8 +1453,8 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     
     // Log current balance for debugging
-    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} JSC`);
-    console.log(`💰 Attempting to buy: ${amount} JSC`);
+    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} 🍎 APPLES`);
+    console.log(`💰 Attempting to buy: ${amount} 🍎 APPLES`);
     
     this.isProcessingStripe = true;
     
@@ -1490,15 +1504,15 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     
     // Log current balance for debugging
-    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} JSC`);
-    console.log(`💰 Required amount: ${amount} JSC`);
+    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} Apple`);
+    console.log(`💰 Required amount: ${amount} Apple`);
     
     this.isProcessingGarden = true;
     
     // First check wallet balance
     if (this.walletBalance >= amount) {
       // User has enough balance - purchase directly from wallet
-      console.log(`💰 Purchasing garden from wallet balance: ${this.walletBalance} JSC`);
+      console.log(`💰 Purchasing garden from wallet balance: ${this.walletBalance} 🍎 APPLES`);
       this.http.post<{success: boolean, indexerId?: string, indexerName?: string, balance?: number, error?: string}>(
         `${this.apiUrl}/api/indexer/purchase`,
         { email: this.userEmail, amount: amount, indexerType: 'movie' }
@@ -1508,7 +1522,7 @@ export class AppComponent implements OnInit, OnDestroy {
             console.log(`✅ Garden purchased from wallet: ${response.indexerId || response.indexerName}`);
             this.walletBalance = response.balance || this.walletBalance - amount;
             this.isProcessingGarden = false;
-            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nRemaining balance: ${response.balance} JSC`);
+            alert(`✅ Movie garden installed successfully!\nGarden: ${response.indexerId || response.indexerName}\nRemaining balance: ${response.balance} 🍎 APPLES`);
             this.cdr.detectChanges();
           } else {
             alert(`Failed to purchase garden: ${response.error || 'Unknown error'}`);
@@ -1523,7 +1537,7 @@ export class AppComponent implements OnInit, OnDestroy {
       });
     } else {
       // Insufficient balance - redirect to Stripe Checkout
-      console.log(`💳 Insufficient balance (${this.walletBalance} JSC). Redirecting to Stripe...`);
+      console.log(`💳 Insufficient balance (${this.walletBalance} 🍎 APPLES). Redirecting to Stripe...`);
       this.http.post<{success: boolean, sessionId?: string, url?: string, error?: string}>(
         `${this.apiUrl}/api/indexer/buy`,
         { email: this.userEmail, amount: amount, indexerType: 'movie' }
@@ -1727,6 +1741,14 @@ export class AppComponent implements OnInit, OnDestroy {
         if (response.success) {
           this.priesthoodStatus = response.certification?.status || null;
           this.hasPriesthoodCert = response.hasCertification || false;
+          
+          // Store certification details for UI
+          if (response.certification) {
+            this.priesthoodCertification = response.certification;
+          } else {
+            this.priesthoodCertification = null;
+          }
+          
           console.log(`📜 [Priesthood] Status: ${this.priesthoodStatus}, Has Cert: ${this.hasPriesthoodCert}`);
           
           // For non-admin users: if they have certification, ALWAYS switch to PRIEST mode
@@ -1778,6 +1800,13 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
     
+    // Confirm application fee payment (Covenant Token / Witness Apple)
+    const APPLICATION_FEE = 1;
+    const confirmMessage = `Covenant Token: ${APPLICATION_FEE} 🍎 APPLES (Non-refundable)\n\nThis symbolic offering demonstrates your commitment and prevents spam applications.\n\nMembership is FREE - authority is trust-based and rate-limited.\n\nDo you want to proceed?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
     this.isSubmittingApplication = true;
     this.http.post(`${this.apiUrl}/api/priesthood/apply`, {
       email: this.userEmail,
@@ -1785,10 +1814,11 @@ export class AppComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (response: any) => {
         if (response.success) {
-          alert('Application submitted successfully! You will be notified when GOD reviews your application.');
+          alert(`Application submitted successfully!\n\nCovenant Token: ${APPLICATION_FEE} 🍎 APPLES paid.\n\nMembership is FREE - authority is trust-based and rate-limited.\n\nYou will be notified when GOD reviews your application.`);
           this.showPriesthoodApplicationModal = false;
           this.priesthoodApplicationReason = '';
           this.checkPriesthoodStatus();
+          this.loadWalletBalance(); // Refresh balance
         }
         this.isSubmittingApplication = false;
       },
@@ -1796,6 +1826,35 @@ export class AppComponent implements OnInit, OnDestroy {
         console.error('❌ [Priesthood] Error applying:', err);
         alert(err.error?.error || 'Failed to submit application');
         this.isSubmittingApplication = false;
+      }
+    });
+  }
+  
+  // Activate membership (FREE - no payment required)
+  activateMembership(): void {
+    if (!this.userEmail) {
+      alert('Please sign in first');
+      return;
+    }
+    
+    const confirmMessage = `Activate Membership (FREE)\n\nMembership is FREE - authority is trust-based and rate-limited.\n\nYour authority scales with trust, not payment.\n\nDo you want to activate?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    this.http.post(`${this.apiUrl}/api/priesthood/pay-membership`, {
+      email: this.userEmail
+    }).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          const activeUntil = response.activeUntil ? new Date(response.activeUntil).toLocaleDateString() : 'N/A';
+          alert(`Membership activated successfully!\n\nMembership active until: ${activeUntil}\n\nMembership is FREE - authority is trust-based and rate-limited.`);
+          this.checkPriesthoodStatus();
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error activating membership:', err);
+        alert(err.error?.error || 'Failed to activate membership');
       }
     });
   }
@@ -1936,12 +1995,12 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   hasSufficientBalance(): boolean {
-    // Check if balance is sufficient (at least 0.01 JSC for iGas)
+    // Check if balance is sufficient (at least 0.01 🍎 APPLES for iGas)
     // If balance is still loading, allow submission (will be checked server-side)
     if (this.isLoadingBalance) {
       return true; // Allow while loading, server will check
     }
-    // Minimum balance required: 0.01 JSC (for iGas costs)
+    // Minimum balance required: 0.01 🍎 APPLES (for iGas costs)
     const minimumBalance = 0.01;
     return this.walletBalance >= minimumBalance;
   }
@@ -1961,7 +2020,7 @@ export class AppComponent implements OnInit, OnDestroy {
         balance: this.walletBalance,
         required: 0.01
       });
-      alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} JSC. You need at least 0.01 JSC (for iGas) to send messages. Please purchase JSC first.`);
+      alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} 🍎 APPLES. You need at least 0.01 🍎 APPLES (for iGas) to send messages. Please purchase 🍎 APPLES first.`);
       return;
     }
 

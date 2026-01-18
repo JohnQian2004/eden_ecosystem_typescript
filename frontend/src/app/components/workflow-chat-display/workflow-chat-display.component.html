@@ -4,7 +4,7 @@
       <h5 class="mb-0">
         💬 FlowWise Workflows Chat
         <span class="ms-3 badge bg-warning text-dark" *ngIf="walletBalance !== undefined">
-          Current Wallet Balance: {{ walletBalance.toFixed(2) }} JSC
+          Current Wallet Balance: {{ walletBalance.toFixed(2) }} 🍎 APPLES
         </span>
         <span class="ms-3 spinner-border spinner-border-sm text-white-50" *ngIf="walletBalance === undefined" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -89,9 +89,9 @@
               <div class="chat-content" [innerHTML]="message.content.replace('**', '<strong>').replace('**', '</strong>')"></div>
               <div *ngIf="message.data?.balance !== undefined && message.data?.previousBalance !== undefined" class="mt-2 small">
                 <span *ngIf="message.data.previousBalance !== message.data.balance" class="text-muted">
-                  Previous: {{ message.data.previousBalance.toFixed(2) }} JSC → 
+                  Previous: {{ message.data.previousBalance.toFixed(2) }} 🍎 APPLES → 
                   <span [ngClass]="{'text-success': message.data.balance > message.data.previousBalance, 'text-danger': message.data.balance < message.data.previousBalance}">
-                    Current: {{ message.data.balance.toFixed(2) }} JSC
+                    Current: {{ message.data.balance.toFixed(2) }} 🍎 APPLES
                   </span>
                 </span>
               </div>
@@ -116,7 +116,7 @@
                 </div>
                 <div class="ledger-row">
                   <span class="ledger-label">Amount:</span>
-                  <strong class="text-primary">{{ message.data?.amount?.toFixed(2) || '0.00' }} JSC</strong>
+                  <strong class="text-primary">{{ message.data?.amount?.toFixed(2) || '0.00' }} 🍎 APPLES</strong>
                 </div>
                 <div class="ledger-row">
                   <span class="ledger-label">iGas Cost:</span>

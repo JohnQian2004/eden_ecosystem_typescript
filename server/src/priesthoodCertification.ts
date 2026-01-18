@@ -12,6 +12,31 @@ import type { EdenCertificate } from './types';
 
 export type PriesthoodStatus = 'pending' | 'approved' | 'rejected' | 'revoked' | 'suspended';
 
+// Fee constants - Low entry fee model
+export const APPLICATION_FEE = 1; // JSC - one-time, non-refundable (Covenant Token / Witness Apple)
+export const MEMBERSHIP_FEE = 0; // JSC - FREE (membership is free, authority is trust-based and rate-limited)
+export const MEMBERSHIP_PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds (for tracking, but no payment required)
+
+// Rate limiting constants (non-monetary friction)
+export const PRIEST_RATE_LIMITS = {
+  maxActionsPerDay: 20,
+  maxBlessingsPerHour: 3,
+  maxDisputesHandled: 5,
+  maxGardensCreated: 10 // Per month
+};
+
+// Trust/Reputation system (for future scaling of authority)
+export interface PriestTrustScore {
+  email: string;
+  score: number; // 0-100
+  timeServed: number; // Days since certification
+  positiveOutcomes: number;
+  auditsPassed: number;
+  complaints: number;
+  reversals: number;
+  lastUpdated: number;
+}
+
 export interface PriesthoodCertification {
   email: string;
   status: PriesthoodStatus;
@@ -25,6 +50,18 @@ export interface PriesthoodCertification {
   reason?: string;
   certificate?: EdenCertificate;
   metadata?: Record<string, any>;
+  // Billing fields (low entry fee model)
+  applicationFeePaid?: boolean;
+  applicationFeeTxId?: string;
+  // Membership is now FREE - these fields track activity/trust instead
+  membershipActiveUntil?: number; // Timestamp when membership period ends (for tracking, not payment)
+  lastActivityDate?: number; // Last date of priest activity
+  activityCount?: number; // Actions performed in current period
+  trustScore?: number; // 0-100, based on time served, outcomes, audits
+  // Rate limiting tracking
+  dailyActionCount?: number; // Actions today
+  lastActionReset?: number; // Timestamp when daily count was reset
+  suspendedForNonPayment?: boolean; // Legacy field (now used for inactivity/abuse)
 }
 
 const CERTIFICATIONS_FILE = path.join(__dirname, '..', 'eden-priest-certifications.json');
@@ -89,13 +126,71 @@ export function applyForPriesthood(email: string, reason?: string): PriesthoodCe
     status: 'pending',
     appliedAt: Date.now(),
     reason: reason || 'User application for priesthood certification',
-    metadata: {}
+    metadata: {},
+    applicationFeePaid: false,
+    activityCount: 0,
+    trustScore: 0,
+    dailyActionCount: 0
   };
   
   CERTIFICATIONS.set(emailLower, certification);
   saveCertifications();
   
   console.log(`📜 [PriestHood Certification] New application from ${email}`);
+  
+  return certification;
+}
+
+/**
+ * Update certification billing information
+ */
+export function updateCertificationBilling(
+  email: string, 
+  updates: Partial<Pick<PriesthoodCertification, 'applicationFeePaid' | 'applicationFeeTxId' | 'membershipActiveUntil' | 'lastActivityDate' | 'activityCount' | 'trustScore' | 'dailyActionCount' | 'lastActionReset' | 'suspendedForNonPayment'>>
+): PriesthoodCertification {
+  const emailLower = email.toLowerCase();
+  const certification = CERTIFICATIONS.get(emailLower);
+  
+  if (!certification) {
+    throw new Error(`No priesthood certification found for ${email}`);
+  }
+  
+  // Update billing fields
+  if (updates.applicationFeePaid !== undefined) {
+    certification.applicationFeePaid = updates.applicationFeePaid;
+  }
+  if (updates.applicationFeeTxId !== undefined) {
+    certification.applicationFeeTxId = updates.applicationFeeTxId;
+  }
+  if (updates.membershipActiveUntil !== undefined) {
+    certification.membershipActiveUntil = updates.membershipActiveUntil;
+  }
+  if (updates.lastActivityDate !== undefined) {
+    certification.lastActivityDate = updates.lastActivityDate;
+  }
+  if (updates.activityCount !== undefined) {
+    certification.activityCount = updates.activityCount;
+  }
+  if (updates.trustScore !== undefined) {
+    certification.trustScore = updates.trustScore;
+  }
+  if (updates.dailyActionCount !== undefined) {
+    certification.dailyActionCount = updates.dailyActionCount;
+  }
+  if (updates.lastActionReset !== undefined) {
+    certification.lastActionReset = updates.lastActionReset;
+  }
+  if (updates.suspendedForNonPayment !== undefined) {
+    certification.suspendedForNonPayment = updates.suspendedForNonPayment;
+    // Auto-suspend if non-payment
+    if (updates.suspendedForNonPayment && certification.status === 'approved') {
+      certification.status = 'suspended';
+      console.log(`📜 [PriestHood Certification] Auto-suspended ${email} for non-payment`);
+    }
+  }
+  
+  CERTIFICATIONS.set(emailLower, certification);
+  saveCertifications();
   
   return certification;
 }
@@ -266,6 +361,84 @@ export function getCertificationsByStatus(status: PriesthoodStatus): PriesthoodC
 }
 
 /**
+ * Check and auto-suspend priests for inactivity or abuse
+ * Since membership is now FREE, we check for inactivity instead of payment
+ * This should be called periodically (e.g., daily cron job)
+ */
+export function checkAndSuspendInactivePriests(): void {
+  const now = Date.now();
+  const INACTIVITY_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000; // 90 days of inactivity
+  const all = getAllCertifications();
+  let suspendedCount = 0;
+  
+  for (const cert of all) {
+    if (cert.status === 'approved') {
+      const lastActivity = cert.lastActivityDate || cert.approvedAt || 0;
+      const daysSinceActivity = (now - lastActivity) / (24 * 60 * 60 * 1000);
+      
+      if (daysSinceActivity > 90) {
+        // Inactive for 90+ days - suspend
+        updateCertificationBilling(cert.email, {
+          suspendedForNonPayment: true // Reusing field for inactivity
+        });
+        suspendedCount++;
+        console.log(`📜 [PriestHood Certification] Auto-suspended ${cert.email} - inactive for ${Math.floor(daysSinceActivity)} days`);
+      }
+    }
+  }
+  
+  if (suspendedCount > 0) {
+    console.log(`📜 [PriestHood Certification] Auto-suspended ${suspendedCount} priest(s) for inactivity`);
+  }
+}
+
+/**
+ * Check rate limits for a priest action
+ * Returns true if action is allowed, false if rate limited
+ */
+export function checkPriestRateLimit(email: string, actionType: 'action' | 'blessing' | 'dispute' | 'garden'): boolean {
+  const certification = getCertificationStatus(email);
+  if (!certification || certification.status !== 'approved') {
+    return false;
+  }
+  
+  const now = Date.now();
+  const oneDayAgo = now - (24 * 60 * 60 * 1000);
+  
+  // Reset daily count if needed
+  if (!certification.lastActionReset || certification.lastActionReset < oneDayAgo) {
+    certification.dailyActionCount = 0;
+    certification.lastActionReset = now;
+  }
+  
+  // Check rate limits based on action type
+  switch (actionType) {
+    case 'action':
+      if ((certification.dailyActionCount || 0) >= PRIEST_RATE_LIMITS.maxActionsPerDay) {
+        console.log(`⚠️  [PriestHood] Rate limit: ${email} exceeded daily action limit (${PRIEST_RATE_LIMITS.maxActionsPerDay})`);
+        return false;
+      }
+      certification.dailyActionCount = (certification.dailyActionCount || 0) + 1;
+      break;
+    case 'garden':
+      // Check monthly garden creation limit
+      const monthlyGardenCount = certification.activityCount || 0;
+      if (monthlyGardenCount >= PRIEST_RATE_LIMITS.maxGardensCreated) {
+        console.log(`⚠️  [PriestHood] Rate limit: ${email} exceeded monthly garden creation limit (${PRIEST_RATE_LIMITS.maxGardensCreated})`);
+        return false;
+      }
+      break;
+    // Add other action types as needed
+  }
+  
+  // Update last activity
+  certification.lastActivityDate = now;
+  saveCertifications();
+  
+  return true;
+}
+
+/**
  * Get statistics for dashboard
  */
 export function getCertificationStats(): {
@@ -275,15 +448,27 @@ export function getCertificationStats(): {
   rejected: number;
   revoked: number;
   suspended: number;
+  revenue?: {
+    applicationFees: number;
+    membershipFees: number;
+    total: number;
+  };
 } {
   const all = getAllCertifications();
-  return {
+  const stats = {
     total: all.length,
     pending: all.filter(c => c.status === 'pending').length,
     approved: all.filter(c => c.status === 'approved').length,
     rejected: all.filter(c => c.status === 'rejected').length,
     revoked: all.filter(c => c.status === 'revoked').length,
-    suspended: all.filter(c => c.status === 'suspended').length
+    suspended: all.filter(c => c.status === 'suspended').length,
+    revenue: {
+      applicationFees: all.filter(c => c.applicationFeePaid).length * APPLICATION_FEE,
+      membershipFees: 0, // Membership is now FREE
+      total: 0
+    }
   };
+  stats.revenue.total = stats.revenue.applicationFees + stats.revenue.membershipFees;
+  return stats;
 }
 

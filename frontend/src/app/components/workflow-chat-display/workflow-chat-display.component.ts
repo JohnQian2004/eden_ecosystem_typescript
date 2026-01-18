@@ -97,12 +97,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     this.loadLedgerEntries();
     
     // Load initial wallet balance (show in header, not chat)
+    // Balance will be updated via WebSocket events (ledger_entry_added, cashier_payment_processed, etc.)
     this.loadWalletBalance(false);
-    
-    // Periodically refresh wallet balance (every 5 seconds)
-    setInterval(() => {
-      this.loadWalletBalance(false);
-    }, 5000);
   }
 
   ngOnDestroy() {
@@ -832,7 +828,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         if (response.success) {
           const previousBalance = this.walletBalance;
           this.walletBalance = response.balance || 0;
-          console.log(`✅ [WorkflowChat] Wallet balance loaded: ${this.walletBalance} JSC`);
+          console.log(`✅ [WorkflowChat] Wallet balance loaded: ${this.walletBalance} 🍎 APPLES`);
           
           // Trigger change detection to update header
           this.cdr.detectChanges();
@@ -850,7 +846,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               console.log('💬 [WorkflowChat] Adding wallet balance message to chat');
               this.addChatMessage({
                 type: 'system',
-                content: `💰 **Wallet Balance:** ${this.walletBalance.toFixed(2)} JSC`,
+                content: `💰 **Wallet Balance:** ${this.walletBalance.toFixed(2)} 🍎 APPLES`,
                 timestamp: Date.now(),
                 data: { balance: this.walletBalance, previousBalance: previousBalance }
               });

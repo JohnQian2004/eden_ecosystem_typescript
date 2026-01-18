@@ -971,7 +971,51 @@
         "providerId": "restaurant-108acc56",
         "rating": 4.867505752552339
       }
+    },
+    {
+      "entryId": "618a8516-4ad4-40ac-9784-fc59d5ec1773",
+      "txId": "priesthood_app_fee_1768750152925_42a1bab8d714de14",
+      "timestamp": 1768750152928,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "providerUuid": "MISSING-UUID",
+      "amount": 10,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001"
+    },
+    {
+      "entryId": "b0ab24f6-d493-437f-aaf6-ac180882ee48",
+      "txId": "priesthood_app_fee_1768750268055_57461b6e1786218b",
+      "timestamp": 1768750268061,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "providerUuid": "MISSING-UUID",
+      "amount": 10,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001"
+    },
+    {
+      "entryId": "855532f6-3ccf-45a0-9578-e8e62b66dd28",
+      "txId": "priesthood_app_fee_1768751675253_283c5942f0bf0a18",
+      "timestamp": 1768751675253,
+      "payer": "rashardgarcia@gmail.com",
+      "payerId": "rashardgarcia@gmail.com",
+      "merchant": "Eden Treasury",
+      "providerUuid": "eden:root:ca:priesthood",
+      "serviceType": "priesthood",
+      "amount": 1,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "application_fee",
+        "description": "Priesthood Application Fee (Non-refundable)",
+        "price": 1
+      }
     }
   ],
-  "lastSaved": "2026-01-18T15:14:10.428Z"
+  "lastSaved": "2026-01-18T15:54:36.293Z"
 }
