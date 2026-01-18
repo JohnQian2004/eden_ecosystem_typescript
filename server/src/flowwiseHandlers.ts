@@ -3,6 +3,7 @@
  * Maps workflow actions to actual function calls
  */
 
+import * as crypto from "crypto";
 import type { WorkflowContext } from "./flowwise";
 import { resolveLLM, extractQueryWithOpenAI, formatResponseWithOpenAI } from "./llm";
 import { addLedgerEntry, processPayment, completeBooking, getCashierStatus } from "./ledger";
@@ -111,7 +112,110 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
   // DEX Actions
   handlers.set("execute_dex_trade", async (action, context) => {
     const trade = executeDEXTrade(action.poolId, action.action, action.tokenAmount, action.userEmail);
-    return { trade };
+    
+    // Update wallet balance based on trade action
+    const { getWalletBalance, debitWallet, creditWallet } = await import("./wallet");
+    const userEmail = action.userEmail || context.user?.email;
+    
+    if (!userEmail) {
+      throw new Error("User email required for DEX trade");
+    }
+    
+    // Get current balance
+    const currentBalance = await getWalletBalance(userEmail);
+    
+    if (action.action === 'BUY') {
+      // User pays baseToken, receives tokens
+      // Debit baseAmount from wallet
+      const debitResult = await debitWallet(
+        userEmail,
+        trade.baseAmount,
+        trade.tradeId,
+        `DEX BUY: ${trade.tokenAmount} ${trade.tokenSymbol} for ${trade.baseAmount} ${trade.baseToken}`,
+        { tradeId: trade.tradeId, action: 'BUY' }
+      );
+      
+      if (!debitResult.success) {
+        throw new Error(`Failed to debit wallet for DEX trade: ${debitResult.error}`);
+      }
+      
+      // Apply trader rebate (30% of iTax)
+      const traderRebate = trade.iTax * 0.3;
+      let rebateResult: any = null;
+      if (traderRebate > 0) {
+        rebateResult = await creditWallet(
+          userEmail,
+          traderRebate,
+          crypto.randomUUID(),
+          `DEX Trader Rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`,
+          { tradeId: trade.tradeId, rebateType: 'trader' }
+        );
+        
+        if (rebateResult.success) {
+          console.log(`🎁 [DEX] Applied trader rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`);
+        }
+      }
+      
+      // Get final balance after rebate
+      const finalBalance = rebateResult?.balance || debitResult.balance;
+      
+      // Update context with new balance
+      if (context.user) {
+        context.user.balance = finalBalance;
+      }
+      
+      return { 
+        trade, 
+        updatedBalance: finalBalance,
+        traderRebate 
+      };
+    } else {
+      // SELL: User pays tokens, receives baseToken
+      // Credit baseAmount to wallet
+      // Note: Token balance tracking is future implementation
+      const creditResult = await creditWallet(
+        userEmail,
+        trade.baseAmount,
+        trade.tradeId,
+        `DEX SELL: ${trade.tokenAmount} ${trade.tokenSymbol} for ${trade.baseAmount} ${trade.baseToken}`,
+        { tradeId: trade.tradeId, action: 'SELL' }
+      );
+      
+      if (!creditResult.success) {
+        throw new Error(`Failed to credit wallet for DEX trade: ${creditResult.error}`);
+      }
+      
+      // Apply trader rebate (30% of iTax)
+      const traderRebate = trade.iTax * 0.3;
+      let rebateResult: any = null;
+      if (traderRebate > 0) {
+        rebateResult = await creditWallet(
+          userEmail,
+          traderRebate,
+          crypto.randomUUID(),
+          `DEX Trader Rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`,
+          { tradeId: trade.tradeId, rebateType: 'trader' }
+        );
+        
+        if (rebateResult.success) {
+          console.log(`🎁 [DEX] Applied trader rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`);
+        }
+      }
+      
+      // Get final balance after rebate
+      const finalBalance = rebateResult?.balance || creditResult.balance;
+      
+      // Update context with new balance
+      if (context.user) {
+        context.user.balance = finalBalance;
+      }
+      
+      return { 
+        trade, 
+        updatedBalance: finalBalance,
+        traderRebate 
+      };
+    }
   });
   
   // Review Actions
