@@ -107,7 +107,7 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'ledger' | 'certificates' | 'chat' | 'config' = 'workflow';
+  activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   

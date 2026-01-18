@@ -231,6 +231,17 @@
               <li class="nav-item" role="presentation">
                 <button 
                   class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow-chat'}"
+                  id="workflow-chat-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow-chat'"
+                  role="tab">
+                  💬 FlowWise Workflows Chat
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
                   [ngClass]="{'active': activeTab === 'ledger'}"
                   id="ledger-tab" 
                   type="button" 
@@ -282,6 +293,15 @@
                 id="workflow-pane" 
                 role="tabpanel">
                 <app-workflow-display></app-workflow-display>
+              </div>
+              
+              <!-- Workflow Chat Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow-chat'}"
+                id="workflow-chat-pane" 
+                role="tabpanel">
+                <app-workflow-chat-display></app-workflow-chat-display>
               </div>
               
               <!-- Ledger Tab -->

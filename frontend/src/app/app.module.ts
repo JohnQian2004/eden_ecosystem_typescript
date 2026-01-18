@@ -9,6 +9,7 @@ import { IgasDisplayComponent } from './components/igas-display/igas-display.com
 import { LedgerDisplayComponent } from './components/ledger-display/ledger-display.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { WorkflowDisplayComponent } from './components/workflow-display/workflow-display.component';
+import { WorkflowChatDisplayComponent } from './components/workflow-chat-display/workflow-chat-display.component';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService } from './services/flowwise.service';
@@ -24,6 +25,7 @@ import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
     LedgerDisplayComponent,
     CertificateDisplayComponent,
     WorkflowDisplayComponent,
+    WorkflowChatDisplayComponent,
     SystemConfigComponent,
     MovieTheaterComponent
   ],

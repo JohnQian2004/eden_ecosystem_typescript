@@ -1,0 +1,142 @@
+.workflow-chat-container {
+  .chat-messages-container {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+  }
+
+  .chat-bubble {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    margin-bottom: 8px;
+    position: relative;
+
+    .chat-content {
+      word-wrap: break-word;
+      margin-bottom: 4px;
+    }
+
+    .chat-timestamp {
+      display: block;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+  }
+
+  .chat-bubble-user {
+    background-color: #007bff;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .chat-bubble-assistant {
+    background-color: white;
+    color: #333;
+    border: 1px solid #dee2e6;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .chat-bubble-system {
+    background-color: #e7f3ff;
+    color: #0066cc;
+    border: 1px solid #b3d9ff;
+    text-align: center;
+    max-width: 80%;
+  }
+
+  .chat-bubble-wallet {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+    border-left: 4px solid #ffc107;
+    text-align: left;
+    max-width: 85%;
+    padding: 16px;
+    
+    .chat-content {
+      font-weight: 500;
+    }
+  }
+
+  .chat-bubble-ledger {
+    background-color: #f8f9fa;
+    color: #333;
+    border: 1px solid #dee2e6;
+    border-left: 4px solid #28a745;
+    max-width: 85%;
+    padding: 16px;
+
+    .ledger-message-header {
+      margin-bottom: 8px;
+      color: #28a745;
+    }
+
+    .ledger-message-content {
+      background-color: white;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .ledger-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .ledger-label {
+        font-weight: 500;
+        color: #666;
+        margin-right: 8px;
+      }
+    }
+  }
+
+  .listings-preview {
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+
+  .selection-options {
+    margin-top: 12px;
+  }
+
+  .option-card {
+    padding: 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: #e9ecef;
+      border-color: #007bff;
+    }
+
+    .option-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+
+  .ledger-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid #dee2e6;
+
+    table {
+      font-size: 0.875rem;
+    }
+  }
+}
+
