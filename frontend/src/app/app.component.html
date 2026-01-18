@@ -72,6 +72,9 @@
                             <span *ngIf="selectedMode === 'priest'" class="badge bg-light text-dark">Selected</span>
                           </div>
                           <small class="d-block text-muted">Hides system architecture sidebar (like User mode). For administrators who want a cleaner view without infrastructure details.</small>
+                          <small class="d-block text-warning mt-1">
+                            <strong>Note:</strong> Non-admin users need Priesthood certification to access PRIEST mode. Apply after signing in.
+                          </small>
                         </button>
                       </div>
                       
@@ -279,13 +282,46 @@
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="mb-0">🌳 Garden of Eden Main Street</h5>
-              <button 
-                *ngIf="isGoogleSignedIn && userEmail && userEmail !== ''"
-                class="btn btn-danger btn-sm"
-                (click)="openGardenShutdownDialog()"
-                title="Hard shutdown your gardens (revoke certificates)">
-                🛑 Shutdown Gardens
-              </button>
+              <div class="d-flex gap-2">
+                <!-- Apply for Priesthood Button (USER mode only) -->
+                <button 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && !hasPriesthoodCert && priesthoodStatus !== 'pending'"
+                  class="btn btn-success btn-sm"
+                  (click)="showPriesthoodApplicationModal = true"
+                  title="Apply for Priesthood certification to access PRIEST mode">
+                  📜 Apply for Priesthood
+                </button>
+                <!-- Priesthood Status Badge (USER mode) -->
+                <span 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && priesthoodStatus === 'pending'"
+                  class="badge bg-warning text-dark align-self-center">
+                  ⏳ Application Pending
+                </span>
+                <span 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert"
+                  class="badge bg-success align-self-center"
+                  (click)="switchToPriestMode()"
+                  style="cursor: pointer;"
+                  title="Click to switch to PRIEST mode">
+                  ✅ Certified Priest
+                </span>
+                <!-- Shutdown Gardens Button (PRIEST mode) -->
+                <button 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== '' && (hasPriesthoodCert || userEmail === adminEmail)"
+                  class="btn btn-danger btn-sm"
+                  (click)="openGardenShutdownDialog()"
+                  title="Hard shutdown your gardens (revoke certificates)">
+                  🛑 Shutdown Gardens
+                </button>
+                <!-- Priesthood Management Button (GOD mode) -->
+                <button 
+                  *ngIf="isGoogleSignedIn && userEmail === adminEmail && currentViewMode === 'god'"
+                  class="btn btn-info btn-sm"
+                  (click)="showPriesthoodManagementPanel = true; loadPriesthoodApplications(); loadPriesthoodStats()"
+                  title="Manage Priesthood certifications">
+                  📜 Manage Priesthood
+                </button>
+              </div>
             </div>
             <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
             <div class="row g-2">
@@ -524,7 +560,7 @@
                       💬 Simulator Chat
                     </button>
                   </li>
-                  <li class="nav-item" role="presentation" *ngIf="!isUserMode">
+                  <li class="nav-item" role="presentation" *ngIf="currentViewMode !== 'user'">
                     <button 
                       class="nav-link" 
                       [ngClass]="{'active': activeTab === 'config'}"
@@ -659,7 +695,7 @@
                 [ngClass]="{'show active': activeTab === 'config'}"
                 id="config-pane" 
                 role="tabpanel"
-                *ngIf="!isUserMode">
+                *ngIf="currentViewMode !== 'user'">
                 <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
               </div>
             </div>
@@ -746,5 +782,173 @@
     </div>
   </div>
   <div *ngIf="showGardenShutdownDialog" class="modal-backdrop fade show" (click)="closeGardenShutdownDialog()"></div>
+  
+  <!-- Priesthood Application Modal (USER mode) -->
+  <div class="modal fade" [class.show]="showPriesthoodApplicationModal" [style.display]="showPriesthoodApplicationModal ? 'block' : 'none'">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title">📜 Apply for Priesthood Certification</h5>
+          <button type="button" class="btn-close btn-close-white" (click)="showPriesthoodApplicationModal = false" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Apply for Priesthood certification to gain access to PRIEST mode, allowing you to create and manage gardens.</p>
+          <div class="mb-3">
+            <label for="priesthoodReason" class="form-label">Why do you want to become a Priest? <span class="text-danger">*</span></label>
+            <textarea 
+              class="form-control" 
+              id="priesthoodReason" 
+              rows="4" 
+              [(ngModel)]="priesthoodApplicationReason" 
+              placeholder="Explain why you want to become a Priest and what you plan to do with garden management..."
+              [disabled]="isSubmittingApplication">
+            </textarea>
+            <small class="form-text text-muted">Your application will be reviewed by GOD. You will be notified of the decision.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="showPriesthoodApplicationModal = false" [disabled]="isSubmittingApplication">
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-success" 
+            (click)="applyForPriesthood()"
+            [disabled]="isSubmittingApplication || !priesthoodApplicationReason.trim()">
+            <span *ngIf="isSubmittingApplication" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            {{ isSubmittingApplication ? 'Submitting...' : 'Submit Application' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showPriesthoodApplicationModal" class="modal-backdrop fade show" (click)="showPriesthoodApplicationModal = false"></div>
+  
+  <!-- Priesthood Management Panel (GOD mode) -->
+  <div class="modal fade" [class.show]="showPriesthoodManagementPanel" [style.display]="showPriesthoodManagementPanel ? 'block' : 'none'">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">📜 Priesthood Certification Management</h5>
+          <button type="button" class="btn-close btn-close-white" (click)="showPriesthoodManagementPanel = false" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Statistics Dashboard -->
+          <div class="row mb-4" *ngIf="priesthoodStats">
+            <div class="col-md-3">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.total }}</h3>
+                  <small class="text-muted">Total Applications</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-warning text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.pending }}</h3>
+                  <small>Pending Review</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.approved }}</h3>
+                  <small>Certified Priests</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-danger text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.revoked }}</h3>
+                  <small>Revoked</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Applications List -->
+          <div *ngIf="isLoadingApplications" class="text-center py-4">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading applications...</p>
+          </div>
+          
+          <div *ngIf="!isLoadingApplications">
+            <h6 class="mb-3">All Applications ({{ priesthoodApplications.length }})</h6>
+            
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Applied At</th>
+                    <th>Reviewed By</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let app of priesthoodApplications">
+                    <td>{{ app.email }}</td>
+                    <td>
+                      <span class="badge" 
+                        [ngClass]="{
+                          'bg-warning': app.status === 'pending',
+                          'bg-success': app.status === 'approved',
+                          'bg-danger': app.status === 'rejected',
+                          'bg-secondary': app.status === 'revoked'
+                        }">
+                        {{ app.status }}
+                      </span>
+                    </td>
+                    <td>{{ app.appliedAt ? (app.appliedAt | number) : 'N/A' }}</td>
+                    <td>{{ app.approvedBy || app.rejectedBy || app.revokedBy || 'N/A' }}</td>
+                    <td><small class="text-muted">{{ app.reason || 'N/A' }}</small></td>
+                    <td>
+                      <button 
+                        *ngIf="app.status === 'pending'"
+                        class="btn btn-success btn-sm me-1"
+                        (click)="approvePriesthoodApplication(app.email)">
+                        ✅ Approve
+                      </button>
+                      <button 
+                        *ngIf="app.status === 'pending'"
+                        class="btn btn-danger btn-sm me-1"
+                        (click)="rejectPriesthoodApplication(app.email)">
+                        ❌ Reject
+                      </button>
+                      <button 
+                        *ngIf="app.status === 'approved'"
+                        class="btn btn-warning btn-sm"
+                        (click)="revokePriesthoodCertification(app.email)">
+                        🛑 Revoke
+                      </button>
+                    </td>
+                  </tr>
+                  <tr *ngIf="priesthoodApplications.length === 0">
+                    <td colspan="6" class="text-center text-muted py-4">No applications found</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="showPriesthoodManagementPanel = false">
+            Close
+          </button>
+          <button type="button" class="btn btn-primary" (click)="loadPriesthoodApplications(); loadPriesthoodStats()">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showPriesthoodManagementPanel" class="modal-backdrop fade show" (click)="showPriesthoodManagementPanel = false"></div>
 </div>
 

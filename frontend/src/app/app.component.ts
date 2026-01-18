@@ -143,6 +143,19 @@ export class AppComponent implements OnInit, OnDestroy {
   shutdownReason: string = '';
   selectedGardenForShutdown: string | null = null;
   
+  // Priesthood Certification
+  priesthoodStatus: 'pending' | 'approved' | 'rejected' | 'revoked' | 'suspended' | null = null;
+  hasPriesthoodCert: boolean = false;
+  showPriesthoodApplicationModal: boolean = false;
+  priesthoodApplicationReason: string = '';
+  isSubmittingApplication: boolean = false;
+  
+  // GOD Mode: Priesthood Management
+  showPriesthoodManagementPanel: boolean = false;
+  priesthoodApplications: any[] = [];
+  isLoadingApplications: boolean = false;
+  priesthoodStats: any = null;
+  
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
     : '';
@@ -152,9 +165,24 @@ export class AppComponent implements OnInit, OnDestroy {
   
   showSidebar: boolean = true; // Control sidebar visibility (hidden in USER and PRIEST modes)
 
+  // Track current view mode (updated when mode changes)
+  _currentViewMode: 'god' | 'priest' | 'user' = 'user';
+  
   // Get current view mode from localStorage
   get currentViewMode(): 'god' | 'priest' | 'user' {
-    return (localStorage.getItem('edenViewMode') as 'god' | 'priest' | 'user') || 'user';
+    const mode = (localStorage.getItem('edenViewMode') as 'god' | 'priest' | 'user') || 'user';
+    // Update tracked value if it changed
+    if (this._currentViewMode !== mode) {
+      this._currentViewMode = mode;
+    }
+    return mode;
+  }
+  
+  // Helper method to set view mode and trigger change detection
+  setViewMode(mode: 'god' | 'priest' | 'user'): void {
+    localStorage.setItem('edenViewMode', mode);
+    this._currentViewMode = mode;
+    this.cdr.detectChanges();
   }
 
   // Check if we're in user mode (non-admin)
@@ -216,6 +244,13 @@ export class AppComponent implements OnInit, OnDestroy {
   // Proceed to login after mode selection
   proceedToLogin(): void {
     console.log(`🔐 [Login] Mode selected: ${this.selectedMode}, proceeding to login`);
+    
+    // For PRIEST mode, check if user has certification (will be validated after login)
+    // Note: We can't check certification before login, so we'll validate after sign-in
+    if (this.selectedMode === 'priest') {
+      console.log(`🛐 [Login] PRIEST mode selected - certification will be validated after login`);
+    }
+    
     this.showModeSelection = false;
     this.showLoginForm = true;
     // Store selected mode temporarily (will be validated after login)
@@ -363,13 +398,35 @@ export class AppComponent implements OnInit, OnDestroy {
     this.updateSidebarVisibility();
     
     // Set view mode based on email: 
-    // - Non-admin users: Force USER mode (no sidebar, filtered views)
+    // - Non-admin users: Check priesthood certification first, then set mode
     // - Admin users: Use saved mode or prompt for selection
     if (this.userEmail !== this.adminEmail) {
-      console.log(`👤 [App] Non-admin user detected (${this.userEmail}), forcing USER mode`);
-      localStorage.setItem('edenViewMode', 'user');
-      // Ensure active tab is visible in user mode
-      this.ensureValidTab();
+      console.log(`👤 [App] Non-admin user detected (${this.userEmail})`);
+      // Check for saved mode first (might be PRIEST if they have certification)
+      const savedMode = localStorage.getItem('edenViewMode');
+      
+      // Check priesthood certification FIRST - this will automatically set PRIEST mode if certified
+      this.checkPriesthoodStatus();
+      
+      // Wait for certification check to complete, then set mode appropriately
+      setTimeout(() => {
+        if (this.hasPriesthoodCert) {
+          // User has certification - always use PRIEST mode
+          console.log(`🛐 [App] Non-admin user has priesthood certification, setting PRIEST mode`);
+          this.setViewMode('priest');
+        } else if (savedMode === 'priest') {
+          // User was in PRIEST mode but doesn't have certification - switch to USER
+          console.log(`⚠️  [App] Non-admin user was in PRIEST mode but doesn't have certification, switching to USER mode`);
+          this.setViewMode('user');
+        } else {
+          // No certification and not in PRIEST mode - use USER mode
+          console.log(`👤 [App] Non-admin user doesn't have certification, using USER mode`);
+          this.setViewMode('user');
+        }
+        // Ensure active tab is visible
+        this.ensureValidTab();
+        this.updateSidebarVisibility();
+      }, 600);
     } else {
       // Admin: Check for saved mode, if none exists, will prompt for selection
       const savedMode = localStorage.getItem('edenViewMode');
@@ -431,16 +488,38 @@ export class AppComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.checkServiceGardens();
     }, 500);
+    
+    // Check priesthood status if user is signed in
+    if (this.userEmail) {
+      setTimeout(() => {
+        this.checkPriesthoodStatus();
+      }, 1000);
+    }
   }
   
   checkServiceGardens() {
     // Check if there are any service gardens (non-root gardens)
-    // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
-    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/gardens`)
+    // In PRIEST mode, only check gardens owned by the current user
+    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    const gardensUrl = isPriestMode && this.userEmail 
+      ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/gardens`;
+    
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
       .subscribe({
         next: (response) => {
           // Support both 'gardens' and 'indexers' response fields for backward compatibility
-          const gardens = response.gardens || response.indexers || [];
+          let gardens = response.gardens || response.indexers || [];
+          
+          // In PRIEST mode, filter gardens to only include those owned by the current user
+          if (isPriestMode && this.userEmail) {
+            gardens = gardens.filter(g => {
+              const gardenOwnerEmail = (g as any).ownerEmail;
+              return gardenOwnerEmail && gardenOwnerEmail.toLowerCase() === this.userEmail.toLowerCase();
+            });
+            console.log(`🛐 [PRIEST Mode] Filtered gardens for service check: ${gardens.length} gardens`);
+          }
+          
           if (response.success && gardens.length > 0) {
             // Check if there are any active non-root gardens (regular or token gardens)
             // A garden is a service garden if it's active and not a root garden
@@ -593,44 +672,87 @@ export class AppComponent implements OnInit, OnDestroy {
         localStorage.removeItem('pendingViewMode');
         
         if (email !== this.adminEmail) {
-          console.log(`👤 [App] Non-admin user detected (${email}), forcing USER mode (sidebar hidden)`);
-          // Non-admin users always get USER mode, regardless of selection
-          localStorage.setItem('edenViewMode', 'user');
-          // Ensure active tab is visible in user mode
-          this.ensureValidTab();
-          // Update sidebar visibility (will be hidden for USER mode)
-          this.updateSidebarVisibility();
-          // Update sidebar - use setTimeout to ensure ViewChild is ready
-          setTimeout(() => {
-            if (this.sidebarComponent) {
-              this.sidebarComponent.updateModeFromEmail();
-            } else {
-              console.warn(`⚠️ [App] Sidebar component not ready yet, will update on next check`);
-              // Try again after a delay
+          console.log(`👤 [App] Non-admin user detected (${email})`);
+          
+          // Check priesthood certification status FIRST for non-admin users
+          // If they selected PRIEST mode and have certification, allow PRIEST mode
+          if (pendingMode === 'priest') {
+            // Check certification asynchronously
+            this.checkPriesthoodStatus();
+            // Wait for certification check to complete, then set mode
+            setTimeout(() => {
+              if (this.hasPriesthoodCert) {
+                console.log(`🛐 [App] Non-admin user has priesthood certification, allowing PRIEST mode`);
+                this.setViewMode('priest');
+                this.updateSidebarVisibility();
+                this.ensureValidTab();
+              } else {
+                console.log(`👤 [App] Non-admin user doesn't have priesthood certification, forcing USER mode`);
+                this.setViewMode('user');
+                this.ensureValidTab();
+                this.updateSidebarVisibility();
+              }
+              // Update sidebar - use setTimeout to ensure ViewChild is ready
               setTimeout(() => {
                 if (this.sidebarComponent) {
                   this.sidebarComponent.updateModeFromEmail();
                 }
-              }, 500);
-            }
-          }, 100);
+              }, 100);
+            }, 500);
+          } else {
+            // Not PRIEST mode selected, but check if user has certification anyway
+            console.log(`👤 [App] Non-admin user selected ${pendingMode || 'user'} mode`);
+            // Check certification first - if certified, allow PRIEST mode
+            this.checkPriesthoodStatus();
+            // Wait for certification check, then set mode
+            setTimeout(() => {
+              if (this.hasPriesthoodCert) {
+                // User has certification - allow PRIEST mode even if they didn't select it
+                console.log(`🛐 [App] Non-admin user has priesthood certification, setting PRIEST mode`);
+                this.setViewMode('priest');
+              } else {
+                // No certification - use USER mode
+                console.log(`👤 [App] Non-admin user doesn't have certification, using USER mode`);
+                this.setViewMode('user');
+              }
+              // Ensure active tab is visible
+              this.ensureValidTab();
+              // Update sidebar visibility
+              this.updateSidebarVisibility();
+              // Update sidebar - use setTimeout to ensure ViewChild is ready
+              setTimeout(() => {
+                if (this.sidebarComponent) {
+                  this.sidebarComponent.updateModeFromEmail();
+                } else {
+                  console.warn(`⚠️ [App] Sidebar component not ready yet, will update on next check`);
+                  // Try again after a delay
+                  setTimeout(() => {
+                    if (this.sidebarComponent) {
+                      this.sidebarComponent.updateModeFromEmail();
+                    }
+                  }, 500);
+                }
+              }, 100);
+            }, 600);
+          }
         } else {
           console.log(`⛪ [App] Admin user detected (${email})`);
           // Admin: Use pending mode (selected before login) or saved mode
           if (pendingMode === 'god' || pendingMode === 'priest') {
             this.selectedAdminMode = pendingMode;
-            localStorage.setItem('edenViewMode', pendingMode);
+            this.setViewMode(pendingMode);
             console.log(`⛪ [App] Admin mode set from pre-login selection: ${this.selectedAdminMode}`);
           } else {
             // Check for saved mode
             const savedMode = localStorage.getItem('edenViewMode');
             if (savedMode === 'god' || savedMode === 'priest') {
               this.selectedAdminMode = savedMode;
+              this.setViewMode(savedMode);
               console.log(`⛪ [App] Admin mode restored from saved: ${this.selectedAdminMode}`);
             } else {
               // Default to GOD
               this.selectedAdminMode = 'god';
-              localStorage.setItem('edenViewMode', 'god');
+              this.setViewMode('god');
               console.log(`⛪ [App] Admin mode defaulted to: ${this.selectedAdminMode}`);
             }
           }
@@ -881,32 +1003,47 @@ export class AppComponent implements OnInit, OnDestroy {
       
       // Set view mode
       if (this.userEmail !== this.adminEmail) {
-        // Non-admin users always get USER mode
-        localStorage.setItem('edenViewMode', 'user');
-        // Ensure active tab is visible in user mode
-        this.ensureValidTab();
-        // Update sidebar visibility (will be hidden for USER mode)
-        this.updateSidebarVisibility();
+        // Non-admin users: Check certification first, then set mode
+        console.log(`👤 [App] Non-admin user detected (${this.userEmail})`);
+        // Check priesthood certification - this will set PRIEST mode if certified
+        this.checkPriesthoodStatus();
+        // Wait for certification check, then set mode
         setTimeout(() => {
-          if (this.sidebarComponent) {
-            this.sidebarComponent.updateModeFromEmail();
+          if (this.hasPriesthoodCert) {
+            // User has certification - set PRIEST mode
+            console.log(`🛐 [App] Non-admin user has priesthood certification, setting PRIEST mode`);
+            this.setViewMode('priest');
+          } else {
+            // No certification - use USER mode
+            console.log(`👤 [App] Non-admin user doesn't have certification, using USER mode`);
+            this.setViewMode('user');
           }
-        }, 100);
+          // Ensure active tab is visible
+          this.ensureValidTab();
+          // Update sidebar visibility
+          this.updateSidebarVisibility();
+          setTimeout(() => {
+            if (this.sidebarComponent) {
+              this.sidebarComponent.updateModeFromEmail();
+            }
+          }, 100);
+        }, 600);
       } else {
         // Admin: Use pending mode (selected before login) or default to GOD
         if (pendingMode === 'god' || pendingMode === 'priest') {
           this.selectedAdminMode = pendingMode;
-          localStorage.setItem('edenViewMode', pendingMode);
+          this.setViewMode(pendingMode);
           console.log(`⛪ [App] Admin mode set from pre-login selection: ${this.selectedAdminMode}`);
         } else {
           // Check for saved mode
           const savedMode = localStorage.getItem('edenViewMode');
           if (savedMode === 'god' || savedMode === 'priest') {
             this.selectedAdminMode = savedMode;
+            this.setViewMode(savedMode);
           } else {
             // Default to GOD
             this.selectedAdminMode = 'god';
-            localStorage.setItem('edenViewMode', 'god');
+            this.setViewMode('god');
           }
         }
         // Apply selected mode (this will update sidebar visibility)
@@ -1016,14 +1153,33 @@ export class AppComponent implements OnInit, OnDestroy {
     // Only show service types that are actually registered in the ServiceRegistry
     this.isLoadingServices = true;
     
+    // Check if we're in PRIEST mode (certified priest user)
+    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    
     // First, load gardens to validate gardenId
-    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(`${this.apiUrl}/api/gardens`)
+    // In PRIEST mode, filter gardens by ownerEmail to show only priest-owned gardens
+    const gardensUrl = isPriestMode && this.userEmail 
+      ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/gardens`;
+    
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
       .subscribe({
         next: (gardensResponse) => {
           // Support both 'gardens' and 'indexers' response fields for backward compatibility
           const gardens = gardensResponse.gardens || gardensResponse.indexers || [];
+          
+          // In PRIEST mode, filter gardens to only include those owned by the current user
+          let filteredGardens = gardens;
+          if (isPriestMode && this.userEmail) {
+            filteredGardens = gardens.filter(g => {
+              const gardenOwnerEmail = (g as any).ownerEmail;
+              return gardenOwnerEmail && gardenOwnerEmail.toLowerCase() === this.userEmail.toLowerCase();
+            });
+            console.log(`🛐 [PRIEST Mode] Filtered gardens by ownerEmail (${this.userEmail}): ${filteredGardens.length} of ${gardens.length} gardens`);
+          }
+          
           const validGardenIds = new Set<string>(['HG']); // HG is always valid (infrastructure)
-          gardens.forEach(g => {
+          filteredGardens.forEach(g => {
             if (g.active && g.id) {
               validGardenIds.add(g.id);
             }
@@ -1032,8 +1188,7 @@ export class AppComponent implements OnInit, OnDestroy {
           console.log(`🔍 [Main Street] Valid garden IDs: ${Array.from(validGardenIds).join(', ')}`);
           
           // Now load service registry
-          // In Priest mode (non-admin user), filter by ownerEmail to show only providers from user's gardens
-          const isPriestMode = this.isGoogleSignedIn && this.userEmail && this.userEmail !== this.adminEmail;
+          // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
           const ownerEmailParam = isPriestMode && this.userEmail ? `?ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry${ownerEmailParam}`)
             .subscribe({
@@ -1184,13 +1339,30 @@ export class AppComponent implements OnInit, OnDestroy {
   loadSnakeProviders() {
     // Query ROOT CA ServiceRegistry for Snake services
     // Snake is a service type (serviceType: "snake"), each belongs to a garden
+    // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
     this.isLoadingSnakeProviders = true;
-    this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake`)
+    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    const ownerEmailParam = isPriestMode && this.userEmail ? `&ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
+    this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
-            this.snakeProviders = response.providers.filter(p => p.status === 'active');
+            // Filter to only active providers
+            let filteredProviders = response.providers.filter(p => p.status === 'active');
+            
+            // In PRIEST mode, additional filtering is already done by the API, but we can double-check
+            if (isPriestMode && this.userEmail) {
+              const beforeCount = filteredProviders.length;
+              // Filter to only providers from gardens owned by the current user
+              // Note: We need to check the garden's ownerEmail, but providers don't have ownerEmail directly
+              // The API should have already filtered by ownerEmail, but we can validate here if needed
+              console.log(`🛐 [PRIEST Mode] Loaded ${filteredProviders.length} Snake services for priest (${this.userEmail})`);
+            }
+            
+            this.snakeProviders = filteredProviders;
             console.log(`🐍 Loaded ${this.snakeProviders.length} Snake services:`, this.snakeProviders.map(p => `${p.name} (garden: ${p.gardenId || p.indexerId})`).join(', '));
+          } else {
+            this.snakeProviders = [];
           }
           this.isLoadingSnakeProviders = false;
           this.cdr.detectChanges();
@@ -1527,6 +1699,236 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     
     return null;
+  }
+
+  // ============================================
+  // PRIESTHOOD CERTIFICATION METHODS
+  // ============================================
+  
+  // Manually switch to PRIEST mode (for certified priests)
+  switchToPriestMode(): void {
+    if (this.userEmail !== this.adminEmail && this.hasPriesthoodCert) {
+      console.log(`🛐 [App] Manually switching to PRIEST mode`);
+      this.setViewMode('priest');
+      this.updateSidebarVisibility();
+      this.ensureValidTab();
+      this.cdr.detectChanges();
+    }
+  }
+  
+  // Check priesthood certification status
+  checkPriesthoodStatus(): void {
+    if (!this.userEmail) {
+      return;
+    }
+    
+    this.http.get(`${this.apiUrl}/api/priesthood/status?email=${encodeURIComponent(this.userEmail)}`).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.priesthoodStatus = response.certification?.status || null;
+          this.hasPriesthoodCert = response.hasCertification || false;
+          console.log(`📜 [Priesthood] Status: ${this.priesthoodStatus}, Has Cert: ${this.hasPriesthoodCert}`);
+          
+          // For non-admin users: if they have certification, ALWAYS switch to PRIEST mode
+          if (this.userEmail !== this.adminEmail) {
+            const currentMode = localStorage.getItem('edenViewMode');
+            if (this.hasPriesthoodCert) {
+              // User has certification - ALWAYS switch to PRIEST mode if not already
+              if (currentMode !== 'priest') {
+                console.log(`🛐 [Priesthood] Certified priest detected, switching to PRIEST mode (was: ${currentMode})`);
+                this.setViewMode('priest');
+                this.updateSidebarVisibility();
+                this.ensureValidTab();
+                // Force change detection to update UI
+                this.cdr.detectChanges();
+              } else {
+                console.log(`🛐 [Priesthood] Certified priest already in PRIEST mode`);
+                // Still trigger change detection to ensure UI is updated
+                this.cdr.detectChanges();
+              }
+            } else {
+              // User doesn't have certification - if they're in PRIEST mode, force to USER
+              if (this.selectedMode === 'priest' || currentMode === 'priest') {
+                console.log(`⚠️  [Priesthood] User in PRIEST mode but doesn't have certification, forcing USER mode`);
+                this.selectedMode = 'user';
+                this.setViewMode('user');
+                this.updateSidebarVisibility();
+                this.ensureValidTab();
+                this.cdr.detectChanges();
+              }
+            }
+          }
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error checking status:', err);
+      }
+    });
+  }
+  
+  // Apply for priesthood
+  applyForPriesthood(): void {
+    if (!this.userEmail) {
+      alert('Please sign in first');
+      return;
+    }
+    
+    if (!this.priesthoodApplicationReason.trim()) {
+      alert('Please provide a reason for your application');
+      return;
+    }
+    
+    this.isSubmittingApplication = true;
+    this.http.post(`${this.apiUrl}/api/priesthood/apply`, {
+      email: this.userEmail,
+      reason: this.priesthoodApplicationReason
+    }).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          alert('Application submitted successfully! You will be notified when GOD reviews your application.');
+          this.showPriesthoodApplicationModal = false;
+          this.priesthoodApplicationReason = '';
+          this.checkPriesthoodStatus();
+        }
+        this.isSubmittingApplication = false;
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error applying:', err);
+        alert(err.error?.error || 'Failed to submit application');
+        this.isSubmittingApplication = false;
+      }
+    });
+  }
+  
+  // GOD Mode: Load all applications
+  loadPriesthoodApplications(): void {
+    if (this.userEmail !== this.adminEmail) {
+      return;
+    }
+    
+    this.isLoadingApplications = true;
+    this.http.get(`${this.apiUrl}/api/priesthood/applications`).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.priesthoodApplications = response.certifications || [];
+          console.log(`📜 [Priesthood] Loaded ${this.priesthoodApplications.length} applications`);
+        }
+        this.isLoadingApplications = false;
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error loading applications:', err);
+        this.isLoadingApplications = false;
+      }
+    });
+  }
+  
+  // GOD Mode: Load statistics
+  loadPriesthoodStats(): void {
+    if (this.userEmail !== this.adminEmail) {
+      return;
+    }
+    
+    this.http.get(`${this.apiUrl}/api/priesthood/stats`).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.priesthoodStats = response.stats;
+          console.log(`📜 [Priesthood] Stats:`, this.priesthoodStats);
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error loading stats:', err);
+      }
+    });
+  }
+  
+  // GOD Mode: Approve application
+  approvePriesthoodApplication(email: string): void {
+    if (this.userEmail !== this.adminEmail) {
+      return;
+    }
+    
+    const reason = prompt('Enter approval reason (optional):');
+    this.http.post(`${this.apiUrl}/api/priesthood/approve`, {
+      email,
+      approvedBy: this.userEmail,
+      reason: reason || undefined
+    }).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          alert(`Priesthood approved for ${email}`);
+          this.loadPriesthoodApplications();
+          this.loadPriesthoodStats();
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error approving:', err);
+        alert(err.error?.error || 'Failed to approve application');
+      }
+    });
+  }
+  
+  // GOD Mode: Reject application
+  rejectPriesthoodApplication(email: string): void {
+    if (this.userEmail !== this.adminEmail) {
+      return;
+    }
+    
+    const reason = prompt('Enter rejection reason (required):');
+    if (!reason) {
+      return;
+    }
+    
+    this.http.post(`${this.apiUrl}/api/priesthood/reject`, {
+      email,
+      rejectedBy: this.userEmail,
+      reason
+    }).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          alert(`Priesthood application rejected for ${email}`);
+          this.loadPriesthoodApplications();
+          this.loadPriesthoodStats();
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error rejecting:', err);
+        alert(err.error?.error || 'Failed to reject application');
+      }
+    });
+  }
+  
+  // GOD Mode: Revoke certification
+  revokePriesthoodCertification(email: string): void {
+    if (this.userEmail !== this.adminEmail) {
+      return;
+    }
+    
+    if (!confirm(`Are you sure you want to revoke priesthood certification for ${email}?`)) {
+      return;
+    }
+    
+    const reason = prompt('Enter revocation reason (required):');
+    if (!reason) {
+      return;
+    }
+    
+    this.http.post(`${this.apiUrl}/api/priesthood/revoke`, {
+      email,
+      revokedBy: this.userEmail,
+      reason
+    }).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          alert(`Priesthood certification revoked for ${email}`);
+          this.loadPriesthoodApplications();
+          this.loadPriesthoodStats();
+        }
+      },
+      error: (err) => {
+        console.error('❌ [Priesthood] Error revoking:', err);
+        alert(err.error?.error || 'Failed to revoke certification');
+      }
+    });
   }
 
   ngOnDestroy() {

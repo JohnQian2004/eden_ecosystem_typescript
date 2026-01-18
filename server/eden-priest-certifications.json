@@ -1,0 +1,59 @@
+{
+  "certifications": [
+    {
+      "email": "billdraper2026@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768746260128,
+      "reason": "ddd",
+      "metadata": {},
+      "approvedAt": 1768746403602,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "certificate": {
+        "subject": "priest:billdraper2026@gmail.com:1768746403601",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "billdraper2026@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768746403601,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768746403601,
+        "expiresAt": 1800282403601,
+        "signature": "ck69Y1Qv9wbe2BHFvZglw/G16++G6qUd2FfrNCAnT3BJIM1xfF8dMTqk0HiLnqdzqUpW8idIuJxbfD7VnyTCBQ=="
+      }
+    },
+    {
+      "email": "reshardgarcia@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768746617431,
+      "reason": "eee",
+      "metadata": {},
+      "approvedAt": 1768746634892,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "certificate": {
+        "subject": "priest:reshardgarcia@gmail.com:1768746634892",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "reshardgarcia@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768746634892,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768746634892,
+        "expiresAt": 1800282634892,
+        "signature": "3uj0ujxqzUBH0NvTS0ljfYdi1L+TyvvlzAVfUpniBWT8aC0ck6UErRmXZ15ostD2O62z6vSqR4WEASVVBSOEAA=="
+      }
+    }
+  ],
+  "lastSaved": "2026-01-18T14:30:34.892Z"
+}
