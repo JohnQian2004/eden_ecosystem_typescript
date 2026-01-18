@@ -9,7 +9,7 @@
             <span class="text-muted small">Wallet Balance:</span>
             <span *ngIf="isLoadingBalance" class="spinner-border spinner-border-sm text-primary"></span>
             <strong *ngIf="!isLoadingBalance" class="text-primary ms-2">
-              {{ walletBalance.toFixed(2) }} JSC
+                  {{ walletBalance.toFixed(2) }} 🍎 APPLES
             </strong>
           </div>
         </div>
@@ -315,7 +315,7 @@
                           placeholder="e.g., New York, NY">
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label small">Bond (JSC)</label>
+                        <label class="form-label small">Bond (🍎 APPLES)</label>
                         <input 
                           type="number" 
                           class="form-control form-control-sm"
@@ -437,12 +437,12 @@
           <div class="alert alert-info mb-3">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <strong>Deployment Fee:</strong> {{ calculateDeploymentFee() }} JSC
+                <strong>Deployment Fee:</strong> {{ calculateDeploymentFee() }} 🍎 APPLES
                 <span *ngIf="selectedServiceType?.type === 'snake'" class="badge bg-warning ms-2">Snake Service (2x)</span>
                 <span *ngIf="selectedServiceType?.type === 'movie'" class="badge bg-info ms-2">
-                  Base: 100 JSC
+                  Base: 100 🍎 APPLES
                   <span *ngIf="gardenConfig.selectedProviders && gardenConfig.selectedProviders.length > 0">
-                    + {{ (gardenConfig.selectedProviders || []).length }} provider(s) × 10 JSC
+                    + {{ (gardenConfig.selectedProviders || []).length }} provider(s) × 10 🍎 APPLES
                   </span>
                 </span>
               </div>
@@ -450,13 +450,13 @@
                 <strong>Available Balance:</strong> 
                 <span [class.text-success]="hasSufficientBalance()" 
                       [class.text-danger]="!hasSufficientBalance()">
-                  {{ walletBalance.toFixed(2) }} JSC
+                  {{ walletBalance.toFixed(2) }} 🍎 APPLES
                 </span>
               </div>
             </div>
             <div *ngIf="!hasSufficientBalance() && gardenConfig.gardenName" class="mt-2">
               <small class="text-danger">
-                ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} JSC, Available: {{ walletBalance.toFixed(2) }} JSC
+                ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} 🍎 APPLES, Available: {{ walletBalance.toFixed(2) }} 🍎 APPLES
               </small>
             </div>
           </div>
@@ -479,7 +479,7 @@
               <span *ngIf="!isCreating">
                 <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Garden</span>
                 <span *ngIf="!hasSufficientBalance() && gardenConfig.gardenName">
-                  Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
+                  Insufficient Balance ({{ calculateDeploymentFee() }} 🍎 APPLES required)
                 </span>
                 <span *ngIf="!hasSelectedProviders() && gardenConfig.gardenName && selectedServiceType?.type === 'movie'">
                   Select at least one provider

@@ -206,7 +206,7 @@
         </div>
         <div *ngIf="showSignInModal" class="modal-backdrop fade show" (click)="closeSignInModal()"></div>
         
-        <!-- Stripe Payment Rail Modal (shown when balance < 100 JSC after sign-in) -->
+        <!-- Stripe Payment Rail Modal (shown when balance < 100 🍎 APPLES after sign-in) -->
         <div class="modal fade" id="stripePaymentModal" tabindex="-1" aria-labelledby="stripePaymentModalLabel" aria-hidden="true" [class.show]="showStripePaymentModal" [style.display]="showStripePaymentModal ? 'block' : 'none'">
           <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -220,28 +220,28 @@
                 <div class="mb-4">
                   <div class="mb-3">
                     <h4>💰 Low Wallet Balance Detected</h4>
-                    <p class="text-muted">Your current wallet balance is <strong>{{ walletBalance.toFixed(2) }} JSC</strong></p>
-                    <p class="lead">To continue using Eden Simulator services, we recommend maintaining at least <strong>100 JSC</strong> in your wallet.</p>
+                    <p class="text-muted">Your current wallet balance is <strong>{{ walletBalance.toFixed(2) }} 🍎 APPLES</strong></p>
+                    <p class="lead">To continue using Eden Simulator services, we recommend maintaining at least <strong>100 🍎 APPLES</strong> in your wallet.</p>
                   </div>
                   
                   <div class="card border-primary mb-4">
                     <div class="card-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                       <h5 class="card-title mb-3">💳 Stripe Payment Rail</h5>
                       <div class="mb-3">
-                        <div class="fs-4 mb-2"><strong>500 JSC = $500 USD</strong></div>
-                        <div class="small">Purchase JesusCoin (JSC) to refill your wallet</div>
+                        <div class="fs-4 mb-2"><strong>500 🍎 APPLES = $500 USD</strong></div>
+                        <div class="small">Purchase 🍎 APPLES to refill your wallet</div>
                       </div>
                       <div class="mb-3" *ngIf="userEmail">
                         <div><strong>Email:</strong> {{ userEmail }}</div>
                         <div *ngIf="!isLoadingBalance">
-                          <strong>Current Balance:</strong> {{ walletBalance.toFixed(2) }} JSC
+                          <strong>Current Balance:</strong> {{ walletBalance.toFixed(2) }} 🍎 APPLES
                         </div>
                       </div>
                       <button 
                         class="btn btn-light btn-lg w-100 mb-2" 
                         (click)="buyJesusCoin(500); closeStripePaymentModal()"
                         [disabled]="isProcessingStripe || !userEmail">
-                        <span *ngIf="!isProcessingStripe">💳 BUY 500 JSC ($500 USD)</span>
+                        <span *ngIf="!isProcessingStripe">💳 BUY 500 🍎 APPLES ($500 USD)</span>
                         <span *ngIf="isProcessingStripe">
                           <span class="spinner-border spinner-border-sm me-2" role="status"></span>
                           Processing...
@@ -252,8 +252,8 @@
                   
                   <div class="alert alert-info">
                     <small>
-                      <strong>Why 100 JSC?</strong> This ensures you have sufficient balance for multiple service requests and iGas costs. 
-                      You can always purchase more JSC later if needed.
+                      <strong>Why 100 🍎 APPLES?</strong> This ensures you have sufficient balance for multiple service requests and iGas costs. 
+                      You can always purchase more 🍎 APPLES later if needed.
                     </small>
                   </div>
                 </div>
@@ -261,7 +261,7 @@
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" (click)="closeStripePaymentModal()">Maybe Later</button>
                 <button type="button" class="btn btn-primary" (click)="buyJesusCoin(500); closeStripePaymentModal()" [disabled]="isProcessingStripe || !userEmail">
-                  Purchase 500 JSC
+                  Purchase 500 🍎 APPLES
                 </button>
               </div>
             </div>
@@ -304,6 +304,27 @@
                   style="cursor: pointer;"
                   title="Click to switch to PRIEST mode">
                   ✅ Certified Priest
+                </span>
+                <!-- Membership Activation Button (for approved priests - FREE) -->
+                <button 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && (priesthoodStatus === 'approved' || priesthoodStatus === 'suspended')"
+                  class="btn btn-success btn-sm"
+                  (click)="activateMembership()"
+                  title="Activate membership (FREE - trust-based authority)">
+                  ✅ Activate Membership (FREE)
+                </button>
+                <!-- Membership Status (if certified) -->
+                <span 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && priesthoodCertification?.membershipActiveUntil"
+                  class="badge bg-info align-self-center ms-2">
+                  Active until: {{ (priesthoodCertification.membershipActiveUntil | date:'short') || 'N/A' }}
+                </span>
+                <!-- Trust Score Display -->
+                <span 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && hasPriesthoodCert && priesthoodCertification?.trustScore !== undefined"
+                  class="badge bg-primary align-self-center ms-2"
+                  title="Trust Score: Authority scales with trust, not payment">
+                  Trust: {{ priesthoodCertification.trustScore || 0 }}/100
                 </span>
                 <!-- Shutdown Gardens Button (PRIEST mode) -->
                 <button 
@@ -449,7 +470,7 @@
                       }"
                       type="submit"
                       [disabled]="isProcessing || !userInput?.trim() || !hasSufficientBalance()"
-                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Please purchase JSC first.' : ''">
+                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Please purchase 🍎 APPLES first.' : ''">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...
@@ -461,11 +482,11 @@
                     <div class="d-flex align-items-center">
                       <span class="me-2">⚠️</span>
                       <div class="flex-grow-1">
-                        <strong>Insufficient Balance:</strong> Your wallet balance is {{ walletBalance.toFixed(2) }} JSC. 
-                        You need at least 0.01 JSC (for iGas) to send messages.
+                        <strong>Insufficient Balance:</strong> Your wallet balance is {{ walletBalance.toFixed(2) }} 🍎 APPLES. 
+                        You need at least 0.01 🍎 APPLES (for iGas) to send messages.
                         <div class="mt-2">
                           <button class="btn btn-sm btn-primary" (click)="buyJesusCoin(500)">
-                            💳 Buy 500 JSC ($500 USD) via Stripe
+                            💳 Buy 500 🍎 APPLES ($500 USD) via Stripe
                           </button>
                         </div>
                       </div>
@@ -476,11 +497,11 @@
                     <div class="d-flex align-items-center">
                       <span class="me-2">💳</span>
                       <div class="flex-grow-1">
-                        <strong>Stripe Payment Rail:</strong> Your wallet balance is 0.00 JSC. 
-                        Purchase JesusCoin (JSC) to continue using Eden Simulator services.
+                        <strong>Stripe Payment Rail:</strong> Your wallet balance is 0.00 🍎 APPLES. 
+                        Purchase 🍎 APPLES to continue using Eden Simulator services.
                         <div class="mt-2">
                           <button class="btn btn-sm btn-success" (click)="buyJesusCoin(500)">
-                            💳 Buy 500 JSC = $500 USD
+                            💳 Buy 500 🍎 APPLES = $500 USD
                           </button>
                         </div>
                       </div>
@@ -793,6 +814,12 @@
         </div>
         <div class="modal-body">
           <p class="mb-3">Apply for Priesthood certification to gain access to PRIEST mode, allowing you to create and manage gardens.</p>
+          
+          <div class="alert alert-info mb-3">
+            <strong>🍎 Covenant Token: 1 🍎 APPLES</strong><br>
+            <small>Symbolic offering (non-refundable) demonstrates commitment and prevents spam applications.</small>
+          </div>
+          
           <div class="mb-3">
             <label for="priesthoodReason" class="form-label">Why do you want to become a Priest? <span class="text-danger">*</span></label>
             <textarea 
@@ -804,6 +831,10 @@
               [disabled]="isSubmittingApplication">
             </textarea>
             <small class="form-text text-muted">Your application will be reviewed by GOD. You will be notified of the decision.</small>
+          </div>
+          
+          <div class="alert alert-success small">
+            <strong>✅ After Approval:</strong> Membership is <strong>FREE</strong>! Authority is trust-based and rate-limited. Your power scales with trust, not payment.
           </div>
         </div>
         <div class="modal-footer">

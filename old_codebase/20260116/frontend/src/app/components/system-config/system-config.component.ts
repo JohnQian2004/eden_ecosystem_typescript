@@ -79,7 +79,7 @@ export class SystemConfigComponent implements OnInit {
   customProviders: CustomProvider[] = [];
   
   // Deployment cost
-  deploymentFee: number = 110; // Base deployment fee in JSC
+  deploymentFee: number = 110; // Base deployment fee in 🍎 APPLES
   
   isCreating: boolean = false;
   creationError: string | null = null;
@@ -169,7 +169,7 @@ export class SystemConfigComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.walletBalance = response.balance || 0;
-          console.log(`✅ Wallet balance loaded: ${this.walletBalance} JSC`);
+          console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES`);
         } else {
           console.error('Failed to load balance:', response.error);
           this.walletBalance = 0;
@@ -185,22 +185,22 @@ export class SystemConfigComponent implements OnInit {
   }
 
   calculateDeploymentFee(): number {
-    // Base garden fee: 100 JSC
+    // Base garden fee: 100 🍎 APPLES
     const baseGardenFee = 100;
     
-    // Snake services: 2x multiplier (220 JSC)
+    // Snake services: 2x multiplier (220 🍎 APPLES)
     if (this.selectedServiceType?.type === 'snake') {
       return this.deploymentFee * 2;
     }
     
-    // For movie service type: base garden fee (100 JSC)
+    // For movie service type: base garden fee (100 🍎 APPLES)
     if (this.selectedServiceType?.type === 'movie') {
-      // Add 10 JSC per provider (for all service types)
+      // Add 10 🍎 APPLES per provider (for all service types)
       const providerCount = this.getProviderCount();
       return baseGardenFee + (providerCount * 10);
     }
     
-    // For other service types: base fee + 10 JSC per custom provider
+    // For other service types: base fee + 10 🍎 APPLES per custom provider
     const providerCount = this.getProviderCount();
     return baseGardenFee + (providerCount * 10);
   }
@@ -304,7 +304,7 @@ export class SystemConfigComponent implements OnInit {
     
     // Check wallet balance first
     if (this.walletBalance < requiredFee) {
-      this.creationError = `Insufficient balance. Required: ${requiredFee} JSC, Available: ${this.walletBalance} JSC. Please purchase more JSC first.`;
+      this.creationError = `Insufficient balance. Required: ${requiredFee} 🍎 APPLES, Available: ${this.walletBalance} 🍎 APPLES. Please purchase more 🍎 APPLES first.`;
       return;
     }
 

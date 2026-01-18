@@ -5670,7 +5670,7 @@ httpServer.on("request", async (req, res) => {
   // PRIESTHOOD CERTIFICATION API
   // ============================================
   
-  // POST /api/priesthood/apply - User applies for priesthood
+  // POST /api/priesthood/apply - User applies for priesthood (with 10 JSC application fee)
   if (pathname === "/api/priesthood/apply" && req.method === "POST") {
     console.log(`   📜 [${requestId}] POST /api/priesthood/apply - Applying for priesthood`);
     let body = "";
@@ -5684,25 +5684,106 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
+        // Charge 1 JSC application fee (Covenant Token / Witness Apple - non-refundable)
+        const APPLICATION_FEE = 1;
+        const userBalance = getWalletBalance(email);
+        if (userBalance < APPLICATION_FEE) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Insufficient balance. Application fee is ${APPLICATION_FEE} JSC. Your balance: ${userBalance} JSC` 
+          }));
+          return;
+        }
+        
+        // Create transaction snapshot for application fee
+        const feeTxId = `priesthood_app_fee_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+        const snapshot: TransactionSnapshot = {
+          chainId: 'eden:mainnet',
+          txId: feeTxId,
+          slot: Date.now(),
+          blockTime: Date.now(),
+          payer: email,
+          merchant: 'Eden Treasury',
+          amount: APPLICATION_FEE,
+          feeSplit: {}
+        };
+        
+        // Create ledger entry (status will be 'pending')
+        const ledgerEntry = addLedgerEntry(
+          snapshot,
+          'priesthood',
+          0, // iGasCost
+          email, // payerId
+          'Eden Treasury', // merchantName
+          'eden:root:ca:priesthood', // providerUuid
+          {
+            type: 'application_fee',
+            description: 'Priesthood Application Fee (Non-refundable)',
+            price: APPLICATION_FEE
+          }
+        );
+        
+        // Get user for cashier processing
+        const user = USERS_STATE.find(u => u.email === email) || {
+          id: email,
+          email: email,
+          balance: getWalletBalance(email)
+        };
+        
+        // Process payment through cashier
+        const cashier = getCashierStatus();
+        const paymentSuccess = await processPayment(cashier, ledgerEntry, user);
+        
+        if (!paymentSuccess) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Payment processing failed. Please check your balance.` 
+          }));
+          return;
+        }
+        
+        // Complete the booking
+        completeBooking(ledgerEntry);
+        
+        // Push to settlement stream
+        await pushLedgerEntryToSettlementStream(ledgerEntry);
+        
+        // Create application
         const certification = applyForPriesthood(email, reason);
+        
+        // Mark application fee as paid using updateCertificationBilling
+        const { updateCertificationBilling, getCertificationStatus } = await import('./src/priesthoodCertification');
+        updateCertificationBilling(email, {
+          applicationFeePaid: true,
+          applicationFeeTxId: feeTxId
+        });
+        
+        // Get updated certification with billing info
+        const updatedCertification = getCertificationStatus(email);
         
         // Broadcast event
         broadcastEvent({
           type: "priesthood_application_submitted",
           component: "priesthood-certification",
-          message: `New priesthood application from ${email}`,
+          message: `New priesthood application from ${email} (Application fee: ${APPLICATION_FEE} JSC paid)`,
           timestamp: Date.now(),
           data: {
             email,
-            status: certification.status,
-            appliedAt: certification.appliedAt
+            status: updatedCertification?.status || certification.status,
+            appliedAt: updatedCertification?.appliedAt || certification.appliedAt,
+            applicationFeePaid: true,
+            applicationFeeTxId: feeTxId
           }
         });
         
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           success: true,
-          certification
+          certification: updatedCertification || certification,
+          applicationFeePaid: true,
+          applicationFee: APPLICATION_FEE
         }));
       } catch (err: any) {
         console.error(`   ❌ [${requestId}] Error applying for priesthood:`, err.message);
@@ -5893,6 +5974,95 @@ httpServer.on("request", async (req, res) => {
         }));
       } catch (err: any) {
         console.error(`   ❌ [${requestId}] Error revoking certification:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+  
+  // POST /api/priesthood/pay-membership - Activate membership (FREE)
+  if (pathname === "/api/priesthood/pay-membership" && req.method === "POST") {
+    console.log(`   📜 [${requestId}] POST /api/priesthood/pay-membership - Activating membership (FREE)`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const { email } = JSON.parse(body);
+        if (!email) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "email required" }));
+          return;
+        }
+        
+        const certification = getCertificationStatus(email);
+        if (!certification) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "No priesthood certification found" }));
+          return;
+        }
+        
+        if (certification.status !== 'approved' && certification.status !== 'suspended') {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Cannot activate membership. Current status: ${certification.status}` }));
+          return;
+        }
+        
+        // Membership is now FREE - no payment required
+        // Authority is trust-based and rate-limited, not payment-based
+        const MEMBERSHIP_PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (for tracking period)
+        const now = Date.now();
+        
+        // Update membership period (free, but tracked for activity monitoring)
+        const activeUntil = (certification.membershipActiveUntil && certification.membershipActiveUntil > now) 
+          ? certification.membershipActiveUntil + MEMBERSHIP_PERIOD_MS 
+          : now + MEMBERSHIP_PERIOD_MS;
+        
+        const { updateCertificationBilling } = await import('./src/priesthoodCertification');
+        updateCertificationBilling(email, {
+          membershipActiveUntil: activeUntil,
+          lastActivityDate: now,
+          activityCount: (certification.activityCount || 0) + 1,
+          suspendedForNonPayment: false
+        });
+        
+        // If suspended, reactivate
+        if (certification.status === 'suspended' && certification.suspendedForNonPayment) {
+          const { getCertificationStatus: getCert } = await import('./src/priesthoodCertification');
+          const updated = getCert(email);
+          if (updated && updated.status === 'suspended') {
+            // Status will be updated by updateCertificationBilling if payment resumed
+          }
+        }
+        
+        // Reload certification
+        const updatedCertification = getCertificationStatus(email);
+        
+        // Broadcast event
+        broadcastEvent({
+          type: "priesthood_membership_activated",
+          component: "priesthood-certification",
+          message: `Membership activated for ${email} (FREE). Active until ${new Date(activeUntil).toISOString()}. Authority is trust-based and rate-limited.`,
+          timestamp: Date.now(),
+          data: {
+            email,
+            membershipFee: 0, // FREE
+            activeUntil,
+            trustScore: updatedCertification?.trustScore || 0
+          }
+        });
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          certification: updatedCertification,
+          membershipActivated: true,
+          membershipFee: 0, // FREE
+          activeUntil,
+          message: "Membership is FREE. Authority is trust-based and rate-limited."
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error paying membership fee:`, err.message);
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
