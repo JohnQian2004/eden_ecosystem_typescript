@@ -520,7 +520,206 @@
         "providerId": "restaurant-c354dad5",
         "rating": 4.574949434968865
       }
+    },
+    {
+      "entryId": "0e3b495d-7339-4829-989a-38dcf0caafbd",
+      "txId": "tx_1768715990524",
+      "timestamp": 1768715990524,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-AUTOPARTS Provider",
+      "providerUuid": "autoparts-b63a26ef",
+      "serviceType": "autoparts",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "failed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partName": "Brake Pads",
+        "availability": "In Stock",
+        "warehouse": "Warehouse A",
+        "providerName": "Garden-AUTOPARTS Provider",
+        "partNumber": "BP-1000",
+        "category": "Brakes",
+        "name": "Garden-AUTOPARTS Provider",
+        "serviceType": "autoparts",
+        "location": "Unknown",
+        "providerId": "autoparts-b63a26ef",
+        "rating": 4.613754835438428
+      }
+    },
+    {
+      "entryId": "e5594232-8273-4b2b-ada7-b661a2f561a7",
+      "txId": "tx_1768716033096",
+      "timestamp": 1768716033096,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "failed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.979012954996703
+      }
+    },
+    {
+      "entryId": "341efe4b-a6e1-4038-b994-07aee9035032",
+      "txId": "tx_1768716185378",
+      "timestamp": 1768716185378,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "failed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.556235667637332
+      }
+    },
+    {
+      "entryId": "d16e73ba-e751-45b7-8249-3dda48b46257",
+      "txId": "tx_1768716365599",
+      "timestamp": 1768716365599,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.500464251533464
+      }
+    },
+    {
+      "entryId": "b56d9729-d22d-4774-a53a-3c657ea91ad7",
+      "txId": "tx_1768716567258",
+      "timestamp": 1768716567258,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.993173199765341
+      }
+    },
+    {
+      "entryId": "c3d98966-4664-42a5-839a-654cb48d1a58",
+      "txId": "tx_1768717380359",
+      "timestamp": 1768717380359,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-c354dad5",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-c354dad5",
+        "rating": 4.585548723758768
+      }
     }
   ],
-  "lastSaved": "2026-01-18T04:53:58.082Z"
+  "lastSaved": "2026-01-18T06:23:00.735Z"
 }

@@ -47,6 +47,10 @@ export class AppComponent implements OnInit, OnDestroy {
   userInput: string = '';
   isProcessing: boolean = false;
   userEmail: string = ''; // Will be set from localStorage or default
+  showSignInModal: boolean = false; // Control modal visibility
+  signInEmail: string = ''; // Email for sign-in form
+  signInPassword: string = ''; // Password for sign-in form
+  isSigningIn: boolean = false; // Loading state for email/password sign-in
   
   // Context sensing - tracks which service type is selected
   selectedServiceType: string | null = null;
@@ -192,8 +196,34 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Set default email first (before any async operations)
-    this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
-    console.log(`📧 Initial email set: ${this.userEmail}`);
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedCredential = localStorage.getItem('googleCredential');
+    this.userEmail = savedEmail || 'bill.draper.auto@gmail.com';
+    this.isGoogleSignedIn = !!(savedEmail && savedCredential);
+    console.log(`📧 Initial email set: ${this.userEmail}, isGoogleSignedIn: ${this.isGoogleSignedIn}`);
+    
+    // Update title to include email
+    this.updateTitle();
+    
+    // Open sign-in modal on page load if not signed in
+    if (!this.isGoogleSignedIn) {
+      setTimeout(() => {
+        this.openSignInModal();
+      }, 1000); // Delay to ensure page is fully loaded
+    }
+    
+    // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    if (this.userEmail !== adminEmail) {
+      console.log(`🛐 [App] Non-admin user detected (${this.userEmail}), setting PRIEST mode`);
+      localStorage.setItem('edenViewMode', 'priest');
+    } else {
+      // Admin can use GOD mode (or keep existing mode)
+      const savedMode = localStorage.getItem('edenViewMode');
+      if (!savedMode || savedMode === 'priest') {
+        localStorage.setItem('edenViewMode', 'god');
+      }
+    }
     
     // Load wallet balance immediately with default email
     // It will be refreshed if Google Sign-In updates the email
@@ -290,9 +320,12 @@ export class AppComponent implements OnInit, OnDestroy {
         this.loadWalletBalance(); // Reload balance with Google email
       }
       this.isGoogleSignedIn = true;
+      this.updateTitle(); // Ensure title is updated
+      this.cdr.detectChanges(); // Force change detection
     } else {
       // Email already set in ngOnInit, balance already loaded
       // Just wait for Google API to load for future sign-in
+      this.isGoogleSignedIn = false;
       checkGoogleAPI();
     }
   }
@@ -318,7 +351,28 @@ export class AppComponent implements OnInit, OnDestroy {
         use_fedcm_for_prompt: true
       });
       
-      // Try to prompt sign-in automatically (FedCM-compatible)
+      // Render the sign-in button in the modal (only if modal is open and not already signed in)
+      if (this.showSignInModal && !this.isGoogleSignedIn) {
+        const signInButtonElement = document.getElementById('google-signin-button-modal');
+        if (signInButtonElement) {
+          // Clear any existing content first
+          signInButtonElement.innerHTML = '';
+          (window as any).google.accounts.id.renderButton(
+            signInButtonElement,
+            {
+              type: 'standard',
+              theme: 'filled_blue',
+              size: 'large',
+              text: 'signin_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 250
+            }
+          );
+        }
+      }
+      
+      // Try to prompt sign-in automatically (FedCM-compatible) - but don't block if not shown
       (window as any).google.accounts.id.prompt((notification: any) => {
         // FedCM-compatible: Check for new status types
         if (notification.isNotDisplayed()) {
@@ -347,6 +401,49 @@ export class AppComponent implements OnInit, OnDestroy {
         localStorage.setItem('userEmail', email);
         localStorage.setItem('googleCredential', response.credential);
         console.log(`✅ Google Sign-In successful: ${email}`);
+        
+        // Update title to show user email
+        this.updateTitle();
+        
+        // Load wallet balance for the new user
+        this.loadWalletBalance();
+        
+        // Close modal after successful sign-in
+        this.closeSignInModal();
+        
+        // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
+        const adminEmail = 'bill.draper.auto@gmail.com';
+        if (email !== adminEmail) {
+          console.log(`🛐 [App] Non-admin user detected (${email}), setting PRIEST mode`);
+          localStorage.setItem('edenViewMode', 'priest');
+          // Update sidebar - use setTimeout to ensure ViewChild is ready
+          setTimeout(() => {
+            if (this.sidebarComponent) {
+              this.sidebarComponent.updateModeFromEmail();
+            } else {
+              console.warn(`⚠️ [App] Sidebar component not ready yet, will update on next check`);
+              // Try again after a delay
+              setTimeout(() => {
+                if (this.sidebarComponent) {
+                  this.sidebarComponent.updateModeFromEmail();
+                }
+              }, 500);
+            }
+          }, 100);
+        } else {
+          console.log(`⛪ [App] Admin user detected (${email}), allowing GOD mode`);
+          // Admin can use GOD mode (or keep existing mode)
+          const savedMode = localStorage.getItem('edenViewMode');
+          if (!savedMode || savedMode === 'priest') {
+            localStorage.setItem('edenViewMode', 'god');
+            setTimeout(() => {
+              if (this.sidebarComponent) {
+                this.sidebarComponent.updateModeFromEmail();
+              }
+            }, 100);
+          }
+        }
+        
         this.loadWalletBalance();
       }
     } catch (err) {
@@ -380,11 +477,109 @@ export class AppComponent implements OnInit, OnDestroy {
     setTimeout(() => localStorage.removeItem('edenRefreshGardens'), 100);
   }
 
+  updateTitle() {
+    if (this.userEmail) {
+      this.title = `Eden Simulator Dashboard for ${this.userEmail}`;
+    } else {
+      this.title = 'Eden Simulator Dashboard';
+    }
+    // Force change detection after title update
+    this.cdr.detectChanges();
+  }
+  
+  openSignInModal() {
+    this.showSignInModal = true;
+    this.cdr.detectChanges();
+    
+    // Re-render Google Sign-In button in modal if needed
+    setTimeout(() => {
+      if (!this.isGoogleSignedIn && typeof (window as any).google !== 'undefined' && (window as any).google.accounts) {
+        const signInButtonElement = document.getElementById('google-signin-button-modal');
+        if (signInButtonElement) {
+          signInButtonElement.innerHTML = '';
+          (window as any).google.accounts.id.renderButton(
+            signInButtonElement,
+            {
+              type: 'standard',
+              theme: 'filled_blue',
+              size: 'large',
+              text: 'signin_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 250
+            }
+          );
+        }
+      }
+    }, 100);
+  }
+  
+  closeSignInModal() {
+    this.showSignInModal = false;
+    this.cdr.detectChanges();
+  }
+  
+  signOut() {
+    // Clear Google Sign-In data
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('googleCredential');
+    this.userEmail = 'bill.draper.auto@gmail.com'; // Reset to default
+    this.isGoogleSignedIn = false;
+    this.updateTitle();
+    this.loadWalletBalance();
+    this.cdr.detectChanges(); // Force change detection
+    
+    // Re-initialize Google Sign-In to show button again (with a small delay to ensure DOM is updated)
+    setTimeout(() => {
+      this.initializeGoogleSignIn();
+    }, 100);
+  }
+  
+  signOutAndClose() {
+    this.signOut();
+    this.closeSignInModal();
+  }
+  
+  signInWithEmail() {
+    if (!this.signInEmail || !this.signInPassword) {
+      alert('Please enter both email and password');
+      return;
+    }
+    
+    this.isSigningIn = true;
+    
+    // For now, we'll use email/password to set the user email directly
+    // In a real app, you'd validate credentials with a backend API
+    // For this simulator, we'll just accept any email/password and use the email
+    setTimeout(() => {
+      this.userEmail = this.signInEmail;
+      this.isGoogleSignedIn = true; // Mark as signed in (even though it's email/password)
+      localStorage.setItem('userEmail', this.signInEmail);
+      // Note: In production, you'd store a session token instead
+      
+      this.updateTitle();
+      this.loadWalletBalance();
+      this.closeSignInModal();
+      this.cdr.detectChanges();
+      
+      // Clear form
+      this.signInEmail = '';
+      this.signInPassword = '';
+      this.isSigningIn = false;
+      
+      console.log(`✅ Email/Password Sign-In successful: ${this.userEmail}`);
+    }, 500); // Simulate API call delay
+  }
+  
   loadWalletBalance() {
-    // Ensure email is set before loading balance
-    if (!this.userEmail) {
-      this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
-      console.log(`📧 Email was empty, set to: ${this.userEmail}`);
+    // Always get the latest email from localStorage to ensure we're using the current signed-in user
+    const savedEmail = localStorage.getItem('userEmail');
+    const emailToUse = savedEmail || this.userEmail || 'bill.draper.auto@gmail.com';
+    
+    // Update userEmail if it's different (user signed in with different account)
+    if (this.userEmail !== emailToUse) {
+      console.log(`📧 Email changed from ${this.userEmail} to ${emailToUse}, reloading wallet balance`);
+      this.userEmail = emailToUse;
     }
     
     if (!this.userEmail || !this.userEmail.includes('@')) {
@@ -655,6 +850,27 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
     
+    // Check wallet balance first (ensure it's loaded)
+    if (this.isLoadingBalance) {
+      alert('Please wait while wallet balance is loading...');
+      return;
+    }
+    
+    // Ensure balance is loaded before proceeding
+    if (this.walletBalance === undefined || this.walletBalance === null) {
+      console.log('💰 Wallet balance not loaded yet, loading now...');
+      this.loadWalletBalance();
+      // Wait a moment for balance to load, then check again
+      setTimeout(() => {
+        this.buyJesusCoin(amount);
+      }, 500);
+      return;
+    }
+    
+    // Log current balance for debugging
+    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} JSC`);
+    console.log(`💰 Attempting to buy: ${amount} JSC`);
+    
     this.isProcessingStripe = true;
     
     // Create Stripe Checkout session
@@ -684,6 +900,27 @@ export class AppComponent implements OnInit, OnDestroy {
       alert('Please set a valid email address first');
       return;
     }
+    
+    // Check wallet balance first (ensure it's loaded)
+    if (this.isLoadingBalance) {
+      alert('Please wait while wallet balance is loading...');
+      return;
+    }
+    
+    // Ensure balance is loaded before proceeding
+    if (this.walletBalance === undefined || this.walletBalance === null) {
+      console.log('💰 Wallet balance not loaded yet, loading now...');
+      this.loadWalletBalance();
+      // Wait a moment for balance to load, then check again
+      setTimeout(() => {
+        this.buyMovieIndexer(amount);
+      }, 500);
+      return;
+    }
+    
+    // Log current balance for debugging
+    console.log(`💰 Current wallet balance: ${this.walletBalance.toFixed(2)} JSC`);
+    console.log(`💰 Required amount: ${amount} JSC`);
     
     this.isProcessingGarden = true;
     
@@ -897,12 +1134,33 @@ export class AppComponent implements OnInit, OnDestroy {
     this.wsService.disconnect();
   }
 
+  hasSufficientBalance(): boolean {
+    // Check if balance is sufficient (at least 0.01 JSC for iGas)
+    // If balance is still loading, allow submission (will be checked server-side)
+    if (this.isLoadingBalance) {
+      return true; // Allow while loading, server will check
+    }
+    // Minimum balance required: 0.01 JSC (for iGas costs)
+    const minimumBalance = 0.01;
+    return this.walletBalance >= minimumBalance;
+  }
+
   async onSubmit() {
     if (!this.userInput.trim() || this.isProcessing) {
       console.log('⚠️ Submit blocked:', { 
         hasInput: !!this.userInput.trim(), 
         isProcessing: this.isProcessing 
       });
+      return;
+    }
+    
+    // Check balance before submitting
+    if (!this.hasSufficientBalance()) {
+      console.log('⚠️ Submit blocked: Insufficient balance', { 
+        balance: this.walletBalance,
+        required: 0.01
+      });
+      alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} JSC. You need at least 0.01 JSC (for iGas) to send messages. Please purchase JSC first.`);
       return;
     }
 

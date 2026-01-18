@@ -617,7 +617,7 @@ async function executeStepActions(
     formatResponseWithDeepSeek
   } = await import("../llm");
   const { queryROOTCAServiceRegistry } = await import("../serviceProvider");
-  const { debitWallet } = await import("../wallet");
+  const { debitWallet, getWalletBalance } = await import("../wallet");
   
   // Certificate functions (local to this function)
   function getCertificate(uuid: string): any {
@@ -849,6 +849,11 @@ async function executeStepActions(
             context.requiredAmount = required;
             context.totalCost = totalCost;
             context.hasBalance = balance >= totalCost;
+            
+            // CRITICAL: Throw error if insufficient balance (prevents payment processing)
+            if (!context.hasBalance) {
+              throw new Error(`Insufficient balance for payment. Required: ${totalCost.toFixed(6)} JSC (${required.toFixed(6)} + ${iGasCost.toFixed(6)} iGas), Available: ${balance.toFixed(6)} JSC`);
+            }
           }
           break;
         }
@@ -1102,6 +1107,20 @@ async function executeStepActions(
           }
 
           console.log(`   💰 [FlowWiseService] Payment amount: ${paymentAmount}`);
+          
+          // CRITICAL: Check wallet balance BEFORE processing payment
+          // This prevents PRIEST users (or any user) with insufficient balance from processing payment
+          const currentBalance = await getWalletBalance(context.user.email);
+          console.log(`   💰 [FlowWiseService] Current wallet balance: ${currentBalance.toFixed(6)} JSC`);
+          console.log(`   💰 [FlowWiseService] Required payment amount: ${paymentAmount.toFixed(6)} JSC`);
+          
+          if (currentBalance < paymentAmount) {
+            const errorMessage = `Insufficient balance for payment. Required: ${paymentAmount.toFixed(6)} JSC, Available: ${currentBalance.toFixed(6)} JSC`;
+            console.error(`   ❌ [FlowWiseService] ${errorMessage}`);
+            throw new Error(errorMessage);
+          }
+          
+          console.log(`   ✅ [FlowWiseService] Balance check passed: ${currentBalance.toFixed(6)} >= ${paymentAmount.toFixed(6)}`);
 
           // Get cashier (CRITICAL: Must get actual CASHIER object, not a copy)
           // Note: getCashierStatus() now returns the actual CASHIER object
@@ -1128,7 +1147,6 @@ async function executeStepActions(
           console.log(`   💰 [FlowWiseService] ========================================`);
           
           // Get current wallet balance BEFORE payment
-          const { getWalletBalance } = await import("../wallet");
           const balanceBeforePayment = await getWalletBalance(context.user.email);
           console.log(`   💰 [FlowWiseService] Wallet balance BEFORE payment: ${balanceBeforePayment} JSC`);
           console.log(`   💰 [FlowWiseService] Amount to debit: ${ledgerEntryInArray.amount} JSC`);

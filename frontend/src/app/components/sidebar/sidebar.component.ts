@@ -40,7 +40,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   selectedGardenComponents: ComponentStatus[] = [];
   serviceProviders: Map<string, {id: string, name: string, serviceType: string, gardenId: string}> = new Map(); // Store service providers from ServiceRegistry
   viewMode: 'god' | 'priest' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it
+  isAdmin: boolean = false; // Track if current user is admin
   private subscription: any;
+  private emailCheckInterval: any; // Interval for checking email changes
   private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
     ? 'http://localhost:3000' 
     : `${window.location.protocol}//${window.location.host}`;
@@ -51,11 +53,45 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    // Load view mode from localStorage (default: 'god')
-    const savedMode = localStorage.getItem('edenViewMode');
-    if (savedMode === 'god' || savedMode === 'priest') {
-      this.viewMode = savedMode;
+    // Set view mode based on user email: if NOT bill.draper.auto@gmail.com, use PRIEST mode
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    this.isAdmin = userEmail === adminEmail;
+    
+    if (!this.isAdmin) {
+      console.log(`🛐 [Sidebar] Non-admin user detected (${userEmail}), forcing PRIEST mode`);
+      this.viewMode = 'priest';
+      localStorage.setItem('edenViewMode', 'priest');
+    } else {
+      // Admin can use saved mode or default to 'god'
+      const savedMode = localStorage.getItem('edenViewMode');
+      if (savedMode === 'god' || savedMode === 'priest') {
+        this.viewMode = savedMode;
+      } else {
+        this.viewMode = 'god'; // Default for admin
+        localStorage.setItem('edenViewMode', 'god');
+      }
     }
+    
+    // Listen for email changes (when user signs in)
+    // Note: storage event only fires in other windows, so we also check periodically
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'userEmail') {
+        console.log(`🛐 [Sidebar] Email changed via storage event, updating mode`);
+        this.updateModeFromEmail();
+      }
+    });
+    
+    // Also check periodically for email changes (for same-window updates)
+    // Storage event only fires in other windows, so we need to poll for same-window changes
+    this.emailCheckInterval = setInterval(() => {
+      const currentEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+      const shouldBeAdmin = currentEmail === adminEmail;
+      if (this.isAdmin !== shouldBeAdmin) {
+        console.log(`🛐 [Sidebar] Email changed detected (${currentEmail}), updating mode`);
+        this.updateModeFromEmail();
+      }
+    }, 1000); // Check every second
     
     // Fetch gardens from server
     this.fetchGardens();
@@ -95,7 +131,41 @@ export class SidebarComponent implements OnInit, OnDestroy {
     };
   }
   
+  /**
+   * Update mode based on current user email
+   * Called when email changes (e.g., Google sign-in)
+   */
+  updateModeFromEmail() {
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    this.isAdmin = userEmail === adminEmail;
+    
+    if (!this.isAdmin) {
+      console.log(`🛐 [Sidebar] Non-admin user detected (${userEmail}), forcing PRIEST mode`);
+      this.viewMode = 'priest';
+      localStorage.setItem('edenViewMode', 'priest');
+    } else {
+      // Admin can use saved mode or default to 'god'
+      const savedMode = localStorage.getItem('edenViewMode');
+      if (savedMode === 'god' || savedMode === 'priest') {
+        this.viewMode = savedMode;
+      } else {
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
+      }
+    }
+  }
+  
   setViewMode(mode: 'god' | 'priest') {
+    // Check if user is admin - only admin can use GOD mode
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    
+    if (mode === 'god' && userEmail !== adminEmail) {
+      console.warn(`⚠️ [Sidebar] Non-admin user (${userEmail}) cannot use GOD mode, forcing PRIEST mode`);
+      mode = 'priest';
+    }
+    
     this.viewMode = mode;
     localStorage.setItem('edenViewMode', mode);
     
@@ -312,6 +382,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     if (this.subscription) {
       this.subscription.unsubscribe();
+    }
+    if (this.emailCheckInterval) {
+      clearInterval(this.emailCheckInterval);
     }
   }
 

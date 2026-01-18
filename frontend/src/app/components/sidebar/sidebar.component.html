@@ -14,8 +14,9 @@
           type="button" 
           class="btn"
           [ngClass]="{'btn-primary': viewMode === 'god', 'btn-outline-primary': viewMode !== 'god'}"
+          [disabled]="!isAdmin"
           (click)="setViewMode('god')"
-          title="GOD Mode: Shows ROOT CA">
+          [title]="isAdmin ? 'GOD Mode: Shows ROOT CA' : 'GOD Mode: Admin only (bill.draper.auto@gmail.com)'">
           ⛪ GOD
         </button>
         <button 
