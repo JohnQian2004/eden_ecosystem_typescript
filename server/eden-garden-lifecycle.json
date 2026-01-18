@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-18T00:40:52.168Z",
+  "lastSaved": "2026-01-18T04:54:27.135Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -5127,6 +5127,34 @@
       },
       {
         "timestamp": 1768694053822,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 13,
+          "totalSaved": 13,
+          "movieProviders": 1,
+          "dexProviders": 1,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "airline-b4f263fc(garden-1)",
+            "airline-e954d555(garden-1)",
+            "amc-001(garden-2)",
+            "autoparts-b63a26ef(garden-3)",
+            "hotel-09641828(garden-4)",
+            "restaurant-c354dad5(garden-5)",
+            "dex-pool-tokena(T1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768712037134,
         "event": "service-registry-save",
         "data": {
           "totalInMemory": 13,
