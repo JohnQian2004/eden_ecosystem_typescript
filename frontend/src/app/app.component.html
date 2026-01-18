@@ -1,4 +1,4 @@
-<div class="container-fluid">
+<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''">
   <div class="row">
     <!-- Sidebar (hidden in USER and PRIEST modes, only shown in GOD mode) -->
     <div class="col-md-3 sidebar" *ngIf="showSidebar">
@@ -7,14 +7,21 @@
     
     <!-- Main Content -->
     <div [ngClass]="{'col-md-9': showSidebar, 'col-md-12': !showSidebar}">
-      <div class="container-fluid py-3">
-        <div class="d-flex align-items-center mb-4">
-          <!-- Sign In/Out Button -->
-          <button class="btn btn-primary btn-lg me-3" (click)="openSignInModal()">
-            <span *ngIf="!isGoogleSignedIn">🔐 Sign In</span>
-            <span *ngIf="isGoogleSignedIn">👤 {{ userEmail }}</span>
-          </button>
-          <h1 class="mb-0">🌳 Eden Simulator Dashboard<span *ngIf="userEmail" class="text-muted"> for {{ userEmail }}</span></h1>
+      <div class="container-fluid py-3" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+          <div class="d-flex align-items-center">
+            <h1 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Eden Simulator Dashboard<span *ngIf="userEmail && isUserSignedIn" class="text-muted"> for {{ userEmail }}</span></h1>
+          </div>
+          <!-- Sign In/Out Button - Right Side (SaaS style) -->
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn" [ngClass]="{'btn-primary': isUserSignedIn, 'btn-success': !isUserSignedIn}" (click)="openSignInModal()" [style.background-color]="!isUserSignedIn ? '#238636' : ''" [style.border-color]="!isUserSignedIn ? '#238636' : ''" [style.color]="!isUserSignedIn ? '#fff' : ''">
+              <span *ngIf="!isGoogleSignedIn">🔐 Sign In</span>
+              <span *ngIf="isGoogleSignedIn">👤 {{ userEmail }}</span>
+            </button>
+            <button *ngIf="isGoogleSignedIn" class="btn btn-outline-secondary btn-sm" (click)="signOut()" title="Sign Out">
+              Sign Out
+            </button>
+          </div>
         </div>
         
         <!-- Sign In/Out Modal -->
@@ -272,17 +279,50 @@
         <!-- iGas Display -->
         <div class="row mb-4">
           <div class="col-12">
-            <app-igas-display></app-igas-display>
+            <app-igas-display [priesthoodStats]="priesthoodStats"></app-igas-display>
+          </div>
+        </div>
+        
+        <!-- Garden of Eden Slogan (shown when signed out) -->
+        <div class="row mb-5" *ngIf="!isUserSignedIn">
+          <div class="col-12">
+            <div class="text-center py-5" style="background: linear-gradient(135deg, #1a1f2e 0%, #2d1b3d 100%); border-radius: 15px; color: #c9d1d9; border: 1px solid #30363d;">
+              <h1 class="display-4 mb-4 fw-bold" style="color: #58a6ff;">🌳 Garden of Eden</h1>
+              <p class="lead mb-3" style="font-size: 1.5rem; color: #c9d1d9;">Blockchain records history. Eden understands it.</p>
+              <p class="mb-4" style="font-size: 1.2rem; opacity: 0.9; color: #8b949e;">A garden‑first economic and intelligence system where the traditional blockchain is no longer the parent, but the <em>child</em> of the garden.</p>
+              <div class="row mt-5">
+                <div class="col-md-4 mb-3">
+                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
+                    <h4 class="mb-2" style="color: #58a6ff;">⛪ ROOT CA</h4>
+                    <p class="mb-0" style="color: #c9d1d9;">gives law</p>
+                  </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
+                    <h4 class="mb-2" style="color: #58a6ff;">🌳 Gardens</h4>
+                    <p class="mb-0" style="color: #c9d1d9;">give wisdom</p>
+                  </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
+                    <h4 class="mb-2" style="color: #58a6ff;">👤 Humans</h4>
+                    <p class="mb-0" style="color: #c9d1d9;">give meaning</p>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-4 mb-0" style="font-size: 1.1rem; font-style: italic; opacity: 0.85; color: #8b949e;">Eden is not a protocol. It is a living system.</p>
+            </div>
           </div>
         </div>
         
         <!-- Garden of Eden Main Street - Service Type Cards -->
         <!-- Main Street always shows hardcoded service types -->
-        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0">
+        <!-- When signed out, show all public services (not tied to any Priest) -->
+        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0" [ngClass]="{'dark-main-street': !isUserSignedIn}">
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0">🌳 Garden of Eden Main Street</h5>
-              <div class="d-flex gap-2">
+              <h5 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Garden of Eden Main Street</h5>
+              <div class="d-flex gap-2" *ngIf="isUserSignedIn">
                 <!-- Apply for Priesthood Button (USER mode only) -->
                 <button 
                   *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && !hasPriesthoodCert && priesthoodStatus !== 'pending'"
@@ -343,8 +383,11 @@
                   📜 Manage Priesthood
                 </button>
               </div>
+              <div *ngIf="!isUserSignedIn" class="small" [style.color]="'#8b949e'">
+                <em>Public services available to all users</em>
+              </div>
             </div>
-            <p class="text-muted small mb-3">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+            <p class="small mb-3" [ngClass]="{'text-muted': isUserSignedIn}" [style.color]="!isUserSignedIn ? '#8b949e' : ''">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
             <div class="row g-2">
               <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
                 <div 
@@ -359,9 +402,9 @@
                   }"
                   (click)="selectServiceType(serviceType)" 
                   style="cursor: pointer;">
-                  <div class="card-body text-center p-2">
+                  <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
                     <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
-                    <h6 class="card-title mb-0 small">{{ serviceType.adText }}</h6>
+                    <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
                     <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
                       <span class="badge bg-success small">Active</span>
                     </div>
@@ -424,8 +467,8 @@
         </div>
         
         <!-- Unified Chat Input with Context Sensing -->
-        <!-- Only show chat input if there are service gardens available -->
-        <div class="row mb-4" *ngIf="hasServiceIndexers">
+        <!-- Only show chat input if there are service gardens available and user is signed in -->
+        <div class="row mb-4" *ngIf="hasServiceIndexers && isUserSignedIn">
           <div class="col-12">
             <div class="card">
               <div class="card-header" [ngClass]="{'bg-primary': selectedServiceType === 'movie', 'bg-info': selectedServiceType === 'dex', 'bg-secondary': !selectedServiceType}">
@@ -524,7 +567,8 @@
         <!-- Tabbed Interface -->
         <div class="row">
           <div class="col-12">
-            <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
+            <!-- Tabs Navigation - Only show when user is signed in -->
+            <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist" *ngIf="isUserSignedIn">
               <li class="nav-item" role="presentation" *ngIf="!isUserMode">
                 <button 
                   class="nav-link" 
@@ -557,6 +601,17 @@
                   role="tab">
                   <span *ngIf="!isUserMode">📋 Ledger - All Eden Bookings</span>
                   <span *ngIf="isUserMode">📋 Ledger - All User Bookings</span>
+                </button>
+              </li>
+              <li class="nav-item" role="presentation" *ngIf="isUserMode">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'ledger-cards'}"
+                  id="ledger-cards-tab" 
+                  type="button" 
+                  (click)="activeTab = 'ledger-cards'"
+                  role="tab">
+                  📋 My Bookings (Cards)
                 </button>
               </li>
               <li class="nav-item" role="presentation" *ngIf="!isUserMode">
@@ -594,7 +649,8 @@
                   </li>
             </ul>
             
-            <div class="tab-content" id="mainTabContent">
+            <!-- Tab Content - Only show when user is signed in -->
+            <div class="tab-content" id="mainTabContent" *ngIf="isUserSignedIn">
               <!-- Workflow Tab (First Tab) -->
               <div 
                 class="tab-pane fade" 
@@ -621,6 +677,16 @@
                 id="ledger-pane" 
                 role="tabpanel">
                 <app-ledger-display></app-ledger-display>
+              </div>
+              
+              <!-- Ledger Card Deck Tab (User Bookings) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'ledger-cards'}"
+                id="ledger-cards-pane" 
+                role="tabpanel"
+                *ngIf="isUserMode">
+                <app-ledger-card-deck></app-ledger-card-deck>
               </div>
               
               <!-- Certificates Tab -->

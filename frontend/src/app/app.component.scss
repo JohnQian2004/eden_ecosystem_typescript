@@ -6,6 +6,28 @@
   transition: all 0.2s ease;
   min-height: 80px;
   
+  // Dark theme styling when in dark-main-street container
+  .dark-main-street & {
+    background-color: #161b22 !important;
+    border-color: #30363d !important;
+    color: #c9d1d9 !important;
+    
+    .card-body {
+      background-color: #161b22 !important;
+      color: #c9d1d9 !important;
+    }
+    
+    .card-title {
+      color: #c9d1d9 !important;
+    }
+    
+    &:hover {
+      background-color: #1c2128 !important;
+      border-color: #58a6ff !important;
+      box-shadow: 0 3px 8px rgba(88, 166, 255, 0.2) !important;
+    }
+  }
+  
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
@@ -209,5 +231,74 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+// Dark Theme for Logout Page (Non-User Binding State)
+:host {
+  &.dark-theme,
+  .dark-theme {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    
+    .container-fluid {
+      background-color: #0d1117;
+      color: #c9d1d9;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      color: #c9d1d9;
+    }
+    
+    .text-muted {
+      color: #8b949e !important;
+    }
+    
+    .card {
+      background-color: #161b22;
+      border-color: #30363d;
+      color: #c9d1d9;
+    }
+    
+    .btn-primary {
+      background-color: #238636;
+      border-color: #238636;
+      color: #fff;
+      
+      &:hover {
+        background-color: #2ea043;
+        border-color: #2ea043;
+      }
+    }
+  }
+}
+
+// Dark theme for Main Street when signed out
+.dark-main-street {
+  background-color: #0d1117;
+  color: #c9d1d9;
+  
+  h5 {
+    color: #c9d1d9;
+  }
+  
+  .text-muted {
+    color: #8b949e !important;
+  }
+  
+  .service-card-compact {
+    background-color: #161b22;
+    border-color: #30363d;
+    color: #c9d1d9;
+    
+    &:hover {
+      background-color: #1c2128;
+      border-color: #58a6ff;
+      box-shadow: 0 3px 8px rgba(88, 166, 255, 0.2);
+    }
+    
+    .card-title {
+      color: #c9d1d9;
+    }
   }
 }

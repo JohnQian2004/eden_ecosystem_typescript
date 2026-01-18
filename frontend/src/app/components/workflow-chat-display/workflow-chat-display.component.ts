@@ -56,6 +56,36 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Get user email from localStorage
     this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
     
+    // Listen for user email changes (when user signs in/out or switches)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'userEmail') {
+        const newEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+        if (this.userEmail !== newEmail) {
+          console.log(`🔄 [WorkflowChat] User email changed from ${this.userEmail} to ${newEmail}, clearing wallet balance`);
+          this.walletBalance = 0;
+          this.isLoadingWallet = true;
+          this.userEmail = newEmail;
+          this.cdr.detectChanges();
+          // Reload balance for new user
+          this.loadWalletBalance(false);
+        }
+      }
+    });
+    
+    // Also check periodically for email changes (for same-window updates)
+    setInterval(() => {
+      const currentEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+      if (this.userEmail !== currentEmail) {
+        console.log(`🔄 [WorkflowChat] User email changed from ${this.userEmail} to ${currentEmail}, clearing wallet balance`);
+        this.walletBalance = 0;
+        this.isLoadingWallet = true;
+        this.userEmail = currentEmail;
+        this.cdr.detectChanges();
+        // Reload balance for new user
+        this.loadWalletBalance(false);
+      }
+    }, 1000);
+    
     // Check for active executions periodically
     this.executionCheckInterval = setInterval(() => {
       const latestExecution = this.flowWiseService.getLatestActiveExecution();
@@ -114,6 +144,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     if (this.selectionSubscription) {
       this.selectionSubscription.unsubscribe();
     }
+    // Remove storage event listener
+    window.removeEventListener('storage', () => {});
   }
 
   private processExecutionMessages(execution: WorkflowExecution) {

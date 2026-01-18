@@ -157,6 +157,17 @@ export class SystemConfigComponent implements OnInit {
   }
 
   loadWalletBalance() {
+    // Always get the latest email from localStorage to ensure we're using the current signed-in user
+    const savedEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    
+    // Update userEmail if it's different (user signed in with different account)
+    if (this.userEmail !== savedEmail) {
+      console.log(`📧 [SystemConfig] Email changed from ${this.userEmail} to ${savedEmail}, clearing wallet balance`);
+      this.walletBalance = 0;
+      this.isLoadingBalance = true;
+      this.userEmail = savedEmail;
+    }
+    
     if (!this.userEmail || !this.userEmail.includes('@')) {
       console.warn('No valid email, skipping balance load');
       return;
@@ -167,6 +178,7 @@ export class SystemConfigComponent implements OnInit {
       `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
     ).subscribe({
       next: (response) => {
+        this.isLoadingBalance = false;
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES`);
@@ -174,7 +186,6 @@ export class SystemConfigComponent implements OnInit {
           console.error('Failed to load balance:', response.error);
           this.walletBalance = 0;
         }
-        this.isLoadingBalance = false;
       },
       error: (err) => {
         console.error('Error loading wallet balance:', err);

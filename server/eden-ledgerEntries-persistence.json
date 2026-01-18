@@ -1008,14 +1008,68 @@
       "amount": 1,
       "iGasCost": 0,
       "fees": {},
-      "status": "pending",
+      "status": "completed",
       "cashierId": "cashier-eden-001",
       "bookingDetails": {
         "type": "application_fee",
         "description": "Priesthood Application Fee (Non-refundable)",
         "price": 1
       }
+    },
+    {
+      "entryId": "9d1fb267-5f16-4b83-9794-303a9fa6042f",
+      "txId": "ca1eeb31-1164-4d4e-b80e-bfa7c6b4ba6c",
+      "timestamp": 1768776965055,
+      "payer": "stripe:pi_3Sr4t3P4h6MOSVxD1LbYTik0",
+      "payerId": "pi_3Sr4t3P4h6MOSVxD1LbYTik0",
+      "merchant": "garciarashard@gmail.com",
+      "providerUuid": "550e8400-e29b-41d4-a716-446655440100",
+      "serviceType": "mint",
+      "amount": 500,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "stripe-payment-rail-001",
+      "bookingDetails": {
+        "asset": "JSC",
+        "stripePaymentIntentId": "pi_3Sr4t3P4h6MOSVxD1LbYTik0",
+        "stripePaymentMethodId": "pm_1Sr4t2P4h6MOSVxDyKMJAbqZ",
+        "stripeSessionId": "cs_test_a1qoYXinBhUycn9d0XHhOLRBxW3eeFE5zKCyDO4XoOlbWLhSd4WPKLZ4BO"
+      }
+    },
+    {
+      "entryId": "653f17c6-abf4-4c4c-ac63-abd20611e877",
+      "txId": "tx_1768777613986",
+      "timestamp": 1768777613986,
+      "payer": "garciarashard@gmail.com",
+      "payerId": "garciarashard@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-108acc56",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-108acc56",
+        "rating": 4.507732593520013
+      }
     }
   ],
-  "lastSaved": "2026-01-18T15:54:36.293Z"
+  "lastSaved": "2026-01-18T23:06:54.264Z"
 }

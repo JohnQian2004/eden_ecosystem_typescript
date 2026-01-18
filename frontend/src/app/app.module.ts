@@ -15,6 +15,7 @@ import { ChatService } from './services/chat.service';
 import { FlowWiseService } from './services/flowwise.service';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
+import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
 
 @NgModule({
   declarations: [
@@ -27,7 +28,8 @@ import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
     WorkflowDisplayComponent,
     WorkflowChatDisplayComponent,
     SystemConfigComponent,
-    MovieTheaterComponent
+    MovieTheaterComponent,
+    LedgerCardDeckComponent
   ],
   imports: [
     BrowserModule,

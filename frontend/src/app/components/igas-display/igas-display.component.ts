@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 
@@ -10,6 +10,7 @@ import { SimulatorEvent } from '../../app.component';
 export class IgasDisplayComponent implements OnInit, OnDestroy {
   currentIGas: number = 0.0;
   totalIGas: number = 0.0;
+  @Input() priesthoodStats: any = null;
   private subscription: any;
 
   constructor(private wsService: WebSocketService) {}

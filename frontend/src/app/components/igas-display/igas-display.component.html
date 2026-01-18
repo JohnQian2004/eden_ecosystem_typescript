@@ -1,13 +1,20 @@
 <div class="card">
   <div class="card-body">
     <div class="row text-center">
-      <div class="col-md-6">
+      <div class="col-md-4">
         <h6 class="text-muted mb-2">Current iGas</h6>
         <div class="igas-display">{{ (currentIGas || 0).toFixed(6) }}</div>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-4">
         <h6 class="text-muted mb-2">Total iGas</h6>
         <div class="igas-display">{{ (totalIGas || 0).toFixed(6) }}</div>
+      </div>
+      <div class="col-md-4" *ngIf="priesthoodStats">
+        <h6 class="text-muted mb-2">Certified Priests</h6>
+        <div class="igas-display d-flex align-items-center justify-content-center gap-2">
+          <span class="fs-4">🛐</span>
+          <span class="fw-bold">{{ priesthoodStats.approved || 0 }}</span>
+        </div>
       </div>
     </div>
   </div>
