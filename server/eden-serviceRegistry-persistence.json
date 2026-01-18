@@ -143,19 +143,7 @@
       "uuid": "87ad75ee-9052-4c68-be70-def48ebd954b",
       "apiEndpoint": "https://api.restaurant.com/v1",
       "gardenId": "garden-5"
-    },
-    {
-      "id": "dex-pool-tokena",
-      "name": "TOKENA Pool (Garden-DEX)",
-      "serviceType": "dex",
-      "location": "Eden DEX",
-      "bond": 5000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "f4701295-2598-4330-9b89-35abb98be907",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokena",
-      "gardenId": "T1"
     }
   ],
-  "lastSaved": "2026-01-18T03:12:10.010Z"
+  "lastSaved": "2026-01-18T04:50:05.719Z"
 }
