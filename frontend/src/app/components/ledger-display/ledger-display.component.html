@@ -49,7 +49,15 @@
         </thead>
         <tbody>
           <tr *ngFor="let entry of filteredLedgerEntries">
-            <td><small>{{ entry?.entryId?.substring(0, 8) }}...</small></td>
+            <td>
+              <small 
+                class="text-primary clickable" 
+                (click)="getTransactionSnapshot(entry?.entryId || '', entry?.txId || '')"
+                title="Click to view transaction snapshot details"
+                style="cursor: pointer; text-decoration: underline;">
+                {{ entry?.entryId || 'N/A' }}
+              </small>
+            </td>
             <td><small>{{ entry?.timestamp ? formatDate(entry.timestamp) : 'N/A' }}</small></td>
             <td><small>{{ entry?.payer || entry?.payerId || 'N/A' }}</small></td>
             <td>{{ entry?.merchant || 'N/A' }}</td>
@@ -64,6 +72,39 @@
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Snapshot Modal -->
+<div class="modal fade" [ngClass]="{'show': showTransactionModal, 'd-block': showTransactionModal}" 
+     *ngIf="showTransactionModal" tabindex="-1" role="dialog" 
+     style="background-color: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">📸 Transaction Snapshot Details</h5>
+        <button type="button" class="btn-close" (click)="closeTransactionModal()" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="isLoadingTransaction" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Fetching transaction snapshot from ROOT CA RPC Service...</p>
+        </div>
+        
+        <div *ngIf="transactionError" class="alert alert-danger">
+          <strong>Error:</strong> {{ transactionError }}
+        </div>
+        
+        <div *ngIf="transactionSnapshot && !isLoadingTransaction">
+          <pre class="bg-light p-3 rounded" style="font-size: 0.75rem; max-height: 70vh; overflow-y: auto;">{{ formatJson(transactionSnapshot) }}</pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeTransactionModal()">Close</button>
+      </div>
     </div>
   </div>
 </div>

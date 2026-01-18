@@ -57,6 +57,12 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
   userEmail: string = '';
   readonly adminEmail = 'bill.draper.auto@gmail.com';
   private wsSubscription: any;
+  
+  // Transaction snapshot modal
+  showTransactionModal: boolean = false;
+  transactionSnapshot: any = null;
+  isLoadingTransaction: boolean = false;
+  transactionError: string = '';
 
   constructor(
     private http: HttpClient,
@@ -240,5 +246,50 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
       'priesthood': '📜'
     };
     return icons[serviceType] || '📋';
+  }
+
+  getTransactionSnapshot(entryId: string, txId: string): void {
+    console.log(`🔍 [LedgerCardDeck] Fetching transaction snapshot for entryId: ${entryId}, txId: ${txId}`);
+    
+    this.isLoadingTransaction = true;
+    this.transactionError = '';
+    this.showTransactionModal = true;
+    this.transactionSnapshot = null;
+    this.cdr.detectChanges();
+
+    // Use txId as snapshot_id for the RPC call
+    const apiUrl = window.location.port === '4200' 
+      ? `http://localhost:3000/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`
+      : `/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
+
+    this.http.get<any>(apiUrl).subscribe({
+      next: (response) => {
+        console.log(`✅ [LedgerCardDeck] Transaction snapshot received:`, response);
+        this.isLoadingTransaction = false;
+        if (response.success && response.transaction) {
+          this.transactionSnapshot = response.transaction;
+        } else {
+          this.transactionError = 'Transaction snapshot not found';
+        }
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('❌ [LedgerCardDeck] Error fetching transaction snapshot:', error);
+        this.isLoadingTransaction = false;
+        this.transactionError = error.error?.error || 'Failed to fetch transaction snapshot';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  closeTransactionModal(): void {
+    this.showTransactionModal = false;
+    this.transactionSnapshot = null;
+    this.transactionError = '';
+    this.cdr.detectChanges();
+  }
+
+  formatJson(obj: any): string {
+    return JSON.stringify(obj, null, 2);
   }
 }
