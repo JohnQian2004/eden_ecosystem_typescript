@@ -6,3 +6,4 @@ timeout /t 2 /nobreak >nul
 echo 🚀 Starting Eden Ecosystem server...
 npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true
 
+

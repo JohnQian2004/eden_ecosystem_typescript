@@ -842,8 +842,29 @@ async function executeStepActions(
           const fields = getServiceTypeFields(ledgerServiceType);
           
           // Build booking details dynamically based on service type
-          const bookingDetails = extractBookingDetails(ledgerServiceType, context.selectedListing || {});
+          // CRITICAL: Use selectedListing from context, but fallback to userSelection if selectedListing is missing
+          const listingForBooking = context.selectedListing || context.userSelection || {};
+          
+          // Log what we're using for booking details
+          console.log(`   💰 [FlowWiseService] Extracting booking details from:`, {
+            hasSelectedListing: !!context.selectedListing,
+            hasUserSelection: !!context.userSelection,
+            listingKeys: Object.keys(listingForBooking),
+            listingSample: {
+              restaurantName: listingForBooking.restaurantName,
+              cuisine: listingForBooking.cuisine,
+              reservationTime: listingForBooking.reservationTime,
+              partySize: listingForBooking.partySize,
+              location: listingForBooking.location,
+              price: listingForBooking.price
+            }
+          });
+          
+          const bookingDetails = extractBookingDetails(ledgerServiceType, listingForBooking);
           bookingDetails.price = entryAmount; // Ensure price is set
+          
+          // Log extracted booking details
+          console.log(`   💰 [FlowWiseService] Extracted booking details:`, JSON.stringify(bookingDetails, null, 2));
           
           // Get default provider info based on service type (dynamic)
           const { getDefaultProviderName, getDefaultProviderId } = await import("../serviceTypeFields");
@@ -1035,6 +1056,27 @@ async function executeStepActions(
 
         case "complete_booking":
           // Complete booking (FULLY AUTOMATED)
+          // CRITICAL: Update ledger entry status to 'completed'
+          if (context.ledgerEntry) {
+            // Find the actual entry in LEDGER array to update status
+            const ledgerEntryInArray = LEDGER_ARRAY.find((e: any) => e.entryId === context.ledgerEntry.entryId);
+            if (ledgerEntryInArray) {
+              const { completeBooking } = await import("../ledger");
+              completeBooking(ledgerEntryInArray);
+              console.log(`   ✅ [FlowWiseService] Booking completed: ${ledgerEntryInArray.entryId}, status: ${ledgerEntryInArray.status}`);
+              
+              // Persist the status update
+              if (redisInstance) {
+                redisInstance.saveLedgerEntries(LEDGER_ARRAY);
+                console.log(`   💾 [FlowWiseService] ✅ Persisted ledger entry with completed status: ${ledgerEntryInArray.entryId}`);
+              }
+              
+              // Update context with completed entry
+              context.ledgerEntry = ledgerEntryInArray;
+            } else {
+              console.warn(`   ⚠️ [FlowWiseService] Ledger entry not found in array for completion: ${context.ledgerEntry.entryId}`);
+            }
+          }
           context.bookingId = `booking-${Date.now()}`;
           context.bookingStatus = 'confirmed';
           break;
@@ -1419,11 +1461,28 @@ export async function submitUserDecision(
   execution.context.userDecision = normalizedDecision;
   console.log(`   🔄 [FlowWiseService] Set userDecision in context: ${normalizedDecision} (original: ${decision})`);
   
-  // CRITICAL: Always set userSelection for transition conditions (even if selectionData is not provided)
-  // Try to find the listing from context.listings using the decision ID
+  // CRITICAL: Preserve the original selectedListing from context if it exists
+  // When user confirms with "YES" or "NO", we should NOT overwrite the selectedListing
+  // The selectedListing should already be set from the previous selection step
   let selectedListing: any = null;
   
-  if (selectionData) {
+  // First, check if there's already a selectedListing in context (from previous selection step)
+  const existingSelectedListing = execution.context.selectedListing;
+  if (existingSelectedListing && 
+      (existingSelectedListing.restaurantName !== undefined ||
+       existingSelectedListing.movieTitle !== undefined ||
+       existingSelectedListing.flightNumber !== undefined ||
+       existingSelectedListing.hotelName !== undefined ||
+       existingSelectedListing.partName !== undefined)) {
+    // Preserve the existing selectedListing - this is the actual booking selection
+    selectedListing = existingSelectedListing;
+    console.log(`   🎬 [FlowWiseService] Preserving existing selectedListing from context:`, {
+      restaurantName: selectedListing.restaurantName,
+      movieTitle: selectedListing.movieTitle,
+      flightNumber: selectedListing.flightNumber,
+      price: selectedListing.price
+    });
+  } else if (selectionData) {
     // If selectionData is provided, use it as the selected listing
     // But also try to find the full listing from the listings array if available
     selectedListing = selectionData;
@@ -1453,29 +1512,60 @@ export async function submitUserDecision(
       }
     }
   } else if (execution.context.listings && typeof decision === 'string') {
-    // If selectionData is not provided, try to find the listing from context.listings using decision ID
-    const foundListing = execution.context.listings.find((listing: any) => 
-      listing.id === decision || 
-      listing.providerId === decision ||
-      listing.value === decision
-    );
-    if (foundListing) {
-      selectedListing = foundListing;
-      console.log(`   🎬 [FlowWiseService] Found listing from context.listings for decision ID: ${decision}`);
+    // If selectionData is not provided and decision is a string, check if it's a decision value (YES/NO)
+    // If it's YES/NO, preserve existing selectedListing instead of creating a new one
+    const upperDecision = decision.toUpperCase().trim();
+    if (upperDecision === 'YES' || upperDecision === 'NO') {
+      // This is a confirmation decision, not a selection - preserve existing selectedListing
+      if (execution.context.selectedListing) {
+        selectedListing = execution.context.selectedListing;
+        console.log(`   🎬 [FlowWiseService] Decision is YES/NO confirmation - preserving existing selectedListing`);
+      } else {
+        console.warn(`   ⚠️ [FlowWiseService] Decision is YES/NO but no selectedListing in context - this might be a problem`);
+      }
     } else {
-      // If not found, create a minimal listing object from the decision ID
-      selectedListing = { id: decision, providerId: decision };
-      console.log(`   ⚠️ [FlowWiseService] Could not find listing for decision ID: ${decision}, created minimal listing object`);
+      // Try to find the listing from context.listings using decision ID
+      const foundListing = execution.context.listings.find((listing: any) => 
+        listing.id === decision || 
+        listing.providerId === decision ||
+        listing.value === decision
+      );
+      if (foundListing) {
+        selectedListing = foundListing;
+        console.log(`   🎬 [FlowWiseService] Found listing from context.listings for decision ID: ${decision}`);
+      } else {
+        console.warn(`   ⚠️ [FlowWiseService] Could not find listing for decision ID: ${decision}`);
+      }
     }
-  } else {
-    // Fallback: create a minimal listing object from the decision
-    selectedListing = typeof decision === 'string' ? { id: decision, providerId: decision } : decision;
-    console.log(`   ⚠️ [FlowWiseService] No selectionData and no listings available, using decision as minimal listing`);
+  }
+  
+  // If we still don't have a selectedListing, only then create a minimal one
+  // But only if the decision is NOT YES/NO (which should preserve existing selectedListing)
+  if (!selectedListing) {
+    const upperDecision = typeof decision === 'string' ? decision.toUpperCase().trim() : '';
+    if (upperDecision !== 'YES' && upperDecision !== 'NO') {
+      selectedListing = typeof decision === 'string' ? { id: decision, providerId: decision } : decision;
+      console.log(`   ⚠️ [FlowWiseService] No selectedListing found, created minimal listing from decision: ${decision}`);
+    } else {
+      // For YES/NO decisions, use existing selectedListing or empty object
+      selectedListing = execution.context.selectedListing || {};
+      console.log(`   ⚠️ [FlowWiseService] YES/NO decision but no selectedListing - using empty object`);
+    }
   }
   
   // CRITICAL: Always set userSelection for transition condition evaluation
+  // But preserve selectedListing if it already has booking details
   execution.context.userSelection = selectedListing;
-  execution.context.selectedListing = selectedListing;
+  // Only update selectedListing if it doesn't already have proper booking details
+  if (!execution.context.selectedListing || 
+      (execution.context.selectedListing && 
+       !execution.context.selectedListing.restaurantName && 
+       !execution.context.selectedListing.movieTitle && 
+       !execution.context.selectedListing.flightNumber &&
+       !execution.context.selectedListing.hotelName &&
+       !execution.context.selectedListing.partName)) {
+    execution.context.selectedListing = selectedListing;
+  }
   
   // CRITICAL: Set service-type-specific price in context when listing is selected
   if (selectedListing && selectedListing.price) {

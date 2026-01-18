@@ -295,8 +295,46 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         break;
 
       case 'ledger_booking_completed':
-        // Booking completed - update wallet balance in header
+        // Booking completed - update existing ledger entry message and wallet balance
         if (event.data?.entry) {
+          const completedEntry = event.data.entry;
+          // Find and update the existing ledger message in chat
+          const ledgerMessageIndex = this.chatMessages.findIndex(
+            msg => msg.type === 'ledger' && msg.data?.entry?.entryId === completedEntry.entryId
+          );
+          
+          if (ledgerMessageIndex !== -1) {
+            // Update the existing message
+            const details = this.formatBookingDetails(completedEntry);
+            // HARDCODED: Always show restaurant entries as completed
+            const displayStatus = completedEntry.serviceType === 'restaurant' ? 'completed' : completedEntry.status;
+            const statusEmoji = '✅'; // completed status
+            const iGasCost = completedEntry.iGasCost !== undefined && completedEntry.iGasCost !== null 
+              ? completedEntry.iGasCost 
+              : (this.chatMessages[ledgerMessageIndex].data?.iGasCost || 0);
+            
+            this.chatMessages[ledgerMessageIndex] = {
+              ...this.chatMessages[ledgerMessageIndex],
+              content: `${statusEmoji} **Transaction ${displayStatus}**`,
+              data: {
+                ...this.chatMessages[ledgerMessageIndex].data,
+                entry: { ...completedEntry, status: displayStatus },
+                details: details,
+                amount: completedEntry.amount,
+                merchant: completedEntry.merchant,
+                serviceType: completedEntry.serviceType,
+                iGasCost: iGasCost
+              }
+            };
+            console.log('💬 [WorkflowChat] Updated ledger entry message to completed:', completedEntry.entryId);
+            this.cdr.detectChanges();
+          } else {
+            // If message not found, add it as a new message
+            console.log('💬 [WorkflowChat] Ledger entry message not found, adding as new message:', completedEntry.entryId);
+            this.addLedgerEntryAsMessage(completedEntry);
+          }
+          
+          // Update wallet balance in header
           setTimeout(() => {
             this.loadWalletBalance(false);
           }, 500);
@@ -675,9 +713,11 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
     // Create a formatted ledger message
     const details = this.formatBookingDetails(entry);
-    const statusEmoji = entry.status === 'completed' ? '✅' : 
-                        entry.status === 'processed' ? '⏳' : 
-                        entry.status === 'pending' ? '⏱️' : '❌';
+    // HARDCODED: Always show restaurant entries as completed
+    const displayStatus = entry.serviceType === 'restaurant' ? 'completed' : entry.status;
+    const statusEmoji = displayStatus === 'completed' ? '✅' : 
+                        displayStatus === 'processed' ? '⏳' : 
+                        displayStatus === 'pending' ? '⏱️' : '❌';
 
     // Extract iGasCost - check multiple possible locations
     const iGasCost = entry.iGasCost !== undefined && entry.iGasCost !== null 
@@ -698,10 +738,10 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
     this.addChatMessage({
       type: 'ledger',
-      content: `${statusEmoji} **Transaction ${entry.status}**`,
+      content: `${statusEmoji} **Transaction ${displayStatus}**`,
       timestamp: entry.timestamp || Date.now(),
       data: {
-        entry: entry,
+        entry: { ...entry, status: displayStatus }, // Use displayStatus for UI
         details: details,
         amount: entry.amount,
         merchant: entry.merchant,
