@@ -1,9 +1,10 @@
 {
-  "totalIGas": 0.0356,
+  "totalIGas": 0.044500000000000005,
   "totalITax": 0,
-  "totalRootCAFees": 0.002759000000000002,
+  "totalRootCAFees": 0.6423590000000001,
   "totalIndexerFees": 0.0006897500000000005,
-  "totalProviderFees": 0,
+  "totalProviderFees": 1.5990000000000002,
+  "totalCashierFees": 0.2,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 26,
@@ -22,12 +23,14 @@
       "totalIndexerFees": 0.000089
     },
     "pharmacy": {
-      "count": 6,
+      "count": 8,
       "totalAmount": 0,
-      "totalIGas": 0.026699999999999998,
+      "totalIGas": 0.0356,
       "totalITax": 0,
-      "totalRootCAFees": 0.000534,
-      "totalIndexerFees": 0.0001335
+      "totalRootCAFees": 0.640134,
+      "totalIndexerFees": 0.0001335,
+      "totalProviderFees": null,
+      "totalCashierFees": null
     },
     "gasstation": {
       "count": 4,
@@ -86,7 +89,7 @@
       "totalIndexerFees": 0.0000445
     }
   },
-  "lastUpdated": 1768829860910,
+  "lastUpdated": 1768830171188,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-19T13:37:40.910Z"
+  "lastSaved": "2026-01-19T13:42:51.188Z"
 }

@@ -17,7 +17,7 @@
       </div>
       <div class="col-md-2 col-sm-6">
         <h6 class="text-muted mb-2">Total Fees</h6>
-        <div class="igas-display">{{ ((totalFees || 0) * 1000000).toFixed(0) }} 🍎</div>
+        <div class="igas-display">{{ (totalFees || 0).toFixed(6) }} 🍎</div>
       </div>
       <div class="col-md-2 col-sm-6" *ngIf="priesthoodStats">
         <h6 class="text-muted mb-2">Certified Priests</h6>

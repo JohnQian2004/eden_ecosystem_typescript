@@ -2,236 +2,232 @@
   "serviceRegistry": [
     {
       "id": "stripe-payment-rail-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440100",
       "name": "Stripe Payment Rail",
       "serviceType": "payment-rail",
       "location": "Global",
       "bond": 50000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "https://api.stripe.com/v1"
+      "uuid": "550e8400-e29b-41d4-a716-446655440100",
+      "apiEndpoint": "https://api.stripe.com/v1",
+      "gardenId": "HG"
     },
     {
       "id": "settlement-service-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440101",
       "name": "Settlement Service",
       "serviceType": "settlement",
       "location": "ROOT CA",
       "bond": 100000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "internal://settlement"
+      "uuid": "550e8400-e29b-41d4-a716-446655440101",
+      "apiEndpoint": "internal://settlement",
+      "gardenId": "HG"
     },
     {
       "id": "service-registry-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440102",
       "name": "Service Registry",
       "serviceType": "registry",
       "location": "ROOT CA",
       "bond": 50000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "internal://service-registry"
+      "uuid": "550e8400-e29b-41d4-a716-446655440102",
+      "apiEndpoint": "internal://service-registry",
+      "gardenId": "HG"
     },
     {
       "id": "webserver-service-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440103",
       "name": "Web Server",
       "serviceType": "webserver",
       "location": "ROOT CA",
       "bond": 10000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "http://localhost:3000"
+      "uuid": "550e8400-e29b-41d4-a716-446655440103",
+      "apiEndpoint": "http://localhost:3000",
+      "gardenId": "HG"
     },
     {
       "id": "websocket-service-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440104",
       "name": "WebSocket Service",
       "serviceType": "websocket",
       "location": "ROOT CA",
       "bond": 10000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "ws://localhost:3000"
+      "uuid": "550e8400-e29b-41d4-a716-446655440104",
+      "apiEndpoint": "ws://localhost:3000",
+      "gardenId": "HG"
     },
     {
       "id": "wallet-service-001",
-      "uuid": "550e8400-e29b-41d4-a716-446655440105",
       "name": "JesusCoin Wallet Service",
       "serviceType": "wallet",
       "location": "ROOT CA",
       "bond": 200000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "HG",
-      "apiEndpoint": "internal://wallet"
+      "uuid": "550e8400-e29b-41d4-a716-446655440105",
+      "apiEndpoint": "internal://wallet",
+      "gardenId": "HG"
     },
     {
       "id": "dex-pool-tokenb",
-      "uuid": "466340d9-b77d-4aa7-aaba-521067cca28e",
       "name": "TOKENB Pool (Garden-DEX)",
       "serviceType": "dex",
       "location": "Eden DEX",
       "bond": 5000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "T2",
+      "uuid": "466340d9-b77d-4aa7-aaba-521067cca28e",
       "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenb",
-      "certificate": {
-        "subject": "466340d9-b77d-4aa7-aaba-521067cca28e",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "SERVICE_PROVIDER",
-          "PRICE_QUOTE",
-          "RECEIVE_PAYMENT"
-        ],
-        "constraints": {
-          "providerId": "dex-pool-tokenb",
-          "providerName": "TOKENB Pool (Garden-DEX)",
-          "serviceType": "dex",
-          "location": "Eden DEX",
-          "bond": 5000,
-          "reputation": 5
-        },
-        "issuedAt": 1768807298619,
-        "expiresAt": 1776583298619,
-        "signature": "hRq8qaIctZRsvgmEcZrZ3V8/FJTt7IQn2lTop1H17IVSY01PtQJ+pWd1AV3mUnbQ54cJxPDi2OD/FD71evCkBQ=="
-      }
+      "gardenId": "T2"
     },
     {
       "id": "gasstation-728eaafb",
-      "uuid": "4625e5fa-48eb-4b0e-b031-2e66f3eef323",
       "name": "Garden-GASSTATION Provider",
       "serviceType": "gasstation",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "garden-1",
+      "uuid": "4625e5fa-48eb-4b0e-b031-2e66f3eef323",
       "apiEndpoint": "https://api.gasstation.com/v1",
-      "certificate": {
-        "subject": "4625e5fa-48eb-4b0e-b031-2e66f3eef323",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "SERVICE_PROVIDER",
-          "PRICE_QUOTE",
-          "RECEIVE_PAYMENT"
-        ],
-        "constraints": {
-          "providerId": "gasstation-728eaafb",
-          "providerName": "Garden-GASSTATION Provider",
-          "serviceType": "gasstation",
-          "location": "Unknown",
-          "bond": 1000,
-          "reputation": 5
-        },
-        "issuedAt": 1768807592459,
-        "expiresAt": 1776583592459,
-        "signature": "ab8LCVfStwpeYZNf57OqgBqNg2Wx9GNtV6C4e347oFiBKYxltoOqcl+acNyV7DxsgTCr3aQTXqCcOBtnnbEhDA=="
-      }
+      "gardenId": "garden-1"
     },
     {
       "id": "hotel-0a492f3c",
-      "uuid": "475f0481-92fd-4d3c-ac8b-8c3033cce283",
       "name": "Garden-HOTEL Provider",
       "serviceType": "hotel",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "garden-2",
+      "uuid": "475f0481-92fd-4d3c-ac8b-8c3033cce283",
       "apiEndpoint": "https://api.hotel.com/v1",
-      "certificate": {
-        "subject": "475f0481-92fd-4d3c-ac8b-8c3033cce283",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "SERVICE_PROVIDER",
-          "PRICE_QUOTE",
-          "RECEIVE_PAYMENT"
-        ],
-        "constraints": {
-          "providerId": "hotel-0a492f3c",
-          "providerName": "Garden-HOTEL Provider",
-          "serviceType": "hotel",
-          "location": "Unknown",
-          "bond": 1000,
-          "reputation": 5
-        },
-        "issuedAt": 1768807612874,
-        "expiresAt": 1776583612874,
-        "signature": "xUsVJXV5l0ciMOY9PhOd2DEZTRxOlulcIlvKNgtKmDqQgodly/239co2OILm6zZPoPRt1ME5M/IZ6C76Rv3EDQ=="
-      }
+      "gardenId": "garden-2"
     },
     {
       "id": "pharmacy-ad2f9672",
-      "uuid": "e754c783-0954-48f2-a43d-b0594260a3c5",
       "name": "Garden-PHARMACY Provider",
       "serviceType": "pharmacy",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "garden-3",
+      "uuid": "e754c783-0954-48f2-a43d-b0594260a3c5",
       "apiEndpoint": "https://api.pharmacy.com/v1",
-      "certificate": {
-        "subject": "e754c783-0954-48f2-a43d-b0594260a3c5",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "SERVICE_PROVIDER",
-          "PRICE_QUOTE",
-          "RECEIVE_PAYMENT"
-        ],
-        "constraints": {
-          "providerId": "pharmacy-ad2f9672",
-          "providerName": "Garden-PHARMACY Provider",
-          "serviceType": "pharmacy",
-          "location": "Unknown",
-          "bond": 1000,
-          "reputation": 5
-        },
-        "issuedAt": 1768807620049,
-        "expiresAt": 1776583620049,
-        "signature": "nXW9Qz3hq55lSW5PyBbI+QBGQmeQ8/9ccjLOplebex2B3yjEqahKQimleaL/xTDOtXYVcjN8xcunTZHVmgXqCQ=="
-      }
+      "gardenId": "garden-3"
     },
     {
       "id": "autoparts-19f129f6",
-      "uuid": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
       "name": "Garden-AUTOPARTS Provider",
       "serviceType": "autoparts",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "gardenId": "garden-4",
+      "uuid": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
       "apiEndpoint": "https://api.autoparts.com/v1",
-      "certificate": {
-        "subject": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "SERVICE_PROVIDER",
-          "PRICE_QUOTE",
-          "RECEIVE_PAYMENT"
-        ],
-        "constraints": {
-          "providerId": "autoparts-19f129f6",
-          "providerName": "Garden-AUTOPARTS Provider",
-          "serviceType": "autoparts",
-          "location": "Unknown",
-          "bond": 1000,
-          "reputation": 5
-        },
-        "issuedAt": 1768807631392,
-        "expiresAt": 1776583631392,
-        "signature": "1FhRWU/Czsu6D6AyhY6aEg+NKD2lK0+ptPD907J/mW1RWOORDBTpOvP4w/WMW3EGQ2saxTqVdZD9sp97AyxZBg=="
-      }
+      "gardenId": "garden-4"
+    },
+    {
+      "id": "bank-19fea4fe",
+      "name": "Garden-BANK Provider",
+      "serviceType": "bank",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "caefcb3c-c4f8-47ba-a559-2358cfff4924",
+      "apiEndpoint": "https://api.bank.com/v1",
+      "gardenId": "garden-5"
+    },
+    {
+      "id": "dogpark-2bc75220",
+      "name": "Garden-DOGPARK Provider",
+      "serviceType": "dogpark",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "213086aa-9940-4912-ab80-da53a78fdd48",
+      "apiEndpoint": "https://api.dogpark.com/v1",
+      "gardenId": "garden-6"
+    },
+    {
+      "id": "grocerystore-4cf2d103",
+      "name": "Garden-GROCERYSTORE Provider",
+      "serviceType": "grocerystore",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "feeb05f8-050e-483d-8eed-6a969c9cd610",
+      "apiEndpoint": "https://api.grocerystore.com/v1",
+      "gardenId": "garden-7"
+    },
+    {
+      "id": "hotel-ae537161",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "b056a52e-4bad-487c-adf8-fde760d8e377",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-8"
+    },
+    {
+      "id": "restaurant-41fd1b09",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "5de00526-9be7-4177-b628-53f51a99d354",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-9"
+    },
+    {
+      "id": "airline-dc4d2a1b",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "cbc6a17d-2298-4598-a339-d8c88539a2c0",
+      "apiEndpoint": "https://api.airline.com/v1",
+      "gardenId": "garden-10"
+    },
+    {
+      "id": "autoparts-3583c13a",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "d109ec83-8631-4d70-91ef-1ea8e99a0730",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-11"
+    },
+    {
+      "id": "party-a93b8fe1",
+      "name": "Garden-PARTY Provider",
+      "serviceType": "party",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "3482c4ab-87c8-477f-ad51-8b5a3aba318d",
+      "apiEndpoint": "https://api.party.com/v1",
+      "gardenId": "garden-12"
     }
   ],
-  "lastSaved": "2026-01-19T07:27:11.479Z"
+  "lastSaved": "2026-01-19T13:42:51.184Z"
 }

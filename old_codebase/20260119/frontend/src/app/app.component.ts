@@ -537,13 +537,15 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private recomputeMainStreetGroups() {
     this.dexServiceTypes = this.serviceTypes.filter(st => st.type === 'dex');
-    this.appleServiceTypes = this.serviceTypes.filter(st => st.type !== 'dex');
+    this.appleServiceTypes = this.serviceTypes
+      .filter(st => st.type !== 'dex')
+      .sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
   }
   
   checkServiceGardens() {
     // Check if there are any service gardens (non-root gardens)
     // In PRIEST mode, only check gardens owned by the current user
-    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
     // IMPORTANT: We validate service gardens against BOTH ecosystems.
     // The server defaults /api/gardens to ecosystem=saas (no token gardens),
     // but Main Street needs token garden IDs too so DEX providers (gardenId=T#) are not filtered out.
@@ -1260,7 +1262,7 @@ export class AppComponent implements OnInit, OnDestroy {
     
     // Check if we're in PRIEST mode (certified priest user)
     // When signed out (non-user binding state), isPriestMode should be false to show all public services
-    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
     
     // First, load gardens to validate gardenId
     // In PRIEST mode, filter gardens by ownerEmail to show only priest-owned gardens
@@ -1305,7 +1307,7 @@ export class AppComponent implements OnInit, OnDestroy {
                   // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
                   // These belong to Holy Ghost (HG) and should NOT appear in Main Street
                   // Main Street should only show service types that have providers belonging to NON-ROOT gardens
-                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant']);
                   
                   // CRITICAL: Only include providers whose gardenId exists in the loaded gardens
                   // This ensures we don't show providers assigned to non-existent gardens
@@ -1457,7 +1459,7 @@ export class AppComponent implements OnInit, OnDestroy {
               next: (response) => {
                 // Fallback: use original logic without gardenId validation
                 if (response.success && response.providers) {
-                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet']);
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant']);
                   const nonInfrastructureProviders = response.providers.filter(p => 
                     p.status === 'active' && 
                     !infrastructureServiceTypes.has(p.serviceType) &&

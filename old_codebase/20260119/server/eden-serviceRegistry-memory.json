@@ -131,11 +131,119 @@
       "uuid": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
       "apiEndpoint": "https://api.autoparts.com/v1",
       "gardenId": "garden-4"
+    },
+    {
+      "id": "bank-19fea4fe",
+      "name": "Garden-BANK Provider",
+      "serviceType": "bank",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "caefcb3c-c4f8-47ba-a559-2358cfff4924",
+      "apiEndpoint": "https://api.bank.com/v1",
+      "gardenId": "garden-5"
+    },
+    {
+      "id": "dogpark-2bc75220",
+      "name": "Garden-DOGPARK Provider",
+      "serviceType": "dogpark",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "213086aa-9940-4912-ab80-da53a78fdd48",
+      "apiEndpoint": "https://api.dogpark.com/v1",
+      "gardenId": "garden-6"
+    },
+    {
+      "id": "grocerystore-4cf2d103",
+      "name": "Garden-GROCERYSTORE Provider",
+      "serviceType": "grocerystore",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "feeb05f8-050e-483d-8eed-6a969c9cd610",
+      "apiEndpoint": "https://api.grocerystore.com/v1",
+      "gardenId": "garden-7"
+    },
+    {
+      "id": "hotel-ae537161",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "b056a52e-4bad-487c-adf8-fde760d8e377",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-8"
+    },
+    {
+      "id": "restaurant-41fd1b09",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "5de00526-9be7-4177-b628-53f51a99d354",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-9"
+    },
+    {
+      "id": "airline-dc4d2a1b",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "cbc6a17d-2298-4598-a339-d8c88539a2c0",
+      "apiEndpoint": "https://api.airline.com/v1",
+      "gardenId": "garden-10"
+    },
+    {
+      "id": "autoparts-3583c13a",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "d109ec83-8631-4d70-91ef-1ea8e99a0730",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-11"
+    },
+    {
+      "id": "party-a93b8fe1",
+      "name": "Garden-PARTY Provider",
+      "serviceType": "party",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "3482c4ab-87c8-477f-ad51-8b5a3aba318d",
+      "apiEndpoint": "https://api.party.com/v1",
+      "gardenId": "garden-12"
+    },
+    {
+      "id": "accountant-service-001",
+      "name": "Accountant Service",
+      "serviceType": "accountant",
+      "location": "ROOT CA",
+      "bond": 75000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440106",
+      "apiEndpoint": "internal://accountant",
+      "gardenId": "HG"
     }
   ],
-  "totalProviders": 11,
+  "totalProviders": 20,
   "movieProviders": 0,
   "dexProviders": 1,
-  "airlineProviders": 0,
-  "lastSaved": "2026-01-19T07:29:38.965Z"
+  "airlineProviders": 1,
+  "lastSaved": "2026-01-19T13:42:53.165Z"
 }

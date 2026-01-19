@@ -181,9 +181,13 @@ export async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Pro
   const iGas = entry.iGasCost;
   const iTax = entry.bookingDetails?.iTax || 0;
   
-  // Calculate fee distribution (from snapshot.feeSplit or defaults)
-  const rootCAFee = entry.fees?.rootCA || (iGas * ROOT_CA_FEE);
-  const indexerFee = entry.fees?.indexer || (iGas * INDEXER_FEE);
+  // Calculate fee distribution (prefer real economic feeSplit from ledger entry; fall back to iGas-derived)
+  // NOTE: ledgerEntry.fees is typically populated from snapshot.feeSplit with keys:
+  // { indexer, cashier, provider, eden }
+  const rootCAFee = (entry.fees as any)?.eden ?? (entry.fees as any)?.rootCA ?? (iGas * ROOT_CA_FEE);
+  const indexerFee = (entry.fees as any)?.indexer ?? (iGas * INDEXER_FEE);
+  const providerFee = (entry.fees as any)?.provider ?? 0;
+  const cashierFee = (entry.fees as any)?.cashier ?? 0;
   
   // Record fee payment in Accountant Service (always, regardless of Redis status)
   // CRITICAL: Record fees even if iGas is 0, to track all transactions
@@ -195,7 +199,8 @@ export async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Pro
       iTax,
       rootCAFee,
       indexerFee,
-      0 // providerFee (can be added later if needed)
+      providerFee,
+      cashierFee
     );
     console.log(`📊 [Accountant] ✅ Recorded fees for ${entry.serviceType}: iGas=${iGas.toFixed(6)}, iTax=${iTax.toFixed(6)}, ROOT CA=${rootCAFee.toFixed(6)}, Indexer=${indexerFee.toFixed(6)}`);
     console.log(`📊 [Accountant] Entry ID: ${entry.entryId}, Amount: ${entry.amount}, Status: ${entry.status}`);

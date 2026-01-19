@@ -275,6 +275,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (normalized === 'wallet-service-001' || normalized.startsWith('wallet-service')) {
       return 'wallet-service';
     }
+    if (normalized === 'accountant-service-001' || normalized.startsWith('accountant-service')) {
+      return 'accountant-service';
+    }
     
     if (normalized.startsWith('snake-')) {
       // Snake services: "snake-premium-cinema-001" -> "snake-premium-cinema-api"
@@ -489,6 +492,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       'wallet': 'wallet-service',
       'jsc': 'wallet-service',
       'jesuscoin': 'wallet-service',
+      'accountant-service-001': 'accountant-service',
+      'accountant-service': 'accountant-service',
+      'accountant': 'accountant-service',
       'llm': 'llm',
       'ledger': 'ledger',
       'cashier': 'cashier',
@@ -724,7 +730,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // Holy Ghost (ROOT CA's garden) shows infrastructure services
     if (isRootGarden) {
       // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
-      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
       // Match components by their key (which is derived from provider ID)
       let providerComponents = Array.from(this.components.entries())
         .filter(([componentKey, c]) => {
@@ -936,7 +942,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenInfrastructureServices(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
     return this.selectedGardenComponents.filter(c => {
       if (c.category !== 'service-provider') return false;
       const provider = this.findProviderForComponent(c);
@@ -945,7 +951,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenRegularServiceProviders(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
     // Return all service providers that are NOT infrastructure services
     // Since selectedGardenComponents already contains correctly filtered components for this garden,
     // we just need to filter out infrastructure services

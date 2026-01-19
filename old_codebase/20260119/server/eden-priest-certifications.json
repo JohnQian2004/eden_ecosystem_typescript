@@ -2,14 +2,35 @@
   "certifications": [
     {
       "email": "billdraper2026@gmail.com",
-      "status": "revoked",
-      "appliedAt": 1768746260128,
-      "reason": "ddd",
+      "status": "approved",
+      "appliedAt": 1768827964874,
+      "reason": "ff",
       "metadata": {},
-      "approvedAt": 1768746403602,
+      "applicationFeePaid": true,
+      "activityCount": 0,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768827964802_2f38bff6852a94b5",
+      "approvedAt": 1768827991043,
       "approvedBy": "bill.draper.auto@gmail.com",
-      "revokedAt": 1768751618346,
-      "revokedBy": "bill.draper.auto@gmail.com"
+      "certificate": {
+        "subject": "priest:billdraper2026@gmail.com:1768827991042",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "billdraper2026@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768827991042,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768827991042,
+        "expiresAt": 1800363991042,
+        "signature": "8OpQPwm6CKlFejnSfZ7CVOvtfKCsj3fgs6tb6X3uD4WfRee5AsmumQKM4pVNw0WfOr81JItc/DSJ97bzcQlJDg=="
+      }
     },
     {
       "email": "reshardgarcia@gmail.com",
@@ -99,5 +120,5 @@
       "suspendedForNonPayment": false
     }
   ],
-  "lastSaved": "2026-01-18T23:35:55.335Z"
+  "lastSaved": "2026-01-19T13:06:31.043Z"
 }

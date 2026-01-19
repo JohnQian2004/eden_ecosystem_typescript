@@ -471,13 +471,23 @@ httpServer.on("request", async (req, res) => {
   // GET /api/igas/total - Get total iGas
   if (pathname === "/api/igas/total" && req.method === "GET") {
     console.log(`   ⛽ [${requestId}] GET /api/igas/total - Fetching total iGas`);
+    // AccountantService is the source of truth for iGas totals (same pipeline as Total Fees).
+    // TOTAL_IGAS can be stale/0 if not actively accumulated; use accountant state instead.
+    let totalIGas = 0;
+    try {
+      const { getAccountantState } = await import("./src/accountant");
+      totalIGas = getAccountantState().totalIGas || 0;
+    } catch (err: any) {
+      console.warn(`⚠️  [${requestId}] Failed to load Accountant totalIGas, falling back to TOTAL_IGAS: ${err.message}`);
+      totalIGas = TOTAL_IGAS || 0;
+    }
     res.writeHead(200, {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*"
     });
     res.end(JSON.stringify({
       success: true,
-      totalIGas: TOTAL_IGAS,
+      totalIGas,
       timestamp: Date.now()
     }));
     return;
@@ -1177,6 +1187,54 @@ httpServer.on("request", async (req, res) => {
                   };
                   break;
 
+                case 'eden_chat_init': {
+                  // Eden Chat init is a lightweight context seeding step used by many workflows (movie/airline/etc).
+                  // It must never fail; its purpose is to ensure edenChatSession + user/serviceType are present.
+                  const resolvedServiceType =
+                    processedAction.serviceType ||
+                    updatedContext.serviceType ||
+                    updatedContext.queryResult?.serviceType ||
+                    serviceType ||
+                    'movie';
+
+                  const resolvedEmail =
+                    updatedContext.email ||
+                    updatedContext.user?.email ||
+                    processedAction.email ||
+                    processedAction.userEmail ||
+                    'unknown@example.com';
+
+                  if (!updatedContext.user) {
+                    updatedContext.user = { email: resolvedEmail, id: resolvedEmail };
+                  } else if (!updatedContext.user.email) {
+                    updatedContext.user.email = resolvedEmail;
+                  }
+
+                  // Preserve existing session if provided by frontend; otherwise create one.
+                  const existingSession = (updatedContext as any).edenChatSession;
+                  const edenChatSession = existingSession && typeof existingSession === 'object'
+                    ? {
+                        sessionId: existingSession.sessionId || `session_${Date.now()}`,
+                        serviceType: existingSession.serviceType || resolvedServiceType,
+                        startTime: existingSession.startTime || Date.now(),
+                      }
+                    : {
+                        sessionId: `session_${Date.now()}`,
+                        serviceType: resolvedServiceType,
+                        startTime: Date.now(),
+                      };
+
+                  updatedContext.serviceType = resolvedServiceType;
+                  (updatedContext as any).edenChatSession = edenChatSession;
+
+                  actionResult = {
+                    edenChatSession,
+                    chatInitialized: true,
+                    serviceType: resolvedServiceType,
+                  };
+                  break;
+                }
+
                 case 'create_snapshot':
                   console.log(`📸 [${requestId}] Creating transaction snapshot`);
                   try {
@@ -1224,8 +1282,42 @@ httpServer.on("request", async (req, res) => {
                     actionResult = { snapshot };
                     // CRITICAL: Store snapshot in context for next actions and websocket events
                     updatedContext.snapshot = snapshot;
-                    // Also ensure iGasCost is in context
-                    updatedContext.iGasCost = updatedContext.iGasCost || 0.00445;
+                    // Also ensure iGasCost is in context (ALWAYS normalize to number)
+                    const rawIGas = (updatedContext as any).iGasCost;
+                    const normalizedIGas =
+                      rawIGas === undefined || rawIGas === null
+                        ? 0.00445
+                        : (typeof rawIGas === 'string' ? parseFloat(rawIGas) : Number(rawIGas));
+                    (updatedContext as any).iGasCost = !isNaN(normalizedIGas) ? normalizedIGas : 0.00445;
+
+                    // Emit an iGas event for UI "Current iGas" display (workflows don't use the old resolveLLM path)
+                    try {
+                      let totalIGasForUI: number | undefined = undefined;
+                      try {
+                        const { getAccountantState } = await import("./src/accountant");
+                        totalIGasForUI = getAccountantState()?.totalIGas;
+                      } catch (e: any) {
+                        // ignore and just send current iGas
+                      }
+
+                      const currentIGasForUI =
+                        typeof (updatedContext as any).iGasCost === 'number'
+                          ? (updatedContext as any).iGasCost
+                          : parseFloat(String((updatedContext as any).iGasCost || 0));
+
+                      broadcastEvent({
+                        type: "igas",
+                        component: "igas",
+                        message: `iGas Cost: ${(currentIGasForUI || 0).toFixed(6)}`,
+                        timestamp: Date.now(),
+                        data: {
+                          igas: currentIGasForUI || 0,
+                          ...(totalIGasForUI !== undefined ? { totalIGas: totalIGasForUI } : {})
+                        }
+                      });
+                    } catch (e: any) {
+                      console.warn(`⚠️  [${requestId}] Failed to broadcast igas event: ${e.message}`);
+                    }
                     // Set service-type-specific price in context for template variables
                     if (currentServiceType === 'movie') {
                       updatedContext.moviePrice = listingPrice || snapshotAmount;
@@ -8108,6 +8200,18 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     apiEndpoint: "internal://wallet",
     status: 'active'
   },
+  {
+    id: "accountant-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440106",
+    name: "Accountant Service",
+    serviceType: "accountant",
+    location: "ROOT CA",
+    bond: 75000, // High bond for financial reporting integrity
+    reputation: 5.0,
+    gardenId: "HG", // Holy Ghost garden
+    apiEndpoint: "internal://accountant",
+    status: 'active'
+  },
   // Regular Service Providers
   // In ROOT mode: All service providers (including amc-001) are created dynamically via the wizard
   // They should NOT exist in hardcoded defaults
@@ -11768,6 +11872,18 @@ async function main() {
       gardenId: "HG",
       apiEndpoint: "internal://wallet",
       status: 'active'
+    },
+    {
+      id: "accountant-service-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440106",
+      name: "Accountant Service",
+      serviceType: "accountant",
+      location: "ROOT CA",
+      bond: 75000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "internal://accountant",
+      status: 'active'
     }
   ];
   
@@ -12285,6 +12401,18 @@ async function main() {
         gardenId: "HG",
         apiEndpoint: "internal://wallet",
         status: 'active'
+      },
+      {
+        id: "accountant-service-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440106",
+        name: "Accountant Service",
+        serviceType: "accountant",
+        location: "ROOT CA",
+        bond: 75000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "internal://accountant",
+        status: 'active'
       }
     ];
     
@@ -12548,13 +12676,20 @@ async function main() {
     // Periodic total iGas save (every 5 minutes)
     setInterval(() => {
       try {
+        let totalIGasToSave = TOTAL_IGAS || 0;
+        try {
+          const { getAccountantState } = require("./src/accountant");
+          totalIGasToSave = (getAccountantState()?.totalIGas ?? totalIGasToSave) || 0;
+        } catch (err: any) {
+          // keep fallback
+        }
         const igasPersistenceFile = path.join(__dirname, 'eden-igas-persistence.json');
         const igasData = {
-          totalIGas: TOTAL_IGAS,
+          totalIGas: totalIGasToSave,
           lastSaved: new Date().toISOString()
         };
         fs.writeFileSync(igasPersistenceFile, JSON.stringify(igasData, null, 2), 'utf-8');
-        console.log(`⏰ [Periodic Save] Auto-saving total iGas: ${TOTAL_IGAS.toFixed(6)}`);
+        console.log(`⏰ [Periodic Save] Auto-saving total iGas: ${totalIGasToSave.toFixed(6)}`);
       } catch (error) {
         console.error('❌ [Periodic Save] Failed to save total iGas:', error);
       }
