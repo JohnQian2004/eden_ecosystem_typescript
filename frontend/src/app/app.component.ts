@@ -889,6 +889,11 @@ export class AppComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
   
+  openStripePaymentModal() {
+    this.showStripePaymentModal = true;
+    this.cdr.detectChanges();
+  }
+
   closeStripePaymentModal() {
     this.showStripePaymentModal = false;
     this.cdr.detectChanges();
@@ -1341,6 +1346,30 @@ export class AppComponent implements OnInit, OnDestroy {
                 icon: '🍽️',
                 adText: 'Restaurant Reservations',
                 sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
+              },
+              {
+                type: 'grocerystore',
+                icon: '🏢',
+                adText: 'Grocery Store',
+                sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices'
+              },
+              {
+                type: 'pharmacy',
+                icon: '🏢',
+                adText: 'Pharmacy',
+                sampleQuery: 'I need to find a pharmacy that has my prescription medication available'
+              },
+              {
+                type: 'dogpark',
+                icon: '🐕',
+                adText: 'Dog Park',
+                sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains'
+              },
+              {
+                type: 'gasstation',
+                icon: '⛽',
+                adText: 'Gas Station',
+                sampleQuery: 'I need to find a gas station with premium fuel at the best price'
               }
                   ];
                   

@@ -15,10 +15,10 @@
           <!-- Sign In/Out Button - Right Side (SaaS style) -->
           <div class="d-flex align-items-center gap-2">
             <button class="btn" [ngClass]="{'btn-primary': isUserSignedIn, 'btn-success': !isUserSignedIn}" (click)="openSignInModal()" [style.background-color]="!isUserSignedIn ? '#238636' : ''" [style.border-color]="!isUserSignedIn ? '#238636' : ''" [style.color]="!isUserSignedIn ? '#fff' : ''">
-              <span *ngIf="!isGoogleSignedIn">🔐 Sign In</span>
-              <span *ngIf="isGoogleSignedIn">👤 {{ userEmail }}</span>
+              <span *ngIf="!isUserSignedIn">🔐 Sign In</span>
+              <span *ngIf="isUserSignedIn">👤 {{ userEmail }}</span>
             </button>
-            <button *ngIf="isGoogleSignedIn" class="btn btn-outline-secondary btn-sm" (click)="signOut()" title="Sign Out">
+            <button *ngIf="isUserSignedIn" class="btn btn-outline-secondary btn-sm" (click)="signOut()" title="Sign Out">
               Sign Out
             </button>
           </div>
@@ -279,7 +279,11 @@
         <!-- iGas Display -->
         <div class="row mb-4">
           <div class="col-12">
-            <app-igas-display [priesthoodStats]="priesthoodStats"></app-igas-display>
+            <app-igas-display 
+              [priesthoodStats]="priesthoodStats"
+              [walletBalance]="walletBalance"
+              [onOpenStripeModal]="openStripePaymentModal.bind(this)">
+            </app-igas-display>
           </div>
         </div>
         
@@ -398,7 +402,11 @@
                     'airline-service': serviceType.type === 'airline',
                     'autoparts-service': serviceType.type === 'autoparts',
                     'hotel-service': serviceType.type === 'hotel',
-                    'restaurant-service': serviceType.type === 'restaurant'
+                    'restaurant-service': serviceType.type === 'restaurant',
+                    'grocerystore-service': serviceType.type === 'grocerystore',
+                    'pharmacy-service': serviceType.type === 'pharmacy',
+                    'dogpark-service': serviceType.type === 'dogpark',
+                    'gasstation-service': serviceType.type === 'gasstation'
                   }"
                   (click)="selectServiceType(serviceType)" 
                   style="cursor: pointer;">

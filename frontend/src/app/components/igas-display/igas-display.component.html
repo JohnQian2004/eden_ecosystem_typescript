@@ -1,20 +1,33 @@
 <div class="card">
   <div class="card-body">
     <div class="row text-center">
-      <div class="col-md-4">
+      <div class="col-md-2 col-sm-6">
         <h6 class="text-muted mb-2">Current iGas</h6>
         <div class="igas-display">{{ (currentIGas || 0).toFixed(6) }}</div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-2 col-sm-6">
         <h6 class="text-muted mb-2">Total iGas</h6>
         <div class="igas-display">{{ (totalIGas || 0).toFixed(6) }}</div>
       </div>
-      <div class="col-md-4" *ngIf="priesthoodStats">
+      <div class="col-md-2 col-sm-6">
+        <h6 class="text-muted mb-2">Wallet Balance</h6>
+        <div class="igas-display wallet-balance-clickable" (click)="onOpenStripeModal()" title="Click to purchase 🍎 APPLES">
+          {{ (walletBalance || 0).toFixed(2) }} 🍎
+        </div>
+      </div>
+      <div class="col-md-2 col-sm-6">
+        <h6 class="text-muted mb-2">Total Fees</h6>
+        <div class="igas-display">{{ ((totalFees || 0) * 1000000).toFixed(0) }} 🍎</div>
+      </div>
+      <div class="col-md-2 col-sm-6" *ngIf="priesthoodStats">
         <h6 class="text-muted mb-2">Certified Priests</h6>
         <div class="igas-display d-flex align-items-center justify-content-center gap-2">
           <span class="fs-4">🛐</span>
           <span class="fw-bold">{{ priesthoodStats.approved || 0 }}</span>
         </div>
+      </div>
+      <div class="col-md-2 col-sm-6" *ngIf="!priesthoodStats">
+        <!-- Empty column for spacing when priests not shown -->
       </div>
     </div>
   </div>

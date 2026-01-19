@@ -37,10 +37,10 @@ import {
   STRIPE_WEBHOOK_SECRET
 } from "./src/config";
 import type { GardenConfig, TokenGardenConfig } from "./src/types";
-import { 
-  GARDENS, 
-  TOKEN_GARDENS, 
-  initializeGardens, 
+import {
+  GARDENS,
+  TOKEN_GARDENS,
+  initializeGardens,
   initializeUsers,
   ROOT_CA,
   ROOT_CA_IDENTITY,
@@ -49,7 +49,8 @@ import {
   REVOCATION_REGISTRY,
   HOLY_GHOST_GARDEN,
   LEDGER,
-  USERS as USERS_STATE
+  USERS as USERS_STATE,
+  TOTAL_IGAS
 } from "./src/state";
 import { ROOT_CA_UUID, REVOCATION_STREAM, WALLET_BALANCE_PREFIX, WALLET_HOLD_PREFIX, WALLET_AUDIT_PREFIX } from "./src/constants";
 import {
@@ -301,57 +302,82 @@ httpServer.on("request", async (req, res) => {
     
     try {
       const dataPath = path.join(__dirname, "data");
-      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
       const workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
       
-      for (const serviceType of serviceTypes) {
-        const filename = `${serviceType}.json`;
-        let filePath = path.join(dataPath, filename);
-        let exists = fs.existsSync(filePath);
-        let stepCount: number | undefined = undefined;
+      // Dynamically scan the data directory for all .json files (removes hardcoded dependencies)
+      if (fs.existsSync(dataPath)) {
+        const files = fs.readdirSync(dataPath);
+        const jsonFiles = files.filter(file => file.endsWith('.json') && !file.startsWith('.'));
         
-        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
-        if (!exists && serviceType === "movie") {
-          const legacyPath = path.join(dataPath, "amc_cinema.json");
-          if (fs.existsSync(legacyPath)) {
-            exists = true;
-            filePath = legacyPath;
-            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
-          }
-        }
+        // Create a set of found service types
+        const foundServiceTypes = new Set<string>();
         
-        // Also check for dex.json
-        if (serviceType === "dex" && !exists) {
-          const dexPath = path.join(dataPath, "dex.json");
-          if (fs.existsSync(dexPath)) {
-            exists = true;
-            filePath = dexPath;
-            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
-          }
-        }
-        
-        // If workflow exists, load it and count steps
-        if (exists) {
-          try {
-            const fileContent = fs.readFileSync(filePath, "utf-8");
-            const data = JSON.parse(fileContent);
-            if (data.flowwiseWorkflow && data.flowwiseWorkflow.steps && Array.isArray(data.flowwiseWorkflow.steps)) {
-              stepCount = data.flowwiseWorkflow.steps.length;
-              console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${stepCount} steps`);
-            } else {
-              console.log(`   ⚠️ [${requestId}] Workflow ${serviceType}: ${filename} - exists but no steps found`);
+        for (const file of jsonFiles) {
+          // Extract service type from filename (remove .json extension)
+          const serviceType = file.replace('.json', '');
+          
+          // Skip non-workflow files (if any)
+          if (serviceType && !foundServiceTypes.has(serviceType)) {
+            foundServiceTypes.add(serviceType);
+            
+            const filePath = path.join(dataPath, file);
+            const exists = fs.existsSync(filePath);
+            let stepCount: number | undefined = undefined;
+            
+            // If workflow exists, load it and count steps
+            if (exists) {
+              try {
+                const fileContent = fs.readFileSync(filePath, "utf-8");
+                const data = JSON.parse(fileContent);
+                if (data.flowwiseWorkflow && data.flowwiseWorkflow.steps && Array.isArray(data.flowwiseWorkflow.steps)) {
+                  stepCount = data.flowwiseWorkflow.steps.length;
+                  console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${file} - ${stepCount} steps`);
+                } else {
+                  console.log(`   ⚠️ [${requestId}] Workflow ${serviceType}: ${file} - exists but no steps found`);
+                }
+              } catch (parseError: any) {
+                console.error(`   ⚠️ [${requestId}] Error parsing workflow ${serviceType}: ${parseError.message}`);
+              }
             }
-          } catch (parseError: any) {
-            console.error(`   ⚠️ [${requestId}] Error parsing workflow ${serviceType}: ${parseError.message}`);
+            
+            workflows.push({ 
+              serviceType, 
+              filename: file, 
+              exists, 
+              stepCount 
+            });
           }
-        } else {
-          console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - NOT FOUND`);
         }
         
-        workflows.push({ serviceType, filename, exists, stepCount });
+        // Also include known service types that might not have files yet (for completeness)
+        // This ensures the frontend always has a complete list to display
+        const knownServiceTypes = [
+          'movie', 'amc', 'autobodyshop', 'autorepairshop', 'bank', 'church', 'court',
+          'dex', 'dogpark', 'gasstation', 'grocerystore', 'gym', 'hospital', 'hotel',
+          'jail', 'laborcamp', 'library', 'pharmacy', 'policestation', 'postoffice',
+          'priest', 'restaurant', 'school', 'university', 'airline', 'autoparts', 'snake'
+        ];
+        
+        // Add missing service types (that don't have files yet) to the list
+        for (const knownType of knownServiceTypes) {
+          if (!foundServiceTypes.has(knownType)) {
+            const filename = `${knownType}.json`;
+            workflows.push({
+              serviceType: knownType,
+              filename: filename,
+              exists: false,
+              stepCount: undefined
+            });
+          }
+        }
+        
+        // Sort workflows by serviceType for consistent ordering
+        workflows.sort((a, b) => a.serviceType.localeCompare(b.serviceType));
+        
+        console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
+      } else {
+        console.warn(`   ⚠️ [${requestId}] Data directory does not exist: ${dataPath}`);
       }
-      
-      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
       
       res.writeHead(200, {
         "Content-Type": "application/json",
@@ -428,6 +454,50 @@ httpServer.on("request", async (req, res) => {
     } catch (error: any) {
       console.error(`   ❌ [${requestId}] Error loading workflow:`, error.message);
       console.error(`   ❌ [${requestId}] Stack trace:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // GET /api/igas/total - Get total iGas
+  if (pathname === "/api/igas/total" && req.method === "GET") {
+    console.log(`   ⛽ [${requestId}] GET /api/igas/total - Fetching total iGas`);
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    });
+    res.end(JSON.stringify({
+      success: true,
+      totalIGas: TOTAL_IGAS,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  // GET /api/accountant/summary - Get Accountant Service financial summary
+  if (pathname === "/api/accountant/summary" && req.method === "GET") {
+    console.log(`   📊 [${requestId}] GET /api/accountant/summary - Fetching financial summary`);
+    try {
+      const { getFinancialSummary } = await import("./src/accountant");
+      const summary = getFinancialSummary();
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        ...summary,
+        timestamp: Date.now()
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error fetching accountant summary:`, error.message);
       res.writeHead(500, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
@@ -650,6 +720,14 @@ httpServer.on("request", async (req, res) => {
             updatedContext.airlinePrice = updatedContext.selectedListing.price;
           } else if (currentServiceType === 'restaurant') {
             updatedContext.restaurantPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'grocerystore') {
+            updatedContext.grocerystorePrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'pharmacy') {
+            updatedContext.pharmacyPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'dogpark') {
+            updatedContext.dogparkPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'gasstation') {
+            updatedContext.gasstationPrice = updatedContext.selectedListing.price;
           }
           // Also set generic totalCost for backward compatibility
           updatedContext.totalCost = updatedContext.selectedListing.price;
@@ -856,6 +934,10 @@ httpServer.on("request", async (req, res) => {
                                           updatedContext.moviePrice || 
                                           updatedContext.hotelPrice || 
                                           updatedContext.restaurantPrice ||
+                                          updatedContext.grocerystorePrice ||
+                                          updatedContext.pharmacyPrice ||
+                                          updatedContext.dogparkPrice ||
+                                          updatedContext.gasstationPrice ||
                                           updatedContext.totalCost ||
                                           listingPrice || 
                                           0;
@@ -895,6 +977,14 @@ httpServer.on("request", async (req, res) => {
                       updatedContext.airlinePrice = listingPrice || snapshotAmount;
                     } else if (currentServiceType === 'restaurant') {
                       updatedContext.restaurantPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'grocerystore') {
+                      updatedContext.grocerystorePrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'pharmacy') {
+                      updatedContext.pharmacyPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'dogpark') {
+                      updatedContext.dogparkPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'gasstation') {
+                      updatedContext.gasstationPrice = listingPrice || snapshotAmount;
                     }
                     // Also set generic totalCost for backward compatibility
                     updatedContext.totalCost = listingPrice || snapshotAmount;
@@ -1001,6 +1091,30 @@ httpServer.on("request", async (req, res) => {
                     baseListing.cuisine = ['Italian', 'French', 'Asian Fusion', 'American', 'Mediterranean'][index % 5];
                     baseListing.partySize = [2, 4, 2, 6, 4][index % 5];
                     baseListing.location = ['Downtown', 'Waterfront', 'Uptown', 'Historic District', 'Shopping District'][index % 5];
+                  } else if (queryServiceType === 'grocerystore') {
+                    baseListing.grocerystoreName = ['Fresh Market', 'Super Grocer', 'Neighborhood Market', 'City Grocery', 'Green Valley Store'][index % 5];
+                    baseListing.storeType = ['Supermarket', 'Grocery Store', 'Convenience Store', 'Organic Market', 'Discount Store'][index % 5];
+                    baseListing.department = ['Produce', 'Dairy', 'Meat', 'Bakery', 'Frozen'][index % 5];
+                    baseListing.location = ['Downtown', 'Suburban', 'City Center', 'Shopping Plaza', 'Neighborhood'][index % 5];
+                    baseListing.hours = ['8 AM - 9 PM', '7 AM - 10 PM', '6 AM - 11 PM', '24 Hours', '9 AM - 8 PM'][index % 5];
+                  } else if (queryServiceType === 'pharmacy') {
+                    baseListing.pharmacyName = ['Health Pharmacy', 'Community Drug Store', 'Wellness Pharmacy', 'Family Pharmacy', 'Care Pharmacy'][index % 5];
+                    baseListing.pharmacyType = ['Retail Pharmacy', 'Chain Pharmacy', 'Independent Pharmacy', 'Hospital Pharmacy', 'Compounding Pharmacy'][index % 5];
+                    baseListing.services = ['Prescriptions', 'Over-the-counter', 'Health Consultations', 'Vaccinations', 'Medical Supplies'][index % 5];
+                    baseListing.location = ['Downtown', 'Medical District', 'Shopping Center', 'Hospital Area', 'Residential'][index % 5];
+                    baseListing.hours = ['9 AM - 6 PM', '8 AM - 8 PM', '24 Hours', '9 AM - 9 PM', '7 AM - 7 PM'][index % 5];
+                  } else if (queryServiceType === 'dogpark') {
+                    baseListing.dogparkName = ['Happy Tails Park', 'Paws & Play Park', 'Canine Commons', 'Dogwood Park', 'Bark & Run Park'][index % 5];
+                    baseListing.parkType = ['Off-Leash Park', 'Fenced Park', 'Community Park', 'Private Park', 'Dog Run'][index % 5];
+                    baseListing.amenities = ['Water Fountains', 'Agility Equipment', 'Separate Small Dog Area', 'Waste Stations', 'Shaded Areas'][index % 5];
+                    baseListing.location = ['Downtown', 'Residential', 'Suburban', 'Park District', 'Neighborhood'][index % 5];
+                    baseListing.hours = ['6 AM - 10 PM', 'Dawn to Dusk', '24 Hours', '7 AM - 9 PM', '5 AM - 11 PM'][index % 5];
+                  } else if (queryServiceType === 'gasstation') {
+                    baseListing.gasstationName = ['Quick Fill Station', 'Express Gas', 'Fuel Stop', 'Corner Gas', 'Highway Fuel'][index % 5];
+                    baseListing.stationType = ['Full Service', 'Self Service', 'Convenience Store', 'Truck Stop', 'Premium Station'][index % 5];
+                    baseListing.fuelTypes = ['Regular', 'Premium', 'Diesel', 'E85', 'Electric Charging'][index % 5];
+                    baseListing.location = ['Highway', 'Downtown', 'Suburban', 'Shopping Center', 'Residential'][index % 5];
+                    baseListing.hours = ['24 Hours', '6 AM - 11 PM', '5 AM - Midnight', '24 Hours', '7 AM - 10 PM'][index % 5];
                   } else {
                     // Generic fallback for other service types
                     baseListing.name = `${provider.name} Service`;
@@ -1781,65 +1895,6 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  // GET /api/workflow/list - List all available workflows
-  if (pathname === "/api/workflow/list" && req.method === "GET") {
-    console.log(`   📋 [${requestId}] GET /api/workflow/list - Listing available workflows`);
-    
-    try {
-      const dataPath = path.join(__dirname, "data");
-      const serviceTypes = ["movie", "dex", "airline", "autoparts", "hotel", "restaurant", "snake"];
-      const workflows: Array<{serviceType: string, filename: string, exists: boolean}> = [];
-      
-      for (const serviceType of serviceTypes) {
-        const filename = `${serviceType}.json`;
-        let filePath = path.join(dataPath, filename);
-        let exists = fs.existsSync(filePath);
-        
-        // Backward compatibility: Check for amc_cinema.json if movie.json doesn't exist
-        if (!exists && serviceType === "movie") {
-          const legacyPath = path.join(dataPath, "amc_cinema.json");
-          if (fs.existsSync(legacyPath)) {
-            exists = true;
-            console.log(`   📋 [${requestId}] Found legacy workflow: amc_cinema.json (maps to movie.json)`);
-          }
-        }
-        
-        // Also check for dex.json
-        if (serviceType === "dex" && !exists) {
-          const dexPath = path.join(dataPath, "dex.json");
-          exists = fs.existsSync(dexPath);
-          if (exists) {
-            console.log(`   📋 [${requestId}] Found workflow: dex.json`);
-          }
-        }
-        
-        workflows.push({ serviceType, filename, exists });
-        console.log(`   📋 [${requestId}] Workflow ${serviceType}: ${filename} - ${exists ? 'EXISTS' : 'NOT FOUND'}`);
-      }
-      
-      console.log(`   📋 [${requestId}] Found ${workflows.filter(w => w.exists).length} existing workflows out of ${workflows.length} total`);
-      
-      res.writeHead(200, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      });
-      res.end(JSON.stringify({
-        success: true,
-        workflows
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error listing workflows:`, error.message);
-      res.writeHead(500, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message
-      }));
-    }
-    return;
-  }
 
   // POST /api/workflow/generate - Generate workflow using LLM
   if (pathname === "/api/workflow/generate" && req.method === "POST") {
@@ -2314,7 +2369,26 @@ httpServer.on("request", async (req, res) => {
     };
     
     // Clean up providers that belong to non-existent gardens (except HG)
-    const validGardenIds = new Set([...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(g => g.id), 'HG']);
+    // CRITICAL: Also check gardens from persistence file to avoid false positives
+    const allGardenIds = [...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(g => g.id)];
+    
+    // Load gardens from persistence file to include in validation
+    const gardensPersistenceFile = path.join(__dirname, 'eden-gardens-persistence.json');
+    let persistedGardenIds: string[] = [];
+    if (fs.existsSync(gardensPersistenceFile)) {
+      try {
+        const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        const persistedGardens = persisted.gardens || [];
+        persistedGardenIds = persistedGardens.map((g: any) => g.id);
+        console.log(`   🔍 [Service Registry API] Loaded ${persistedGardenIds.length} garden ID(s) from persistence file for orphaned provider check`);
+      } catch (err: any) {
+        console.warn(`   ⚠️  [Service Registry API] Failed to load gardens from persistence file for orphaned check: ${err.message}`);
+      }
+    }
+    
+    // Combine in-memory and persisted garden IDs
+    const validGardenIds = new Set([...allGardenIds, ...persistedGardenIds, 'HG']); // HG is always valid (Holy Ghost)
     const orphanedProviders = allProviders.filter(p => p.gardenId && p.gardenId !== 'HG' && !validGardenIds.has(p.gardenId));
     if (orphanedProviders.length > 0) {
       console.warn(`   ⚠️  [Service Registry API] Found ${orphanedProviders.length} orphaned provider(s) with invalid gardenIds: ${orphanedProviders.map(p => `${p.id} (gardenId: ${p.gardenId})`).join(', ')}`);
@@ -4688,6 +4762,89 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
+        // Create transaction snapshot for garden creation
+        const snapshot: TransactionSnapshot = {
+          chainId: 'eden:mainnet',
+          txId: txId,
+          slot: Date.now(),
+          blockTime: Date.now(),
+          payer: email,
+          merchant: 'ROOT CA',
+          amount: amount,
+          feeSplit: {}
+        };
+        
+        // Create ledger entry for garden creation
+        const ledgerEntry = addLedgerEntry(
+          snapshot,
+          'garden_deployment',
+          0, // iGasCost (no iGas for garden creation)
+          email, // payerId
+          'ROOT CA', // merchantName
+          ROOT_CA_UUID, // providerUuid
+          {
+            type: 'garden_deployment',
+            description: `Garden deployment: ${gardenName || 'Unknown'}`,
+            price: amount,
+            serviceType: serviceType,
+            gardenName: gardenName,
+            createdBy: email
+          }
+        );
+        
+        // Get user for cashier processing
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          user = {
+            id: email,
+            email: email,
+            balance: debitResult.balance
+          };
+          USERS_STATE.push(user);
+        } else {
+          // Update user balance to match debited balance
+          user.balance = debitResult.balance;
+        }
+        
+        // Process payment through cashier (wallet already debited, so just update cashier stats)
+        const cashier = getCashierStatus();
+        cashier.processedCount++;
+        cashier.totalProcessed += amount;
+        ledgerEntry.status = 'processed';
+        
+        // Broadcast cashier payment processed event
+        broadcastEvent({
+          type: "cashier_payment_processed",
+          component: "cashier",
+          message: `${cashier.name} processed payment: ${amount} 🍎 APPLES`,
+          timestamp: Date.now(),
+          data: { entry: ledgerEntry, cashier, userBalance: debitResult.balance, walletService: "wallet-service-001" }
+        });
+        
+        // Complete the booking
+        completeBooking(ledgerEntry);
+        
+        // Note: pushLedgerEntryToSettlementStream is already called inside addLedgerEntry
+        // No need to call it again here
+        
+        // Broadcast ledger entry created event
+        broadcastEvent({
+          type: "ledger_entry_created",
+          component: "ledger",
+          message: `Ledger entry created for garden deployment: ${ledgerEntry.entryId}`,
+          timestamp: Date.now(),
+          data: { entry: ledgerEntry }
+        });
+        
+        // Also broadcast ledger_entry_added for backward compatibility
+        broadcastEvent({
+          type: "ledger_entry_added",
+          component: "ledger",
+          message: `Ledger entry created: ${ledgerEntry.entryId}`,
+          timestamp: Date.now(),
+          data: { entry: ledgerEntry }
+        });
+        
         // Determine next available port (starting from 3001) if not provided
         let finalPort = serverPort;
         if (!finalPort || finalPort < 3001) {
@@ -5271,8 +5428,12 @@ httpServer.on("request", async (req, res) => {
         }
         // Update GARDENS array to remove duplicates
         const cleanRegularIndexers = Array.from(deduplicatedRegularIndexers.values());
-        GARDENS.length = 0;
-        GARDENS.push(...cleanRegularIndexers);
+        console.log(`📋 [Indexer Persistence] After deduplication, GARDENS has ${cleanRegularIndexers.length} garden(s): ${cleanRegularIndexers.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
+        
+        // CRITICAL: Don't clear GARDENS array yet - we need it for the preservation logic
+        // We'll update it after we've built the final list to save
+        // GARDENS.length = 0;
+        // GARDENS.push(...cleanRegularIndexers);
         
         let regularIndexersToSave: GardenConfig[] = [];
         let tokenIndexersToSave: GardenConfig[] = [];
@@ -5287,8 +5448,13 @@ httpServer.on("request", async (req, res) => {
               console.warn(`⚠️  [Indexer Persistence] Token indexer ${idx.id} found in GARDENS during save - excluding from regular indexers`);
               return false;
             }
-            return !defaultIds.includes(idx.id);
+            const isDefault = defaultIds.includes(idx.id);
+            if (isDefault) {
+              console.log(`📋 [Indexer Persistence] Excluding default garden ${idx.id} from save`);
+            }
+            return !isDefault;
           });
+          console.log(`📋 [Indexer Persistence] After filtering defaults, ${regularIndexersToSave.length} regular garden(s) to save: ${regularIndexersToSave.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
         } else {
           // ROOT mode: ONLY save indexers created via Angular (format: garden-1, garden-2, etc. or indexer-1, indexer-2, etc.)
           regularIndexersToSave = cleanRegularIndexers.filter(idx => {
@@ -5299,8 +5465,13 @@ httpServer.on("request", async (req, res) => {
             }
             // Only save indexers with format "garden-N" or "indexer-N" (created via Angular)
             // Support both formats for backward compatibility
-            return idx.id.startsWith('garden-') || idx.id.startsWith('indexer-');
+            const matchesFormat = idx.id.startsWith('garden-') || idx.id.startsWith('indexer-');
+            if (!matchesFormat) {
+              console.log(`📋 [Indexer Persistence] Excluding garden ${idx.id} - doesn't match garden-N or indexer-N format`);
+            }
+            return matchesFormat;
           });
+          console.log(`📋 [Indexer Persistence] After filtering format, ${regularIndexersToSave.length} regular garden(s) to save: ${regularIndexersToSave.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
         }
         
         // CRITICAL: Deduplicate TOKEN_GARDENS array BEFORE collecting tokenIndexersToSave
@@ -5546,18 +5717,70 @@ httpServer.on("request", async (req, res) => {
           
           // REFACTOR: Save gardens to separate file
           const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+          
+          // CRITICAL: Load existing gardens from file to preserve any that aren't in memory
+          // This prevents losing gardens that exist in the file but aren't currently in memory
+          let existingGardensFromFile: any[] = [];
+          if (fs.existsSync(gardensFile)) {
+            try {
+              const fileContent = fs.readFileSync(gardensFile, 'utf-8');
+              const persisted = JSON.parse(fileContent);
+              existingGardensFromFile = persisted.gardens || [];
+              console.log(`📋 [Indexer Persistence] Loaded ${existingGardensFromFile.length} existing garden(s) from file to preserve`);
+              console.log(`📋 [Indexer Persistence] Gardens in file: ${existingGardensFromFile.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+            } catch (err: any) {
+              console.warn(`⚠️  [Indexer Persistence] Failed to load existing gardens from file: ${err.message}`);
+            }
+          }
+          
+          // Log what's in memory before merging
+          console.log(`📋 [Indexer Persistence] Gardens in memory (finalIndexersToSave): ${finalIndexersToSave.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+          
+          // Merge existing gardens from file with in-memory gardens
+          // Prefer in-memory versions (they're the source of truth), but keep file gardens that aren't in memory
+          const existingGardenIds = new Set(finalIndexersToSave.map(g => g.id));
+          const preservedGardens = existingGardensFromFile.filter((g: any) => {
+            const shouldPreserve = !existingGardenIds.has(g.id);
+            if (!shouldPreserve) {
+              console.log(`📋 [Indexer Persistence] Garden ${g.id}(${g.serviceType || 'no-type'}) is in memory, using in-memory version`);
+            }
+            return shouldPreserve;
+          });
+          
+          if (preservedGardens.length > 0) {
+            console.log(`📋 [Indexer Persistence] ✅ Preserving ${preservedGardens.length} garden(s) from file that aren't in memory: ${preservedGardens.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+          } else if (existingGardensFromFile.length > 0) {
+            console.log(`📋 [Indexer Persistence] ℹ️  All ${existingGardensFromFile.length} garden(s) from file are already in memory, no preservation needed`);
+          }
+          
+          // Combine in-memory gardens (source of truth) with preserved gardens from file
+          const allGardensToSave = [...finalIndexersToSave, ...preservedGardens];
+          
+          // Final safety check: log all gardens being saved
+          console.log(`📋 [Indexer Persistence] 💾 Saving ${allGardensToSave.length} total garden(s): ${allGardensToSave.map((g: any) => `${g.id}(${g.serviceType || 'no-type'})`).join(', ')}`);
+          
           const gardensData = {
-            gardens: finalIndexersToSave,
+            gardens: allGardensToSave,
             lastSaved: new Date().toISOString()
           };
           fs.writeFileSync(gardensFile, JSON.stringify(gardensData, null, 2), 'utf-8');
-          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${finalIndexersToSave.length} total garden(s) (${regularIndexersToSave.length} regular + ${tokenIndexersToSave.length} token) to ${gardensFile}`);
+          console.log(`💾 [Indexer Persistence] ✅ IMMEDIATELY saved ${allGardensToSave.length} total garden(s) (${finalIndexersToSave.length} from memory + ${preservedGardens.length} preserved from file) to ${gardensFile}`);
           if (regularIndexersToSave.length > 0) {
             console.log(`💾 [Indexer Persistence] Saved regular gardens: ${regularIndexersToSave.map(i => `${i.name} (${i.id})`).join(', ')}`);
           }
           if (tokenIndexersToSave.length > 0) {
             console.log(`💾 [Indexer Persistence] Saved token gardens: ${tokenIndexersToSave.map(i => `${i.name} (${i.id})${i.certificate ? ' ✓cert' : ' ❌no cert'}`).join(', ')}`);
           }
+          
+          // CRITICAL: Now update the in-memory GARDENS array to match what we saved
+          // This ensures consistency between memory and file, including preserved gardens
+          GARDENS.length = 0;
+          const savedRegularGardens = allGardensToSave.filter((g: any) => {
+            const isToken = (g.tokenServiceType === 'dex' || (g.serviceType === 'dex' && g.id && g.id.startsWith('T')));
+            return !isToken;
+          });
+          GARDENS.push(...savedRegularGardens);
+          console.log(`📋 [Indexer Persistence] Updated in-memory GARDENS array to ${GARDENS.length} garden(s) to match saved file: ${GARDENS.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
           
           // Save ServiceRegistry2 to persistence file
           // CRITICAL: Use ServiceRegistry2 (new implementation) - it handles persistence correctly
@@ -6701,6 +6924,10 @@ async function generateWorkflowFromTemplate(template: any, serviceType: string):
     autoparts: "Automotive parts marketplace - Users can search for auto parts, compare prices, and purchase parts",
     hotel: "Hotel reservation service - Users can search for hotels, view availability, and book rooms",
     restaurant: "Restaurant booking service - Users can search for restaurants, view menus, and make reservations",
+    grocerystore: "Grocery store service - Users can search for grocery stores, browse products, and place orders",
+    pharmacy: "Pharmacy service - Users can search for pharmacies, find medications, and manage prescriptions",
+    dogpark: "Dog park service - Users can search for dog parks, view amenities, and check availability",
+    gasstation: "Gas station service - Users can search for gas stations, compare prices, and find fuel types",
     snake: "Snake (Advertiser) - Advertising service provider that displays ads to users"
   };
   
@@ -8071,6 +8298,21 @@ async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<vo
     
     console.log(`📤 [Settlement] Pushed ledger entry ${entry.entryId} to ROOT CA settlement stream`);
     console.log(`   iGas: ${iGas}, iTax: ${iTax}, ROOT CA Fee: ${rootCAFee}, Indexer Fee: ${indexerFee}`);
+    
+    // Record fee payment in Accountant Service
+    try {
+      const { recordFeePayment } = await import("./src/accountant");
+      recordFeePayment(
+        entry.serviceType,
+        iGas,
+        iTax,
+        rootCAFee,
+        indexerFee,
+        0 // providerFee (can be added later if needed)
+      );
+    } catch (err: any) {
+      console.warn(`⚠️  [Settlement] Failed to record fee payment in Accountant: ${err.message}`);
+    }
     
     broadcastEvent({
       type: "ledger_entry_pushed",
@@ -9590,12 +9832,18 @@ async function processChatInput(input: string, email: string) {
     data: { response: llmResponse }
   });
   
+  // Accumulate total iGas
+  TOTAL_IGAS += llmResponse.iGasCost;
+  
   broadcastEvent({
     type: "igas",
     component: "igas",
     message: `iGas Cost: ${llmResponse.iGasCost.toFixed(6)}`,
     timestamp: Date.now(),
-    data: { igas: llmResponse.iGasCost }
+    data: { 
+      igas: llmResponse.iGasCost,
+      totalIGas: TOTAL_IGAS
+    }
   });
   
   if (!llmResponse.selectedListing) {
@@ -9883,6 +10131,10 @@ async function processChatInput(input: string, email: string) {
                                selectedListing.flightNumber ? 'airline' :
                                selectedListing.hotelName ? 'hotel' :
                                selectedListing.restaurantName ? 'restaurant' :
+                               selectedListing.grocerystoreName ? 'grocerystore' :
+                               selectedListing.pharmacyName ? 'pharmacy' :
+                               selectedListing.dogparkName ? 'dogpark' :
+                               selectedListing.gasstationName ? 'gasstation' :
                                selectedListing.partName ? 'autoparts' :
                                selectedListing.tokenSymbol ? 'dex' : 'service');
   
@@ -10385,6 +10637,10 @@ async function main() {
   
   // Initialize PriestHood Certification Service
   initializePriesthoodCertification();
+  
+  // Initialize Accountant Service (tracks fee payments and total iGas)
+  const { initializeAccountant } = await import("./src/accountant");
+  initializeAccountant();
   console.log("✅ [PriestHood Certification] Service initialized");
   
   // NOTE: ServiceRegistry2 initialization is deferred until AFTER gardens are loaded from persistence
@@ -10735,6 +10991,23 @@ async function main() {
           console.error(`❌ [Ledger Persistence] Failed to load ledger entries from old file: ${err.message}`);
         }
       }
+    }
+  }
+
+  // Load total iGas from persistence file
+  if (redisConnected && !SKIP_REDIS) {
+    try {
+      const igasPersistenceFile = path.join(__dirname, 'eden-igas-persistence.json');
+      if (fs.existsSync(igasPersistenceFile)) {
+        const fileContent = fs.readFileSync(igasPersistenceFile, 'utf-8');
+        const persisted = JSON.parse(fileContent);
+        if (persisted.totalIGas !== undefined && typeof persisted.totalIGas === 'number') {
+          TOTAL_IGAS = persisted.totalIGas;
+          console.log(`⛽ [iGas Persistence] Loaded total iGas: ${TOTAL_IGAS.toFixed(6)}`);
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  [iGas Persistence] Failed to load total iGas: ${err.message}`);
     }
   }
 
@@ -11213,6 +11486,32 @@ async function main() {
         console.error('❌ [Periodic Save] Failed to save service registry:', error);
       }
     }, 5 * 60 * 1000); // 5 minutes
+
+    // Periodic total iGas save (every 5 minutes)
+    setInterval(() => {
+      try {
+        const igasPersistenceFile = path.join(__dirname, 'eden-igas-persistence.json');
+        const igasData = {
+          totalIGas: TOTAL_IGAS,
+          lastSaved: new Date().toISOString()
+        };
+        fs.writeFileSync(igasPersistenceFile, JSON.stringify(igasData, null, 2), 'utf-8');
+        console.log(`⏰ [Periodic Save] Auto-saving total iGas: ${TOTAL_IGAS.toFixed(6)}`);
+      } catch (error) {
+        console.error('❌ [Periodic Save] Failed to save total iGas:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    // Periodic Accountant Service save (every 5 minutes)
+    setInterval(() => {
+      try {
+        const { saveAccountantState } = require("./src/accountant");
+        saveAccountantState();
+        console.log(`⏰ [Periodic Save] Auto-saving Accountant Service state`);
+      } catch (error) {
+        console.error('❌ [Periodic Save] Failed to save Accountant Service state:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
   });
 }
 
@@ -11231,16 +11530,30 @@ const saveServiceRegistryOnShutdown = () => {
   }
 };
 
+// Shutdown handler to save Accountant Service state
+const saveAccountantOnShutdown = () => {
+  try {
+    console.log('💾 [Shutdown] Saving Accountant Service state...');
+    const { saveAccountantState } = require("./src/accountant");
+    saveAccountantState();
+    console.log('✅ [Shutdown] Accountant Service state saved successfully');
+  } catch (error) {
+    console.error('❌ [Shutdown] Failed to save Accountant Service state:', error);
+  }
+};
+
 // Register shutdown handlers
 process.on('SIGTERM', () => {
-  console.log('🛑 [Shutdown] Received SIGTERM, saving service registry...');
+  console.log('🛑 [Shutdown] Received SIGTERM, saving state...');
   saveServiceRegistryOnShutdown();
+  saveAccountantOnShutdown();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 [Shutdown] Received SIGINT (Ctrl+C), saving service registry...');
+  console.log('🛑 [Shutdown] Received SIGINT (Ctrl+C), saving state...');
   saveServiceRegistryOnShutdown();
+  saveAccountantOnShutdown();
   process.exit(0);
 });
 

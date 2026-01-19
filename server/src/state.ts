@@ -39,6 +39,9 @@ export const ROOT_BALANCES: ROOTBalance = {
 // ROOT CA Liquidity Pool
 export let rootCALiquidity: number = 1000; // Initial ROOT CA liquidity in SOL
 
+// Total iGas Tracking (persisted across server restarts)
+export let TOTAL_IGAS: number = 0.0;
+
 // Provider Webhook Registry
 export interface ProviderWebhook {
   providerId: string;

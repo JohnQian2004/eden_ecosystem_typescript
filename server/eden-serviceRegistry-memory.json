@@ -107,11 +107,83 @@
       "uuid": "96f4802b-6783-403f-8a15-2ec69d583570",
       "apiEndpoint": "https://api.hotel.com/v1",
       "gardenId": "garden-3"
+    },
+    {
+      "id": "airline-fcd06659",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "e6c870ae-e088-4a50-9257-c667b0ba04a7",
+      "apiEndpoint": "https://api.airline.com/v1",
+      "gardenId": "garden-4"
+    },
+    {
+      "id": "restaurant-5f4978cc",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "6b18ff84-0164-4066-be96-7f8603bb420a",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-5"
+    },
+    {
+      "id": "grocerystore-f84bd5ce",
+      "name": "Garden-GROCERYSTORE Provider",
+      "serviceType": "grocerystore",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "4658e8a6-3b53-4df1-ab01-a32416082ee7",
+      "apiEndpoint": "https://api.grocerystore.com/v1",
+      "gardenId": "garden-6"
+    },
+    {
+      "id": "pharmacy-011a2a85",
+      "name": "Garden-PHARMACY Provider",
+      "serviceType": "pharmacy",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "6f59c2d5-3b77-401b-bb46-655cce2714f5",
+      "apiEndpoint": "https://api.pharmacy.com/v1",
+      "gardenId": "garden-7"
+    },
+    {
+      "id": "dogpark-8f30f702",
+      "name": "Garden-DOGPARK Provider",
+      "serviceType": "dogpark",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "38659e63-2747-44b0-8a6d-cda54c23da3e",
+      "apiEndpoint": "https://api.dogpark.com/v1",
+      "gardenId": "garden-8"
+    },
+    {
+      "id": "gasstation-eb0afc10",
+      "name": "Garden-GASSTATION Provider",
+      "serviceType": "gasstation",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "c5203574-ca4e-4d12-bb70-9da841cbe724",
+      "apiEndpoint": "https://api.gasstation.com/v1",
+      "gardenId": "garden-9"
     }
   ],
-  "totalProviders": 9,
+  "totalProviders": 15,
   "movieProviders": 1,
   "dexProviders": 0,
-  "airlineProviders": 0,
-  "lastSaved": "2026-01-18T23:46:18.950Z"
+  "airlineProviders": 1,
+  "lastSaved": "2026-01-19T02:09:29.893Z"
 }

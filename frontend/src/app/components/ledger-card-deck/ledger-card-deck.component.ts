@@ -36,6 +36,14 @@ interface LedgerEntry {
     checkIn?: string;
     checkOut?: string;
     restaurantName?: string;
+    grocerystoreName?: string;
+    storeType?: string;
+    pharmacyName?: string;
+    pharmacyType?: string;
+    dogparkName?: string;
+    parkType?: string;
+    gasstationName?: string;
+    stationType?: string;
     reservationTime?: string;
     // Stripe payment details
     asset?: string;
@@ -231,6 +239,16 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
       parts.push(`Restaurant: ${details.restaurantName}`);
       if (details.reservationTime) parts.push(`Time: ${details.reservationTime}`);
     }
+    // Grocery store details
+    if (details.grocerystoreName) {
+      parts.push(`Store: ${details.grocerystoreName}`);
+      if (details.storeType) parts.push(`Type: ${details.storeType}`);
+    }
+    // Pharmacy details
+    if (details.pharmacyName) {
+      parts.push(`Pharmacy: ${details.pharmacyName}`);
+      if (details.pharmacyType) parts.push(`Type: ${details.pharmacyType}`);
+    }
     
     return parts.join(' | ');
   }
@@ -243,6 +261,10 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
       'autoparts': '🔧',
       'hotel': '🏨',
       'restaurant': '🍽️',
+      'grocerystore': '🏢',
+      'pharmacy': '🏢',
+      'dogpark': '🐕',
+      'gasstation': '⛽',
       'priesthood': '📜'
     };
     return icons[serviceType] || '📋';

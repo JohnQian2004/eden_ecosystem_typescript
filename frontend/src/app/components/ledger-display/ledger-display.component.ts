@@ -341,6 +341,50 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
           { key: 'location', label: 'Location' }
         ]
       },
+      grocerystore: {
+        primary: 'grocerystoreName',
+        primaryLabel: 'Grocery Store',
+        fields: [
+          { key: 'grocerystoreName', label: 'Store' },
+          { key: 'storeType', label: 'Type' },
+          { key: 'department', label: 'Department' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      pharmacy: {
+        primary: 'pharmacyName',
+        primaryLabel: 'Pharmacy',
+        fields: [
+          { key: 'pharmacyName', label: 'Pharmacy' },
+          { key: 'pharmacyType', label: 'Type' },
+          { key: 'services', label: 'Services' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      dogpark: {
+        primary: 'dogparkName',
+        primaryLabel: 'Dog Park',
+        fields: [
+          { key: 'dogparkName', label: 'Park' },
+          { key: 'parkType', label: 'Type' },
+          { key: 'amenities', label: 'Amenities' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      gasstation: {
+        primary: 'gasstationName',
+        primaryLabel: 'Gas Station',
+        fields: [
+          { key: 'gasstationName', label: 'Station' },
+          { key: 'stationType', label: 'Type' },
+          { key: 'fuelTypes', label: 'Fuel Types' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
       dex: {
         primary: 'tokenSymbol',
         primaryLabel: 'DEX',
