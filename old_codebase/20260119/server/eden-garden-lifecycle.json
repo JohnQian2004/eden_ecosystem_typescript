@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-19T04:01:46.240Z",
+  "lastSaved": "2026-01-19T07:29:37.494Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -6051,6 +6051,140 @@
             "websocket-service-001(HG)",
             "wallet-service-001(HG)",
             "dex-pool-tokend(T4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768807592450,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-GASSTATION",
+          "serviceType": "gasstation",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768807592584,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 8,
+          "totalSaved": 8,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768807612871,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-HOTEL",
+          "serviceType": "hotel",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768807613000,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 9,
+          "totalSaved": 9,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)",
+            "hotel-0a492f3c(garden-2)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768807620043,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-PHARMACY",
+          "serviceType": "pharmacy",
+          "hasCertificate": true,
+          "totalGardens": 3
+        }
+      },
+      {
+        "timestamp": 1768807620096,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)",
+            "hotel-0a492f3c(garden-2)",
+            "pharmacy-ad2f9672(garden-3)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768807631389,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-AUTOPARTS",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768807631470,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)",
+            "hotel-0a492f3c(garden-2)",
+            "pharmacy-ad2f9672(garden-3)",
+            "autoparts-19f129f6(garden-4)"
           ]
         }
       }

@@ -101,6 +101,10 @@ export class AppComponent implements OnInit, OnDestroy {
       sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
     }
   ];
+
+  // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
+  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
+  dexServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
   
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
@@ -506,6 +510,9 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     });
     
+    // Initialize Main Street groups from hardcoded list (will be refined by registry)
+    this.recomputeMainStreetGroups();
+
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
     // Load Snake providers separately
@@ -527,14 +534,22 @@ export class AppComponent implements OnInit, OnDestroy {
       }, 1000);
     }
   }
+
+  private recomputeMainStreetGroups() {
+    this.dexServiceTypes = this.serviceTypes.filter(st => st.type === 'dex');
+    this.appleServiceTypes = this.serviceTypes.filter(st => st.type !== 'dex');
+  }
   
   checkServiceGardens() {
     // Check if there are any service gardens (non-root gardens)
     // In PRIEST mode, only check gardens owned by the current user
     const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    // IMPORTANT: We validate service gardens against BOTH ecosystems.
+    // The server defaults /api/gardens to ecosystem=saas (no token gardens),
+    // but Main Street needs token garden IDs too so DEX providers (gardenId=T#) are not filtered out.
     const gardensUrl = isPriestMode && this.userEmail 
       ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
-      : `${this.apiUrl}/api/gardens`;
+      : `${this.apiUrl}/api/gardens?ecosystem=all`;
     
     this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
       .subscribe({
@@ -1249,9 +1264,11 @@ export class AppComponent implements OnInit, OnDestroy {
     
     // First, load gardens to validate gardenId
     // In PRIEST mode, filter gardens by ownerEmail to show only priest-owned gardens
+    // IMPORTANT: We validate providers against BOTH ecosystems (regular + token gardens).
+    // Otherwise DEX providers (gardenId=T#) get filtered out and DEX won't appear on Main Street.
     const gardensUrl = isPriestMode && this.userEmail 
       ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
-      : `${this.apiUrl}/api/gardens`;
+      : `${this.apiUrl}/api/gardens?ecosystem=all`;
     
     this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
       .subscribe({
@@ -1399,6 +1416,7 @@ export class AppComponent implements OnInit, OnDestroy {
                     }
                   }
                   this.serviceTypes = Array.from(serviceTypeMap.values());
+                  this.recomputeMainStreetGroups();
                   
                   // Log if duplicates were found
                   if (filteredServiceTypes.length !== this.serviceTypes.length) {
@@ -1414,6 +1432,7 @@ export class AppComponent implements OnInit, OnDestroy {
                 } else {
                   // If no providers, clear service types
                   this.serviceTypes = [];
+                  this.recomputeMainStreetGroups();
                 }
                 this.isLoadingServices = false;
                 // Refresh service gardens check in case gardens were created
@@ -1424,6 +1443,7 @@ export class AppComponent implements OnInit, OnDestroy {
                 console.error('Failed to load services:', err);
                 // If API fails, don't show any service types
                 this.serviceTypes = [];
+                this.recomputeMainStreetGroups();
                 this.isLoadingServices = false;
                 this.cdr.detectChanges();
               }
@@ -1446,8 +1466,10 @@ export class AppComponent implements OnInit, OnDestroy {
                   const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
                   // Use existing service types logic
                   this.serviceTypes = this.serviceTypes.filter(st => availableTypes.has(st.type));
+                  this.recomputeMainStreetGroups();
                 } else {
                   this.serviceTypes = [];
+                  this.recomputeMainStreetGroups();
                 }
                 this.isLoadingServices = false;
                 this.cdr.detectChanges();
@@ -1455,6 +1477,7 @@ export class AppComponent implements OnInit, OnDestroy {
               error: (err2) => {
                 console.error('Failed to load services:', err2);
                 this.serviceTypes = [];
+                this.recomputeMainStreetGroups();
                 this.isLoadingServices = false;
                 this.cdr.detectChanges();
               }

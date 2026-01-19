@@ -1182,7 +1182,11 @@ httpServer.on("request", async (req, res) => {
                   try {
                     const currentServiceType = updatedContext.serviceType || serviceType || 'movie';
                     const listingPrice = updatedContext.selectedListing?.price || 0;
-                    const snapshotAmount = processedAction.amount || 
+                    // Prefer explicit amount from action; for DEX, fall back to trade.baseAmount when present.
+                    const dexTradeBaseAmount = (updatedContext as any)?.trade?.baseAmount;
+                    const rawActionAmount = processedAction.amount;
+                    const parsedActionAmount = typeof rawActionAmount === 'string' ? parseFloat(rawActionAmount) : rawActionAmount;
+                    const snapshotAmount = (parsedActionAmount ?? (currentServiceType === 'dex' ? dexTradeBaseAmount : undefined)) || 
                                           updatedContext.moviePrice || 
                                           updatedContext.hotelPrice || 
                                           updatedContext.restaurantPrice ||
@@ -1602,13 +1606,57 @@ httpServer.on("request", async (req, res) => {
                       merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName
                     });
 
+                    // DEX FIX: Resolve providerUuid from registry when workflow passes providerId (not UUID)
+                    // This prevents "Demo Service/provider-001" and enables certificate/settlement logic.
+                    if (ledgerServiceType.toLowerCase() === 'dex') {
+                      const providerIdFromContext =
+                        processedAction.providerId ||
+                        updatedContext.selectedListing?.providerId ||
+                        (updatedContext as any)?.trade?.tokenSymbol
+                          ? `dex-pool-${String((updatedContext as any)?.trade?.tokenSymbol || updatedContext.tokenSymbol || '').toLowerCase()}`
+                          : undefined;
+
+                      const providerIdNormalized = providerIdFromContext ? String(providerIdFromContext) : undefined;
+                      const providerFromRegistry = providerIdNormalized
+                        ? ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerIdNormalized)
+                        : undefined;
+
+                      if (!updatedContext.providerUuid && providerFromRegistry?.uuid) {
+                        updatedContext.providerUuid = providerFromRegistry.uuid;
+                        console.log(`✅ [${requestId}] DEX: Resolved providerUuid from registry: ${updatedContext.providerUuid} (providerId=${providerIdNormalized})`);
+                      }
+
+                      // If selectedListing is a generic demo, replace it with a synthesized DEX listing
+                      const isGenericDemo =
+                        (updatedContext.selectedListing as any)?.name === 'Demo Service' ||
+                        (updatedContext.selectedListing as any)?.providerId === 'provider-001';
+                      if (isGenericDemo) {
+                        const tokenSymbol = (updatedContext as any)?.trade?.tokenSymbol || updatedContext.tokenSymbol || 'TOKENA';
+                        const poolId = (updatedContext as any)?.trade?.poolId || `pool-solana-${String(tokenSymbol).toLowerCase()}`;
+                        const providerId = providerIdNormalized || `dex-pool-${String(tokenSymbol).toLowerCase()}`;
+                        updatedContext.selectedListing = {
+                          poolId,
+                          providerId,
+                          providerName: providerFromRegistry?.name || 'DEX Pool Provider',
+                          tokenSymbol,
+                          tokenName: `Token ${String(tokenSymbol).replace(/^TOKEN/i, '')}`,
+                          baseToken: (updatedContext as any)?.trade?.baseToken || updatedContext.baseToken || 'SOL',
+                          price: (updatedContext as any)?.trade?.price || 0,
+                          liquidity: 0,
+                          volume24h: 0,
+                          indexerId: providerFromRegistry?.gardenId || 'T1',
+                        } as any;
+                        console.warn(`⚠️ [${requestId}] DEX: Replaced generic Demo Service selectedListing with synthesized DEX listing`);
+                      }
+                    }
+
                     const ledgerEntry = await addLedgerEntry(
                       snapshot,
                       ledgerServiceType,
                       processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
                       processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
                       processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
-                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
+                      processedAction.providerUuid || updatedContext.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
                       bookingDetails
                     );
 
@@ -1671,16 +1719,12 @@ httpServer.on("request", async (req, res) => {
 
                 case 'process_payment':
                   const paymentUser = processedAction.user || updatedContext.user;
-                  const paymentAmount = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice;
+                  const currentServiceType = (updatedContext.serviceType || serviceType || '').toString().toLowerCase();
+                  const paymentAmountRaw = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice;
+                  const paymentAmount = typeof paymentAmountRaw === 'string' ? parseFloat(paymentAmountRaw) : paymentAmountRaw;
 
                   if (!paymentUser?.email || !paymentAmount) {
                     throw new Error('Missing payment details');
-                  }
-
-                  // Debit the user wallet
-                  const debitResult = debitWallet(paymentUser.email, paymentAmount);
-                  if (!debitResult.success) {
-                    throw new Error(`Payment failed: ${debitResult.error}`);
                   }
 
                   // Process the payment through cashier (CRITICAL: await the async function)
@@ -1710,6 +1754,40 @@ httpServer.on("request", async (req, res) => {
                       redis.saveLedgerEntries(LEDGER);
                       console.log(`💾 [${requestId}] Persisted ledger entry with updated amount: ${ledgerEntryInArray.entryId}`);
                     }
+                  }
+
+                  // DEX FIX: DEX trade execution already moved funds; do NOT debit again here.
+                  // We still update cashier + ledger status so the UI shows cashier/accountant involvement.
+                  if (currentServiceType === 'dex') {
+                    console.log(`💰 [${requestId}] DEX: Skipping wallet debit in process_payment (trade already executed). Updating cashier + ledger status...`);
+                    try {
+                      // Update cashier stats
+                      cashierForPayment.processedCount = (cashierForPayment.processedCount || 0) + 1;
+                      cashierForPayment.totalProcessed = (cashierForPayment.totalProcessed || 0) + (ledgerEntryInArray.amount || 0);
+                    } catch {}
+                    ledgerEntryInArray.status = 'processed';
+                    if (redis) {
+                      redis.saveLedgerEntries(LEDGER);
+                      console.log(`💾 [${requestId}] ✅ Persisted ledger entry with processed status (DEX): ${ledgerEntryInArray.entryId}`);
+                    }
+                    // Update balances in context from wallet service (source of truth)
+                    const { getWalletBalance: getWalletBalanceAsync } = await import("./src/wallet");
+                    const balance = await getWalletBalanceAsync(paymentUser.email);
+                    if (updatedContext.user) updatedContext.user.balance = balance;
+                    updatedContext.paymentSuccess = true;
+                    updatedContext.cashier = cashierForPayment;
+                    updatedContext.updatedBalance = balance;
+                    updatedContext.ledgerEntry = ledgerEntryInArray;
+                    actionResult = {
+                      paymentProcessed: true,
+                      paymentSuccess: true,
+                      amount: ledgerEntryInArray.amount,
+                      skippedDebit: true,
+                      updatedBalance: balance,
+                      ledgerEntry: ledgerEntryInArray,
+                      cashier: cashierForPayment
+                    };
+                    break;
                   }
 
                   // Process payment (this will update status to 'processed' and persist)
@@ -1762,7 +1840,7 @@ httpServer.on("request", async (req, res) => {
                     paymentProcessed: true,
                     paymentSuccess: true,
                     amount: paymentAmount,
-                    newBalance: debitResult.newBalance,
+                    newBalance: paymentUser.balance,
                     ledgerEntry: ledgerEntryForPayment
                   };
                   updatedContext.paymentSuccess = true;
@@ -3208,10 +3286,11 @@ httpServer.on("request", async (req, res) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
     const ownerEmail = url.searchParams.get('ownerEmail'); // Optional filter by owner email (for Priest mode)
+    const cleanupOrphans = (url.searchParams.get('cleanupOrphans') || '').toLowerCase() === 'true'; // destructive cleanup opt-in
     
     // Use ServiceRegistry2 (new implementation)
     const serviceRegistry2 = getServiceRegistry2();
-    const allProviders = serviceRegistry2.getAllProviders();
+    let allProviders = serviceRegistry2.getAllProviders();
     
     // Debug: Log provider assignments for movie service type
     if (!serviceType || serviceType === 'movie') {
@@ -3254,11 +3333,31 @@ httpServer.on("request", async (req, res) => {
       try {
         const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
-        const persistedGardens = persisted.gardens || [];
+        // Backward compatibility: some files store gardens under "indexers"
+        const persistedGardens = persisted.gardens || persisted.indexers || [];
         persistedGardenIds = persistedGardens.map((g: any) => g.id);
         console.log(`   🔍 [Service Registry API] Loaded ${persistedGardenIds.length} garden ID(s) from persistence file for orphaned provider check`);
       } catch (err: any) {
         console.warn(`   ⚠️  [Service Registry API] Failed to load gardens from persistence file for orphaned check: ${err.message}`);
+      }
+    }
+    
+    // Extra backward compatibility: if gardens file is empty/missing, also check old combined file
+    if (persistedGardenIds.length === 0) {
+      const legacyPersistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
+      if (fs.existsSync(legacyPersistenceFile)) {
+        try {
+          const fileContent = fs.readFileSync(legacyPersistenceFile, 'utf-8');
+          const persisted = JSON.parse(fileContent);
+          const legacyGardens = persisted.gardens || persisted.indexers || [];
+          const legacyIds = legacyGardens.map((g: any) => g.id).filter((id: any) => typeof id === 'string');
+          if (legacyIds.length > 0) {
+            persistedGardenIds = legacyIds;
+            console.log(`   🔍 [Service Registry API] Loaded ${persistedGardenIds.length} garden ID(s) from legacy persistence file for orphaned provider check`);
+          }
+        } catch (err: any) {
+          // ignore legacy read errors
+        }
       }
     }
     
@@ -3267,35 +3366,40 @@ httpServer.on("request", async (req, res) => {
     const orphanedProviders = allProviders.filter(p => p.gardenId && p.gardenId !== 'HG' && !validGardenIds.has(p.gardenId));
     if (orphanedProviders.length > 0) {
       console.warn(`   ⚠️  [Service Registry API] Found ${orphanedProviders.length} orphaned provider(s) with invalid gardenIds: ${orphanedProviders.map(p => `${p.id} (gardenId: ${p.gardenId})`).join(', ')}`);
-      // Remove orphaned providers from ServiceRegistry2 and ROOT_CA_SERVICE_REGISTRY
-      const serviceRegistry2 = getServiceRegistry2();
-      for (const orphaned of orphanedProviders) {
-        try {
-          // Check if provider exists before trying to remove it
-          if (serviceRegistry2.hasProvider(orphaned.id)) {
-            serviceRegistry2.removeProvider(orphaned.id);
-            console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ServiceRegistry2`);
-          } else {
-            console.log(`   ℹ️  Orphaned provider ${orphaned.id} not found in ServiceRegistry2 (may have been already removed)`);
+      
+      if (cleanupOrphans) {
+        // Remove orphaned providers from ServiceRegistry2 and ROOT_CA_SERVICE_REGISTRY (explicit opt-in)
+        const serviceRegistry2 = getServiceRegistry2();
+        for (const orphaned of orphanedProviders) {
+          try {
+            // Check if provider exists before trying to remove it
+            if (serviceRegistry2.hasProvider(orphaned.id)) {
+              serviceRegistry2.removeProvider(orphaned.id);
+              console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ServiceRegistry2`);
+            } else {
+              console.log(`   ℹ️  Orphaned provider ${orphaned.id} not found in ServiceRegistry2 (may have been already removed)`);
+            }
+          } catch (err: any) {
+            console.warn(`   ⚠️  Failed to remove orphaned provider ${orphaned.id}: ${err.message}`);
           }
-        } catch (err: any) {
-          console.warn(`   ⚠️  Failed to remove orphaned provider ${orphaned.id}: ${err.message}`);
+          // Also remove from ROOT_CA_SERVICE_REGISTRY
+          const index = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.id === orphaned.id || p.uuid === orphaned.uuid);
+          if (index !== -1) {
+            ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
+            console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ROOT_CA_SERVICE_REGISTRY`);
+          }
         }
-        // Also remove from ROOT_CA_SERVICE_REGISTRY
-        const index = ROOT_CA_SERVICE_REGISTRY.findIndex(p => p.id === orphaned.id || p.uuid === orphaned.uuid);
-        if (index !== -1) {
-          ROOT_CA_SERVICE_REGISTRY.splice(index, 1);
-          console.log(`   🗑️  Removed orphaned provider ${orphaned.id} from ROOT_CA_SERVICE_REGISTRY`);
+        // Filter out orphaned providers from the response
+        allProviders = allProviders.filter(p => !orphanedProviders.includes(p));
+        // Save cleaned registry
+        try {
+          serviceRegistry2.savePersistence();
+          console.log(`   💾 Service registry saved after removing ${orphanedProviders.length} orphaned provider(s)`);
+        } catch (saveErr: any) {
+          console.warn(`   ⚠️  Failed to save service registry after cleanup: ${saveErr.message}`);
         }
-      }
-      // Filter out orphaned providers from the response
-      allProviders = allProviders.filter(p => !orphanedProviders.includes(p));
-      // Save cleaned registry
-      try {
-        serviceRegistry2.savePersistence();
-        console.log(`   💾 Service registry saved after removing ${orphanedProviders.length} orphaned provider(s)`);
-      } catch (saveErr: any) {
-        console.warn(`   ⚠️  Failed to save service registry after cleanup: ${saveErr.message}`);
+      } else {
+        console.warn(`   ⚠️  [Service Registry API] Not deleting orphaned providers on GET. Pass ?cleanupOrphans=true to apply cleanup.`);
       }
     }
     
@@ -3441,6 +3545,14 @@ httpServer.on("request", async (req, res) => {
     console.log(`   ✅ [${requestId}] GET /api/${endpointName} - Sending garden list`);
     res.writeHead(200, { "Content-Type": "application/json" });
     
+    // Ecosystem split:
+    // - saas: Holy Ghost + regular gardens (🍎 APPLES ecosystem)
+    // - dex: token gardens only (DEX ecosystem)
+    // - all: Holy Ghost + regular + token (backward compatible)
+    const parsedForEcosystem = url.parse(req.url || "/", true);
+    const ecosystemRaw = (parsedForEcosystem.query.ecosystem as string | undefined) || "saas";
+    const ecosystem = ecosystemRaw.toLowerCase();
+    
     // Load persisted indexers from file (single source of truth)
     // REFACTOR: Load from separate gardens file first, fallback to old combined file
     let persistedGardens: GardenConfig[] = [];
@@ -3559,7 +3671,7 @@ httpServer.on("request", async (req, res) => {
     
     const allIndexers = [
       // Holy Ghost (ROOT CA's infrastructure indexer) - listed first
-      {
+      ...(ecosystem === 'dex' ? [] : [{
         id: HOLY_GHOST_GARDEN.id,
         name: HOLY_GHOST_GARDEN.name,
         stream: HOLY_GHOST_GARDEN.stream,
@@ -3568,9 +3680,9 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!HOLY_GHOST_GARDEN.certificate,
         type: 'root' as const,
         ownerEmail: undefined // ROOT CA doesn't have an owner
-      },
+      }]),
       // Return in-memory gardens (source of truth) + persisted gardens not in memory
-      ...Array.from(allRegularGardens.values()).map(i => ({
+      ...(ecosystem === 'dex' ? [] : Array.from(allRegularGardens.values()).map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -3579,8 +3691,8 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!i.certificate,
         type: 'regular' as const,
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
-      })),
-      ...Array.from(allTokenGardens.values()).map(i => ({
+      }))),
+      ...((ecosystem === 'saas') ? [] : Array.from(allTokenGardens.values()).map(i => ({
         id: i.id,
         name: i.name,
         stream: i.stream,
@@ -3589,7 +3701,7 @@ httpServer.on("request", async (req, res) => {
         hasCertificate: !!i.certificate,
         type: 'token' as const,
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
-      }))
+      })))
     ];
     
     console.log(`   📋 [Garden API] Returning ${allIndexers.length} garden(s): ${allIndexers.map(i => i.name).join(', ')}`);
@@ -3600,6 +3712,61 @@ httpServer.on("request", async (req, res) => {
       gardens: allIndexers,
       timestamp: Date.now()
     }));
+    return;
+  }
+
+  // DEX ecosystem: list token gardens only (no Holy Ghost / no regular gardens)
+  if (pathname === "/api/dex-gardens" && req.method === "GET") {
+    const rewrittenUrl = (req.url || "/api/dex-gardens") + ((req.url || "").includes("?") ? "&" : "?") + "ecosystem=dex";
+    // Reuse the /api/gardens handler by rewriting req.url for parsing in this scope
+    (req as any).url = rewrittenUrl;
+    // Fall through by calling the same logic via early return is not possible here;
+    // so implement a minimal response using in-memory token gardens (source of truth).
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const tokenGardens = TOKEN_GARDENS.filter(g => g.active).map(g => ({
+      id: g.id,
+      name: g.name,
+      stream: g.stream,
+      active: g.active,
+      uuid: g.uuid,
+      hasCertificate: !!(g as any).certificate,
+      type: 'token' as const,
+      ownerEmail: (g as any).ownerEmail || (g as any).priestEmail || undefined
+    }));
+    res.end(JSON.stringify({ success: true, gardens: tokenGardens, timestamp: Date.now() }));
+    return;
+  }
+
+  // DEX ecosystem: token gardens by owner (priest)
+  if (pathname === "/api/dex-gardens/by-owner" && req.method === "GET") {
+    console.log(`   ✅ [${requestId}] GET /api/dex-gardens/by-owner - Getting DEX gardens by owner email`);
+    try {
+      const u = new URL(req.url || '', `http://${req.headers.host}`);
+      const ownerEmail = u.searchParams.get('email');
+      if (!ownerEmail) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "email query parameter required" }));
+        return;
+      }
+      const ownerDexGardens = TOKEN_GARDENS
+        .filter(g => (g.ownerEmail || (g as any).priestEmail)?.toLowerCase() === ownerEmail.toLowerCase())
+        .map(g => ({
+          id: g.id,
+          name: g.name,
+          stream: g.stream,
+          active: g.active,
+          uuid: g.uuid,
+          ownerEmail: g.ownerEmail || (g as any).priestEmail,
+          serviceType: (g as any).serviceType || 'dex',
+          hasCertificate: !!(g as any).certificate,
+          certificate: (g as any).certificate
+        }));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, gardens: ownerDexGardens, count: ownerDexGardens.length }));
+    } catch (err: any) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -5584,6 +5751,233 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // ============================================
+  // DEX GARDENS SERVICE (separate ecosystem from 🍎 APPLES SaaS)
+  // ============================================
+  if (pathname === "/api/dex-gardens/create" && req.method === "POST") {
+    console.log(`   🔷 [${requestId}] POST /api/dex-gardens/create - Creating DEX garden (no 🍎 APPLES ledger)`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const requestData = JSON.parse(body);
+        const gardenName = requestData.gardenName || requestData.indexerName;
+        const { serverIp, serverDomain, serverPort, networkType, email } = requestData;
+        const serviceType = "dex";
+
+        if (!gardenName) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "gardenName required" }));
+          return;
+        }
+
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required. Please sign in first." }));
+          return;
+        }
+
+        // Keep priesthood rule consistent with SaaS gardens (can relax later)
+        if (email && email !== 'bill.draper.auto@gmail.com') {
+          const hasCert = hasPriesthoodCertification(email);
+          if (!hasCert) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: false,
+              error: "Priesthood certification required to create DEX gardens. Please apply for priesthood certification first."
+            }));
+            return;
+          }
+        }
+
+        // Determine next available port (starting from 3001) if not provided
+        let finalPort = serverPort;
+        if (!finalPort || finalPort < 3001) {
+          const basePort = 3001;
+          const existingIndexers = [...GARDENS, ...TOKEN_GARDENS];
+          const usedPorts = existingIndexers.map(i => (i as any).serverPort || null).filter(p => p !== null && p !== undefined);
+          let nextPort = basePort;
+          while (usedPorts.includes(nextPort)) nextPort++;
+          finalPort = nextPort;
+        }
+
+        // Generate new token garden ID (T{n})
+        const allExistingIndexers = [...GARDENS, ...TOKEN_GARDENS];
+        const tokenGardenIds = allExistingIndexers
+          .filter(i => i.id && i.id.startsWith('T'))
+          .map(ti => {
+            const match = ti.id.match(/^T(\d+)$/);
+            return match ? parseInt(match[1], 10) : 0;
+          });
+        const maxTokenNumber = tokenGardenIds.length > 0 ? Math.max(...tokenGardenIds) : 0;
+        const gardenId = `T${maxTokenNumber + 1}`;
+
+        // Prevent duplicates
+        const existingTokenGarden = TOKEN_GARDENS.find(tg => tg.id === gardenId);
+        if (existingTokenGarden) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Token garden with ID "${gardenId}" already exists` }));
+          return;
+        }
+
+        const gardenConfig: any = {
+          id: gardenId,
+          name: gardenName,
+          stream: `eden:token-garden:${gardenId}`,
+          active: true,
+          uuid: `eden:garden:${crypto.randomUUID()}`,
+          ownerEmail: email,
+          priestEmail: email,
+          serverIp: serverIp || "localhost",
+          serverDomain: serverDomain || `dex-${gardenId.toLowerCase()}.eden.local`,
+          serverPort: finalPort,
+          networkType: networkType || "http",
+          serviceType,
+          tokenServiceType: 'dex'
+        };
+
+        console.log(`   📜 [DEX Gardens] Issuing certificate for ${gardenConfig.name} (${gardenConfig.id})...`);
+        issueGardenCertificate(gardenConfig);
+        if (!gardenConfig.certificate) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Failed to issue certificate to DEX garden ${gardenConfig.id}` }));
+          return;
+        }
+
+        TOKEN_GARDENS.push(gardenConfig);
+        console.log(`   ✅ Created DEX garden: ${gardenConfig.name} (${gardenConfig.id}). Total DEX gardens: ${TOKEN_GARDENS.length}`);
+
+        // Persist gardens immediately (eden-gardens-persistence.json is the source of truth for gardenId validation)
+        try {
+          const gardensFile = path.join(__dirname, 'eden-gardens-persistence.json');
+          let existingGardensFromFile: any[] = [];
+          if (fs.existsSync(gardensFile)) {
+            try {
+              const fileContent = fs.readFileSync(gardensFile, 'utf-8');
+              const persisted = JSON.parse(fileContent);
+              existingGardensFromFile = persisted.gardens || persisted.indexers || [];
+            } catch (err: any) {
+              console.warn(`⚠️  [DEX Gardens] Failed to read existing gardens file for preservation: ${err.message}`);
+            }
+          }
+
+          // In-memory is source of truth; preserve file entries not currently in memory
+          const inMemoryAllGardens: any[] = [...GARDENS, ...TOKEN_GARDENS];
+          const inMemoryById = new Map<string, any>();
+          for (const g of inMemoryAllGardens) {
+            if (!g?.id) continue;
+            // Prefer versions with certificate if duplicates occur
+            const existing = inMemoryById.get(g.id);
+            if (!existing) {
+              inMemoryById.set(g.id, g);
+            } else {
+              const hasCert = !!(g as any).certificate;
+              const existingHasCert = !!(existing as any).certificate;
+              if (hasCert && !existingHasCert) {
+                inMemoryById.set(g.id, g);
+              }
+            }
+          }
+
+          const inMemoryIds = new Set(Array.from(inMemoryById.keys()));
+          const preservedGardens = existingGardensFromFile.filter((g: any) => g?.id && !inMemoryIds.has(g.id));
+          const allGardensToSave = [...Array.from(inMemoryById.values()), ...preservedGardens];
+
+          fs.writeFileSync(
+            gardensFile,
+            JSON.stringify({ gardens: allGardensToSave, lastSaved: new Date().toISOString() }, null, 2),
+            'utf-8'
+          );
+          console.log(`💾 [DEX Gardens] Saved ${allGardensToSave.length} total garden(s) to ${gardensFile} (includes DEX garden ${gardenConfig.id})`);
+        } catch (persistErr: any) {
+          console.warn(`⚠️  [DEX Gardens] Failed to persist gardens file after DEX garden creation: ${persistErr.message}`);
+        }
+
+        // Register a matching DEX pool provider for this DEX garden and persist service registry.
+        // This prevents the service registry persistence file from containing only HG infrastructure.
+        try {
+          const tokenGardenIndex = TOKEN_GARDENS.findIndex(tg => tg.id === gardenConfig.id);
+          const tokenSymbol = `TOKEN${String.fromCharCode(65 + Math.max(0, tokenGardenIndex))}`; // TOKENA, TOKENB...
+          const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
+          const providerId = `dex-pool-${tokenSymbol.toLowerCase()}`;
+
+          const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === gardenConfig.id);
+          if (!existing) {
+            const provider: any = {
+              id: providerId,
+              uuid: crypto.randomUUID(),
+              name: `${tokenSymbol} Pool (${gardenConfig.name})`,
+              serviceType: "dex",
+              location: "Eden DEX",
+              bond: 5000,
+              reputation: 5.0,
+              gardenId: gardenConfig.id,
+              apiEndpoint: `https://dex.eden.com/pools/${poolId}`,
+              status: 'active',
+            };
+
+            registerServiceProviderWithROOTCA(provider);
+            try {
+              issueServiceProviderCertificate(provider);
+            } catch (certErr: any) {
+              console.warn(`⚠️  [DEX Gardens] Failed to issue certificate to DEX pool provider ${providerId}: ${certErr.message}`);
+            }
+
+            console.log(`✅ [DEX Gardens] Registered DEX pool provider: ${provider.name} (${provider.id}) → gardenId ${provider.gardenId}`);
+          } else {
+            console.log(`✓ [DEX Gardens] DEX pool provider already exists: ${providerId} → gardenId ${gardenConfig.id}`);
+          }
+
+          // Persist via ServiceRegistry2 (primary) and via redis helper (legacy/backward compatibility).
+          try {
+            const sr2 = getServiceRegistry2();
+            sr2.savePersistence();
+          } catch (srErr: any) {
+            console.warn(`⚠️  [DEX Gardens] Failed to save ServiceRegistry2 persistence: ${srErr.message}`);
+          }
+          try {
+            if (redis) {
+              redis.saveServiceRegistry();
+            }
+          } catch (legacyErr: any) {
+            console.warn(`⚠️  [DEX Gardens] Failed to save legacy service registry persistence: ${legacyErr.message}`);
+          }
+        } catch (providerErr: any) {
+          console.warn(`⚠️  [DEX Gardens] Failed to register/persist DEX provider: ${providerErr.message}`);
+        }
+
+        // Ensure DEX pools/providers exist (safe to call repeatedly)
+        try {
+          initializeDEXPools();
+        } catch (err: any) {
+          console.warn(`⚠️  [DEX Gardens] initializeDEXPools failed: ${err.message}`);
+        }
+
+        // Broadcast creation event for UI (use distinct event type)
+        broadcastEvent({
+          type: "dex_garden_created",
+          component: "dex-gardens",
+          message: `DEX Garden ${gardenConfig.name} created successfully`,
+          timestamp: Date.now(),
+          data: {
+            gardenId: gardenConfig.id,
+            gardenName: gardenConfig.name,
+            serviceType: "dex",
+            ownerEmail: gardenConfig.ownerEmail,
+            hasCertificate: !!gardenConfig.certificate
+          }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, garden: gardenConfig }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   if (pathname === "/api/wizard/create-garden" && req.method === "POST") {
     console.log(`   🧙 [${requestId}] POST /api/wizard/create-garden - Creating garden via wizard`);
     console.log(`   🔍 [${requestId}] Current state: ${GARDENS.length} regular gardens, ${TOKEN_GARDENS.length} token gardens`);
@@ -5595,6 +5989,19 @@ httpServer.on("request", async (req, res) => {
         // Accept both gardenName and indexerName for backward compatibility
         const gardenName = requestData.gardenName || requestData.indexerName;
         const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
+
+        // DEX Gardens are a separate ecosystem (no 🍎 APPLES ledger). Route to DexGardensService.
+        if ((serviceType || '').toLowerCase() === 'dex') {
+          // Reuse request body, but force DEX endpoint behavior
+          // by internally delegating via a pseudo-request.
+          // Simplest: respond with guidance to use the DEX endpoint (Angular updated to do this).
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "DEX gardens are managed by DexGardensService. Use POST /api/dex-gardens/create (no 🍎 APPLES deployment fee)."
+          }));
+          return;
+        }
         
         // Check priesthood certification for non-admin users
         if (email && email !== 'bill.draper.auto@gmail.com') {
