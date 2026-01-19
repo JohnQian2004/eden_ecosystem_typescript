@@ -422,6 +422,11 @@
                     <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
                       <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
                       <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
+                      <div class="mt-1">
+                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                          Providers: {{ serviceType.providerCount ?? (providerCountsByServiceType[serviceType.type] || 0) }}
+                        </span>
+                      </div>
                       <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
                         <span class="badge bg-success small">Active</span>
                       </div>
@@ -451,6 +456,11 @@
                       <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ garden.name }}</h6>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
                         <span>{{ garden.id }}</span>
+                      </div>
+                      <div class="mt-1">
+                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                          Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                        </span>
                       </div>
                     </div>
                   </div>

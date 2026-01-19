@@ -63,7 +63,7 @@ export class AppComponent implements OnInit, OnDestroy {
   inputPlaceholder: string = 'Select a service type above or type your query...';
   
   // Service Types (Garden of Eden Main Street)
-  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}> = [
     {
       type: 'movie',
       icon: '🎬',
@@ -103,10 +103,16 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
 
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
-  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
+  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}> = [];
   // DEX main street is garden-driven (not service-type driven)
   dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
+
+  // Data-driven counts from ServiceRegistry (group-by filter)
+  // - serviceType -> provider count
+  providerCountsByServiceType: Record<string, number> = {};
+  // - gardenId -> provider count
+  providerCountsByGardenId: Record<string, number> = {};
   
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
@@ -1387,6 +1393,18 @@ export class AppComponent implements OnInit, OnDestroy {
                   
                   // Create Set of unique service types from non-infrastructure providers
                   const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
+
+                  // Group-by counts (data-driven Main Street)
+                  const countsByServiceType: Record<string, number> = {};
+                  const countsByGardenId: Record<string, number> = {};
+                  for (const p of nonInfrastructureProviders) {
+                    const st = String(p.serviceType || '').toLowerCase();
+                    if (st) countsByServiceType[st] = (countsByServiceType[st] || 0) + 1;
+                    const gid = String((p.gardenId || p.indexerId) || '');
+                    if (gid) countsByGardenId[gid] = (countsByGardenId[gid] || 0) + 1;
+                  }
+                  this.providerCountsByServiceType = countsByServiceType;
+                  this.providerCountsByGardenId = countsByGardenId;
             
                   // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
                   // This ensures we don't lose service types that were filtered out previously
@@ -1472,10 +1490,13 @@ export class AppComponent implements OnInit, OnDestroy {
                   
                   // CRITICAL: Deduplicate by service type to prevent duplicates
                   // This prevents duplicates from race conditions or multiple rapid calls
-                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string}>();
+                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}>();
                   for (const st of filteredServiceTypes) {
                     if (!serviceTypeMap.has(st.type)) {
-                      serviceTypeMap.set(st.type, st);
+                      serviceTypeMap.set(st.type, {
+                        ...st,
+                        providerCount: this.providerCountsByServiceType[String(st.type || '').toLowerCase()] || 0
+                      });
                     }
                   }
                   this.serviceTypes = Array.from(serviceTypeMap.values());
