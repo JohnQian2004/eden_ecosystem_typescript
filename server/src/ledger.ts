@@ -303,12 +303,12 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
   }
   
   console.log(`   💰 [Ledger] Step 1: Amount validation passed`);
-  console.log(`   💰 [Ledger] Validated amount: ${entry.amount} JSC`);
+  console.log(`   💰 [Ledger] Validated amount: ${entry.amount} 🍎 APPLES`);
 
   // Get current balance before creating intent
   const { getWalletBalance } = await import("./wallet");
   const balanceBeforeIntent = await getWalletBalance(user.email);
-  console.log(`   💰 [Ledger] Step 1.5: Current wallet balance: ${balanceBeforeIntent} JSC`);
+  console.log(`   💰 [Ledger] Step 1.5: Current wallet balance: ${balanceBeforeIntent} 🍎 APPLES`);
 
   // EdenCore submits intent to Wallet Service
   // Wallet Service decides and updates balance (single source of truth)
@@ -431,11 +431,11 @@ export async function processPayment(cashier: Cashier, entry: LedgerEntry, user:
     const paymentEvent = {
       type: "cashier_payment_processed",
       component: "cashier",
-      message: `${cashier.name} processed payment: ${entry.amount} JSC`,
+      message: `${cashier.name} processed payment: ${entry.amount} 🍎 APPLES`,
       timestamp: Date.now(),
       data: { entry, cashier, userBalance: walletResult.balance, walletService: "wallet-service-001" }
     };
-    console.log(`   📡 [Broadcast] Sending cashier_payment_processed event: ${cashier.name} processed ${entry.amount} JSC`);
+    console.log(`   📡 [Broadcast] Sending cashier_payment_processed event: ${cashier.name} processed ${entry.amount} 🍎 APPLES`);
     broadcastEvent(paymentEvent);
   }
 

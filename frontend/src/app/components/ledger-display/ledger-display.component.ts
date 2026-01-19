@@ -73,10 +73,16 @@ interface Cashier {
 export class LedgerDisplayComponent implements OnInit, OnDestroy {
   ledgerEntries: LedgerEntry[] = [];
   filteredLedgerEntries: LedgerEntry[] = []; // Filtered entries for display
+  paginatedEntries: LedgerEntry[] = []; // Paginated entries for current page
   cashier: Cashier | null = null;
   private wsSubscription: any;
   userEmail: string = '';
   readonly adminEmail = 'bill.draper.auto@gmail.com';
+  
+  // Pagination
+  currentPage: number = 1;
+  itemsPerPage: number = 20;
+  totalPages: number = 1;
   
   // Transaction snapshot modal
   showTransactionModal: boolean = false;
@@ -174,23 +180,45 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   }
 
   loadLedger() {
-    const apiUrl = window.location.port === '4200' 
+    // Build API URL with pagination parameters
+    const baseUrl = window.location.port === '4200' 
       ? 'http://localhost:3000/api/ledger' 
       : '/api/ledger';
+    const params = new URLSearchParams();
+    params.append('page', this.currentPage.toString());
+    params.append('limit', this.itemsPerPage.toString());
+    const apiUrl = `${baseUrl}?${params.toString()}`;
     
     console.log(`📡 [LedgerDisplay] ⭐ Loading ledger from: ${apiUrl}`);
-    console.log(`📡 [LedgerDisplay] Making HTTP GET request...`);
+    console.log(`📡 [LedgerDisplay] Making HTTP GET request with pagination: page=${this.currentPage}, limit=${this.itemsPerPage}...`);
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {
         console.log(`📡 [LedgerDisplay] ✅ HTTP response received:`, response);
         if (response.success) {
           const entries = response.entries || [];
+          const pagination = response.pagination || {};
+          
           console.log(`📡 [LedgerDisplay] ✅ Loaded ${entries.length} ledger entries`);
+          console.log(`📡 [LedgerDisplay] Pagination info:`, pagination);
           console.log(`📡 [LedgerDisplay] Entry data:`, entries);
+          
+          // Store all entries (server already paginated and sorted)
           this.ledgerEntries = entries;
-          this.applyFilter(); // Apply filter after loading
+          
+          // Update pagination from server response
+          if (pagination.total !== undefined) {
+            this.totalPages = pagination.totalPages || 1;
+            this.currentPage = pagination.page || 1;
+          }
+          
+          // Apply filter (for user mode, still need client-side filtering)
+          this.applyFilter();
+          
+          // Use server-paginated entries directly
+          this.paginatedEntries = this.filteredLedgerEntries;
+          
           this.cdr.detectChanges(); // Force change detection
-          console.log(`📡 [LedgerDisplay] After assignment, ledgerEntries.length = ${this.ledgerEntries.length}, filteredEntries.length = ${this.filteredLedgerEntries.length}`);
+          console.log(`📡 [LedgerDisplay] After assignment, ledgerEntries.length = ${this.ledgerEntries.length}, filteredEntries.length = ${this.filteredLedgerEntries.length}, paginatedEntries.length = ${this.paginatedEntries.length}`);
         } else {
           console.warn(`📡 [LedgerDisplay] ⚠️ Ledger API returned success=false:`, response);
         }
@@ -224,6 +252,54 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       this.filteredLedgerEntries = this.ledgerEntries;
       console.log(`📡 [LedgerDisplay] Showing all ${this.filteredLedgerEntries.length} entries (admin mode)`);
     }
+    
+    // Server already sorts by timestamp, but we ensure it here as well
+    this.filteredLedgerEntries.sort((a, b) => {
+      const timestampA = a.timestamp || 0;
+      const timestampB = b.timestamp || 0;
+      return timestampB - timestampA; // Descending order (newest first)
+    });
+    
+    // Server already paginated, so use filtered entries directly
+    this.paginatedEntries = this.filteredLedgerEntries;
+  }
+  
+  // Pagination methods
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.loadLedger(); // Reload from server with new page
+    }
+  }
+  
+  previousPage(): void {
+    if (this.currentPage > 1) {
+      this.currentPage--;
+      this.loadLedger(); // Reload from server with new page
+    }
+  }
+  
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+      this.loadLedger(); // Reload from server with new page
+    }
+  }
+  
+  getPageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, this.currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(this.totalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage < maxPagesToShow - 1) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
   }
 
   loadCashierStatus() {
@@ -385,6 +461,34 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
           { key: 'hours', label: 'Hours' }
         ]
       },
+      party: {
+        primary: 'partyName',
+        primaryLabel: 'Party/Event',
+        fields: [
+          { key: 'partyName', label: 'Event' },
+          { key: 'partyType', label: 'Type' },
+          { 
+            key: 'eventDate', 
+            label: 'Date & Time', 
+            format: (val: any, details: any) => 
+              details.eventTime ? `${val} at ${details.eventTime}` : `Date: ${val}` 
+          },
+          { key: 'location', label: 'Location' },
+          { key: 'capacity', label: 'Capacity' }
+        ]
+      },
+      bank: {
+        primary: 'bankName',
+        primaryLabel: 'Bank',
+        fields: [
+          { key: 'bankName', label: 'Bank' },
+          { key: 'bankType', label: 'Type' },
+          { key: 'services', label: 'Services' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' },
+          { key: 'atmAvailable', label: 'ATM Available', format: (val: any) => val ? 'Yes' : 'No' }
+        ]
+      },
       dex: {
         primary: 'tokenSymbol',
         primaryLabel: 'DEX',
@@ -496,5 +600,8 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   formatJson(obj: any): string {
     return JSON.stringify(obj, null, 2);
   }
+  
+  // Expose Math for template
+  Math = Math;
 }
 

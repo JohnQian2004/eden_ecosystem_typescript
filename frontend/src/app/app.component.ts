@@ -1370,6 +1370,18 @@ export class AppComponent implements OnInit, OnDestroy {
                 icon: '⛽',
                 adText: 'Gas Station',
                 sampleQuery: 'I need to find a gas station with premium fuel at the best price'
+              },
+              {
+                type: 'party',
+                icon: '🎉',
+                adText: 'Party & Events',
+                sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets'
+              },
+              {
+                type: 'bank',
+                icon: '🏦',
+                adText: 'Banking Services',
+                sampleQuery: 'I need to find a bank near me with ATM access and business banking services'
               }
                   ];
                   

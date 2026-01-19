@@ -25,6 +25,9 @@
       <span *ngIf="isUserMode && ledgerEntries.length > filteredLedgerEntries.length" class="text-muted small">
         (filtered from {{ ledgerEntries.length }} total)
       </span>
+      <span *ngIf="filteredLedgerEntries.length > itemsPerPage" class="text-muted small ms-2">
+        | Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredLedgerEntries.length) }} of {{ filteredLedgerEntries.length }}
+      </span>
     </div>
     
     <!-- Entry List -->
@@ -48,7 +51,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let entry of filteredLedgerEntries">
+          <tr *ngFor="let entry of paginatedEntries">
             <td>
               <small 
                 class="text-primary clickable" 
@@ -72,6 +75,26 @@
           </tr>
         </tbody>
       </table>
+    </div>
+    
+    <!-- Pagination Controls -->
+    <div *ngIf="filteredLedgerEntries && filteredLedgerEntries.length > itemsPerPage" class="mt-4">
+      <nav aria-label="Ledger pagination">
+        <ul class="pagination justify-content-center">
+          <li class="page-item" [ngClass]="{'disabled': currentPage === 1}">
+            <a class="page-link" (click)="previousPage()" [attr.aria-disabled]="currentPage === 1" style="cursor: pointer;">Previous</a>
+          </li>
+          <li *ngFor="let page of getPageNumbers()" class="page-item" [ngClass]="{'active': page === currentPage}">
+            <a class="page-link" (click)="goToPage(page)" style="cursor: pointer;">{{ page }}</a>
+          </li>
+          <li class="page-item" [ngClass]="{'disabled': currentPage === totalPages}">
+            <a class="page-link" (click)="nextPage()" [attr.aria-disabled]="currentPage === totalPages" style="cursor: pointer;">Next</a>
+          </li>
+        </ul>
+      </nav>
+      <div class="text-center mt-2 text-muted small">
+        Page {{ currentPage }} of {{ totalPages }}
+      </div>
     </div>
   </div>
 </div>

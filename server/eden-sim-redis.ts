@@ -728,6 +728,10 @@ httpServer.on("request", async (req, res) => {
             updatedContext.dogparkPrice = updatedContext.selectedListing.price;
           } else if (currentServiceType === 'gasstation') {
             updatedContext.gasstationPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'party') {
+            updatedContext.partyPrice = updatedContext.selectedListing.price;
+          } else if (currentServiceType === 'bank') {
+            updatedContext.bankPrice = updatedContext.selectedListing.price;
           }
           // Also set generic totalCost for backward compatibility
           updatedContext.totalCost = updatedContext.selectedListing.price;
@@ -938,6 +942,8 @@ httpServer.on("request", async (req, res) => {
                                           updatedContext.pharmacyPrice ||
                                           updatedContext.dogparkPrice ||
                                           updatedContext.gasstationPrice ||
+                                          updatedContext.partyPrice ||
+                                          updatedContext.bankPrice ||
                                           updatedContext.totalCost ||
                                           listingPrice || 
                                           0;
@@ -985,6 +991,10 @@ httpServer.on("request", async (req, res) => {
                       updatedContext.dogparkPrice = listingPrice || snapshotAmount;
                     } else if (currentServiceType === 'gasstation') {
                       updatedContext.gasstationPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'party') {
+                      updatedContext.partyPrice = listingPrice || snapshotAmount;
+                    } else if (currentServiceType === 'bank') {
+                      updatedContext.bankPrice = listingPrice || snapshotAmount;
                     }
                     // Also set generic totalCost for backward compatibility
                     updatedContext.totalCost = listingPrice || snapshotAmount;
@@ -1115,6 +1125,20 @@ httpServer.on("request", async (req, res) => {
                     baseListing.fuelTypes = ['Regular', 'Premium', 'Diesel', 'E85', 'Electric Charging'][index % 5];
                     baseListing.location = ['Highway', 'Downtown', 'Suburban', 'Shopping Center', 'Residential'][index % 5];
                     baseListing.hours = ['24 Hours', '6 AM - 11 PM', '5 AM - Midnight', '24 Hours', '7 AM - 10 PM'][index % 5];
+                  } else if (queryServiceType === 'party') {
+                    baseListing.partyName = ['New Year\'s Eve Gala', 'Summer Music Festival', 'Rooftop Celebration', 'Dance Party Night', 'VIP Exclusive Event'][index % 5];
+                    baseListing.partyType = ['Concert', 'Festival', 'Nightclub', 'Private Event', 'Corporate Party'][index % 5];
+                    baseListing.eventDate = ['2026-12-31', '2026-07-15', '2026-06-20', '2026-08-10', '2026-09-05'][index % 5];
+                    baseListing.eventTime = ['9:00 PM', '6:00 PM', '8:00 PM', '10:00 PM', '7:00 PM'][index % 5];
+                    baseListing.location = ['Convention Center', 'Outdoor Venue', 'Rooftop', 'Nightclub', 'Hotel Ballroom'][index % 5];
+                    baseListing.capacity = [500, 1000, 200, 300, 150][index % 5];
+                  } else if (queryServiceType === 'bank') {
+                    baseListing.bankName = ['First National Bank', 'Community Credit Union', 'Metro Savings Bank', 'Trust Financial', 'Heritage Bank'][index % 5];
+                    baseListing.bankType = ['Commercial Bank', 'Credit Union', 'Savings Bank', 'Investment Bank', 'Community Bank'][index % 5];
+                    baseListing.services = ['Checking Account', 'Savings Account', 'Loans', 'Investment Services', 'Business Banking'][index % 5];
+                    baseListing.location = ['Downtown', 'Financial District', 'Shopping Center', 'Suburban', 'City Center'][index % 5];
+                    baseListing.hours = ['9 AM - 5 PM', '8 AM - 6 PM', '10 AM - 4 PM', '9 AM - 4 PM', '8 AM - 5 PM'][index % 5];
+                    baseListing.atmAvailable = [true, true, false, true, true][index % 5];
                   } else {
                     // Generic fallback for other service types
                     baseListing.name = `${provider.name} Service`;
@@ -3262,8 +3286,8 @@ httpServer.on("request", async (req, res) => {
               price_data: {
                 currency: 'usd',
                 product_data: {
-                  name: 'JesusCoin (JSC)',
-                  description: `Purchase ${amount} JSC (1 JSC = 1 USD)`,
+                  name: '🍎 APPLES',
+                  description: `Purchase ${amount} 🍎 APPLES (1 🍎 = 1 USD)`,
                 },
                 unit_amount: Math.round(amount * 100), // Convert to cents
               },
@@ -3280,7 +3304,7 @@ httpServer.on("request", async (req, res) => {
           },
         });
         
-        console.log(`   ✅ Stripe Checkout session created: ${session.id} for ${email} (${amount} JSC)`);
+        console.log(`   ✅ Stripe Checkout session created: ${session.id} for ${email} (${amount} 🍎 APPLES)`);
         
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
@@ -3336,7 +3360,7 @@ httpServer.on("request", async (req, res) => {
                 currency: 'usd',
                 product_data: {
                   name: 'Movie Service Garden',
-                  description: `Install a new movie service garden (${amount} JSC)`,
+                  description: `Install a new movie service garden (${amount} 🍎 APPLES)`,
                 },
                 unit_amount: Math.round(amount * 100), // Convert to cents
               },
@@ -3355,7 +3379,7 @@ httpServer.on("request", async (req, res) => {
           },
         });
         
-        console.log(`   ✅ Stripe Checkout session created for garden purchase: ${session.id} for ${email} (${amount} JSC)`);
+        console.log(`   ✅ Stripe Checkout session created for garden purchase: ${session.id} for ${email} (${amount} 🍎 APPLES)`);
         
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
@@ -3408,7 +3432,7 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ 
             success: false, 
-            error: `Insufficient balance. Required: ${amount} JSC, Available: ${balance} JSC` 
+            error: `Insufficient balance. Required: ${amount} 🍎 APPLES, Available: ${balance} 🍎 APPLES` 
           }));
           return;
         }
@@ -3552,7 +3576,7 @@ httpServer.on("request", async (req, res) => {
             if (jscAmount <= 0) {
               console.error(`   ❌ Invalid JSC amount in session metadata: ${session.metadata?.jsc_amount}`);
               res.writeHead(400, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ success: false, error: "Invalid JSC amount" }));
+              res.end(JSON.stringify({ success: false, error: "Invalid 🍎 APPLES amount" }));
               return;
             }
             
@@ -3587,10 +3611,10 @@ httpServer.on("request", async (req, res) => {
               console.log(`      Session ID: ${session.id}`);
             } else {
               // Regular JSC purchase - mint JSC
-              console.log(`   🪙 Minting ${jscAmount} JSC for ${email}...`);
+              console.log(`   🪙 Minting ${jscAmount} 🍎 APPLES for ${email}...`);
               await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
-              
-              console.log(`   ✅ JSC minted successfully: ${jscAmount} JSC for ${email}`);
+
+              console.log(`   ✅ 🍎 APPLES minted successfully: ${jscAmount} 🍎 APPLES for ${email}`);
               console.log(`      Stripe Customer ID: ${customerId}`);
               console.log(`      Payment Intent ID: ${paymentIntentId}`);
               console.log(`      Payment Method ID: ${paymentMethodId || 'N/A'}`);
@@ -3671,7 +3695,7 @@ httpServer.on("request", async (req, res) => {
         
         if (jscAmount <= 0) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Invalid JSC amount in session metadata" }));
+          res.end(JSON.stringify({ success: false, error: "Invalid 🍎 APPLES amount in session metadata" }));
           return;
         }
         
@@ -3743,7 +3767,7 @@ httpServer.on("request", async (req, res) => {
           return;
         } else {
           // Regular JSC purchase - mint JSC (fallback for local dev when webhook doesn't fire)
-          console.log(`   🪙 Minting ${jscAmount} JSC for ${email} (fallback mechanism)...`);
+          console.log(`   🪙 Minting ${jscAmount} 🍎 APPLES for ${email} (fallback mechanism)...`);
           await mintJSC(email, jscAmount, paymentIntentId, customerId, paymentMethodId, session.id);
           
           const balance = await getWalletBalance(email);
@@ -4450,12 +4474,20 @@ httpServer.on("request", async (req, res) => {
     return;
   }
   
-  // GET /api/ledger - Get ledger entries
+  // GET /api/ledger - Get ledger entries with pagination
   if (pathname === "/api/ledger" && req.method === "GET") {
     console.log(`📡 [API] ⭐ GET /api/ledger endpoint called`);
     const parsedUrl = url.parse(req.url || "/", true);
     const payerEmail = parsedUrl.query.email as string | undefined;
+    
+    // Pagination parameters
+    const pageParam = parsedUrl.query.page as string | undefined;
+    const limitParam = parsedUrl.query.limit as string | undefined;
+    const page = pageParam ? parseInt(pageParam, 10) : 1;
+    const limit = limitParam ? parseInt(limitParam, 10) : 20;
+    
     console.log(`📡 [API] Query params:`, parsedUrl.query);
+    console.log(`📡 [API] Pagination: page=${page}, limit=${limit}`);
     console.log(`📡 [API] Checking LEDGER array before getLedgerEntries call: ${LEDGER.length} entries`);
     console.log(`📡 [API] LEDGER array reference check:`, typeof LEDGER);
 
@@ -4475,19 +4507,50 @@ httpServer.on("request", async (req, res) => {
       }
     });
 
-    const entries = getLedgerEntries(payerEmail);
-    console.log(`📡 [API] getLedgerEntries returned ${entries.length} entries${payerEmail ? ` for ${payerEmail}` : ' (all entries)'}`);
+    // Get all entries (filtered by payerEmail if provided)
+    let allEntries = getLedgerEntries(payerEmail);
+    console.log(`📡 [API] getLedgerEntries returned ${allEntries.length} entries${payerEmail ? ` for ${payerEmail}` : ' (all entries)'}`);
+    
+    // Sort by timestamp in descending order (newest first)
+    allEntries.sort((a, b) => {
+      const timestampA = a.timestamp || 0;
+      const timestampB = b.timestamp || 0;
+      return timestampB - timestampA; // Descending order (newest first)
+    });
+    
+    // Calculate pagination
+    const total = allEntries.length;
+    const totalPages = Math.ceil(total / limit);
+    const validPage = Math.max(1, Math.min(page, totalPages)); // Ensure page is within valid range
+    const startIndex = (validPage - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedEntries = allEntries.slice(startIndex, endIndex);
+    
+    console.log(`📡 [API] Pagination: total=${total}, totalPages=${totalPages}, page=${validPage}, showing ${paginatedEntries.length} entries (${startIndex + 1}-${Math.min(endIndex, total)})`);
     console.log(`📡 [API] LEDGER array has ${LEDGER.length} entries in memory`);
     if (LEDGER.length > 0) {
       console.log(`📡 [API] First entry:`, JSON.stringify(LEDGER[0], null, 2));
     }
+    
     const response = {
       success: true,
-      entries: entries,
-      total: entries.length
+      entries: paginatedEntries,
+      pagination: {
+        page: validPage,
+        limit: limit,
+        total: total,
+        totalPages: totalPages,
+        hasNextPage: validPage < totalPages,
+        hasPreviousPage: validPage > 1
+      }
     };
-    console.log(`📡 [API] Sending response:`, JSON.stringify(response, null, 2));
-    console.log(`📤 [${requestId}] Response: 200 OK (${entries.length} ledger entries)`);
+    console.log(`📡 [API] Sending response with pagination:`, {
+      entriesCount: paginatedEntries.length,
+      page: validPage,
+      totalPages: totalPages,
+      total: total
+    });
+    console.log(`📤 [${requestId}] Response: 200 OK (${paginatedEntries.length} ledger entries, page ${validPage}/${totalPages})`);
     res.writeHead(200, {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*" // Ensure CORS is allowed
@@ -4732,7 +4795,7 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ 
             success: false, 
-            error: `Insufficient balance. Required: ${amount} JSC, Available: ${balance} JSC. Please purchase more JSC first.`,
+            error: `Insufficient balance. Required: ${amount} 🍎 APPLES, Available: ${balance} 🍎 APPLES. Please purchase more 🍎 APPLES first.`,
             balance: balance
           }));
           return;
@@ -5914,7 +5977,7 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ 
             success: false, 
-            error: `Insufficient balance. Application fee is ${APPLICATION_FEE} JSC. Your balance: ${userBalance} JSC` 
+            error: `Insufficient balance. Application fee is ${APPLICATION_FEE} 🍎 APPLES. Your balance: ${userBalance} 🍎 APPLES` 
           }));
           return;
         }
@@ -5990,7 +6053,7 @@ httpServer.on("request", async (req, res) => {
         broadcastEvent({
           type: "priesthood_application_submitted",
           component: "priesthood-certification",
-          message: `New priesthood application from ${email} (Application fee: ${APPLICATION_FEE} JSC paid)`,
+          message: `New priesthood application from ${email} (Application fee: ${APPLICATION_FEE} 🍎 APPLES paid)`,
           timestamp: Date.now(),
           data: {
             email,
@@ -6928,6 +6991,8 @@ async function generateWorkflowFromTemplate(template: any, serviceType: string):
     pharmacy: "Pharmacy service - Users can search for pharmacies, find medications, and manage prescriptions",
     dogpark: "Dog park service - Users can search for dog parks, view amenities, and check availability",
     gasstation: "Gas station service - Users can search for gas stations, compare prices, and find fuel types",
+    party: "Party and event service - Users can search for parties and events, view details, and purchase tickets online",
+    bank: "Banking service - Users can search for banks, view services, and access banking facilities",
     snake: "Snake (Advertiser) - Advertising service provider that displays ads to users"
   };
   
@@ -6950,7 +7015,13 @@ INSTRUCTIONS:
 6. Update field names in actions (e.g., "movieTitle" → appropriate field for ${serviceType})
 7. Ensure all transitions and step IDs are valid
 8. Keep ROOT CA ledger and payment steps unchanged
-9. Return ONLY the complete JSON object with the same structure as the template
+9. IMPORTANT: Replace ALL instances of "JSC" or "JesusCoin" with "🍎 APPLES" in ALL user-facing messages, including:
+   - Decision prompts (e.g., "Would you like to proceed with ... for {{price}} 🍎 APPLES?")
+   - Payment messages (e.g., "{{cashier.name}} processed payment: {{ledgerEntry.amount}} 🍎 APPLES")
+   - Purchase confirmations (e.g., "Purchased ... for {{price}} 🍎 APPLES")
+   - Review rebate messages (e.g., "Review rebate credited: {{rebate}} 🍎 APPLES")
+   - Any other user-visible text that mentions currency
+10. Return ONLY the complete JSON object with the same structure as the template
 
 CRITICAL: Return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanations. Just the JSON object.`;
 
@@ -8066,7 +8137,7 @@ async function mintJSC(
   const stripeProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "stripe-payment-rail-001");
   const providerUuid = stripeProvider?.uuid || ROOT_CA_UUID;
   
-  console.log(`💰 [Stripe Payment Rail] Minting ${amount} JSC for ${email} (Stripe: ${stripePaymentIntentId})`);
+  console.log(`💰 [Stripe Payment Rail] Minting ${amount} 🍎 APPLES for ${email} (Stripe: ${stripePaymentIntentId})`);
   
   // Find or create user (for backward compatibility)
   let user = USERS.find(u => u.email === email);
@@ -8098,9 +8169,9 @@ async function mintJSC(
   
   console.log(`✅ [Stripe Payment Rail] Wallet updated successfully`);
   console.log(`   Email: ${email}`);
-  console.log(`   Amount credited: ${amount} JSC`);
-  console.log(`   Final wallet balance: ${walletResult.balance} JSC`);
-  console.log(`   User.balance synced: ${user.balance} JSC`);
+  console.log(`   Amount credited: ${amount} 🍎 APPLES`);
+  console.log(`   Final wallet balance: ${walletResult.balance} 🍎 APPLES`);
+  console.log(`   User.balance synced: ${user.balance} 🍎 APPLES`);
   
   // Verify balance was actually updated in Redis
   if (!SKIP_REDIS && redis.isOpen) {
@@ -8157,13 +8228,13 @@ async function mintJSC(
   // Persist ledger entry
   redis.saveLedgerEntries(LEDGER);
   
-  console.log(`   ✅ JSC minted: ${amount} JSC added to ${email} balance (new balance: ${walletResult.balance} JSC)`);
+  console.log(`   ✅ 🍎 APPLES minted: ${amount} 🍎 APPLES added to ${email} balance (new balance: ${walletResult.balance} 🍎 APPLES)`);
   
   // Broadcast events
   broadcastEvent({
     type: "jsc_minted",
     component: "stripe-payment-rail-001",
-    message: `JSC minted via Stripe Payment Rail: ${amount} JSC for ${email}`,
+    message: `🍎 APPLES minted via Stripe Payment Rail: ${amount} 🍎 APPLES for ${email}`,
     timestamp: Date.now(),
     data: {
       email,
@@ -8385,7 +8456,7 @@ async function processPayment(cashier: Cashier, entry: LedgerEntry, user: User):
   broadcastEvent({
     type: "cashier_payment_processed",
     component: "cashier",
-    message: `${cashier.name} processed payment: ${entry.amount} JSC`,
+    message: `${cashier.name} processed payment: ${entry.amount} 🍎 APPLES`,
     timestamp: Date.now(),
     data: { entry, cashier, userBalance: walletResult.balance, walletService: "wallet-service-001" }
   });
@@ -10040,7 +10111,7 @@ async function processChatInput(input: string, email: string) {
   // Check if user has sufficient balance BEFORE creating ledger entry
   const totalCost = moviePrice + llmResponse.iGasCost;
   if (updatedWalletBalance < totalCost) {
-    const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} JSC (${moviePrice} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${updatedWalletBalance.toFixed(6)} JSC`;
+    const errorMsg = `Insufficient balance. Required: ${totalCost.toFixed(6)} 🍎 APPLES (${moviePrice} + ${llmResponse.iGasCost.toFixed(6)} iGas), Available: ${updatedWalletBalance.toFixed(6)} 🍎 APPLES`;
     console.error(`❌ ${errorMsg}`);
     broadcastEvent({
       type: "insufficient_balance",
@@ -10135,6 +10206,8 @@ async function processChatInput(input: string, email: string) {
                                selectedListing.pharmacyName ? 'pharmacy' :
                                selectedListing.dogparkName ? 'dogpark' :
                                selectedListing.gasstationName ? 'gasstation' :
+                               selectedListing.partyName ? 'party' :
+                               selectedListing.bankName ? 'bank' :
                                selectedListing.partName ? 'autoparts' :
                                selectedListing.tokenSymbol ? 'dex' : 'service');
   
@@ -10194,12 +10267,12 @@ async function processChatInput(input: string, email: string) {
   // then processChatInput broadcasts "purchase" here (we broadcast both for compatibility)
   const updatedCashier = getCashierStatus();
   const updatedBalance = user.balance; // Updated by processPayment
-  console.log(`📡 [Broadcast] ⭐ Sending cashier_payment_processed event from processChatInput: ${ledgerEntry.amount} JSC`);
+  console.log(`📡 [Broadcast] ⭐ Sending cashier_payment_processed event from processChatInput: ${ledgerEntry.amount} 🍎 APPLES`);
   console.log(`📡 [Broadcast] Event details: cashier=${updatedCashier.name}, entryId=${ledgerEntry.entryId}, amount=${ledgerEntry.amount}, balance=${updatedBalance}`);
   broadcastEvent({
     type: "cashier_payment_processed",
     component: "cashier",
-    message: `${updatedCashier.name} processed payment: ${ledgerEntry.amount} JSC`,
+    message: `${updatedCashier.name} processed payment: ${ledgerEntry.amount} 🍎 APPLES`,
     timestamp: Date.now(),
     data: { 
       entry: ledgerEntry, 
@@ -10214,7 +10287,7 @@ async function processChatInput(input: string, email: string) {
   broadcastEvent({
     type: "purchase",
     component: "transaction",
-    message: `Purchased ${selectedListing.movieTitle || 'service'} for ${moviePrice} JSC`,
+    message: `Purchased ${selectedListing.movieTitle || 'service'} for ${moviePrice} 🍎 APPLES`,
     timestamp: Date.now(),
     data: { listing: selectedListing, price: moviePrice, ledgerEntry: ledgerEntry.entryId }
   });
@@ -10326,6 +10399,8 @@ Description: ${description}
 Generate two prompts:
 1. Query Extraction Prompt: Instructions for extracting user intent from natural language queries
 2. Response Formatting Prompt: Instructions for formatting provider responses
+
+IMPORTANT: In all generated prompts and responses, use "🍎 APPLES" as the currency name instead of "JSC" or "JesusCoin". All user-facing messages about prices, payments, and transactions should display "🍎 APPLES".
 
 Return JSON with:
 {

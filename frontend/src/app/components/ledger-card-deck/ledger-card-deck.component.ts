@@ -44,6 +44,13 @@ interface LedgerEntry {
     parkType?: string;
     gasstationName?: string;
     stationType?: string;
+    partyName?: string;
+    partyType?: string;
+    eventDate?: string;
+    eventTime?: string;
+    bankName?: string;
+    bankType?: string;
+    atmAvailable?: boolean;
     reservationTime?: string;
     // Stripe payment details
     asset?: string;
@@ -249,6 +256,26 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
       parts.push(`Pharmacy: ${details.pharmacyName}`);
       if (details.pharmacyType) parts.push(`Type: ${details.pharmacyType}`);
     }
+    // Gas station details
+    if (details.gasstationName) {
+      parts.push(`Station: ${details.gasstationName}`);
+      if (details.stationType) parts.push(`Type: ${details.stationType}`);
+    }
+    // Party/Event details
+    if (details.partyName) {
+      parts.push(`Event: ${details.partyName}`);
+      if (details.partyType) parts.push(`Type: ${details.partyType}`);
+      if (details.eventDate) {
+        const dateTime = details.eventTime ? `${details.eventDate} at ${details.eventTime}` : details.eventDate;
+        parts.push(`When: ${dateTime}`);
+      }
+    }
+    // Bank details
+    if (details.bankName) {
+      parts.push(`Bank: ${details.bankName}`);
+      if (details.bankType) parts.push(`Type: ${details.bankType}`);
+      if (details.atmAvailable !== undefined) parts.push(`ATM: ${details.atmAvailable ? 'Yes' : 'No'}`);
+    }
     
     return parts.join(' | ');
   }
@@ -265,6 +292,8 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
       'pharmacy': '🏢',
       'dogpark': '🐕',
       'gasstation': '⛽',
+      'party': '🎉',
+      'bank': '🏦',
       'priesthood': '📜'
     };
     return icons[serviceType] || '📋';

@@ -1,18 +1,6 @@
 {
   "serviceRegistry": [
     {
-      "id": "autoparts-3c464392",
-      "name": "Garden-AUTOPARTS Provider",
-      "serviceType": "autoparts",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "70ea6a54-66f0-4ab0-acd1-dcf26877faf6",
-      "apiEndpoint": "https://api.autoparts.com/v1",
-      "gardenId": "garden-1"
-    },
-    {
       "id": "stripe-payment-rail-001",
       "name": "Stripe Payment Rail",
       "serviceType": "payment-rail",
@@ -85,105 +73,21 @@
       "gardenId": "HG"
     },
     {
-      "id": "amc-001",
-      "name": "AMC Theatres",
-      "serviceType": "movie",
-      "location": "Baltimore, Maryland",
-      "bond": 1000,
-      "reputation": 4.8,
-      "status": "active",
-      "uuid": "550e8400-e29b-41d4-a716-446655440001",
-      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
-      "gardenId": "garden-2"
-    },
-    {
-      "id": "hotel-58fd3671",
-      "name": "Garden-HOTEL Provider",
-      "serviceType": "hotel",
-      "location": "Unknown",
-      "bond": 1000,
+      "id": "dex-pool-tokenc",
+      "name": "TOKENC Pool (Garden-DEX)",
+      "serviceType": "dex",
+      "location": "Eden DEX",
+      "bond": 5000,
       "reputation": 5,
       "status": "active",
-      "uuid": "96f4802b-6783-403f-8a15-2ec69d583570",
-      "apiEndpoint": "https://api.hotel.com/v1",
-      "gardenId": "garden-3"
-    },
-    {
-      "id": "airline-fcd06659",
-      "name": "Garden-AIRLINE Provider",
-      "serviceType": "airline",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "e6c870ae-e088-4a50-9257-c667b0ba04a7",
-      "apiEndpoint": "https://api.airline.com/v1",
-      "gardenId": "garden-4"
-    },
-    {
-      "id": "restaurant-5f4978cc",
-      "name": "Garden-RESTAURANT Provider",
-      "serviceType": "restaurant",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "6b18ff84-0164-4066-be96-7f8603bb420a",
-      "apiEndpoint": "https://api.restaurant.com/v1",
-      "gardenId": "garden-5"
-    },
-    {
-      "id": "grocerystore-f84bd5ce",
-      "name": "Garden-GROCERYSTORE Provider",
-      "serviceType": "grocerystore",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "4658e8a6-3b53-4df1-ab01-a32416082ee7",
-      "apiEndpoint": "https://api.grocerystore.com/v1",
-      "gardenId": "garden-6"
-    },
-    {
-      "id": "pharmacy-011a2a85",
-      "name": "Garden-PHARMACY Provider",
-      "serviceType": "pharmacy",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "6f59c2d5-3b77-401b-bb46-655cce2714f5",
-      "apiEndpoint": "https://api.pharmacy.com/v1",
-      "gardenId": "garden-7"
-    },
-    {
-      "id": "dogpark-8f30f702",
-      "name": "Garden-DOGPARK Provider",
-      "serviceType": "dogpark",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "38659e63-2747-44b0-8a6d-cda54c23da3e",
-      "apiEndpoint": "https://api.dogpark.com/v1",
-      "gardenId": "garden-8"
-    },
-    {
-      "id": "gasstation-eb0afc10",
-      "name": "Garden-GASSTATION Provider",
-      "serviceType": "gasstation",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "c5203574-ca4e-4d12-bb70-9da841cbe724",
-      "apiEndpoint": "https://api.gasstation.com/v1",
-      "gardenId": "garden-9"
+      "uuid": "df2bd7aa-199c-47f3-95fc-54ecb3895e05",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenc",
+      "gardenId": "T3"
     }
   ],
-  "totalProviders": 15,
-  "movieProviders": 1,
-  "dexProviders": 0,
-  "airlineProviders": 1,
-  "lastSaved": "2026-01-19T02:10:56.477Z"
+  "totalProviders": 7,
+  "movieProviders": 0,
+  "dexProviders": 1,
+  "airlineProviders": 0,
+  "lastSaved": "2026-01-19T03:53:51.356Z"
 }

@@ -418,7 +418,7 @@
         "component": "user",
         "description": "Ask user to confirm the selected flight listing",
         "requiresUserDecision": true,
-        "decisionPrompt": "Would you like to proceed with {{selectedListing.flightNumber}} to {{selectedListing.destination}} on {{selectedListing.date}} for {{selectedListing.price}} JSC?",
+        "decisionPrompt": "Would you like to proceed with {{selectedListing.flightNumber}} to {{selectedListing.destination}} on {{selectedListing.date}} for {{selectedListing.price}} 🍎 APPLES?",
         "decisionOptions": [
           {
             "value": "YES",
@@ -438,7 +438,7 @@
             "message": "Please confirm your selection",
             "data": {
               "decisionId": "confirm_listing",
-              "prompt": "Would you like to proceed with {{selectedListing.flightNumber}} to {{selectedListing.destination}} on {{selectedListing.date}} for {{selectedListing.price}} JSC?",
+              "prompt": "Would you like to proceed with {{selectedListing.flightNumber}} to {{selectedListing.destination}} on {{selectedListing.date}} for {{selectedListing.price}} 🍎 APPLES?",
               "options": [
                 {
                   "value": "YES",
@@ -665,7 +665,7 @@
           {
             "type": "cashier_payment_processed",
             "component": "cashier",
-            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} JSC",
+            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} 🍎 APPLES",
             "data": {
               "entry": "{{ledgerEntry}}",
               "cashier": "{{cashier}}",
@@ -677,7 +677,7 @@
           {
             "type": "purchase",
             "component": "transaction",
-            "message": "Purchased {{selectedListing.flightNumber}} for {{flightPrice}} JSC",
+            "message": "Purchased {{selectedListing.flightNumber}} for {{flightPrice}} 🍎 APPLES",
             "data": {
               "listing": "{{selectedListing}}",
               "price": "{{flightPrice}}",
@@ -1081,7 +1081,7 @@
           {
             "type": "wallet_credited",
             "component": "wallet",
-            "message": "Review rebate credited: {{rebate}} JSC",
+            "message": "Review rebate credited: {{rebate}} 🍎 APPLES",
             "data": {
               "email": "{{user.email}}",
               "amount": "{{rebate}}",

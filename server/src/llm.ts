@@ -275,43 +275,86 @@ export async function formatResponseWithOpenAI(
               return;
             }
             if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-              const content = JSON.parse(parsed.choices[0].message.content);
+              let content: any;
+              try {
+                const contentStr = parsed.choices[0].message.content;
+                console.log(`🔧 [LLM] Raw content from OpenAI: ${contentStr?.substring(0, 200)}...`);
+                content = JSON.parse(contentStr);
+                console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
+                console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
+              } catch (parseError: any) {
+                console.error(`❌ [LLM] Failed to parse OpenAI content as JSON: ${parseError.message}`);
+                console.error(`❌ [LLM] Content string: ${parsed.choices[0].message.content?.substring(0, 500)}`);
+                // If parsing fails, create a minimal content object
+                content = { message: parsed.choices[0].message.content || "Service found", selectedListing: null };
+              }
               
-              // AGGRESSIVE HARDCODE: ALWAYS use first listing, ignore LLM response
-              let selectedListing = listings.length > 0 ? listings[0] : null;
-              console.warn(`🔧 [LLM] AGGRESSIVE HARDCODE: Always using first listing, ignoring LLM response`);
+              // CRITICAL: Use old codebase pattern - fallback to first listing if LLM doesn't return selectedListing
+              // This ensures selectedListing is ALWAYS set, especially for DEX trades
+              // Check if content.selectedListing is null, undefined, or empty object
+              const hasValidSelectedListing = content.selectedListing && 
+                                              typeof content.selectedListing === 'object' && 
+                                              Object.keys(content.selectedListing).length > 0;
               
-              // Try to match LLM's selectedListing if it exists and has providerId
-              if (content.selectedListing && content.selectedListing.providerId && listings.length > 0) {
-                const matchedListing = listings.find(l => 
-                  l.providerId === content.selectedListing.providerId ||
-                  (l.movieTitle === content.selectedListing.movieTitle && l.providerName === content.selectedListing.providerName)
-                );
-                if (matchedListing) {
-                  selectedListing = matchedListing;
-                  console.log(`✅ [LLM] Matched LLM's selectedListing to original listing`);
+              let selectedListing = hasValidSelectedListing ? content.selectedListing : (listings.length > 0 ? listings[0] : null);
+              
+              console.log(`🔧 [LLM] Initial selectedListing: ${selectedListing ? 'SET' : 'NULL'}, from LLM: ${hasValidSelectedListing}, from fallback: ${!hasValidSelectedListing && listings.length > 0}`);
+              
+              // If selectedListing exists but might be missing fields, try to match it back to original listings
+              if (selectedListing && listings.length > 0) {
+                // For DEX trades, match by poolId or tokenSymbol
+                const isDEXTrade = 'poolId' in selectedListing || 'tokenSymbol' in selectedListing;
+                if (isDEXTrade) {
+                  const matchedListing = listings.find((l: any) => 
+                    ('poolId' in l && l.poolId === selectedListing.poolId) ||
+                    ('tokenSymbol' in l && l.tokenSymbol === selectedListing.tokenSymbol && 
+                     (!selectedListing.baseToken || l.baseToken === selectedListing.baseToken))
+                  );
+                  if (matchedListing) {
+                    selectedListing = matchedListing;
+                    console.log(`✅ [LLM] Matched DEX selectedListing to original listing by poolId/tokenSymbol`);
+                  }
+                } else if (selectedListing.providerId) {
+                  // For other service types, match by providerId
+                  const matchedListing = listings.find((l: any) => 
+                    l.providerId === selectedListing.providerId ||
+                    (l.movieTitle === selectedListing.movieTitle && l.providerName === selectedListing.providerName) ||
+                    (l.restaurantName === selectedListing.restaurantName && l.providerName === selectedListing.providerName) ||
+                    (l.flightNumber === selectedListing.flightNumber && l.providerName === selectedListing.providerName) ||
+                    (l.hotelName === selectedListing.hotelName && l.providerName === selectedListing.providerName)
+                  );
+                  if (matchedListing) {
+                    selectedListing = matchedListing;
+                    console.log(`✅ [LLM] Matched selectedListing to original listing by providerId/name`);
+                  }
+                }
+                
+                // Ensure selectedListing has providerId (or poolId for DEX)
+                if (!selectedListing.providerId && !selectedListing.poolId && listings.length > 0) {
+                  if ('poolId' in listings[0]) {
+                    selectedListing = { ...selectedListing, poolId: (listings[0] as any).poolId };
+                  } else {
+                    selectedListing = { ...selectedListing, providerId: listings[0].providerId || listings[0].id };
+                  }
+                  console.log(`🔧 [LLM] Added missing providerId/poolId to selectedListing`);
                 }
               }
               
-              // Ensure selectedListing has providerId
-              if (selectedListing && !selectedListing.providerId && listings.length > 0) {
-                selectedListing = { ...selectedListing, providerId: listings[0].providerId };
-              }
-              
-              // FINAL HARDCODE: Force to first listing no matter what
-              if (listings.length > 0) {
+              // FINAL FALLBACK: If still no selectedListing, use first listing
+              if (!selectedListing && listings.length > 0) {
                 selectedListing = listings[0];
+                console.warn(`⚠️ [LLM] FINAL FALLBACK: Using first listing as selectedListing`);
               }
               
               const result = {
                 message: content.message || "Service found",
                 listings: content.listings || listings,
-                selectedListing: selectedListing, // ALWAYS first listing
+                selectedListing: selectedListing, // ALWAYS set (from LLM or fallback)
                 iGasCost: 0, // Will be calculated separately
               };
               
               // Final validation - log what we're returning
-              console.log(`✅ [LLM] Returning result with selectedListing: ${result.selectedListing ? 'SET' : 'NOT SET'}, type: ${typeof result.selectedListing}, isFirstListing: ${result.selectedListing === listings[0]}`);
+              console.log(`✅ [LLM] Returning result with selectedListing: ${result.selectedListing ? 'SET' : 'NOT SET'}, type: ${typeof result.selectedListing}, hasPoolId: ${!!(result.selectedListing as any)?.poolId}, hasTokenSymbol: ${!!(result.selectedListing as any)?.tokenSymbol}`);
               
               resolve(result);
             } else {
@@ -432,52 +475,67 @@ export async function formatResponseWithDeepSeek(
           try {
             const parsed = JSON.parse(data);
             
-            // AGGRESSIVE HARDCODE: ALWAYS use first listing, ignore LLM response
-            let selectedListing = listings.length > 0 ? listings[0] : null;
-            console.warn(`🔧 [LLM] DeepSeek AGGRESSIVE HARDCODE: Always using first listing, ignoring LLM response`);
+            // CRITICAL: Use old codebase pattern - fallback to first listing if LLM doesn't return selectedListing
+            let selectedListing = parsed.selectedListing || (listings.length > 0 ? listings[0] : null);
             
-            // Try to match LLM's selectedListing if it exists
-            if (parsed.selectedListing && listings.length > 0) {
-              const isTokenListing = 'poolId' in parsed.selectedListing || 'tokenSymbol' in parsed.selectedListing;
+            console.log(`🔧 [LLM] DeepSeek initial selectedListing: ${selectedListing ? 'SET' : 'NULL'}, from LLM: ${!!parsed.selectedListing}, from fallback: ${!parsed.selectedListing && listings.length > 0}`);
+            
+            // If selectedListing exists but might be missing fields, try to match it back to original listings
+            if (selectedListing && listings.length > 0) {
+              const isTokenListing = 'poolId' in selectedListing || 'tokenSymbol' in selectedListing;
               
               if (isTokenListing) {
-                const tokenListing = parsed.selectedListing as any;
+                const tokenListing = selectedListing as any;
                 const matchedListing = listings.find((l: any) => 
                   ('poolId' in l && l.poolId === tokenListing.poolId) ||
-                  ('tokenSymbol' in l && l.tokenSymbol === tokenListing.tokenSymbol)
+                  ('tokenSymbol' in l && l.tokenSymbol === tokenListing.tokenSymbol && 
+                   (!tokenListing.baseToken || l.baseToken === tokenListing.baseToken))
                 ) as TokenListing | undefined;
                 if (matchedListing) {
                   selectedListing = matchedListing;
-                  console.log(`✅ [LLM] DeepSeek matched LLM's token listing`);
+                  console.log(`✅ [LLM] DeepSeek matched DEX selectedListing to original listing`);
                 }
               } else {
-                const movieListing = parsed.selectedListing as any;
+                // For non-DEX listings, match by providerId or name
                 const matchedListing = listings.find((l: any) => 
-                  'movieTitle' in l &&
-                  l.movieTitle === movieListing.movieTitle && 
-                  l.providerName === movieListing.providerName
-                ) as MovieListing | undefined;
+                  l.providerId === selectedListing.providerId ||
+                  (l.movieTitle === selectedListing.movieTitle && l.providerName === selectedListing.providerName) ||
+                  (l.restaurantName === selectedListing.restaurantName && l.providerName === selectedListing.providerName) ||
+                  (l.flightNumber === selectedListing.flightNumber && l.providerName === selectedListing.providerName) ||
+                  (l.hotelName === selectedListing.hotelName && l.providerName === selectedListing.providerName)
+                );
                 if (matchedListing) {
                   selectedListing = matchedListing;
-                  console.log(`✅ [LLM] DeepSeek matched LLM's movie listing`);
+                  console.log(`✅ [LLM] DeepSeek matched selectedListing to original listing`);
                 }
+              }
+              
+              // Ensure selectedListing has providerId (or poolId for DEX)
+              if (!selectedListing.providerId && !selectedListing.poolId && listings.length > 0) {
+                if ('poolId' in listings[0]) {
+                  selectedListing = { ...selectedListing, poolId: (listings[0] as any).poolId };
+                } else {
+                  selectedListing = { ...selectedListing, providerId: listings[0].providerId || listings[0].id };
+                }
+                console.log(`🔧 [LLM] DeepSeek added missing providerId/poolId to selectedListing`);
               }
             }
             
-            // FINAL HARDCODE: Force to first listing no matter what
-            if (listings.length > 0) {
+            // FINAL FALLBACK: If still no selectedListing, use first listing
+            if (!selectedListing && listings.length > 0) {
               selectedListing = listings[0];
+              console.warn(`⚠️ [LLM] DeepSeek FINAL FALLBACK: Using first listing as selectedListing`);
             }
             
             const result = {
               message: parsed.message || "Service found",
               listings: parsed.listings || listings,
-              selectedListing: selectedListing, // ALWAYS first listing
+              selectedListing: selectedListing, // ALWAYS set (from LLM or fallback)
               iGasCost: 0,
             };
             
             // Final validation - log what we're returning
-            console.log(`✅ [LLM] DeepSeek returning result with selectedListing: ${result.selectedListing ? 'SET' : 'NOT SET'}, type: ${typeof result.selectedListing}, isFirstListing: ${result.selectedListing === listings[0]}`);
+            console.log(`✅ [LLM] DeepSeek returning result with selectedListing: ${result.selectedListing ? 'SET' : 'NOT SET'}, type: ${typeof result.selectedListing}, hasPoolId: ${!!(result.selectedListing as any)?.poolId}, hasTokenSymbol: ${!!(result.selectedListing as any)?.tokenSymbol}`);
             
             resolve(result);
           } catch (err) {

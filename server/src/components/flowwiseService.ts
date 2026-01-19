@@ -752,13 +752,19 @@ async function executeStepActions(
             context.queryResult?.query?.filters
           );
           
-          // AGGRESSIVE HARDCODE: ALWAYS use first listing, ignore LLM response completely
-          if (context.listings && context.listings.length > 0) {
-            console.warn(`🔧 [FlowWiseService] AGGRESSIVE HARDCODE: Forcing selectedListing to first listing`);
+          // CRITICAL: Use llmResponse.selectedListing if available (LLM functions now ensure it's always set)
+          // Fallback to first listing only if llmResponse.selectedListing is still null/undefined
+          if (llmResponse.selectedListing) {
+            // LLM returned a selectedListing - use it
+            context.selectedListing = llmResponse.selectedListing;
+            console.log(`✅ [FlowWiseService] Using selectedListing from llmResponse`);
+          } else if (context.listings && context.listings.length > 0) {
+            // Fallback: use first listing if LLM didn't return one
+            console.warn(`⚠️ [FlowWiseService] llmResponse.selectedListing is null, falling back to first listing`);
             llmResponse.selectedListing = context.listings[0];
             context.selectedListing = context.listings[0];
           } else {
-            throw new Error("No listings available");
+            throw new Error("No listings available and LLM didn't return selectedListing");
           }
           
           // Set context values
@@ -767,11 +773,13 @@ async function executeStepActions(
           
           // Final check - ensure it's really set
           if (!context.selectedListing || !llmResponse.selectedListing) {
-            console.error(`❌ [FlowWiseService] CRITICAL: selectedListing is STILL null after hardcoding!`);
+            console.error(`❌ [FlowWiseService] CRITICAL: selectedListing is STILL null after all attempts!`);
             if (context.listings && context.listings.length > 0) {
               context.selectedListing = context.listings[0];
               llmResponse.selectedListing = context.listings[0];
               console.warn(`🔧 [FlowWiseService] FORCE SET selectedListing one more time`);
+            } else {
+              throw new Error("Cannot proceed: selectedListing is null and no listings available");
             }
           }
           
@@ -852,7 +860,7 @@ async function executeStepActions(
             
             // CRITICAL: Throw error if insufficient balance (prevents payment processing)
             if (!context.hasBalance) {
-              throw new Error(`Insufficient balance for payment. Required: ${totalCost.toFixed(6)} JSC (${required.toFixed(6)} + ${iGasCost.toFixed(6)} iGas), Available: ${balance.toFixed(6)} JSC`);
+              throw new Error(`Insufficient balance for payment. Required: ${totalCost.toFixed(6)} 🍎 APPLES (${required.toFixed(6)} + ${iGasCost.toFixed(6)} iGas), Available: ${balance.toFixed(6)} 🍎 APPLES`);
             }
           }
           break;
@@ -962,6 +970,12 @@ async function executeStepActions(
                                         ledgerServiceType === 'airline' ? context.airlinePrice :
                                         ledgerServiceType === 'restaurant' ? (context.diningPrice || context.restaurantPrice) :
                                         ledgerServiceType === 'movie' ? context.moviePrice :
+                                        ledgerServiceType === 'grocerystore' ? context.grocerystorePrice :
+                                        ledgerServiceType === 'pharmacy' ? context.pharmacyPrice :
+                                        ledgerServiceType === 'dogpark' ? context.dogparkPrice :
+                                        ledgerServiceType === 'gasstation' ? context.gasstationPrice :
+                                        ledgerServiceType === 'party' ? context.partyPrice :
+                                        ledgerServiceType === 'bank' ? context.bankPrice :
                                         context.totalCost;
           
           const entryAmount = context.snapshot.amount && context.snapshot.amount > 0
@@ -1563,6 +1577,25 @@ async function executeStepActions(
           context[`${processedAction.type}_completed`] = true;
           break;
 
+        case "process_transaction":
+          // Process banking transaction
+          console.log(`   🏦 [FlowWiseService] Processing banking transaction`);
+          console.log(`   🏦 [FlowWiseService] Action details:`, processedAction);
+          
+          // Extract transaction details from action or context
+          const transactionAmount = processedAction.amount || context.selectedListing?.amount || context.selectedListing?.price || context.bankPrice || 0;
+          const transactionType = processedAction.transactionType || context.selectedListing?.transactionType || 'deposit';
+          
+          // Set transaction details in context
+          context.transactionAmount = transactionAmount;
+          context.transactionType = transactionType;
+          context.transactionProcessed = true;
+          context[`${processedAction.type}_completed`] = true;
+          
+          console.log(`   🏦 [FlowWiseService] Transaction processed: ${transactionType} - ${transactionAmount} 🍎 APPLES`);
+          console.log(`   🏦 [FlowWiseService] transactionProcessed flag set to: ${context.transactionProcessed}`);
+          break;
+
         default:
           console.warn(`   ⚠️ [FlowWiseService] Unknown action type: ${processedAction.type}`);
       }
@@ -1655,13 +1688,23 @@ export async function submitUserDecision(
        existingSelectedListing.movieTitle !== undefined ||
        existingSelectedListing.flightNumber !== undefined ||
        existingSelectedListing.hotelName !== undefined ||
-       existingSelectedListing.partName !== undefined)) {
+       existingSelectedListing.partName !== undefined ||
+       existingSelectedListing.poolId !== undefined ||
+       existingSelectedListing.tokenSymbol !== undefined ||
+       existingSelectedListing.grocerystoreName !== undefined ||
+       existingSelectedListing.pharmacyName !== undefined ||
+       existingSelectedListing.dogparkName !== undefined ||
+       existingSelectedListing.gasstationName !== undefined ||
+       existingSelectedListing.partyName !== undefined ||
+       existingSelectedListing.bankName !== undefined)) {
     // Preserve the existing selectedListing - this is the actual booking selection
     selectedListing = existingSelectedListing;
     console.log(`   🎬 [FlowWiseService] Preserving existing selectedListing from context:`, {
       restaurantName: selectedListing.restaurantName,
       movieTitle: selectedListing.movieTitle,
       flightNumber: selectedListing.flightNumber,
+      poolId: selectedListing.poolId,
+      tokenSymbol: selectedListing.tokenSymbol,
       price: selectedListing.price
     });
   } else if (selectionData) {
@@ -1729,9 +1772,21 @@ export async function submitUserDecision(
       selectedListing = typeof decision === 'string' ? { id: decision, providerId: decision } : decision;
       console.log(`   ⚠️ [FlowWiseService] No selectedListing found, created minimal listing from decision: ${decision}`);
     } else {
-      // For YES/NO decisions, use existing selectedListing or empty object
-      selectedListing = execution.context.selectedListing || {};
-      console.log(`   ⚠️ [FlowWiseService] YES/NO decision but no selectedListing - using empty object`);
+      // For YES/NO decisions, use existing selectedListing or try to get from llmResponse
+      if (execution.context.selectedListing) {
+        selectedListing = execution.context.selectedListing;
+        console.log(`   ⚠️ [FlowWiseService] YES/NO decision - using existing selectedListing from context`);
+      } else if (execution.context.llmResponse && execution.context.llmResponse.selectedListing) {
+        selectedListing = execution.context.llmResponse.selectedListing;
+        console.log(`   ⚠️ [FlowWiseService] YES/NO decision - using selectedListing from llmResponse`);
+      } else if (execution.context.listings && execution.context.listings.length > 0) {
+        // Fallback: use first listing if available (especially for DEX trades)
+        selectedListing = execution.context.listings[0];
+        console.log(`   ⚠️ [FlowWiseService] YES/NO decision - using first listing as fallback`);
+      } else {
+        selectedListing = {};
+        console.log(`   ⚠️ [FlowWiseService] YES/NO decision but no selectedListing - using empty object`);
+      }
     }
   }
   
@@ -1745,7 +1800,15 @@ export async function submitUserDecision(
        !execution.context.selectedListing.movieTitle && 
        !execution.context.selectedListing.flightNumber &&
        !execution.context.selectedListing.hotelName &&
-       !execution.context.selectedListing.partName)) {
+       !execution.context.selectedListing.partName &&
+       !execution.context.selectedListing.poolId &&
+       !execution.context.selectedListing.tokenSymbol &&
+       !execution.context.selectedListing.grocerystoreName &&
+       !execution.context.selectedListing.pharmacyName &&
+       !execution.context.selectedListing.dogparkName &&
+       !execution.context.selectedListing.gasstationName &&
+       !execution.context.selectedListing.partyName &&
+       !execution.context.selectedListing.bankName)) {
     execution.context.selectedListing = selectedListing;
   }
   
@@ -1755,13 +1818,25 @@ export async function submitUserDecision(
     if (serviceType === 'restaurant') {
       execution.context.restaurantPrice = selectedListing.price;
       execution.context.diningPrice = selectedListing.price; // CRITICAL: Set diningPrice for restaurant workflow
-      console.log(`   🍴 [FlowWiseService] Set restaurantPrice and diningPrice: ${selectedListing.price} JSC`);
+      console.log(`   🍴 [FlowWiseService] Set restaurantPrice and diningPrice: ${selectedListing.price} 🍎 APPLES`);
     } else if (serviceType === 'hotel') {
       execution.context.hotelPrice = selectedListing.price;
     } else if (serviceType === 'airline') {
       execution.context.airlinePrice = selectedListing.price;
     } else if (serviceType === 'movie') {
       execution.context.moviePrice = selectedListing.price;
+    } else if (serviceType === 'grocerystore') {
+      execution.context.grocerystorePrice = selectedListing.price;
+    } else if (serviceType === 'pharmacy') {
+      execution.context.pharmacyPrice = selectedListing.price;
+    } else if (serviceType === 'dogpark') {
+      execution.context.dogparkPrice = selectedListing.price;
+    } else if (serviceType === 'gasstation') {
+      execution.context.gasstationPrice = selectedListing.price;
+    } else if (serviceType === 'party') {
+      execution.context.partyPrice = selectedListing.price;
+    } else if (serviceType === 'bank') {
+      execution.context.bankPrice = selectedListing.price;
     }
     execution.context.totalCost = selectedListing.price;
   }

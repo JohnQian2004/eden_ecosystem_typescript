@@ -1,12 +1,12 @@
 {
   "totalIGas": 0,
   "totalITax": 0,
-  "totalRootCAFees": 0.000534,
-  "totalIndexerFees": 0.0001335,
+  "totalRootCAFees": 0.0016020000000000006,
+  "totalIndexerFees": 0.00040050000000000014,
   "totalProviderFees": 0,
   "revenueByServiceType": {
     "garden_deployment": {
-      "count": 5,
+      "count": 14,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
@@ -28,9 +28,41 @@
       "totalITax": 0,
       "totalRootCAFees": 0.000178,
       "totalIndexerFees": 0.0000445
+    },
+    "gasstation": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000356,
+      "totalIndexerFees": 0.000089
+    },
+    "dogpark": {
+      "count": 2,
+      "totalAmount": 0,
+      "totalIGas": 0.0089,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000178,
+      "totalIndexerFees": 0.0000445
+    },
+    "party": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000356,
+      "totalIndexerFees": 0.000089
+    },
+    "bank": {
+      "count": 2,
+      "totalAmount": 0,
+      "totalIGas": 0.0089,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000178,
+      "totalIndexerFees": 0.0000445
     }
   },
-  "lastUpdated": 1768788436473,
+  "lastUpdated": 1768794831676,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-19T02:07:16.473Z"
+  "lastSaved": "2026-01-19T03:53:51.676Z"
 }

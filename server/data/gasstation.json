@@ -414,7 +414,7 @@
         "component": "user",
         "description": "Ask user to confirm the selected fuel listing",
         "requiresUserDecision": true,
-        "decisionPrompt": "Would you like to proceed with {{selectedListing.fuelType}} for {{selectedListing.price}} JSC per liter?",
+        "decisionPrompt": "Would you like to proceed with {{selectedListing.fuelType}} for {{selectedListing.price}} 🍎 APPLES per liter?",
         "decisionOptions": [
           {
             "value": "YES",
@@ -434,7 +434,7 @@
             "message": "Please confirm your selection",
             "data": {
               "decisionId": "confirm_listing",
-              "prompt": "Would you like to proceed with {{selectedListing.fuelType}} for {{selectedListing.price}} JSC per liter?",
+              "prompt": "Would you like to proceed with {{selectedListing.fuelType}} for {{selectedListing.price}} 🍎 APPLES per liter?",
               "options": [
                 {
                   "value": "YES",
@@ -623,7 +623,7 @@
           {
             "type": "cashier_payment_processed",
             "component": "cashier",
-            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} JSC",
+            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} 🍎 APPLES",
             "data": {
               "entry": "{{ledgerEntry}}",
               "cashier": "{{cashier}}",
@@ -635,7 +635,7 @@
           {
             "type": "purchase",
             "component": "transaction",
-            "message": "Purchased {{selectedListing.fuelType}} for {{quantity}} liters at {{selectedListing.price}} JSC per liter",
+            "message": "Purchased {{selectedListing.fuelType}} for {{quantity}} liters at {{selectedListing.price}} 🍎 APPLES per liter",
             "data": {
               "listing": "{{selectedListing}}",
               "quantity": "{{quantity}}",
@@ -1040,7 +1040,7 @@
           {
             "type": "wallet_credited",
             "component": "wallet",
-            "message": "Review rebate credited: {{rebate}} JSC",
+            "message": "Review rebate credited: {{rebate}} 🍎 APPLES",
             "data": {
               "email": "{{user.email}}",
               "amount": "{{rebate}}",

@@ -1,5 +1,5 @@
 {
-  "serviceType": "pharmacy",
+  "serviceType": "Bank",
   "location": {
     "address": {
       "street": "123 Main Street",
@@ -59,19 +59,19 @@
     "inventory": [
       {
         "id": "inv_001",
-        "name": "Pain Reliever",
+        "name": "Item 1",
         "quantity": 50,
         "unitPrice": 10,
-        "category": "Medication"
+        "category": "General"
       }
     ],
     "recentTransactions": [
       {
         "id": "txn_001",
         "date": "2024-01-15",
-        "type": "sale",
+        "type": "deposit",
         "amount": 100,
-        "description": "Medication sold"
+        "description": "Deposit made"
       }
     ],
     "forms": {
@@ -101,7 +101,7 @@
             "label": "Category",
             "required": true,
             "options": [
-              "Medication",
+              "General",
               "Equipment",
               "Supplies"
             ]
@@ -122,9 +122,9 @@
             "label": "Type",
             "required": true,
             "options": [
-              "sale",
-              "purchase",
-              "expense"
+              "deposit",
+              "withdrawal",
+              "transfer"
             ]
           },
           {
@@ -243,9 +243,9 @@
     }
   },
   "flowwiseWorkflow": {
-    "name": "Pharmacy Order Workflow (Decision + Autopay)",
+    "name": "Bank Transaction Workflow (Decision + Autopay)",
     "version": "1.0.0",
-    "description": "Pharmacy order workflow with user decision points and server-side automatic payments",
+    "description": "Bank transaction workflow with user decision points and server-side automatic payments",
     "steps": [
       {
         "id": "eden_chat_input",
@@ -267,7 +267,7 @@
           },
           {
             "type": "eden_chat_init",
-            "serviceType": "pharmacy"
+            "serviceType": "bank"
           }
         ],
         "websocketEvents": [
@@ -278,7 +278,7 @@
             "data": {
               "input": "{{input}}",
               "email": "{{email}}",
-              "serviceType": "pharmacy"
+              "serviceType": "bank"
             }
           }
         ],
@@ -294,7 +294,7 @@
         "name": "2️⃣ LLM Resolution (Self-Play)",
         "type": "process",
         "component": "llm",
-        "description": "Automated LLM processing - extracts query, finds products, formats response",
+        "description": "Automated LLM processing - extracts query, finds providers, formats response",
         "actions": [
           {
             "type": "llm_extract_query",
@@ -303,10 +303,9 @@
           },
           {
             "type": "query_service_registry",
-            "serviceType": "pharmacy",
+            "serviceType": "bank",
             "filters": {
-              "category": "any",
-              "availability": "in_stock"
+              "transactionType": "any"
             }
           },
           {
@@ -358,21 +357,21 @@
       },
       {
         "id": "user_select_listing",
-        "name": "🛒 User Selection: Choose Product",
+        "name": "💳 User Selection: Choose Transaction",
         "type": "decision",
         "component": "user",
-        "description": "Present product options and let user select one",
+        "description": "Present transaction options and let user select one",
         "requiresUserDecision": true,
-        "decisionPrompt": "Please select a product option:",
+        "decisionPrompt": "Please select a transaction option:",
         "decisionOptions": [],
         "dynamicOptions": {
           "source": "listings",
           "valueField": "id",
-          "labelTemplate": "{{productName}} - ${{price}}",
+          "labelTemplate": "{{transactionType}}: ${{amount}}",
           "dataTemplate": {
             "id": "{{id}}",
-            "productName": "{{productName}}",
-            "price": "{{price}}",
+            "transactionType": "{{transactionType}}",
+            "amount": "{{amount}}",
             "providerId": "{{providerId}}",
             "providerName": "{{providerName}}"
           }
@@ -381,18 +380,18 @@
           {
             "type": "user_selection_required",
             "component": "user",
-            "message": "Please select a product option",
+            "message": "Please select a transaction option",
             "data": {
-              "selectionId": "product_selection",
-              "prompt": "Please select a product option:",
+              "selectionId": "transaction_selection",
+              "prompt": "Please select a transaction option:",
               "options": "{{listings}}",
               "optionTemplate": {
                 "value": "{{id}}",
-                "label": "{{productName}} - ${{price}}",
+                "label": "{{transactionType}}: ${{amount}}",
                 "data": {
                   "id": "{{id}}",
-                  "productName": "{{productName}}",
-                  "price": "{{price}}",
+                  "transactionType": "{{transactionType}}",
+                  "amount": "{{amount}}",
                   "providerId": "{{providerId}}",
                   "providerName": "{{providerName}}"
                 }
@@ -412,9 +411,9 @@
         "name": "🤔 User Decision: Confirm Selection",
         "type": "decision",
         "component": "user",
-        "description": "Ask user to confirm the selected product listing",
+        "description": "Ask user to confirm the selected transaction listing",
         "requiresUserDecision": true,
-        "decisionPrompt": "Would you like to proceed with {{selectedListing.productName}} for {{selectedListing.price}} 🍎 APPLES?",
+        "decisionPrompt": "Would you like to proceed with this transaction of ${{selectedListing.amount}} 🍎 APPLES?",
         "decisionOptions": [
           {
             "value": "YES",
@@ -434,7 +433,7 @@
             "message": "Please confirm your selection",
             "data": {
               "decisionId": "confirm_listing",
-              "prompt": "Would you like to proceed with {{selectedListing.productName}} for {{selectedListing.price}} 🍎 APPLES?",
+              "prompt": "Would you like to proceed with this transaction of ${{selectedListing.amount}} 🍎 APPLES?",
               "options": [
                 {
                   "value": "YES",
@@ -456,6 +455,48 @@
         "onTimeout": "error_handler"
       },
       {
+        "id": "watch_movie",
+        "name": "🏦 Process Transaction: Banking Experience",
+        "type": "process",
+        "component": "banking_interface",
+        "description": "Simulate processing the banking transaction with progress tracking",
+        "actions": [
+          {
+            "type": "process_transaction",
+            "transactionType": "{{selectedListing.transactionType}}",
+            "amount": "{{selectedListing.amount}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🏦 Process Transaction",
+            "data": {
+              "stepId": "watch_movie",
+              "stepName": "🏦 Process Transaction: Banking Experience",
+              "component": "banking_interface"
+            }
+          },
+          {
+            "type": "transaction_processed",
+            "component": "banking_interface",
+            "message": "Transaction processed: ${{selectedListing.amount}}",
+            "data": {
+              "transactionType": "{{selectedListing.transactionType}}",
+              "amount": "{{selectedListing.amount}}"
+            }
+          }
+        ],
+        "outputs": {
+          "transactionProcessed": true,
+          "transactionAmount": "{{selectedListing.amount}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
         "id": "root_ca_ledger_and_payment",
         "name": "3️⃣ ROOT CA: Ledger, Payment & Settlement (Atomic)",
         "type": "process",
@@ -465,7 +506,7 @@
           {
             "type": "create_snapshot",
             "payer": "{{user.email}}",
-            "amount": "{{productPrice}}",
+            "amount": "{{selectedListing.amount}}",
             "providerId": "{{selectedListing.providerId}}"
           },
           {
@@ -475,14 +516,14 @@
           {
             "type": "add_ledger_entry",
             "snapshot": "{{snapshot}}",
-            "serviceType": "pharmacy",
+            "serviceType": "bank",
             "iGasCost": "{{iGasCost}}",
             "payerId": "{{user.email}}",
             "merchantName": "{{selectedListing.providerName}}",
             "providerUuid": "{{providerUuid}}",
-            "bookingDetails": {
-              "productName": "{{selectedListing.productName}}",
-              "price": "{{selectedListing.price}}"
+            "transactionDetails": {
+              "transactionType": "{{selectedListing.transactionType}}",
+              "amount": "{{selectedListing.amount}}"
             }
           },
           {
@@ -530,13 +571,13 @@
             "data": {
               "step": "root_ca_ledger_and_payment",
               "merchant": "{{selectedListing.providerName}}",
-              "amount": "{{productPrice}}"
+              "amount": "{{selectedListing.amount}}"
             }
           },
           {
             "type": "ledger_entry_created",
             "component": "ledger",
-            "message": "Ledger entry created for order: {{ledgerEntry.entryId}}",
+            "message": "Ledger entry created for transaction: {{ledgerEntry.entryId}}",
             "data": {
               "entry": "{{ledgerEntry}}"
             }
@@ -583,10 +624,10 @@
           {
             "type": "purchase",
             "component": "transaction",
-            "message": "Purchased {{selectedListing.productName}} for {{productPrice}} 🍎 APPLES",
+            "message": "Transaction processed for {{selectedListing.transactionType}} of ${{selectedListing.amount}} 🍎 APPLES",
             "data": {
               "listing": "{{selectedListing}}",
-              "price": "{{productPrice}}",
+              "amount": "{{selectedListing.amount}}",
               "ledgerEntry": "{{ledgerEntry.entryId}}",
               "status": "{{ledgerEntry.status}}"
             }
@@ -624,7 +665,7 @@
           {
             "type": "ledger_entry_settled",
             "component": "root-ca",
-            "message": "Ledger entry settled: {{ledgerEntry.entryId}}",
+            "message": "ROOT CA settled ledger entry: {{ledgerEntry.entryId}}",
             "data": {
               "entryId": "{{ledgerEntry.entryId}}",
               "status": "completed",
@@ -670,6 +711,110 @@
               "message": "Payment failed: {{error.message}}",
               "data": {
                 "entry": "{{ledgerEntry}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "root_ca_ledger_settlement",
+        "name": "5️⃣ ROOT CA: Ledger Settlement",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA validates, settles ledger entry, and updates authoritative balances",
+        "actions": [
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA consuming ledger entry from settlement stream...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "ROOT CA settled ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "status": "settled",
+              "settlementTimestamp": "{{timestamp}}"
+            }
+          },
+          {
+            "type": "root_ca_balances_updated",
+            "component": "root-ca",
+            "message": "ROOT CA updated authoritative balances",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "feeSplit": "{{snapshot.feeSplit}}",
+              "balancesUpdated": true
+            }
+          },
+          {
+            "type": "root_ca_fees_finalized",
+            "component": "root-ca",
+            "message": "ROOT CA finalized fee distributions",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "finalized": true
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "settlementStatus": "settled",
+          "balancesUpdated": true,
+          "feesFinalized": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_settlement_failed",
+              "component": "root-ca",
+              "message": "ROOT CA settlement failed: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
                 "error": "{{error}}"
               }
             }
@@ -797,7 +942,7 @@
       },
       {
         "id": "stream_to_indexers",
-        "name": "8️⃣ Stream to Indexers",
+        "name": "6️⃣ Stream to Indexers",
         "type": "process",
         "component": "redis",
         "description": "Stream transaction to indexers/gardens",
@@ -823,13 +968,13 @@
       },
       {
         "id": "complete_booking",
-        "name": "9️⃣ Complete Booking",
+        "name": "9️⃣ Complete Transaction",
         "type": "process",
         "component": "ledger",
-        "description": "Complete order and deliver notifications",
+        "description": "Complete transaction and deliver notifications",
         "actions": [
           {
-            "type": "complete_booking",
+            "type": "complete_transaction",
             "ledgerEntry": "{{ledgerEntry}}"
           },
           {
@@ -841,17 +986,18 @@
         ],
         "websocketEvents": [
           {
-            "type": "order_complete",
+            "type": "transaction_completed",
             "component": "user",
-            "message": "Order for {{selectedListing.productName}} is complete.",
+            "message": "Transaction completed for {{selectedListing.transactionType}} of ${{selectedListing.amount}}...",
             "data": {
-              "productName": "{{selectedListing.productName}}"
+              "transactionType": "{{selectedListing.transactionType}}",
+              "amount": "{{selectedListing.amount}}"
             }
           },
           {
-            "type": "ledger_booking_completed",
+            "type": "ledger_transaction_completed",
             "component": "ledger",
-            "message": "Order completed: {{ledgerEntry.entryId}}",
+            "message": "Transaction completed: {{ledgerEntry.entryId}}",
             "data": {
               "entry": "{{ledgerEntry}}"
             }
@@ -862,8 +1008,43 @@
         }
       },
       {
+        "id": "apply_review",
+        "name": "🔟 Review",
+        "type": "process",
+        "component": "user",
+        "description": "Apply review rebate",
+        "actions": [
+          {
+            "type": "apply_review",
+            "user": "{{user}}",
+            "review": {
+              "userId": "{{user.id}}",
+              "transactionId": "{{selectedListing.transactionId}}",
+              "rating": 5
+            },
+            "transactionAmount": "{{selectedListing.amount}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "wallet_credited",
+            "component": "wallet",
+            "message": "Review rebate credited: {{rebate}} 🍎 APPLES",
+            "data": {
+              "email": "{{user.email}}",
+              "amount": "{{rebate}}",
+              "balance": "{{user.balance}}"
+            }
+          }
+        ],
+        "outputs": {
+          "rebate": "{{rebate}}",
+          "updatedBalance": "{{user.balance}}"
+        }
+      },
+      {
         "id": "summary",
-        "name": "🔟 Summary",
+        "name": "1️⃣1️⃣ Summary",
         "type": "output",
         "component": "transaction",
         "description": "Generate transaction summary",
@@ -871,10 +1052,11 @@
           {
             "type": "generate_summary",
             "balance": "{{user.balance}}",
+            "rebate": "{{rebate}}",
             "fees": "{{snapshot.feeSplit}}",
             "iGasCost": "{{iGasCost}}",
             "selectedProvider": "{{selectedListing.providerName}}",
-            "product": "{{selectedListing.productName}}"
+            "transaction": "{{selectedListing.transactionType}}"
           }
         ],
         "websocketEvents": [
@@ -884,10 +1066,11 @@
             "message": "Transaction completed successfully",
             "data": {
               "balance": "{{user.balance}}",
+              "rebate": "{{rebate}}",
               "fees": "{{snapshot.feeSplit}}",
               "iGasCost": "{{iGasCost}}",
               "selectedProvider": "{{selectedListing.providerName}}",
-              "product": "{{selectedListing.productName}}"
+              "transaction": "{{selectedListing.transactionType}}"
             }
           }
         ],
@@ -941,13 +1124,23 @@
       },
       {
         "from": "user_confirm_listing",
-        "to": "root_ca_ledger_and_payment",
+        "to": "watch_movie",
         "condition": "{{userDecision}} === 'YES'"
       },
       {
         "from": "user_confirm_listing",
         "to": "error_handler",
         "condition": "{{userDecision}} === 'NO'"
+      },
+      {
+        "from": "watch_movie",
+        "to": "root_ca_ledger_and_payment",
+        "condition": "{{transactionProcessed}}"
+      },
+      {
+        "from": "watch_movie",
+        "to": "error_handler",
+        "condition": "!{{transactionProcessed}}"
       },
       {
         "from": "root_ca_ledger_and_payment",
@@ -971,6 +1164,11 @@
       },
       {
         "from": "complete_booking",
+        "to": "apply_review",
+        "condition": "always"
+      },
+      {
+        "from": "apply_review",
         "to": "summary",
         "condition": "always"
       }
@@ -1096,8 +1294,8 @@
     },
     {
       "id": "emp_002",
-      "name": "Pharmacist",
-      "role": "Pharmacist",
+      "name": "Server",
+      "role": "Server",
       "position": {
         "area": "counter",
         "x": 40,

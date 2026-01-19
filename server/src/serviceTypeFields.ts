@@ -58,6 +58,26 @@ export const SERVICE_TYPE_FIELDS: Record<string, ServiceTypeFieldMapping> = {
     provider: 'providerName',
     cuisine: 'cuisine',
     partySize: 'partySize'
+  },
+  party: {
+    primary: 'partyName',
+    time: 'eventDate',
+    location: 'location',
+    price: 'price',
+    provider: 'providerName',
+    partyType: 'partyType',
+    eventTime: 'eventTime',
+    capacity: 'capacity'
+  },
+  bank: {
+    primary: 'bankName',
+    time: 'hours',
+    location: 'location',
+    price: 'price',
+    provider: 'providerName',
+    bankType: 'bankType',
+    services: 'services',
+    atmAvailable: 'atmAvailable'
   }
 };
 
@@ -94,8 +114,13 @@ export function extractBookingDetails(serviceType: string, listing: any): Record
   }
 
   // Add location field
-  if (listing[fields.location]) {
+  // CRITICAL: Always include location if it exists in the listing, even if it's "Unknown"
+  // This ensures location data is preserved in booking details
+  if (listing[fields.location] !== undefined && listing[fields.location] !== null) {
     details[fields.location] = listing[fields.location];
+  } else if (listing.location !== undefined && listing.location !== null) {
+    // Fallback: try direct 'location' field if mapped field doesn't exist
+    details.location = listing.location;
   }
 
   // Add provider

@@ -1,5 +1,5 @@
 {
-  "serviceType": "pharmacy",
+  "serviceType": "Party Service",
   "location": {
     "address": {
       "street": "123 Main Street",
@@ -59,10 +59,10 @@
     "inventory": [
       {
         "id": "inv_001",
-        "name": "Pain Reliever",
+        "name": "Item 1",
         "quantity": 50,
         "unitPrice": 10,
-        "category": "Medication"
+        "category": "General"
       }
     ],
     "recentTransactions": [
@@ -71,7 +71,7 @@
         "date": "2024-01-15",
         "type": "sale",
         "amount": 100,
-        "description": "Medication sold"
+        "description": "Service provided"
       }
     ],
     "forms": {
@@ -101,7 +101,7 @@
             "label": "Category",
             "required": true,
             "options": [
-              "Medication",
+              "General",
               "Equipment",
               "Supplies"
             ]
@@ -243,9 +243,9 @@
     }
   },
   "flowwiseWorkflow": {
-    "name": "Pharmacy Order Workflow (Decision + Autopay)",
+    "name": "Party Service Booking Workflow (Decision + Autopay)",
     "version": "1.0.0",
-    "description": "Pharmacy order workflow with user decision points and server-side automatic payments",
+    "description": "Party booking workflow with user decision points and server-side automatic payments",
     "steps": [
       {
         "id": "eden_chat_input",
@@ -267,7 +267,7 @@
           },
           {
             "type": "eden_chat_init",
-            "serviceType": "pharmacy"
+            "serviceType": "party"
           }
         ],
         "websocketEvents": [
@@ -278,7 +278,7 @@
             "data": {
               "input": "{{input}}",
               "email": "{{email}}",
-              "serviceType": "pharmacy"
+              "serviceType": "party"
             }
           }
         ],
@@ -294,7 +294,7 @@
         "name": "2️⃣ LLM Resolution (Self-Play)",
         "type": "process",
         "component": "llm",
-        "description": "Automated LLM processing - extracts query, finds products, formats response",
+        "description": "Automated LLM processing - extracts query, finds providers, formats response",
         "actions": [
           {
             "type": "llm_extract_query",
@@ -303,10 +303,10 @@
           },
           {
             "type": "query_service_registry",
-            "serviceType": "pharmacy",
+            "serviceType": "party",
             "filters": {
-              "category": "any",
-              "availability": "in_stock"
+              "type": "any",
+              "time": "evening"
             }
           },
           {
@@ -358,20 +358,21 @@
       },
       {
         "id": "user_select_listing",
-        "name": "🛒 User Selection: Choose Product",
+        "name": "🎉 User Selection: Choose Party Package",
         "type": "decision",
         "component": "user",
-        "description": "Present product options and let user select one",
+        "description": "Present party options and let user select one",
         "requiresUserDecision": true,
-        "decisionPrompt": "Please select a product option:",
+        "decisionPrompt": "Please select a party package option:",
         "decisionOptions": [],
         "dynamicOptions": {
           "source": "listings",
           "valueField": "id",
-          "labelTemplate": "{{productName}} - ${{price}}",
+          "labelTemplate": "{{packageTitle}} at {{time}} - ${{price}}",
           "dataTemplate": {
             "id": "{{id}}",
-            "productName": "{{productName}}",
+            "packageTitle": "{{packageTitle}}",
+            "time": "{{time}}",
             "price": "{{price}}",
             "providerId": "{{providerId}}",
             "providerName": "{{providerName}}"
@@ -381,17 +382,18 @@
           {
             "type": "user_selection_required",
             "component": "user",
-            "message": "Please select a product option",
+            "message": "Please select a party package option",
             "data": {
-              "selectionId": "product_selection",
-              "prompt": "Please select a product option:",
+              "selectionId": "party_selection",
+              "prompt": "Please select a party package option:",
               "options": "{{listings}}",
               "optionTemplate": {
                 "value": "{{id}}",
-                "label": "{{productName}} - ${{price}}",
+                "label": "{{packageTitle}} at {{time}} - ${{price}}",
                 "data": {
                   "id": "{{id}}",
-                  "productName": "{{productName}}",
+                  "packageTitle": "{{packageTitle}}",
+                  "time": "{{time}}",
                   "price": "{{price}}",
                   "providerId": "{{providerId}}",
                   "providerName": "{{providerName}}"
@@ -412,9 +414,9 @@
         "name": "🤔 User Decision: Confirm Selection",
         "type": "decision",
         "component": "user",
-        "description": "Ask user to confirm the selected product listing",
+        "description": "Ask user to confirm the selected party package",
         "requiresUserDecision": true,
-        "decisionPrompt": "Would you like to proceed with {{selectedListing.productName}} for {{selectedListing.price}} 🍎 APPLES?",
+        "decisionPrompt": "Would you like to proceed with {{selectedListing.packageTitle}} at {{selectedListing.time}} for {{selectedListing.price}} 🍎 APPLES?",
         "decisionOptions": [
           {
             "value": "YES",
@@ -434,7 +436,7 @@
             "message": "Please confirm your selection",
             "data": {
               "decisionId": "confirm_listing",
-              "prompt": "Would you like to proceed with {{selectedListing.productName}} for {{selectedListing.price}} 🍎 APPLES?",
+              "prompt": "Would you like to proceed with {{selectedListing.packageTitle}} at {{selectedListing.time}} for {{selectedListing.price}} 🍎 APPLES?",
               "options": [
                 {
                   "value": "YES",
@@ -456,6 +458,94 @@
         "onTimeout": "error_handler"
       },
       {
+        "id": "host_party",
+        "name": "🎉 Host Party: Event Experience",
+        "type": "process",
+        "component": "party_host",
+        "description": "Simulate hosting the party with progress tracking and scene transitions",
+        "actions": [
+          {
+            "type": "start_party_hosting",
+            "packageTitle": "{{selectedListing.packageTitle}}",
+            "duration": 10,
+            "sceneTransitions": [
+              {
+                "percent": 30,
+                "scene": "dance_floor",
+                "message": "Transitioning to the Dance Floor scene"
+              },
+              {
+                "percent": 60,
+                "scene": "party_games",
+                "message": "Initiating Party Games"
+              },
+              {
+                "percent": 90,
+                "scene": "cake_cutting",
+                "message": "Fading to cake cutting"
+              }
+            ]
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🎉 Host Party",
+            "data": {
+              "stepId": "host_party",
+              "stepName": "🎉 Host Party: Event Experience",
+              "component": "party_host"
+            }
+          },
+          {
+            "type": "party_started",
+            "component": "party_host",
+            "message": "Now hosting: {{selectedListing.packageTitle}}",
+            "data": {
+              "packageTitle": "{{selectedListing.packageTitle}}",
+              "duration": 10,
+              "currentScene": "cake_cutting"
+            }
+          },
+          {
+            "type": "party_progress",
+            "component": "party_host",
+            "message": "Party progress: {{partyProgress}}%",
+            "data": {
+              "progress": "{{partyProgress}}",
+              "currentScene": "{{currentScene}}"
+            }
+          },
+          {
+            "type": "scene_transition",
+            "component": "party_host",
+            "message": "{{sceneMessage}}",
+            "data": {
+              "scene": "{{currentScene}}",
+              "progress": "{{partyProgress}}"
+            }
+          },
+          {
+            "type": "party_finished",
+            "component": "party_host",
+            "message": "Party finished. Returning to initial state.",
+            "data": {
+              "completed": true,
+              "finalScene": "end_scene"
+            }
+          }
+        ],
+        "outputs": {
+          "partyHosted": true,
+          "partyDuration": 10,
+          "finalScene": "end_scene"
+        },
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
         "id": "root_ca_ledger_and_payment",
         "name": "3️⃣ ROOT CA: Ledger, Payment & Settlement (Atomic)",
         "type": "process",
@@ -465,7 +555,7 @@
           {
             "type": "create_snapshot",
             "payer": "{{user.email}}",
-            "amount": "{{productPrice}}",
+            "amount": "{{partyPrice}}",
             "providerId": "{{selectedListing.providerId}}"
           },
           {
@@ -475,13 +565,15 @@
           {
             "type": "add_ledger_entry",
             "snapshot": "{{snapshot}}",
-            "serviceType": "pharmacy",
+            "serviceType": "party",
             "iGasCost": "{{iGasCost}}",
             "payerId": "{{user.email}}",
             "merchantName": "{{selectedListing.providerName}}",
             "providerUuid": "{{providerUuid}}",
             "bookingDetails": {
-              "productName": "{{selectedListing.productName}}",
+              "packageTitle": "{{selectedListing.packageTitle}}",
+              "time": "{{selectedListing.time}}",
+              "location": "{{selectedListing.location}}",
               "price": "{{selectedListing.price}}"
             }
           },
@@ -530,13 +622,13 @@
             "data": {
               "step": "root_ca_ledger_and_payment",
               "merchant": "{{selectedListing.providerName}}",
-              "amount": "{{productPrice}}"
+              "amount": "{{partyPrice}}"
             }
           },
           {
             "type": "ledger_entry_created",
             "component": "ledger",
-            "message": "Ledger entry created for order: {{ledgerEntry.entryId}}",
+            "message": "Ledger entry created for booking: {{ledgerEntry.entryId}}",
             "data": {
               "entry": "{{ledgerEntry}}"
             }
@@ -583,10 +675,10 @@
           {
             "type": "purchase",
             "component": "transaction",
-            "message": "Purchased {{selectedListing.productName}} for {{productPrice}} 🍎 APPLES",
+            "message": "Purchased {{selectedListing.packageTitle}} for {{partyPrice}} 🍎 APPLES",
             "data": {
               "listing": "{{selectedListing}}",
-              "price": "{{productPrice}}",
+              "price": "{{partyPrice}}",
               "ledgerEntry": "{{ledgerEntry.entryId}}",
               "status": "{{ledgerEntry.status}}"
             }
@@ -670,6 +762,110 @@
               "message": "Payment failed: {{error.message}}",
               "data": {
                 "entry": "{{ledgerEntry}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "root_ca_ledger_settlement",
+        "name": "5️⃣ ROOT CA: Ledger Settlement",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA validates, settles ledger entry, and updates authoritative balances",
+        "actions": [
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA consuming ledger entry from settlement stream...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "ROOT CA settled ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "status": "settled",
+              "settlementTimestamp": "{{timestamp}}"
+            }
+          },
+          {
+            "type": "root_ca_balances_updated",
+            "component": "root-ca",
+            "message": "ROOT CA updated authoritative balances",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "feeSplit": "{{snapshot.feeSplit}}",
+              "balancesUpdated": true
+            }
+          },
+          {
+            "type": "root_ca_fees_finalized",
+            "component": "root-ca",
+            "message": "ROOT CA finalized fee distributions",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "finalized": true
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "settlementStatus": "settled",
+          "balancesUpdated": true,
+          "feesFinalized": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_settlement_failed",
+              "component": "root-ca",
+              "message": "ROOT CA settlement failed: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
                 "error": "{{error}}"
               }
             }
@@ -797,7 +993,7 @@
       },
       {
         "id": "stream_to_indexers",
-        "name": "8️⃣ Stream to Indexers",
+        "name": "6️⃣ Stream to Indexers",
         "type": "process",
         "component": "redis",
         "description": "Stream transaction to indexers/gardens",
@@ -826,7 +1022,7 @@
         "name": "9️⃣ Complete Booking",
         "type": "process",
         "component": "ledger",
-        "description": "Complete order and deliver notifications",
+        "description": "Complete booking and deliver notifications",
         "actions": [
           {
             "type": "complete_booking",
@@ -841,17 +1037,17 @@
         ],
         "websocketEvents": [
           {
-            "type": "order_complete",
+            "type": "party_host",
             "component": "user",
-            "message": "Order for {{selectedListing.productName}} is complete.",
+            "message": "Hosting {{selectedListing.packageTitle}}...",
             "data": {
-              "productName": "{{selectedListing.productName}}"
+              "packageTitle": "{{selectedListing.packageTitle}}"
             }
           },
           {
             "type": "ledger_booking_completed",
             "component": "ledger",
-            "message": "Order completed: {{ledgerEntry.entryId}}",
+            "message": "Booking completed: {{ledgerEntry.entryId}}",
             "data": {
               "entry": "{{ledgerEntry}}"
             }
@@ -862,8 +1058,43 @@
         }
       },
       {
+        "id": "apply_review",
+        "name": "🔟 Review",
+        "type": "process",
+        "component": "user",
+        "description": "Apply review rebate",
+        "actions": [
+          {
+            "type": "apply_review",
+            "user": "{{user}}",
+            "review": {
+              "userId": "{{user.id}}",
+              "packageId": "{{selectedListing.packageId}}",
+              "rating": 5
+            },
+            "partyPrice": "{{partyPrice}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "wallet_credited",
+            "component": "wallet",
+            "message": "Review rebate credited: {{rebate}} 🍎 APPLES",
+            "data": {
+              "email": "{{user.email}}",
+              "amount": "{{rebate}}",
+              "balance": "{{user.balance}}"
+            }
+          }
+        ],
+        "outputs": {
+          "rebate": "{{rebate}}",
+          "updatedBalance": "{{user.balance}}"
+        }
+      },
+      {
         "id": "summary",
-        "name": "🔟 Summary",
+        "name": "1️⃣1️⃣ Summary",
         "type": "output",
         "component": "transaction",
         "description": "Generate transaction summary",
@@ -871,10 +1102,11 @@
           {
             "type": "generate_summary",
             "balance": "{{user.balance}}",
+            "rebate": "{{rebate}}",
             "fees": "{{snapshot.feeSplit}}",
             "iGasCost": "{{iGasCost}}",
             "selectedProvider": "{{selectedListing.providerName}}",
-            "product": "{{selectedListing.productName}}"
+            "package": "{{selectedListing.packageTitle}}"
           }
         ],
         "websocketEvents": [
@@ -884,10 +1116,11 @@
             "message": "Transaction completed successfully",
             "data": {
               "balance": "{{user.balance}}",
+              "rebate": "{{rebate}}",
               "fees": "{{snapshot.feeSplit}}",
               "iGasCost": "{{iGasCost}}",
               "selectedProvider": "{{selectedListing.providerName}}",
-              "product": "{{selectedListing.productName}}"
+              "package": "{{selectedListing.packageTitle}}"
             }
           }
         ],
@@ -961,7 +1194,7 @@
       },
       {
         "from": "root_ca_cashier_oversight",
-        "to": "complete_booking",
+        "to": "host_party",
         "condition": "{{paymentAuthorized}}"
       },
       {
@@ -970,7 +1203,32 @@
         "condition": "!{{paymentAuthorized}}"
       },
       {
+        "from": "host_party",
+        "to": "snapshot_persist",
+        "condition": "{{partyHosted}}"
+      },
+      {
+        "from": "host_party",
+        "to": "error_handler",
+        "condition": "!{{partyHosted}}"
+      },
+      {
+        "from": "snapshot_persist",
+        "to": "stream_to_indexers",
+        "condition": "always"
+      },
+      {
+        "from": "stream_to_indexers",
+        "to": "complete_booking",
+        "condition": "always"
+      },
+      {
         "from": "complete_booking",
+        "to": "apply_review",
+        "condition": "always"
+      },
+      {
+        "from": "apply_review",
         "to": "summary",
         "condition": "always"
       }
@@ -1096,8 +1354,8 @@
     },
     {
       "id": "emp_002",
-      "name": "Pharmacist",
-      "role": "Pharmacist",
+      "name": "Server",
+      "role": "Server",
       "position": {
         "area": "counter",
         "x": 40,

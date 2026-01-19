@@ -268,6 +268,7 @@ export class SystemConfigComponent implements OnInit {
         'laborcamp': '🏢',
         'library': '📚',
         'pharmacy': '🏢',
+        'party': '🎉',
         'policestation': '🚔',
         'postoffice': '📮',
         'priest': '⛪',
@@ -782,6 +783,7 @@ export class SystemConfigComponent implements OnInit {
       { serviceType: 'university', filename: 'university.json', exists: false },
       { serviceType: 'airline', filename: 'airline.json', exists: false },
       { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+      { serviceType: 'party', filename: 'party.json', exists: false },
       { serviceType: 'snake', filename: 'snake.json', exists: false }
     ];
     
