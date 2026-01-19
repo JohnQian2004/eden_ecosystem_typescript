@@ -1,10 +1,10 @@
 {
-  "totalIGas": 0.05785000000000001,
+  "totalIGas": 0.11124999999999997,
   "totalITax": 2.0000600012000243e-8,
-  "totalRootCAFees": 0.6424790036000722,
+  "totalRootCAFees": 38.56007900360008,
   "totalIndexerFees": 0.0006897500000000005,
-  "totalProviderFees": 1.59930000900018,
-  "totalCashierFees": 0.5,
+  "totalProviderFees": 96.39330000900019,
+  "totalCashierFees": 1.7000000000000004,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 26,
@@ -83,15 +83,27 @@
       "totalIndexerFees": 0
     },
     "airline": {
-      "count": 2,
+      "count": 8,
       "totalAmount": 0,
-      "totalIGas": 0.0089,
+      "totalIGas": 0.0356,
       "totalITax": 0,
-      "totalRootCAFees": 0.000178,
-      "totalIndexerFees": 0.0000445
+      "totalRootCAFees": 35.998978,
+      "totalIndexerFees": 0.0000445,
+      "totalProviderFees": 59.998000000000005,
+      "totalCashierFees": 0.4
+    },
+    "autoparts": {
+      "count": 6,
+      "totalAmount": 0,
+      "totalIGas": 0.026699999999999998,
+      "totalITax": 0,
+      "totalRootCAFees": 1.9188000000000003,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 4.797000000000001,
+      "totalCashierFees": 0.6
     }
   },
-  "lastUpdated": 1768837697571,
+  "lastUpdated": 1768844272205,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-19T15:48:17.571Z"
+  "lastSaved": "2026-01-19T17:37:52.205Z"
 }
