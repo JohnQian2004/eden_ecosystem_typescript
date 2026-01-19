@@ -2382,7 +2382,65 @@
         "services": "Prescriptions",
         "hours": "9 AM - 6 PM"
       }
+    },
+    {
+      "entryId": "78500f89-eed0-429c-9ec0-2427aa7fa505",
+      "txId": "tx_1768835354733",
+      "timestamp": 1768835354733,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "dex-pool-tokena",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "f9e35315-4e76-4217-95bf-8a411dfee5ee",
+      "txId": "tx_1768835613624",
+      "timestamp": 1768835613624,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "provider-001",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "tokenSymbol": "TOKENA",
+        "baseToken": "SOL",
+        "action": "BUY",
+        "tokenAmount": 2,
+        "baseAmount": 0.002000060001200024,
+        "price": 0.00100004000140004,
+        "iTax": 1.0000300006000122e-8,
+        "tradeId": "4c60aa25-389a-454f-83ef-0175faf8433a",
+        "poolId": "pool-solana-tokena"
+      }
     }
   ],
-  "lastSaved": "2026-01-19T13:38:06.126Z"
+  "lastSaved": "2026-01-19T15:13:34.422Z"
 }

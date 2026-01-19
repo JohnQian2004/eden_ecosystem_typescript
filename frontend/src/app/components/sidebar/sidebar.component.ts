@@ -304,7 +304,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   fetchGardens() {
     // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
-    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens`)
+    // IMPORTANT: System Architecture needs BOTH ecosystems (regular + token/DEX gardens).
+    // Backend defaults /api/gardens to ecosystem=saas; include token gardens via ecosystem=all.
+    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
       .subscribe({
         next: (response) => {
           // Support both 'gardens' and 'indexers' response fields for backward compatibility
@@ -1016,7 +1018,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   fetchGardensTableData() {
     this.isLoadingGardensTable = true;
-    this.http.get<{success: boolean, gardens?: Array<{id: string, name: string, stream: string, active: boolean, type?: string, ownerEmail?: string, serviceType?: string}>}>(`${this.apiUrl}/api/gardens`)
+    // IMPORTANT: Table view must also include token/DEX gardens (ecosystem=all).
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name: string, stream: string, active: boolean, type?: string, ownerEmail?: string, serviceType?: string}>}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
       .subscribe({
         next: (response) => {
           this.isLoadingGardensTable = false;

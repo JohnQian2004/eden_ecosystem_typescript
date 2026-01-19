@@ -399,6 +399,48 @@
         }
       },
       {
+        "id": "user_confirm_trade",
+        "name": "🤔 User Decision: Confirm Trade",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm the selected DEX trade before execution",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Would you like to proceed with {{action}} {{tokenAmount}} {{tokenSymbol}} for ~{{selectedListing.price}} {{baseToken}}?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, execute trade",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm your DEX trade",
+            "data": {
+              "decisionId": "confirm_trade",
+              "prompt": "Would you like to proceed with {{action}} {{tokenAmount}} {{tokenSymbol}} for ~{{selectedListing.price}} {{baseToken}}?",
+              "options": [
+                {"value": "YES", "label": "Yes, execute trade"},
+                {"value": "NO", "label": "No, cancel"}
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
         "id": "ledger_create_entry",
         "name": "4️⃣ Ledger: Create DEX Entry",
         "type": "process",
@@ -580,13 +622,23 @@
       },
       {
         "from": "llm_resolution",
-        "to": "execute_dex_trade",
+        "to": "user_confirm_trade",
         "condition": "{{llmResponse.selectedListing}}"
       },
       {
         "from": "llm_resolution",
         "to": "error_handler",
         "condition": "!{{llmResponse.selectedListing}}"
+      },
+      {
+        "from": "user_confirm_trade",
+        "to": "execute_dex_trade",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_trade",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
       },
       {
         "from": "execute_dex_trade",

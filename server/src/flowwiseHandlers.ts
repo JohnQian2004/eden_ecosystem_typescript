@@ -125,7 +125,45 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
   
   // DEX Actions
   handlers.set("execute_dex_trade", async (action, context) => {
-    const trade = executeDEXTrade(action.poolId, action.action, action.tokenAmount, action.userEmail);
+    // Robust poolId resolution:
+    // With decision steps, template replacement can yield null/undefined if selectedListing is missing fields.
+    // Derive poolId from context/tokenSymbol/providerId when possible.
+    let resolvedPoolId: string | undefined = action.poolId;
+    const ctxAny: any = context as any;
+    const ctxSelected = ctxAny.selectedListing || ctxAny.llmResponse?.selectedListing || ctxAny.selectedListing2 || ctxAny.llmResponse?.selectedListing2;
+    if (!resolvedPoolId && ctxSelected?.poolId) {
+      resolvedPoolId = ctxSelected.poolId;
+    }
+    if (!resolvedPoolId && (action.tokenSymbol || ctxAny.tokenSymbol || ctxAny.trade?.tokenSymbol || ctxSelected?.tokenSymbol)) {
+      const sym = String(action.tokenSymbol || ctxAny.tokenSymbol || ctxAny.trade?.tokenSymbol || ctxSelected?.tokenSymbol).trim();
+      if (sym) {
+        resolvedPoolId = `pool-solana-${sym.toLowerCase()}`;
+      }
+    }
+    if (!resolvedPoolId && (action.providerId || ctxSelected?.providerId)) {
+      const pid = String(action.providerId || ctxSelected?.providerId);
+      // dex-pool-tokena -> pool-solana-tokena
+      if (pid.startsWith('dex-pool-')) {
+        resolvedPoolId = `pool-solana-${pid.replace('dex-pool-', '')}`;
+      }
+    }
+    if (!resolvedPoolId) {
+      try {
+        const { DEX_POOLS } = await import("./state");
+        const first = Array.from(DEX_POOLS.keys())[0];
+        if (first) {
+          resolvedPoolId = first;
+          console.warn(`⚠️ [flowwiseHandlers] execute_dex_trade: poolId missing; falling back to first available pool "${resolvedPoolId}"`);
+        }
+      } catch (e: any) {
+        // ignore
+      }
+    }
+    if (!resolvedPoolId) {
+      throw new Error(`DEX trade missing poolId. selectedListing.poolId=${ctxSelected?.poolId ?? 'MISSING'}, tokenSymbol=${ctxSelected?.tokenSymbol ?? ctxAny.tokenSymbol ?? 'MISSING'}`);
+    }
+
+    const trade = executeDEXTrade(resolvedPoolId, action.action, action.tokenAmount, action.userEmail);
     
     // Update wallet balance based on trade action
     const { getWalletBalance, debitWallet, creditWallet } = await import("./wallet");

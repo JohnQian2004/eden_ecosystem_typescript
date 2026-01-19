@@ -104,7 +104,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
   appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
-  dexServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
+  // DEX main street is garden-driven (not service-type driven)
+  dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
+  selectedDexGarden: {id: string, name: string} | null = null;
   
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
@@ -495,6 +497,14 @@ export class AppComponent implements OnInit, OnDestroy {
           this.loadServices();
         }, 500);
       }
+
+      // Listen for DEX garden creation events to refresh DEX gardens list
+      if (event.type === 'dex_garden_created') {
+        console.log(`🔄 DEX garden created, refreshing DEX gardens list...`);
+        setTimeout(() => {
+          this.loadDexGardens();
+        }, 500);
+      }
       
       // Listen for ledger events to update wallet balance (event-driven, no polling)
       if (event.type === 'ledger_entry_added' || 
@@ -515,6 +525,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
+    // Load DEX gardens (DEX main street is garden-driven)
+    this.loadDexGardens();
     // Load Snake providers separately
     this.loadSnakeProviders();
     
@@ -536,10 +548,59 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private recomputeMainStreetGroups() {
-    this.dexServiceTypes = this.serviceTypes.filter(st => st.type === 'dex');
     this.appleServiceTypes = this.serviceTypes
       .filter(st => st.type !== 'dex')
       .sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
+  }
+
+  private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
+    return this.serviceTypes.find(st => st.type === 'dex') || {
+      type: 'dex',
+      icon: '💰',
+      adText: 'DEX Tokens',
+      sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
+    };
+  }
+
+  loadDexGardens() {
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
+    const url = isPriestMode && this.userEmail
+      ? `${this.apiUrl}/api/dex-gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/dex-gardens`;
+
+    this.http.get<{success: boolean, gardens?: any[]}>(url).subscribe({
+      next: (response) => {
+        if (response.success) {
+          const gardens = (response.gardens || []).filter((g: any) => g && g.active !== false);
+          this.dexGardens = gardens.map((g: any) => ({
+            id: g.id,
+            name: g.name || g.id,
+            active: g.active !== false,
+            uuid: g.uuid,
+            ownerEmail: g.ownerEmail,
+            type: g.type || 'token'
+          }));
+          console.log(`💰 [DEX Main Street] Loaded ${this.dexGardens.length} DEX garden(s): ${this.dexGardens.map(g => g.id).join(', ')}`);
+        } else {
+          this.dexGardens = [];
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load DEX gardens:', err);
+        this.dexGardens = [];
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  selectDexGarden(garden: {id: string, name: string}) {
+    this.selectedDexGarden = garden;
+    const dexServiceType = this.getDexServiceType();
+    this.selectServiceType(dexServiceType);
+    // Future: can be used to filter DEX pools/providers by garden in backend
+    (this as any).selectedDexGardenId = garden.id;
+    this.cdr.detectChanges();
   }
   
   checkServiceGardens() {

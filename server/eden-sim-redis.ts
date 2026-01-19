@@ -3163,12 +3163,24 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Start workflow from user input using FlowWiseService
-        // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
+        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
+        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
+        let detectedServiceType: string = "movie";
+        try {
+          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
+          if (ENABLE_OPENAI && !MOCKED_LLM) {
+            const { extractQueryWithOpenAI } = await import("./src/llm");
+            const qr = await extractQueryWithOpenAI(input.trim());
+            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
+          }
+        } catch (err: any) {
+          // safe fallback
+        }
+
         const workflowResult = await startWorkflowFromUserInput(
           input.trim(),
           user,
-          "movie" // Default to movie for now, can be determined by LLM later
+          detectedServiceType
         );
         
         // Broadcast workflow started event
@@ -3277,12 +3289,24 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Start workflow from user input using FlowWiseService
-        // FlowWiseService will automatically execute all system steps (ledger, cashier, etc.)
+        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
+        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
+        let detectedServiceType: string = "movie";
+        try {
+          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
+          if (ENABLE_OPENAI && !MOCKED_LLM) {
+            const { extractQueryWithOpenAI } = await import("./src/llm");
+            const qr = await extractQueryWithOpenAI(input.trim());
+            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
+          }
+        } catch (err: any) {
+          // safe fallback
+        }
+
         const workflowResult = await startWorkflowFromUserInput(
           input.trim(),
           user,
-          "movie" // Default to movie for now, can be determined by LLM later
+          detectedServiceType
         );
         
         // Broadcast workflow started event
