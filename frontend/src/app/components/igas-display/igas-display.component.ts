@@ -60,6 +60,26 @@ export class IgasDisplayComponent implements OnInit, OnDestroy {
           console.warn(`⛽ [iGasDisplay] iGas event missing igas data:`, event.data);
         }
       }
+
+      // Fallback: workflows may not emit 'igas' events in every path, but ledger events always carry iGasCost.
+      // Keep "Current iGas" aligned with the last processed transaction's iGasCost.
+      if (event.type === 'ledger_entry_added' ||
+          event.type === 'ledger_entry_created' ||
+          event.type === 'ledger_entry_pushed' ||
+          event.type === 'cashier_payment_processed' ||
+          event.type === 'ledger_booking_completed') {
+        const entry = (event as any).data?.entry;
+        const rawIGas = entry?.iGasCost ?? entry?.igas ?? (event as any).data?.iGasCost ?? (event as any).data?.igas;
+        if (rawIGas !== undefined && rawIGas !== null) {
+          const parsed = typeof rawIGas === 'string' ? parseFloat(rawIGas) : Number(rawIGas);
+          if (!isNaN(parsed)) {
+            this.currentIGas = parsed;
+            console.log(`⛽ [iGasDisplay] Updated current iGas from ledger event (${event.type}): ${this.currentIGas}`);
+          }
+        }
+        // Also refresh total iGas from server for consistency with AccountantService.
+        this.loadTotalIGas();
+      }
       
       // Refresh total fees when ledger entries are created or processed
       if (event.type === 'ledger_entry_added' || event.type === 'ledger_entry_created' || 
@@ -86,6 +106,7 @@ export class IgasDisplayComponent implements OnInit, OnDestroy {
   }
 
   loadTotalFees() {
+    // Total Fees follows AccountantService's revenue summary (backward compatible)
     this.http.get<{success: boolean, totalRevenue: number, totalRootCAFees: number, totalIndexerFees: number, totalProviderFees: number, timestamp: number}>('http://localhost:3000/api/accountant/summary')
       .subscribe({
         next: (response) => {

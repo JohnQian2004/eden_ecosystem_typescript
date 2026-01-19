@@ -6,7 +6,6 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { TOTAL_IGAS } from "./state";
 
 // Accountant state interface
 export interface AccountantState {
@@ -16,6 +15,7 @@ export interface AccountantState {
   totalRootCAFees: number;
   totalIndexerFees: number;
   totalProviderFees: number;
+  totalCashierFees: number;
   
   // Revenue breakdown by service type
   revenueByServiceType: Record<string, {
@@ -25,6 +25,8 @@ export interface AccountantState {
     totalITax: number;
     totalRootCAFees: number;
     totalIndexerFees: number;
+    totalProviderFees: number;
+    totalCashierFees: number;
   }>;
   
   // Timestamps
@@ -39,6 +41,7 @@ let ACCOUNTANT_STATE: AccountantState = {
   totalRootCAFees: 0,
   totalIndexerFees: 0,
   totalProviderFees: 0,
+  totalCashierFees: 0,
   revenueByServiceType: {},
   lastUpdated: Date.now(),
   createdAt: Date.now()
@@ -52,8 +55,6 @@ const ACCOUNTANT_PERSISTENCE_FILE = path.join(__dirname, '..', 'eden-accountant-
  */
 export function initializeAccountant(): void {
   loadAccountantState();
-  // Sync with global TOTAL_IGAS
-  ACCOUNTANT_STATE.totalIGas = TOTAL_IGAS;
   console.log(`📊 [Accountant] Initialized. Total iGas: ${ACCOUNTANT_STATE.totalIGas.toFixed(6)}`);
 }
 
@@ -73,6 +74,7 @@ function loadAccountantState(): void {
         totalRootCAFees: persisted.totalRootCAFees || 0,
         totalIndexerFees: persisted.totalIndexerFees || 0,
         totalProviderFees: persisted.totalProviderFees || 0,
+        totalCashierFees: persisted.totalCashierFees || 0,
         revenueByServiceType: persisted.revenueByServiceType || {},
         lastUpdated: persisted.lastUpdated || Date.now(),
         createdAt: persisted.createdAt || Date.now()
@@ -94,8 +96,6 @@ function loadAccountantState(): void {
  */
 export function saveAccountantState(): void {
   try {
-    // Sync with global TOTAL_IGAS before saving
-    ACCOUNTANT_STATE.totalIGas = TOTAL_IGAS;
     ACCOUNTANT_STATE.lastUpdated = Date.now();
     
     const data = {
@@ -120,7 +120,8 @@ export function recordFeePayment(
   iTax: number,
   rootCAFee: number,
   indexerFee: number,
-  providerFee: number = 0
+  providerFee: number = 0,
+  cashierFee: number = 0
 ): void {
   // Update totals
   ACCOUNTANT_STATE.totalIGas += iGas;
@@ -128,6 +129,7 @@ export function recordFeePayment(
   ACCOUNTANT_STATE.totalRootCAFees += rootCAFee;
   ACCOUNTANT_STATE.totalIndexerFees += indexerFee;
   ACCOUNTANT_STATE.totalProviderFees += providerFee;
+  ACCOUNTANT_STATE.totalCashierFees += cashierFee;
   
   // Update service type breakdown
   if (!ACCOUNTANT_STATE.revenueByServiceType[serviceType]) {
@@ -137,7 +139,9 @@ export function recordFeePayment(
       totalIGas: 0,
       totalITax: 0,
       totalRootCAFees: 0,
-      totalIndexerFees: 0
+      totalIndexerFees: 0,
+      totalProviderFees: 0,
+      totalCashierFees: 0
     };
   }
   
@@ -147,6 +151,8 @@ export function recordFeePayment(
   serviceStats.totalITax += iTax;
   serviceStats.totalRootCAFees += rootCAFee;
   serviceStats.totalIndexerFees += indexerFee;
+  serviceStats.totalProviderFees += providerFee;
+  serviceStats.totalCashierFees += cashierFee;
   
   ACCOUNTANT_STATE.lastUpdated = Date.now();
   
@@ -157,8 +163,6 @@ export function recordFeePayment(
  * Get accountant state (for API endpoints)
  */
 export function getAccountantState(): AccountantState {
-  // Sync with global TOTAL_IGAS before returning
-  ACCOUNTANT_STATE.totalIGas = TOTAL_IGAS;
   return { ...ACCOUNTANT_STATE };
 }
 
@@ -171,15 +175,15 @@ export function getFinancialSummary(): {
   totalRootCAFees: number;
   totalIndexerFees: number;
   totalProviderFees: number;
+  totalCashierFees: number;
   totalRevenue: number;
   revenueByServiceType: Record<string, any>;
 } {
-  // Sync with global TOTAL_IGAS
-  ACCOUNTANT_STATE.totalIGas = TOTAL_IGAS;
-  
+  // Total revenue is economic fees (cashier/provider/eden/indexer), not iGas itself.
   const totalRevenue = ACCOUNTANT_STATE.totalRootCAFees + 
                        ACCOUNTANT_STATE.totalIndexerFees + 
-                       ACCOUNTANT_STATE.totalProviderFees;
+                       ACCOUNTANT_STATE.totalProviderFees +
+                       ACCOUNTANT_STATE.totalCashierFees;
   
   return {
     totalIGas: ACCOUNTANT_STATE.totalIGas,
@@ -187,6 +191,7 @@ export function getFinancialSummary(): {
     totalRootCAFees: ACCOUNTANT_STATE.totalRootCAFees,
     totalIndexerFees: ACCOUNTANT_STATE.totalIndexerFees,
     totalProviderFees: ACCOUNTANT_STATE.totalProviderFees,
+    totalCashierFees: ACCOUNTANT_STATE.totalCashierFees,
     totalRevenue,
     revenueByServiceType: ACCOUNTANT_STATE.revenueByServiceType
   };
