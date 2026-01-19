@@ -77,6 +77,12 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   private wsSubscription: any;
   userEmail: string = '';
   readonly adminEmail = 'bill.draper.auto@gmail.com';
+  
+  // Transaction snapshot modal
+  showTransactionModal: boolean = false;
+  transactionSnapshot: any = null;
+  isLoadingTransaction: boolean = false;
+  transactionError: string = '';
 
   constructor(
     private http: HttpClient,
@@ -335,6 +341,50 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
           { key: 'location', label: 'Location' }
         ]
       },
+      grocerystore: {
+        primary: 'grocerystoreName',
+        primaryLabel: 'Grocery Store',
+        fields: [
+          { key: 'grocerystoreName', label: 'Store' },
+          { key: 'storeType', label: 'Type' },
+          { key: 'department', label: 'Department' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      pharmacy: {
+        primary: 'pharmacyName',
+        primaryLabel: 'Pharmacy',
+        fields: [
+          { key: 'pharmacyName', label: 'Pharmacy' },
+          { key: 'pharmacyType', label: 'Type' },
+          { key: 'services', label: 'Services' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      dogpark: {
+        primary: 'dogparkName',
+        primaryLabel: 'Dog Park',
+        fields: [
+          { key: 'dogparkName', label: 'Park' },
+          { key: 'parkType', label: 'Type' },
+          { key: 'amenities', label: 'Amenities' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
+      gasstation: {
+        primary: 'gasstationName',
+        primaryLabel: 'Gas Station',
+        fields: [
+          { key: 'gasstationName', label: 'Station' },
+          { key: 'stationType', label: 'Type' },
+          { key: 'fuelTypes', label: 'Fuel Types' },
+          { key: 'location', label: 'Location' },
+          { key: 'hours', label: 'Hours' }
+        ]
+      },
       dex: {
         primary: 'tokenSymbol',
         primaryLabel: 'DEX',
@@ -400,6 +450,51 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     }
     
     return parts.join('<br>');
+  }
+
+  getTransactionSnapshot(entryId: string, txId: string): void {
+    console.log(`🔍 [LedgerDisplay] Fetching transaction snapshot for entryId: ${entryId}, txId: ${txId}`);
+    
+    this.isLoadingTransaction = true;
+    this.transactionError = '';
+    this.showTransactionModal = true;
+    this.transactionSnapshot = null;
+    this.cdr.detectChanges();
+
+    // Use txId as snapshot_id for the RPC call
+    const apiUrl = window.location.port === '4200' 
+      ? `http://localhost:3000/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`
+      : `/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
+
+    this.http.get<any>(apiUrl).subscribe({
+      next: (response) => {
+        console.log(`✅ [LedgerDisplay] Transaction snapshot received:`, response);
+        this.isLoadingTransaction = false;
+        if (response.success && response.transaction) {
+          this.transactionSnapshot = response.transaction;
+        } else {
+          this.transactionError = 'Transaction snapshot not found';
+        }
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('❌ [LedgerDisplay] Error fetching transaction snapshot:', error);
+        this.isLoadingTransaction = false;
+        this.transactionError = error.error?.error || 'Failed to fetch transaction snapshot';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  closeTransactionModal(): void {
+    this.showTransactionModal = false;
+    this.transactionSnapshot = null;
+    this.transactionError = '';
+    this.cdr.detectChanges();
+  }
+
+  formatJson(obj: any): string {
+    return JSON.stringify(obj, null, 2);
   }
 }
 

@@ -176,6 +176,35 @@ export function addLedgerEntry(
  * Push ledger entry to ROOT CA settlement stream
  */
 export async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Promise<void> {
+  // CRITICAL: Calculate fees and record in Accountant Service BEFORE checking Redis
+  // This ensures fees are tracked even when Redis is disabled
+  const iGas = entry.iGasCost;
+  const iTax = entry.bookingDetails?.iTax || 0;
+  
+  // Calculate fee distribution (from snapshot.feeSplit or defaults)
+  const rootCAFee = entry.fees?.rootCA || (iGas * ROOT_CA_FEE);
+  const indexerFee = entry.fees?.indexer || (iGas * INDEXER_FEE);
+  
+  // Record fee payment in Accountant Service (always, regardless of Redis status)
+  // CRITICAL: Record fees even if iGas is 0, to track all transactions
+  try {
+    const { recordFeePayment } = await import("./accountant");
+    recordFeePayment(
+      entry.serviceType,
+      iGas,
+      iTax,
+      rootCAFee,
+      indexerFee,
+      0 // providerFee (can be added later if needed)
+    );
+    console.log(`📊 [Accountant] ✅ Recorded fees for ${entry.serviceType}: iGas=${iGas.toFixed(6)}, iTax=${iTax.toFixed(6)}, ROOT CA=${rootCAFee.toFixed(6)}, Indexer=${indexerFee.toFixed(6)}`);
+    console.log(`📊 [Accountant] Entry ID: ${entry.entryId}, Amount: ${entry.amount}, Status: ${entry.status}`);
+  } catch (err: any) {
+    console.error(`❌ [Settlement] Failed to record fee payment in Accountant: ${err.message}`);
+    console.error(`❌ [Settlement] Error stack:`, err.stack);
+  }
+  
+  // Now handle Redis settlement stream (if enabled)
   if (SKIP_REDIS || !redis.isOpen) {
     console.log(`📤 [Settlement] Ledger entry ${entry.entryId} queued (Redis disabled)`);
     return;
@@ -183,14 +212,6 @@ export async function pushLedgerEntryToSettlementStream(entry: LedgerEntry): Pro
 
   try {
     await ensureRedisConnection();
-    
-    // Calculate fees breakdown
-    const iGas = entry.iGasCost;
-    const iTax = entry.bookingDetails?.iTax || 0;
-    
-    // Calculate fee distribution (from snapshot.feeSplit or defaults)
-    const rootCAFee = entry.fees?.rootCA || (iGas * ROOT_CA_FEE);
-    const indexerFee = entry.fees?.indexer || (iGas * INDEXER_FEE);
     
     // Extract garden ID from provider (if available)
     const provider = ROOT_CA_SERVICE_REGISTRY.find(p => p.uuid === entry.providerUuid);

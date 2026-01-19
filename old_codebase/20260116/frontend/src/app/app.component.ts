@@ -117,9 +117,15 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'certificates' | 'chat' | 'config' = 'workflow';
+  activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
+  
+  // Helper getter to check if user is actually signed in (has saved email in localStorage)
+  get isUserSignedIn(): boolean {
+    const savedEmail = localStorage.getItem('userEmail');
+    return !!savedEmail && savedEmail.trim() !== '';
+  }
   
   // Admin email constant
   readonly adminEmail = 'bill.draper.auto@gmail.com';
@@ -201,8 +207,8 @@ export class AppComponent implements OnInit, OnDestroy {
   // Ensure active tab is visible in current mode
   ensureValidTab(): void {
     if (this.isUserMode) {
-      // In user mode, only 'workflow-chat' and 'ledger' are visible
-      const visibleTabs: Array<'workflow-chat' | 'ledger'> = ['workflow-chat', 'ledger'];
+      // In user mode, only 'workflow-chat', 'ledger', and 'ledger-cards' are visible
+      const visibleTabs: Array<'workflow-chat' | 'ledger' | 'ledger-cards'> = ['workflow-chat', 'ledger', 'ledger-cards'];
       if (!visibleTabs.includes(this.activeTab as any)) {
         // Switch to first visible tab
         this.activeTab = 'workflow-chat';
@@ -378,21 +384,29 @@ export class AppComponent implements OnInit, OnDestroy {
     // Set default email first (before any async operations)
     const savedEmail = localStorage.getItem('userEmail');
     const savedCredential = localStorage.getItem('googleCredential');
-    this.userEmail = savedEmail || 'bill.draper.auto@gmail.com';
+    // Only set userEmail if there's a saved email (user is signed in)
+    // If no saved email, leave it empty for non-user binding state
+    this.userEmail = savedEmail || '';
+    // User is signed in if they have a saved email (either Google or email/password)
+    // isGoogleSignedIn specifically tracks Google sign-in, but we should check for any saved email
     this.isGoogleSignedIn = !!(savedEmail && savedCredential);
+    const isSignedIn = !!savedEmail; // User is signed in if they have a saved email
     
     // Set sidebar visibility: only show in GOD mode (hide in PRIEST and USER modes)
     this.updateSidebarVisibility();
-    console.log(`📧 Initial email set: ${this.userEmail}, isGoogleSignedIn: ${this.isGoogleSignedIn}`);
+    console.log(`📧 Initial email set: ${this.userEmail}, isGoogleSignedIn: ${this.isGoogleSignedIn}, isSignedIn: ${isSignedIn}`);
     
     // Update title to include email
     this.updateTitle();
     
-    // Open sign-in modal on page load if not signed in
-    if (!this.isGoogleSignedIn) {
+    // Open sign-in modal on page load ONLY if not signed in (no saved email)
+    // Don't show modal if user has already signed in (has saved email)
+    if (!isSignedIn) {
       setTimeout(() => {
         this.openSignInModal();
       }, 1000); // Delay to ensure page is fully loaded
+    } else {
+      console.log(`✅ [App] User already signed in (${savedEmail}), skipping sign-in modal`);
     }
     
     // Set sidebar visibility: only show in GOD mode (hide in PRIEST and USER modes)
@@ -497,6 +511,9 @@ export class AppComponent implements OnInit, OnDestroy {
     // Load Snake providers separately
     this.loadSnakeProviders();
     
+    // Load priesthood stats (for certified priest count display)
+    this.loadPriesthoodStats();
+    
     // Check for service gardens (non-root) - Main Street only shows if there are service gardens
     // Call after a short delay to ensure persistence is loaded on server
     setTimeout(() => {
@@ -574,6 +591,10 @@ export class AppComponent implements OnInit, OnDestroy {
     if (savedEmail && savedCredential) {
       // Update email if different from default (set in ngOnInit)
       if (this.userEmail !== savedEmail) {
+        // Clear wallet balance when email changes
+        console.log(`🔄 [App] Email changed from ${this.userEmail} to ${savedEmail}, clearing wallet balance`);
+        this.walletBalance = 0;
+        this.isLoadingBalance = true;
         this.userEmail = savedEmail;
         // Set flag to check balance after sign-in (for existing saved credentials)
         this.checkBalanceAfterSignIn = true;
@@ -660,6 +681,13 @@ export class AppComponent implements OnInit, OnDestroy {
       const email = payload.email;
       
       if (email) {
+        // Clear wallet balance when switching users
+        if (this.userEmail && this.userEmail !== email) {
+          console.log(`🔄 [App] User switching from ${this.userEmail} to ${email}, clearing wallet balance`);
+          this.walletBalance = 0;
+          this.isLoadingBalance = true;
+        }
+        
         this.userEmail = email;
         this.isGoogleSignedIn = true;
         localStorage.setItem('userEmail', email);
@@ -811,9 +839,15 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   updateTitle() {
-    if (this.userEmail) {
+    // Only show email in title if user is actually signed in (not just default email)
+    // Check if there's a saved email in localStorage (user is signed in)
+    const savedEmail = localStorage.getItem('userEmail');
+    const isActuallySignedIn = !!savedEmail && savedEmail !== 'bill.draper.auto@gmail.com';
+    
+    if (isActuallySignedIn && this.userEmail && this.userEmail !== 'bill.draper.auto@gmail.com') {
       this.title = `Eden Simulator Dashboard for ${this.userEmail}`;
     } else {
+      // Non-user binding state - just show base title
       this.title = 'Eden Simulator Dashboard';
     }
     // Force change detection after title update
@@ -855,6 +889,11 @@ export class AppComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
   
+  openStripePaymentModal() {
+    this.showStripePaymentModal = true;
+    this.cdr.detectChanges();
+  }
+
   closeStripePaymentModal() {
     this.showStripePaymentModal = false;
     this.cdr.detectChanges();
@@ -862,7 +901,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Garden shutdown dialog methods
   openGardenShutdownDialog(): void {
-    if (!this.isGoogleSignedIn || !this.userEmail) {
+    if (!this.isUserSignedIn || !this.userEmail) {
       console.warn('⚠️  Cannot open shutdown dialog: user not signed in');
       return;
     }
@@ -971,18 +1010,41 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   
   signOut() {
+    // Clear wallet balance IMMEDIATELY when signing out (before any other operations)
+    console.log(`🔄 [App] User signing out, clearing wallet balance immediately`);
+    this.walletBalance = 0;
+    this.isLoadingBalance = true; // Set to loading state to show spinner
+    
+    // Force change detection immediately to update UI
+    this.cdr.detectChanges();
+    
     // Clear Google Sign-In data
     localStorage.removeItem('userEmail');
     localStorage.removeItem('googleCredential');
-    this.userEmail = 'bill.draper.auto@gmail.com'; // Reset to default
+    
+    // Clear userEmail to put dashboard in non-user binding state
+    this.userEmail = '';
     this.isGoogleSignedIn = false;
     
-    // Update sidebar visibility based on view mode
+    // Set view mode to USER when signing out
+    console.log(`🔄 [App] Setting view mode to USER after sign out`);
+    this.setViewMode('user');
+    
+    // Update sidebar visibility based on view mode (should be hidden in USER mode)
     this.updateSidebarVisibility();
     
+    // Ensure active tab is visible in user mode
+    this.ensureValidTab();
+    
     this.updateTitle();
-    this.loadWalletBalance();
-    this.cdr.detectChanges(); // Force change detection
+    
+    // Load wallet balance for default user after a short delay to ensure UI has updated
+    setTimeout(() => {
+      this.loadWalletBalance();
+    }, 100);
+    
+    // Force change detection again after all updates
+    this.cdr.detectChanges();
     
     // Re-initialize Google Sign-In to show button again (with a small delay to ensure DOM is updated)
     setTimeout(() => {
@@ -1007,6 +1069,13 @@ export class AppComponent implements OnInit, OnDestroy {
     // In a real app, you'd validate credentials with a backend API
     // For this simulator, we'll just accept any email/password and use the email
     setTimeout(() => {
+      // Clear wallet balance when switching users
+      if (this.userEmail && this.userEmail !== this.signInEmail) {
+        console.log(`🔄 [App] User switching from ${this.userEmail} to ${this.signInEmail}, clearing wallet balance`);
+        this.walletBalance = 0;
+        this.isLoadingBalance = true;
+      }
+      
       this.userEmail = this.signInEmail;
       this.isGoogleSignedIn = true; // Mark as signed in (even though it's email/password)
       localStorage.setItem('userEmail', this.signInEmail);
@@ -1088,11 +1157,15 @@ export class AppComponent implements OnInit, OnDestroy {
   loadWalletBalance() {
     // Always get the latest email from localStorage to ensure we're using the current signed-in user
     const savedEmail = localStorage.getItem('userEmail');
-    const emailToUse = savedEmail || this.userEmail || 'bill.draper.auto@gmail.com';
+    // If no saved email (user signed out), use default email for balance check
+    // Otherwise use saved email or current userEmail
+    const emailToUse = savedEmail || (this.userEmail || 'bill.draper.auto@gmail.com');
     
     // Update userEmail if it's different (user signed in with different account)
     if (this.userEmail !== emailToUse) {
-      console.log(`📧 Email changed from ${this.userEmail} to ${emailToUse}, reloading wallet balance`);
+      console.log(`📧 Email changed from ${this.userEmail} to ${emailToUse}, clearing and reloading wallet balance`);
+      // Clear balance when email changes
+      this.walletBalance = 0;
       this.userEmail = emailToUse;
     }
     
@@ -1108,11 +1181,14 @@ export class AppComponent implements OnInit, OnDestroy {
       `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
     ).subscribe({
       next: (response) => {
+        this.isLoadingBalance = false; // Clear loading state first
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES for ${this.userEmail}`);
           console.log(`💳 [App] checkBalanceAfterSignIn flag: ${this.checkBalanceAfterSignIn}`);
           console.log(`💳 [App] Balance check: ${this.walletBalance} < 100 = ${this.walletBalance < 100}`);
+          // Force change detection to update UI immediately
+          this.cdr.detectChanges();
           
           // Check if we need to show Stripe Payment Rail modal after sign-in
           // Show modal if balance < 100 JSC and user is signed in (either via flag or already signed in)
@@ -1138,6 +1214,8 @@ export class AppComponent implements OnInit, OnDestroy {
         } else {
           console.error('❌ Failed to load balance:', response.error);
           this.walletBalance = 0;
+          // Force change detection to update UI immediately
+          this.cdr.detectChanges();
           // Still check if we need to show modal even if balance load failed
           if (this.checkBalanceAfterSignIn) {
             console.log(`💳 [App] Balance load failed but checkBalanceAfterSignIn is true, showing modal`);
@@ -1148,8 +1226,6 @@ export class AppComponent implements OnInit, OnDestroy {
             }, 500);
           }
         }
-        this.isLoadingBalance = false;
-        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('❌ Error loading wallet balance:', err);
@@ -1168,7 +1244,8 @@ export class AppComponent implements OnInit, OnDestroy {
     this.isLoadingServices = true;
     
     // Check if we're in PRIEST mode (certified priest user)
-    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    // When signed out (non-user binding state), isPriestMode should be false to show all public services
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
     
     // First, load gardens to validate gardenId
     // In PRIEST mode, filter gardens by ownerEmail to show only priest-owned gardens
@@ -1269,6 +1346,30 @@ export class AppComponent implements OnInit, OnDestroy {
                 icon: '🍽️',
                 adText: 'Restaurant Reservations',
                 sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
+              },
+              {
+                type: 'grocerystore',
+                icon: '🏢',
+                adText: 'Grocery Store',
+                sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices'
+              },
+              {
+                type: 'pharmacy',
+                icon: '🏢',
+                adText: 'Pharmacy',
+                sampleQuery: 'I need to find a pharmacy that has my prescription medication available'
+              },
+              {
+                type: 'dogpark',
+                icon: '🐕',
+                adText: 'Dog Park',
+                sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains'
+              },
+              {
+                type: 'gasstation',
+                icon: '⛽',
+                adText: 'Gas Station',
+                sampleQuery: 'I need to find a gas station with premium fuel at the best price'
               }
                   ];
                   
@@ -1354,9 +1455,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // Query ROOT CA ServiceRegistry for Snake services
     // Snake is a service type (serviceType: "snake"), each belongs to a garden
     // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
+    // When signed out (non-user binding state), don't filter - show all public services
     this.isLoadingSnakeProviders = true;
-    const isPriestMode = this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
-    const ownerEmailParam = isPriestMode && this.userEmail ? `&ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
+    const ownerEmailParam = (isPriestMode && this.userEmail && this.isUserSignedIn) ? `&ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
     this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
       .subscribe({
         next: (response) => {
@@ -1883,10 +1985,7 @@ export class AppComponent implements OnInit, OnDestroy {
   
   // GOD Mode: Load statistics
   loadPriesthoodStats(): void {
-    if (this.userEmail !== this.adminEmail) {
-      return;
-    }
-    
+    // Load stats for all users (not just admin) to display certified priest count
     this.http.get(`${this.apiUrl}/api/priesthood/stats`).subscribe({
       next: (response: any) => {
         if (response.success) {

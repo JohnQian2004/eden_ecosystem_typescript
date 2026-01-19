@@ -41,6 +41,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   serviceProviders: Map<string, {id: string, name: string, serviceType: string, gardenId: string}> = new Map(); // Store service providers from ServiceRegistry
   viewMode: 'god' | 'priest' | 'user' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it, User mode hides entire sidebar
   isAdmin: boolean = false; // Track if current user is admin
+  architectureViewMode: 'tree' | 'table' = 'tree'; // Tree view or Table view for System Architecture
+  gardensTableData: Array<{id: string, name: string, serviceType: string, ownerEmail: string, active: boolean, type?: string}> = [];
+  isLoadingGardensTable: boolean = false;
   private subscription: any;
   private emailCheckInterval: any; // Interval for checking email changes
   private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
@@ -102,6 +105,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // Fetch gardens from server
     this.fetchGardens();
+    
+    // Fetch gardens table data
+    this.fetchGardensTableData();
     
     // Fetch service providers from ServiceRegistry
     this.fetchServiceProviders();
@@ -993,6 +999,73 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
     // Default: return first character uppercase
     return gardenId.charAt(0).toUpperCase();
+  }
+
+  setArchitectureViewMode(mode: 'tree' | 'table') {
+    this.architectureViewMode = mode;
+    if (mode === 'table') {
+      this.fetchGardensTableData();
+    }
+  }
+
+  fetchGardensTableData() {
+    this.isLoadingGardensTable = true;
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name: string, stream: string, active: boolean, type?: string, ownerEmail?: string, serviceType?: string}>}>(`${this.apiUrl}/api/gardens`)
+      .subscribe({
+        next: (response) => {
+          this.isLoadingGardensTable = false;
+          if (response.success && response.gardens) {
+            // Map gardens to table data format
+            this.gardensTableData = response.gardens.map(garden => ({
+              id: garden.id,
+              name: garden.name,
+              serviceType: this.inferServiceTypeFromGarden(garden) || 'N/A',
+              ownerEmail: garden.ownerEmail || 'N/A',
+              active: garden.active,
+              type: garden.type
+            }));
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch gardens table data:', err);
+          this.isLoadingGardensTable = false;
+        }
+      });
+  }
+
+  inferServiceTypeFromGarden(garden: {id: string, name: string, type?: string}): string {
+    // Infer service type from garden name or ID
+    const name = garden.name.toLowerCase();
+    const id = garden.id.toLowerCase();
+    
+    if (name.includes('movie') || id.includes('movie')) return 'movie';
+    if (name.includes('dex') || id.includes('dex')) return 'dex';
+    if (name.includes('airline') || id.includes('airline')) return 'airline';
+    if (name.includes('autoparts') || id.includes('autoparts')) return 'autoparts';
+    if (name.includes('hotel') || id.includes('hotel')) return 'hotel';
+    if (name.includes('restaurant') || id.includes('restaurant')) return 'restaurant';
+    if (name.includes('snake') || id.includes('snake')) return 'snake';
+    if (garden.type === 'root') return 'root';
+    if (garden.type === 'token') return 'token';
+    
+    return 'unknown';
+  }
+
+  getServiceTypeBadgeClass(serviceType: string): string {
+    switch (serviceType) {
+      case 'movie': return 'bg-primary';
+      case 'dex': return 'bg-success';
+      case 'airline': return 'bg-info';
+      case 'autoparts': return 'bg-warning';
+      case 'hotel': return 'bg-danger';
+      case 'restaurant': return 'bg-secondary';
+      case 'snake': return 'bg-dark';
+      case 'root': return 'bg-light text-dark';
+      case 'token': return 'bg-primary';
+      case 'unknown':
+      case 'N/A':
+      default: return 'bg-secondary';
+    }
   }
 }
 

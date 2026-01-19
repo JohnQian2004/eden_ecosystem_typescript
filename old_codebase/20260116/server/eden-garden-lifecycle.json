@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-18T15:25:28.577Z",
+  "lastSaved": "2026-01-19T02:10:41.288Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -5505,6 +5505,309 @@
             "amc-001(garden-2)",
             "hotel-58fd3671(garden-3)",
             "restaurant-108acc56(garden-4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768780818346,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768780818372,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-cfefb5e9(garden-4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768781601301,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-HOTEL",
+          "serviceType": "hotel",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768781601322,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "hotel-427b7538(garden-4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768782189323,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-AIRLINE",
+          "serviceType": "airline",
+          "hasCertificate": true,
+          "totalGardens": 4
+        }
+      },
+      {
+        "timestamp": 1768782189345,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768782817425,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-5",
+          "gardenName": "Garden-RESTAURANT",
+          "serviceType": "restaurant",
+          "hasCertificate": true,
+          "totalGardens": 5
+        }
+      },
+      {
+        "timestamp": 1768782817479,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)",
+            "restaurant-5f4978cc(garden-5)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768785829694,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-6",
+          "gardenName": "Garden-GROCERYSTORE",
+          "serviceType": "grocerystore",
+          "hasCertificate": true,
+          "totalGardens": 6
+        }
+      },
+      {
+        "timestamp": 1768785829723,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 12,
+          "totalSaved": 12,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)",
+            "restaurant-5f4978cc(garden-5)",
+            "grocerystore-f84bd5ce(garden-6)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768786836565,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-7",
+          "gardenName": "Garden-PHARMACY",
+          "serviceType": "pharmacy",
+          "hasCertificate": true,
+          "totalGardens": 7
+        }
+      },
+      {
+        "timestamp": 1768786836617,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 13,
+          "totalSaved": 13,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)",
+            "restaurant-5f4978cc(garden-5)",
+            "grocerystore-f84bd5ce(garden-6)",
+            "pharmacy-011a2a85(garden-7)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768788466228,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-8",
+          "gardenName": "Garden-DOGPARK",
+          "serviceType": "dogpark",
+          "hasCertificate": true,
+          "totalGardens": 8
+        }
+      },
+      {
+        "timestamp": 1768788466258,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 14,
+          "totalSaved": 14,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)",
+            "restaurant-5f4978cc(garden-5)",
+            "grocerystore-f84bd5ce(garden-6)",
+            "pharmacy-011a2a85(garden-7)",
+            "dogpark-8f30f702(garden-8)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768788472824,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-9",
+          "gardenName": "Garden-GASSTATION",
+          "serviceType": "gasstation",
+          "hasCertificate": true,
+          "totalGardens": 9
+        }
+      },
+      {
+        "timestamp": 1768788472907,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 15,
+          "totalSaved": 15,
+          "movieProviders": 1,
+          "dexProviders": 0,
+          "movieProviderIds": [
+            "amc-001(garden-2)"
+          ],
+          "allProviderIds": [
+            "autoparts-3c464392(garden-1)",
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "amc-001(garden-2)",
+            "hotel-58fd3671(garden-3)",
+            "airline-fcd06659(garden-4)",
+            "restaurant-5f4978cc(garden-5)",
+            "grocerystore-f84bd5ce(garden-6)",
+            "pharmacy-011a2a85(garden-7)",
+            "dogpark-8f30f702(garden-8)",
+            "gasstation-eb0afc10(garden-9)"
           ]
         }
       }

@@ -103,6 +103,14 @@ export class SystemConfigComponent implements OnInit {
     ? 'http://localhost:3000' 
     : '';
 
+  // Check if current user is in GOD mode
+  get isGodMode(): boolean {
+    const viewMode = localStorage.getItem('edenViewMode');
+    const userEmail = localStorage.getItem('userEmail') || '';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    return viewMode === 'god' && userEmail === adminEmail;
+  }
+
   constructor(private http: HttpClient) {
     // Listen for Google Sign-In changes
     window.addEventListener('storage', (e) => {
@@ -150,13 +158,24 @@ export class SystemConfigComponent implements OnInit {
       this.userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
     }
     
-    // Load wallet balance and service types
+    // Load wallet balance and workflows first (workflows will populate service types)
     this.loadWalletBalance();
-    this.loadServiceTypes();
     this.loadAvailableWorkflows();
+    // Service types will be populated from existing workflows after they load
   }
 
   loadWalletBalance() {
+    // Always get the latest email from localStorage to ensure we're using the current signed-in user
+    const savedEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    
+    // Update userEmail if it's different (user signed in with different account)
+    if (this.userEmail !== savedEmail) {
+      console.log(`📧 [SystemConfig] Email changed from ${this.userEmail} to ${savedEmail}, clearing wallet balance`);
+      this.walletBalance = 0;
+      this.isLoadingBalance = true;
+      this.userEmail = savedEmail;
+    }
+    
     if (!this.userEmail || !this.userEmail.includes('@')) {
       console.warn('No valid email, skipping balance load');
       return;
@@ -167,6 +186,7 @@ export class SystemConfigComponent implements OnInit {
       `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
     ).subscribe({
       next: (response) => {
+        this.isLoadingBalance = false;
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES`);
@@ -174,7 +194,6 @@ export class SystemConfigComponent implements OnInit {
           console.error('Failed to load balance:', response.error);
           this.walletBalance = 0;
         }
-        this.isLoadingBalance = false;
       },
       error: (err) => {
         console.error('Error loading wallet balance:', err);
@@ -219,20 +238,59 @@ export class SystemConfigComponent implements OnInit {
   }
 
   loadServiceTypes() {
+    // Service types are now derived from existing workflows instead of hardcoded API
+    // This removes hardcoded dependencies and uses only workflows that actually exist
     this.isLoadingServiceTypes = true;
-    this.http.get<{success: boolean, serviceTypes: ServiceType[]}>(`${this.apiUrl}/api/wizard/service-types`)
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.serviceTypes = response.serviceTypes;
-          }
-          this.isLoadingServiceTypes = false;
-        },
-        error: (err) => {
-          console.error('Failed to load service types:', err);
-          this.isLoadingServiceTypes = false;
-        }
-      });
+    
+    // Convert existing workflows to service types
+    const existingWorkflows = this.getExistingWorkflows();
+    this.serviceTypes = existingWorkflows.map(workflow => {
+      // Map workflow service type to ServiceType format
+      const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
+      
+      // Get icon based on service type
+      const iconMap: Record<string, string> = {
+        'movie': '🎬',
+        'amc': '🎬',
+        'autobodyshop': '🔧',
+        'autorepairshop': '🔧',
+        'bank': '🏦',
+        'church': '⛪',
+        'court': '⚖️',
+        'dex': '💰',
+        'dogpark': '🐕',
+        'gasstation': '⛽',
+        'grocerystore': '🏢',
+        'gym': '🏢',
+        'hospital': '🏢',
+        'hotel': '🏨',
+        'jail': '🔒',
+        'laborcamp': '🏢',
+        'library': '📚',
+        'pharmacy': '🏢',
+        'policestation': '🚔',
+        'postoffice': '📮',
+        'priest': '⛪',
+        'restaurant': '🍽️',
+        'school': '🏢',
+        'university': '🏢',
+        'airline': '✈️',
+        'autoparts': '🔧',
+        'snake': '🐍'
+      };
+      
+      const icon = iconMap[workflow.serviceType] || '🏢';
+      
+      return {
+        type: workflow.serviceType,
+        icon: icon,
+        name: serviceTypeName,
+        description: `${serviceTypeName} service with workflow available`
+      };
+    });
+    
+    this.isLoadingServiceTypes = false;
+    console.log(`✅ Loaded ${this.serviceTypes.length} service types from existing workflows (removed hardcoded dependencies)`);
   }
 
   selectServiceType(serviceType: ServiceType) {
@@ -263,6 +321,55 @@ export class SystemConfigComponent implements OnInit {
     
     // Move to next step
     this.wizardStep = 2;
+  }
+
+  selectWorkflowAsServiceType(workflow: {serviceType: string, filename: string, exists: boolean, stepCount?: number}) {
+    // Convert workflow to ServiceType format and select it
+    const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
+    
+    // Get icon based on service type
+    const iconMap: Record<string, string> = {
+      'movie': '🎬',
+      'amc': '🎬',
+      'autobodyshop': '🔧',
+      'autorepairshop': '🔧',
+      'bank': '🏦',
+      'church': '⛪',
+      'court': '⚖️',
+      'dex': '💰',
+      'dogpark': '🐕',
+      'gasstation': '⛽',
+      'grocerystore': '🏢',
+      'gym': '🏢',
+      'hospital': '🏢',
+      'hotel': '🏨',
+      'jail': '🔒',
+      'laborcamp': '🏢',
+      'library': '📚',
+      'pharmacy': '🏢',
+      'policestation': '🚔',
+      'postoffice': '📮',
+      'priest': '⛪',
+      'restaurant': '🍽️',
+      'school': '🏢',
+      'university': '🏢',
+      'airline': '✈️',
+      'autoparts': '🔧',
+      'snake': '🐍'
+    };
+    
+    const icon = iconMap[workflow.serviceType] || '🏢';
+    
+    const serviceType: ServiceType = {
+      type: workflow.serviceType,
+      icon: icon,
+      name: serviceTypeName,
+      description: `${serviceTypeName} service with workflow available`
+    };
+    
+    // Use the same selection logic as regular service types
+    this.selectServiceType(serviceType);
+    console.log(`✅ Selected workflow ${workflow.serviceType} as service type`);
   }
 
   goBack() {
@@ -646,41 +753,82 @@ export class SystemConfigComponent implements OnInit {
   loadAvailableWorkflows() {
     console.log('🔧 [Workflow Designer] Loading available workflows...');
     
-    // Load existing workflows from server
+    // Initialize with complete list of all available service types
+    // This ensures all service types appear in the table even if server doesn't return them
+    const allServiceTypes: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [
+      { serviceType: 'movie', filename: 'movie.json', exists: false },
+      { serviceType: 'amc', filename: 'amc.json', exists: false },
+      { serviceType: 'autobodyshop', filename: 'autobodyshop.json', exists: false },
+      { serviceType: 'autorepairshop', filename: 'autorepairshop.json', exists: false },
+      { serviceType: 'bank', filename: 'bank.json', exists: false },
+      { serviceType: 'church', filename: 'church.json', exists: false },
+      { serviceType: 'court', filename: 'court.json', exists: false },
+      { serviceType: 'dex', filename: 'dex.json', exists: false },
+      { serviceType: 'dogpark', filename: 'dogpark.json', exists: false },
+      { serviceType: 'gasstation', filename: 'gasstation.json', exists: false },
+      { serviceType: 'grocerystore', filename: 'grocerystore.json', exists: false },
+      { serviceType: 'gym', filename: 'gym.json', exists: false },
+      { serviceType: 'hospital', filename: 'hospital.json', exists: false },
+      { serviceType: 'hotel', filename: 'hotel.json', exists: false },
+      { serviceType: 'jail', filename: 'jail.json', exists: false },
+      { serviceType: 'laborcamp', filename: 'laborcamp.json', exists: false },
+      { serviceType: 'library', filename: 'library.json', exists: false },
+      { serviceType: 'pharmacy', filename: 'pharmacy.json', exists: false },
+      { serviceType: 'policestation', filename: 'policestation.json', exists: false },
+      { serviceType: 'postoffice', filename: 'postoffice.json', exists: false },
+      { serviceType: 'priest', filename: 'priest.json', exists: false },
+      { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
+      { serviceType: 'school', filename: 'school.json', exists: false },
+      { serviceType: 'university', filename: 'university.json', exists: false },
+      { serviceType: 'airline', filename: 'airline.json', exists: false },
+      { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
+      { serviceType: 'snake', filename: 'snake.json', exists: false }
+    ];
+    
+    // Set initial list (all marked as not existing)
+    this.availableWorkflows = allServiceTypes;
+    
+    // Load existing workflows from server to update status
     this.http.get<{success: boolean, workflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}>}>(`${this.apiUrl}/api/workflow/list`)
       .subscribe({
         next: (response) => {
           console.log('🔧 [Workflow Designer] Workflow list response:', response);
           if (response.success && response.workflows) {
-            // Use workflows directly from server response
-            this.availableWorkflows = response.workflows;
-            console.log(`🔧 [Workflow Designer] Loaded ${this.availableWorkflows.length} workflows:`, this.availableWorkflows);
+            // Create a map of server workflows by serviceType
+            const serverWorkflowsMap = new Map<string, {serviceType: string, filename: string, exists: boolean, stepCount?: number}>();
+            response.workflows.forEach(w => {
+              serverWorkflowsMap.set(w.serviceType, w);
+            });
+            
+            // Update our complete list with server data (merge server status into our complete list)
+            this.availableWorkflows = allServiceTypes.map(workflow => {
+              const serverWorkflow = serverWorkflowsMap.get(workflow.serviceType);
+              if (serverWorkflow) {
+                // Use server data if available
+                return {
+                  ...workflow,
+                  exists: serverWorkflow.exists,
+                  stepCount: serverWorkflow.stepCount
+                };
+              }
+              // Keep our default if not in server response
+              return workflow;
+            });
+            
+            console.log(`🔧 [Workflow Designer] Loaded ${this.availableWorkflows.length} workflows (merged with server data):`, this.availableWorkflows);
           } else {
-            console.error('🔧 [Workflow Designer] Failed to load workflows: response.success = false');
-            // Fallback: Initialize with default list
-            this.availableWorkflows = [
-              { serviceType: 'movie', filename: 'movie.json', exists: false },
-              { serviceType: 'dex', filename: 'dex.json', exists: false },
-              { serviceType: 'airline', filename: 'airline.json', exists: false },
-              { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
-              { serviceType: 'hotel', filename: 'hotel.json', exists: false },
-              { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
-              { serviceType: 'snake', filename: 'snake.json', exists: false }
-            ];
+            console.warn('🔧 [Workflow Designer] Server response not successful, using complete default list');
+            // Keep the complete list we already set
           }
+          
+          // After workflows are loaded, populate service types from existing workflows
+          this.loadServiceTypes();
         },
         error: (err) => {
           console.error('🔧 [Workflow Designer] Failed to load available workflows:', err);
-          // Fallback: Initialize with default list
-          this.availableWorkflows = [
-            { serviceType: 'movie', filename: 'movie.json', exists: false },
-            { serviceType: 'dex', filename: 'dex.json', exists: false },
-            { serviceType: 'airline', filename: 'airline.json', exists: false },
-            { serviceType: 'autoparts', filename: 'autoparts.json', exists: false },
-            { serviceType: 'hotel', filename: 'hotel.json', exists: false },
-            { serviceType: 'restaurant', filename: 'restaurant.json', exists: false },
-            { serviceType: 'snake', filename: 'snake.json', exists: false }
-          ];
+          // Keep the complete list we already set
+          // Still populate service types from what we have
+          this.loadServiceTypes();
         }
       });
   }
@@ -738,6 +886,10 @@ export class SystemConfigComponent implements OnInit {
         this.isGeneratingWorkflow = false;
       }
     });
+  }
+
+  getExistingWorkflows(): Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> {
+    return this.availableWorkflows.filter(w => w.exists === true);
   }
 
   resetWalletPersistence() {
