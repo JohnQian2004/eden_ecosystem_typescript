@@ -1,0 +1,115 @@
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">💬 Simulator Chat</h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="chat-box">
+      <div *ngFor="let msg of messages" class="mb-2 p-2 border-start border-3" 
+           [ngClass]="{
+             'border-success': msg.type === 'provider_webhook_delivered' || msg.type === 'provider_webhook_registered' || msg.type === 'provider_webhook_received' || msg.type === 'llm_query_extraction_response' || msg.type === 'llm_response_formatting_response' || msg.type === 'dex_trade_executed' || msg.type === 'dex_trade_complete' || msg.type === 'ledger_entry_settled' || msg.type === 'settlement_consumer_started',
+             'border-danger': msg.type === 'provider_webhook_failed' || msg.type === 'llm_error' || msg.type === 'settlement_processing_error' || msg.type === 'settlement_entry_not_found' || msg.type === 'settlement_certificate_invalid' || msg.type === 'settlement_connection_error' || msg.type === 'settlement_stream_error',
+             'border-info': msg.type === 'provider_webhook_attempt' || msg.type === 'provider_rpc_poll' || msg.type === 'llm_query_extraction_start' || msg.type === 'llm_response_formatting_start' || msg.type === 'settlement_batch_processing' || msg.type === 'settlement_processing_start',
+             'border-primary': msg.type === 'provider_rpc_query' || msg.type === 'ledger_entry_pushed',
+             'border-warning': msg.type === 'provider_webhook_unregistered'
+           }">
+        <small class="text-muted">{{ formatTimestamp(msg.timestamp) }}</small>
+        <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
+        <span *ngIf="getEventIcon(msg)" class="ms-2">{{ getEventIcon(msg) }}</span>
+        <div [ngClass]="getMessageClass(msg)" class="mt-1">
+          <span *ngIf="msg.type.startsWith('provider_') || msg.type.startsWith('llm_') || msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_') || msg.type.startsWith('ledger_entry_') || msg.type.startsWith('settlement_')">{{ formatProviderEvent(msg) }}</span>
+          <span *ngIf="!msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_') && !msg.type.startsWith('ledger_entry_') && !msg.type.startsWith('settlement_')">{{ msg.message }}</span>
+        </div>
+        <div *ngIf="msg.data && !msg.type.startsWith('provider_') && !msg.type.startsWith('llm_') && !msg.type.startsWith('token_indexer_') && !msg.type.startsWith('indexer_') && !msg.type.startsWith('ledger_entry_')" class="mt-1 ms-4">
+          <pre class="small bg-light p-2 rounded">{{ msg.data | json }}</pre>
+        </div>
+        <div *ngIf="msg.data && (msg.type.startsWith('token_indexer_') || msg.type.startsWith('indexer_'))" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.indexer"><strong>Indexer:</strong> {{ msg.data.indexer }}</div>
+          <div *ngIf="msg.data.txId"><strong>Transaction:</strong> {{ msg.data.txId }}</div>
+          <div *ngIf="msg.data.indexers && msg.data.indexers.length > 0"><strong>Indexers:</strong> {{ msg.data.indexers.join(", ") }}</div>
+          <div *ngIf="msg.data.count !== undefined"><strong>Count:</strong> {{ msg.data.count }}</div>
+          <div *ngIf="msg.data.isTokenIndexer"><strong>Type:</strong> Garden</div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('provider_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.providerId"><strong>Provider:</strong> {{ msg.data.providerId }}</div>
+          <div *ngIf="msg.data.txId"><strong>Transaction:</strong> {{ msg.data.txId }}</div>
+          <div *ngIf="msg.data.webhookUrl"><strong>Webhook:</strong> {{ msg.data.webhookUrl }}</div>
+          <div *ngIf="msg.data.method"><strong>Method:</strong> {{ msg.data.method }}</div>
+          <div *ngIf="msg.data.status"><strong>Status:</strong> {{ msg.data.status }}</div>
+          <div *ngIf="msg.data.statusCode"><strong>HTTP Status:</strong> {{ msg.data.statusCode }}</div>
+          <div *ngIf="msg.data.error"><strong>Error:</strong> {{ msg.data.error }}</div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('llm_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.provider"><strong>LLM Provider:</strong> {{ msg.data.provider }}</div>
+          <div *ngIf="msg.data.model"><strong>Model:</strong> {{ msg.data.model }}</div>
+          <div *ngIf="msg.data.userInput"><strong>User Input:</strong> {{ msg.data.userInput }}</div>
+          <div *ngIf="msg.data.systemPrompt" class="mt-2">
+            <strong>System Prompt:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.systemPrompt }}</pre>
+          </div>
+          <div *ngIf="msg.data.extractedQuery">
+            <strong>Extracted Query:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.extractedQuery | json }}</pre>
+          </div>
+          <div *ngIf="msg.data.formattedMessage"><strong>Formatted Message:</strong> {{ msg.data.formattedMessage }}</div>
+          <div *ngIf="msg.data.selectedListing">
+            <strong>Selected Listing:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.selectedListing | json }}</pre>
+          </div>
+          <div *ngIf="msg.data.listingsCount !== undefined"><strong>Listings Count:</strong> {{ msg.data.listingsCount }}</div>
+          <div *ngIf="msg.data.error"><strong>Error:</strong> <span class="text-danger">{{ msg.data.error }}</span></div>
+          <div *ngIf="msg.data.response && msg.type.includes('response')" class="mt-2">
+            <strong>LLM Response:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.response | json }}</pre>
+          </div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('dex_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.trade">
+            <div><strong>Trade ID:</strong> {{ msg.data.trade.tradeId }}</div>
+            <div><strong>Action:</strong> {{ msg.data.trade.action }}</div>
+            <div><strong>Token:</strong> {{ msg.data.trade.tokenAmount }} {{ msg.data.trade.tokenSymbol }}</div>
+            <div><strong>Base Amount:</strong> {{ msg.data.trade.baseAmount.toFixed(6) }} {{ msg.data.trade.baseToken }}</div>
+            <div><strong>Price:</strong> {{ msg.data.trade.price.toFixed(6) }} {{ msg.data.trade.baseToken }}/{{ msg.data.trade.tokenSymbol }}</div>
+            <div><strong>Price Impact:</strong> {{ (msg.data.trade.priceImpact * 100).toFixed(3) }}%</div>
+            <div><strong>iTax:</strong> {{ msg.data.trade.iTax.toFixed(6) }} {{ msg.data.trade.baseToken }}</div>
+            <div><strong>Pool ID:</strong> {{ msg.data.trade.poolId }}</div>
+          </div>
+          <div *ngIf="msg.data.iTaxDistribution" class="mt-2">
+            <strong>iTax Distribution:</strong>
+            <div class="ms-3">
+              <div>ROOT CA: {{ msg.data.iTaxDistribution.rootCA.toFixed(6) }} (40%)</div>
+              <div *ngIf="msg.data.iTaxDistribution?.indexer !== undefined">Indexer: {{ msg.data.iTaxDistribution.indexer.toFixed(6) }} (30%)</div>
+              <div>Trader: {{ msg.data.iTaxDistribution.trader.toFixed(6) }} (30%)</div>
+            </div>
+          </div>
+          <div *ngIf="msg.data.poolState" class="mt-2">
+            <strong>Pool State:</strong>
+            <div class="ms-3">
+              <div>Price: {{ msg.data.poolState.price.toFixed(6) }}</div>
+              <div>Liquidity: {{ msg.data.poolState.liquidity.toFixed(2) }} SOL</div>
+              <div>Total Volume: {{ msg.data.poolState.totalVolume.toFixed(2) }} SOL</div>
+              <div>Total Trades: {{ msg.data.poolState.totalTrades }}</div>
+            </div>
+          </div>
+          <div *ngIf="msg.data.rootCALiquidity"><strong>ROOT CA Liquidity:</strong> {{ msg.data.rootCALiquidity.toFixed(2) }} SOL</div>
+          <div *ngIf="msg.data.traderRebate"><strong>Trader Rebate:</strong> {{ msg.data.traderRebate.toFixed(6) }}</div>
+          <div *ngIf="msg.data.userBalance"><strong>User Balance:</strong> {{ msg.data.userBalance.toFixed(2) }}</div>
+        </div>
+        <div *ngIf="msg.data && msg.type.startsWith('ledger_entry_')" class="mt-1 ms-4 small text-muted">
+          <div *ngIf="msg.data.entryId"><strong>Entry ID:</strong> {{ msg.data.entryId }}</div>
+          <div *ngIf="msg.data.iGas !== undefined"><strong>iGas:</strong> {{ msg.data.iGas.toFixed(6) }}</div>
+          <div *ngIf="msg.data.iTax !== undefined"><strong>iTax:</strong> {{ msg.data.iTax.toFixed(6) }}</div>
+          <div *ngIf="msg.data.rootCABalance !== undefined"><strong>ROOT CA Balance:</strong> {{ msg.data.rootCABalance.toFixed(6) }}</div>
+          <div *ngIf="msg.data.indexerBalance !== undefined"><strong>Indexer Balance:</strong> {{ msg.data.indexerBalance.toFixed(6) }}</div>
+          <div *ngIf="msg.data.fees" class="mt-2">
+            <strong>Fee Distribution:</strong>
+            <pre class="small bg-light p-2 rounded mt-1">{{ msg.data.fees | json }}</pre>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="messages.length === 0" class="text-center text-muted py-5">
+        Waiting for simulator events...
+      </div>
+    </div>
+  </div>
+</div>
+

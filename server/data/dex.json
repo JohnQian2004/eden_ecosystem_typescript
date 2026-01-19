@@ -461,6 +461,45 @@
         "description": "Complete DEX trade and deliver notifications",
         "actions": [
           {
+            "type": "process_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "amount": "{{trade.baseAmount}}"
+          },
+          {
+            "type": "root_ca_validate_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentResult": "{{paymentSuccess}}",
+            "cashier": "{{cashier}}"
+          },
+          {
+            "type": "root_ca_authorize_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentStatus": "{{paymentSuccess}}"
+          },
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          },
+          {
             "type": "complete_booking",
             "ledgerEntry": "{{ledgerEntry}}"
           },
@@ -471,12 +510,6 @@
           {
             "type": "stream_to_indexers",
             "snapshot": "{{snapshot}}"
-          },
-          {
-            "type": "deliver_webhook",
-            "providerId": "{{selectedListing.providerId}}",
-            "snapshot": "{{snapshot}}",
-            "ledgerEntry": "{{ledgerEntry}}"
           }
         ],
         "websocketEvents": [

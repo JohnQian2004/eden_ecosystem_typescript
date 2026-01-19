@@ -36,7 +36,7 @@ import {
   STRIPE_PUBLISHABLE_KEY,
   STRIPE_WEBHOOK_SECRET
 } from "./src/config";
-import type { GardenConfig, TokenGardenConfig } from "./src/types";
+import type { GardenConfig, TokenGardenConfig, LLMQueryResult } from "./src/types";
 import {
   GARDENS,
   TOKEN_GARDENS,
@@ -135,14 +135,16 @@ import {
 import {
   initializeLLM,
   extractQueryWithOpenAI,
-  formatResponseWithOpenAI,
-  extractQueryWithDeepSeek,
+  // COMMENTED OUT: formatResponseWithOpenAI is now cloned directly in this file - do not import
+  // formatResponseWithOpenAI,
   formatResponseWithDeepSeek,
-  resolveLLM,
+  // COMMENTED OUT: resolveLLM is disabled - use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead
+  // resolveLLM,
   callLLM,
   LLM_QUERY_EXTRACTION_PROMPT,
   LLM_RESPONSE_FORMATTING_PROMPT
 } from "./src/llm";
+// NOTE: extractQueryWithDeepSeek is defined locally in this file (legacy), not imported
 import { initializeLogger, getLogger } from "./src/logger";
 import type { WalletIntent, WalletResult } from "./src/types";
 import { getServiceTypeFields, extractBookingDetails, getServiceTypeMessage, formatRecommendation } from "./src/serviceTypeFields";
@@ -709,6 +711,56 @@ httpServer.on("request", async (req, res) => {
         // Initialize updatedContext from the provided context
         const updatedContext = { ...context };
         
+        // CRITICAL: If executing error_handler step, ensure error object is in context
+        // The error might have been set in a previous step execution
+        if (stepId === 'error_handler') {
+          console.log(`   🔍 [${requestId}] ========================================`);
+          console.log(`   🔍 [${requestId}] ERROR_HANDLER STEP EXECUTING`);
+          console.log(`   🔍 [${requestId}] Initial context has error:`, !!updatedContext.error);
+          console.log(`   🔍 [${requestId}] Initial context error value:`, updatedContext.error);
+          
+          if (!updatedContext.error) {
+            console.log(`   ⚠️ [${requestId}] error_handler step executing but error not in context, checking execution state`);
+            if (!(global as any).workflowExecutions) {
+              (global as any).workflowExecutions = new Map();
+            }
+            const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+            const existingExecution = workflowExecutions.get(executionId);
+            
+            console.log(`   🔍 [${requestId}] Existing execution found:`, !!existingExecution);
+            if (existingExecution) {
+              console.log(`   🔍 [${requestId}] Existing execution context keys:`, Object.keys(existingExecution.context || {}));
+              console.log(`   🔍 [${requestId}] Existing execution context has error:`, !!existingExecution.context?.error);
+              console.log(`   🔍 [${requestId}] Existing execution context error:`, existingExecution.context?.error);
+            }
+            
+            if (existingExecution && existingExecution.context && existingExecution.context.error) {
+              console.log(`   ✅ [${requestId}] Found error in existing execution context, copying to updatedContext`);
+              updatedContext.error = existingExecution.context.error;
+              console.log(`   ✅ [${requestId}] Error copied:`, JSON.stringify(updatedContext.error, null, 2));
+            } else {
+              console.warn(`   ⚠️ [${requestId}] No error found in execution context for error_handler step`);
+              console.warn(`   ⚠️ [${requestId}] This means the error_handler step was called without a previous error`);
+              // Try to find error in the workflow steps that have errorHandling
+              const stepsWithErrorHandling = workflow.steps.filter((s: any) => s.errorHandling && s.errorHandling.onError === 'error_handler');
+              console.log(`   🔍 [${requestId}] Steps with errorHandling pointing to error_handler:`, stepsWithErrorHandling.map((s: any) => s.id));
+              
+              // Set a default error object if none exists
+              updatedContext.error = {
+                component: 'unknown',
+                message: 'Unknown error occurred - error_handler step executed without error context',
+                stepId: 'unknown',
+                stepName: 'Unknown Step',
+                error: 'Unknown error occurred - error_handler step executed without error context'
+              };
+            }
+          } else {
+            console.log(`   ✅ [${requestId}] Error object already in context:`, JSON.stringify(updatedContext.error, null, 2));
+          }
+          console.log(`   🔍 [${requestId}] Final context error:`, JSON.stringify(updatedContext.error, null, 2));
+          console.log(`   🔍 [${requestId}] ========================================`);
+        }
+        
         // Set service-type-specific price in context if selectedListing exists
         if (updatedContext.selectedListing && updatedContext.selectedListing.price) {
           const currentServiceType = updatedContext.serviceType || serviceType || 'movie';
@@ -910,6 +962,9 @@ httpServer.on("request", async (req, res) => {
             try {
               let actionResult: any = {};
               
+              // Log action type for debugging
+              console.log(`   🔍 [${requestId}] Processing action type: "${action.type}"`);
+              
               // Handle async actions (like movie watching)
               if (action.type === 'start_movie_watching') {
                 // Process this action asynchronously
@@ -917,6 +972,199 @@ httpServer.on("request", async (req, res) => {
                 actionResult = { movieStarted: true, movieWatched: true };
                 executedActions.push({ type: action.type, result: actionResult });
                 continue; // Skip to next action
+              }
+
+              // CLONED formatResponseWithOpenAI function - MUST be defined BEFORE switch statement
+              // This ensures we have the exact function with hardcoded DEX mock data
+              async function formatResponseWithOpenAI_CLONED(
+                listings: MovieListing[] | TokenListing[],
+                userQuery: string,
+                queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }
+              ): Promise<LLMResponse> {
+                console.log(`🔍 [LLM] ========================================`);
+                console.log(`🔍 [LLM] formatResponseWithOpenAI_CLONED FUNCTION ENTRY - CLONED DIRECTLY IN EDEN-SIM-REDIS`);
+                console.log(`🔍 [LLM] This is the CLONED function - NOT imported`);
+                console.log(`🔍 [LLM] listings count: ${listings.length}`);
+                console.log(`🔍 [LLM] userQuery: ${userQuery.substring(0, 100)}`);
+                console.log(`🔍 [LLM] queryFilters:`, JSON.stringify(queryFilters));
+                console.log(`🔍 [LLM] ========================================`);
+                
+                const listingsJson = JSON.stringify(listings);
+                const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
+                const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+                
+                const messages = [
+                  { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
+                  { role: "user", content: userMessage },
+                ];
+                
+                const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
+                
+                const payload = JSON.stringify({
+                  model: "gpt-4o",
+                  messages,
+                  response_format: { type: "json_object" },
+                  temperature: 0.7,
+                });
+
+                return new Promise<LLMResponse>((resolve, reject) => {
+                  const req = https.request(
+                    {
+                      hostname: "api.openai.com",
+                      port: 443,
+                      path: "/v1/chat/completions",
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                        "Content-Length": payload.length,
+                      },
+                    },
+                    (res) => {
+                      let data = "";
+                      res.on("data", (c) => (data += c));
+                      res.on("end", () => {
+                        console.log(`🔍 [LLM] OpenAI response received, data length: ${data.length}`);
+                        try {
+                          const parsed = JSON.parse(data);
+                          console.log(`🔍 [LLM] OpenAI response parsed successfully`);
+                          if (parsed.error) {
+                            reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
+                            return;
+                          }
+                          if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+                            let content: any;
+                            try {
+                              const contentStr = parsed.choices[0].message.content;
+                              console.log(`🔧 [LLM] Raw content from OpenAI: ${contentStr?.substring(0, 200)}...`);
+                              content = JSON.parse(contentStr);
+                              console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
+                              console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
+                              
+                              // CRITICAL: Block "Demo Service" fallback - force use of actual listings
+                              if (content.selectedListing) {
+                                const isGenericDemo = (content.selectedListing as any)?.name === "Demo Service" || 
+                                                     ((content.selectedListing as any)?.providerId === "provider-001" && 
+                                                      !(content.selectedListing as any)?.poolId && 
+                                                      !(content.selectedListing as any)?.movieTitle);
+                                
+                                if (isGenericDemo) {
+                                  console.warn(`⚠️ [LLM] BLOCKED generic "Demo Service" response from LLM`);
+                                  if (listings.length > 0) {
+                                    content.selectedListing = listings[0];
+                                    console.log(`✅ [LLM] Replaced LLM's "Demo Service" with first actual listing`);
+                                  } else {
+                                    content.selectedListing = null;
+                                  }
+                                }
+                              }
+                            } catch (parseError: any) {
+                              console.error(`❌ [LLM] Failed to parse OpenAI content as JSON: ${parseError.message}`);
+                              content = { message: parsed.choices[0].message.content || "Service found", selectedListing: null };
+                            }
+                            
+                            // Process the content
+                            let selectedListing: MovieListing | TokenListing | null = content.selectedListing || (listings.length > 0 ? listings[0] : null);
+                            if (selectedListing) {
+                              const isTokenListing = 'poolId' in selectedListing || 'tokenSymbol' in selectedListing;
+                              
+                              if (isTokenListing) {
+                                const tokenListing = selectedListing as any;
+                                if (!tokenListing.poolId || !tokenListing.providerId) {
+                                  const matchedListing = listings.find((l: any) => 
+                                    ('poolId' in l && l.poolId === tokenListing.poolId) ||
+                                    ('tokenSymbol' in l && l.tokenSymbol === tokenListing.tokenSymbol && l.baseToken === tokenListing.baseToken)
+                                  ) as TokenListing | undefined;
+                                  if (matchedListing) {
+                                    selectedListing = { ...matchedListing, ...tokenListing };
+                                    console.log(`✅ [LLM] Matched DEX pool listing by poolId/tokenSymbol`);
+                                  } else if (listings.length > 0) {
+                                    const firstListing = listings[0] as TokenListing;
+                                    selectedListing = { ...firstListing, ...tokenListing };
+                                    console.warn(`⚠️ [LLM] No DEX pool match found, using first listing`);
+                                  }
+                                }
+                              } else {
+                                if (!selectedListing.providerId) {
+                                  const matchedListing = listings.find((l: any) => 
+                                    l.movieTitle === selectedListing.movieTitle && 
+                                    l.providerName === selectedListing.providerName
+                                  );
+                                  if (matchedListing) {
+                                    selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
+                                  } else if (listings.length > 0) {
+                                    selectedListing = { ...selectedListing, providerId: listings[0].providerId };
+                                  }
+                                }
+                              }
+                            }
+                            
+                            // DEX query detection and hardcoded mock
+                            const isDEXQuery = listings.length > 0 && ('poolId' in listings[0] || 'tokenSymbol' in listings[0]);
+                            const filters = queryFilters || {};
+                            const isDEXFromFilters = filters?.tokenSymbol || filters?.baseToken;
+                            
+                            let selectedListing2: TokenListing | MovieListing | null = null;
+                            
+                            if (isDEXQuery || isDEXFromFilters) {
+                              console.log(`🔧 [LLM] DEX QUERY DETECTED - USING FIRST LISTING`);
+                              if (listings.length > 0 && 'poolId' in listings[0]) {
+                                selectedListing = listings[0] as TokenListing;
+                                selectedListing2 = listings[0] as TokenListing;
+                                console.log(`🔧 [LLM] Using first actual DEX pool listing`);
+                              } else {
+                                const mockDEXPool: TokenListing = {
+                                  poolId: 'pool-solana-tokena',
+                                  providerId: 'dex-pool-tokena',
+                                  providerName: 'DEX Pool Provider',
+                                  tokenSymbol: filters?.tokenSymbol || 'TOKENA',
+                                  tokenName: 'Token A',
+                                  baseToken: filters?.baseToken || 'SOL',
+                                  price: 1.5,
+                                  liquidity: 10000,
+                                  volume24h: 5000,
+                                  indexerId: 'T1'
+                                };
+                                selectedListing = mockDEXPool;
+                                selectedListing2 = mockDEXPool;
+                                console.log(`🔧 [LLM] No listings available, using hardcoded mock DEX pool`);
+                              }
+                            } else {
+                              selectedListing2 = selectedListing;
+                            }
+                            
+                            const result = {
+                              message: content.message || "Service found",
+                              listings: content.listings || listings,
+                              selectedListing: selectedListing,
+                              selectedListing2: selectedListing2,
+                              iGasCost: 0,
+                            };
+                            
+                            // Final validation
+                            if (!result.selectedListing && listings.length > 0) {
+                              result.selectedListing = listings[0];
+                              result.selectedListing2 = listings[0];
+                              console.warn(`⚠️ [LLM] FINAL SAFETY: Setting selectedListing to first listing`);
+                            }
+                            
+                            resolve(result);
+                          } else {
+                            reject(new Error("Invalid OpenAI response format"));
+                          }
+                        } catch (err: any) {
+                          reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
+                        }
+                      });
+                    }
+                  );
+                  
+                  req.on("error", (err) => {
+                    reject(new Error(`OpenAI request failed: ${err.message}`));
+                  });
+                  req.write(payload);
+                  req.end();
+                });
               }
 
               switch (action.type) {
@@ -934,7 +1182,11 @@ httpServer.on("request", async (req, res) => {
                   try {
                     const currentServiceType = updatedContext.serviceType || serviceType || 'movie';
                     const listingPrice = updatedContext.selectedListing?.price || 0;
-                    const snapshotAmount = processedAction.amount || 
+                    // Prefer explicit amount from action; for DEX, fall back to trade.baseAmount when present.
+                    const dexTradeBaseAmount = (updatedContext as any)?.trade?.baseAmount;
+                    const rawActionAmount = processedAction.amount;
+                    const parsedActionAmount = typeof rawActionAmount === 'string' ? parseFloat(rawActionAmount) : rawActionAmount;
+                    const snapshotAmount = (parsedActionAmount ?? (currentServiceType === 'dex' ? dexTradeBaseAmount : undefined)) || 
                                           updatedContext.moviePrice || 
                                           updatedContext.hotelPrice || 
                                           updatedContext.restaurantPrice ||
@@ -1012,6 +1264,70 @@ httpServer.on("request", async (req, res) => {
                   }
                   break;
 
+                case 'persist_snapshot': {
+                  console.log(`💾 [${requestId}] Persisting transaction snapshot`);
+                  const snapshotToPersist =
+                    processedAction.snapshot ||
+                    updatedContext.snapshot ||
+                    actionResult?.snapshot;
+
+                  if (!snapshotToPersist) {
+                    throw new Error(`persist_snapshot requires snapshot in action or context`);
+                  }
+
+                  await persistSnapshot(snapshotToPersist);
+
+                  actionResult = { snapshotPersisted: true, snapshot: snapshotToPersist };
+                  // Keep snapshot on context for later steps + templates
+                  updatedContext.snapshot = snapshotToPersist;
+                  updatedContext.snapshotPersisted = true;
+                  console.log(`✅ [${requestId}] Snapshot persisted: ${snapshotToPersist.txId || snapshotToPersist.id || 'unknown'}`);
+                  break;
+                }
+
+                case 'stream_to_indexers': {
+                  console.log(`📡 [${requestId}] Streaming snapshot to indexers`);
+                  const snapshotToStream =
+                    processedAction.snapshot ||
+                    updatedContext.snapshot ||
+                    actionResult?.snapshot;
+
+                  if (!snapshotToStream) {
+                    throw new Error(`stream_to_indexers requires snapshot in action or context`);
+                  }
+
+                  await streamToIndexers(snapshotToStream);
+
+                  actionResult = { streamed: true, snapshot: snapshotToStream };
+                  updatedContext.snapshot = snapshotToStream;
+                  updatedContext.streamedToIndexers = true;
+                  console.log(`✅ [${requestId}] Streamed snapshot: ${snapshotToStream.txId || snapshotToStream.id || 'unknown'}`);
+                  break;
+                }
+
+                case 'deliver_webhook': {
+                  // NOTE: DEX workflows should NOT deliver webhooks (user requested).
+                  // We still support this action for other service types, but it is a no-op for DEX.
+                  const currentServiceType = (updatedContext.serviceType || serviceType || '').toString().toLowerCase();
+                  if (currentServiceType === 'dex') {
+                    console.log(`🚫 [${requestId}] deliver_webhook skipped for DEX workflow`);
+                    actionResult = { webhookDelivered: false, skipped: true, reason: 'DEX workflow does not use webhooks' };
+                    break;
+                  }
+
+                  const providerId = processedAction.providerId || updatedContext.selectedListing?.providerId;
+                  const snapshot = processedAction.snapshot || updatedContext.snapshot;
+                  const ledgerEntry = processedAction.ledgerEntry || updatedContext.ledgerEntry;
+
+                  if (!providerId || !snapshot || !ledgerEntry) {
+                    throw new Error(`deliver_webhook requires providerId, snapshot, and ledgerEntry`);
+                  }
+
+                  await deliverWebhook(providerId, snapshot, ledgerEntry);
+                  actionResult = { webhookDelivered: true, providerId };
+                  break;
+                }
+
                 case 'validate_certificate':
                   console.log(`🔐 [${requestId}] Validating certificate for provider:`, processedAction.providerUuid || updatedContext.selectedListing?.providerId);
                   // For now, always pass certificate validation in mock mode
@@ -1024,13 +1340,17 @@ httpServer.on("request", async (req, res) => {
                   break;
 
                 case 'llm_extract_query':
-                  // Extract serviceType from action, context, or workflow
-                  const extractServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
-                  console.log(`   🔍 [${requestId}] llm_extract_query: Using serviceType: ${extractServiceType}`);
+                  // Extract query using LLM (FULLY AUTOMATED)
+                  const userInputForExtraction = processedAction.input || updatedContext.input || updatedContext.userInput || '';
+                  console.log(`   🔍 [${requestId}] llm_extract_query: Extracting query from input: "${userInputForExtraction.substring(0, 100)}..."`);
                   
-                  // Use actual LLM extraction if available, otherwise return mock
-                  actionResult = {
-                    queryResult: {
+                  let queryResult: LLMQueryResult;
+                  
+                  if (MOCKED_LLM) {
+                    // Mock extraction for testing
+                    const extractServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
+                    console.log(`   🔍 [${requestId}] llm_extract_query: Using MOCKED_LLM with serviceType: ${extractServiceType}`);
+                    queryResult = {
                       serviceType: extractServiceType,
                       query: {
                         filters: extractServiceType === 'movie' ? {
@@ -1039,11 +1359,95 @@ httpServer.on("request", async (req, res) => {
                         } : extractServiceType === 'airline' ? {
                           destination: 'any',
                           date: 'any'
+                        } : extractServiceType === 'dex' ? {
+                          tokenSymbol: 'TOKENA',
+                          baseToken: 'SOL',
+                          action: 'BUY',
+                          tokenAmount: 1
                         } : {}
                       }
-                    }
+                    };
+                  } else {
+                    // Use actual LLM extraction
+                    const extractFn = ENABLE_OPENAI ? extractQueryWithOpenAI : extractQueryWithDeepSeek;
+                    console.log(`   🔍 [${requestId}] llm_extract_query: Using ${ENABLE_OPENAI ? 'OpenAI' : 'DeepSeek'} for extraction`);
+                    queryResult = await extractFn(userInputForExtraction);
+                    console.log(`   ✅ [${requestId}] llm_extract_query: Extracted query result:`, JSON.stringify(queryResult, null, 2));
+                  }
+                  
+                  // Set queryResult in context
+                  updatedContext.queryResult = queryResult;
+                  updatedContext.serviceType = queryResult.serviceType;
+                  
+                  // CRITICAL: Extract action and tokenAmount from queryResult.query.filters for DEX trades
+                  // These need to be top-level context variables for the workflow outputs
+                  if (queryResult.serviceType === 'dex' && queryResult.query.filters) {
+                    const filters = queryResult.query.filters;
+                    updatedContext.action = filters.action || 'BUY';
+                    updatedContext.tokenAmount = filters.tokenAmount || 1;
+                    updatedContext.tokenSymbol = filters.tokenSymbol;
+                    updatedContext.baseToken = filters.baseToken;
+                    
+                    console.log(`   🔍 [${requestId}] llm_extract_query: Extracted DEX trade parameters:`);
+                    console.log(`      action: ${updatedContext.action}`);
+                    console.log(`      tokenAmount: ${updatedContext.tokenAmount}`);
+                    console.log(`      tokenSymbol: ${updatedContext.tokenSymbol}`);
+                    console.log(`      baseToken: ${updatedContext.baseToken}`);
+                  }
+                  
+                  actionResult = {
+                    queryResult: queryResult
                   };
                   break;
+
+
+                case 'query_dex_pools': {
+                  // Query DEX pools (FULLY AUTOMATED)
+                  // Pattern: Query service registry for DEX providers, then query their pools
+                  // This matches the pattern used in resolveLLM() in eden-sim-redis.ts
+                  if (!updatedContext.queryResult) {
+                    throw new Error("Query result required for DEX pool query");
+                  }
+                  
+                  console.log(`🔍 [${requestId}] Querying DEX pools...`);
+                  console.log(`🔍 [${requestId}] Query filters:`, updatedContext.queryResult.query.filters);
+                  
+                  // Step 1: Query service registry for DEX providers
+                  const dexProviders = queryROOTCAServiceRegistry({
+                    serviceType: "dex",
+                    filters: {}
+                  });
+                  
+                  console.log(`🔍 [${requestId}] Found ${dexProviders.length} DEX provider(s) in service registry`);
+                  
+                  if (dexProviders.length === 0) {
+                    console.warn(`⚠️ [${requestId}] No DEX providers found in service registry`);
+                    updatedContext.listings = [];
+                    actionResult = { listings: [] };
+                    break;
+                  }
+                  
+                  // Step 2: Query all DEX providers' pools using queryServiceProviders
+                  // This internally calls queryProviderAPI -> queryDEXPoolAPI for each provider
+                  const filters = {
+                    tokenSymbol: updatedContext.queryResult.query.filters?.tokenSymbol,
+                    baseToken: updatedContext.queryResult.query.filters?.baseToken,
+                    action: updatedContext.queryResult.query.filters?.action
+                  };
+                  
+                  console.log(`🔍 [${requestId}] Querying ${dexProviders.length} DEX provider(s) with filters:`, filters);
+                  
+                  const dexListings = await queryServiceProviders(
+                    dexProviders,
+                    filters
+                  ) as TokenListing[];
+                  
+                  console.log(`✅ [${requestId}] Found ${dexListings.length} DEX pool listing(s) from ${dexProviders.length} provider(s)`);
+                  
+                  updatedContext.listings = dexListings;
+                  actionResult = { listings: dexListings };
+                  break;
+                }
 
                 case 'query_service_registry': {
                   // Get serviceType from action, context, or workflow
@@ -1165,35 +1569,6 @@ httpServer.on("request", async (req, res) => {
                 break;
                 }
 
-                case 'llm_format_response': {
-                  const availableListings = updatedContext.listings || [];
-                  const formatServiceType = updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
-                  const formatFields = getServiceTypeFields(formatServiceType);
-                  const serviceMessage = getServiceTypeMessage(formatServiceType, availableListings.length);
-                  
-                  console.log(`   📋 [${requestId}] Prepared ${availableListings.length} ${formatServiceType} options for user selection`);
-
-                  actionResult = {
-                    llmResponse: {
-                      message: serviceMessage,
-                      iGasCost: 0.004450,
-                      queryProcessed: true,
-                      optionsFound: availableListings.length,
-                      serviceType: formatServiceType,
-                      recommendations: availableListings.map((listing: any, index: number) => formatRecommendation(formatServiceType, listing, index))
-                    },
-                    listings: availableListings, // Keep for selection step
-                    iGasCost: 0.004450,
-                    currentIGas: 0.004450
-                  };
-                  
-                  // Store serviceType in context if not already set
-                  updatedContext.serviceType = formatServiceType;
-                  
-                  console.log(`   📋 [${requestId}] Set structured llmResponse for ${formatServiceType}:`, actionResult.llmResponse);
-                  break;
-                }
-
                 case 'add_ledger_entry': {
                   console.log(`🔍 [${requestId}] Executing add_ledger_entry action - START`);
                   try {
@@ -1231,13 +1606,57 @@ httpServer.on("request", async (req, res) => {
                       merchantName: processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName
                     });
 
+                    // DEX FIX: Resolve providerUuid from registry when workflow passes providerId (not UUID)
+                    // This prevents "Demo Service/provider-001" and enables certificate/settlement logic.
+                    if (ledgerServiceType.toLowerCase() === 'dex') {
+                      const providerIdFromContext =
+                        processedAction.providerId ||
+                        updatedContext.selectedListing?.providerId ||
+                        (updatedContext as any)?.trade?.tokenSymbol
+                          ? `dex-pool-${String((updatedContext as any)?.trade?.tokenSymbol || updatedContext.tokenSymbol || '').toLowerCase()}`
+                          : undefined;
+
+                      const providerIdNormalized = providerIdFromContext ? String(providerIdFromContext) : undefined;
+                      const providerFromRegistry = providerIdNormalized
+                        ? ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerIdNormalized)
+                        : undefined;
+
+                      if (!updatedContext.providerUuid && providerFromRegistry?.uuid) {
+                        updatedContext.providerUuid = providerFromRegistry.uuid;
+                        console.log(`✅ [${requestId}] DEX: Resolved providerUuid from registry: ${updatedContext.providerUuid} (providerId=${providerIdNormalized})`);
+                      }
+
+                      // If selectedListing is a generic demo, replace it with a synthesized DEX listing
+                      const isGenericDemo =
+                        (updatedContext.selectedListing as any)?.name === 'Demo Service' ||
+                        (updatedContext.selectedListing as any)?.providerId === 'provider-001';
+                      if (isGenericDemo) {
+                        const tokenSymbol = (updatedContext as any)?.trade?.tokenSymbol || updatedContext.tokenSymbol || 'TOKENA';
+                        const poolId = (updatedContext as any)?.trade?.poolId || `pool-solana-${String(tokenSymbol).toLowerCase()}`;
+                        const providerId = providerIdNormalized || `dex-pool-${String(tokenSymbol).toLowerCase()}`;
+                        updatedContext.selectedListing = {
+                          poolId,
+                          providerId,
+                          providerName: providerFromRegistry?.name || 'DEX Pool Provider',
+                          tokenSymbol,
+                          tokenName: `Token ${String(tokenSymbol).replace(/^TOKEN/i, '')}`,
+                          baseToken: (updatedContext as any)?.trade?.baseToken || updatedContext.baseToken || 'SOL',
+                          price: (updatedContext as any)?.trade?.price || 0,
+                          liquidity: 0,
+                          volume24h: 0,
+                          indexerId: providerFromRegistry?.gardenId || 'T1',
+                        } as any;
+                        console.warn(`⚠️ [${requestId}] DEX: Replaced generic Demo Service selectedListing with synthesized DEX listing`);
+                      }
+                    }
+
                     const ledgerEntry = await addLedgerEntry(
                       snapshot,
                       ledgerServiceType,
                       processedAction.iGasCost || updatedContext.iGasCost || 0.00445,
                       processedAction.payerId || updatedContext.user?.email || 'unknown@example.com',
                       processedAction.merchantName || updatedContext.selectedListing?.providerName || defaultProviderName,
-                      processedAction.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
+                      processedAction.providerUuid || updatedContext.providerUuid || updatedContext.selectedListing?.providerId || defaultProviderId,
                       bookingDetails
                     );
 
@@ -1300,16 +1719,12 @@ httpServer.on("request", async (req, res) => {
 
                 case 'process_payment':
                   const paymentUser = processedAction.user || updatedContext.user;
-                  const paymentAmount = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice;
+                  const currentServiceType = (updatedContext.serviceType || serviceType || '').toString().toLowerCase();
+                  const paymentAmountRaw = processedAction.amount || updatedContext.totalCost || updatedContext.moviePrice;
+                  const paymentAmount = typeof paymentAmountRaw === 'string' ? parseFloat(paymentAmountRaw) : paymentAmountRaw;
 
                   if (!paymentUser?.email || !paymentAmount) {
                     throw new Error('Missing payment details');
-                  }
-
-                  // Debit the user wallet
-                  const debitResult = debitWallet(paymentUser.email, paymentAmount);
-                  if (!debitResult.success) {
-                    throw new Error(`Payment failed: ${debitResult.error}`);
                   }
 
                   // Process the payment through cashier (CRITICAL: await the async function)
@@ -1339,6 +1754,40 @@ httpServer.on("request", async (req, res) => {
                       redis.saveLedgerEntries(LEDGER);
                       console.log(`💾 [${requestId}] Persisted ledger entry with updated amount: ${ledgerEntryInArray.entryId}`);
                     }
+                  }
+
+                  // DEX FIX: DEX trade execution already moved funds; do NOT debit again here.
+                  // We still update cashier + ledger status so the UI shows cashier/accountant involvement.
+                  if (currentServiceType === 'dex') {
+                    console.log(`💰 [${requestId}] DEX: Skipping wallet debit in process_payment (trade already executed). Updating cashier + ledger status...`);
+                    try {
+                      // Update cashier stats
+                      cashierForPayment.processedCount = (cashierForPayment.processedCount || 0) + 1;
+                      cashierForPayment.totalProcessed = (cashierForPayment.totalProcessed || 0) + (ledgerEntryInArray.amount || 0);
+                    } catch {}
+                    ledgerEntryInArray.status = 'processed';
+                    if (redis) {
+                      redis.saveLedgerEntries(LEDGER);
+                      console.log(`💾 [${requestId}] ✅ Persisted ledger entry with processed status (DEX): ${ledgerEntryInArray.entryId}`);
+                    }
+                    // Update balances in context from wallet service (source of truth)
+                    const { getWalletBalance: getWalletBalanceAsync } = await import("./src/wallet");
+                    const balance = await getWalletBalanceAsync(paymentUser.email);
+                    if (updatedContext.user) updatedContext.user.balance = balance;
+                    updatedContext.paymentSuccess = true;
+                    updatedContext.cashier = cashierForPayment;
+                    updatedContext.updatedBalance = balance;
+                    updatedContext.ledgerEntry = ledgerEntryInArray;
+                    actionResult = {
+                      paymentProcessed: true,
+                      paymentSuccess: true,
+                      amount: ledgerEntryInArray.amount,
+                      skippedDebit: true,
+                      updatedBalance: balance,
+                      ledgerEntry: ledgerEntryInArray,
+                      cashier: cashierForPayment
+                    };
+                    break;
                   }
 
                   // Process payment (this will update status to 'processed' and persist)
@@ -1391,7 +1840,7 @@ httpServer.on("request", async (req, res) => {
                     paymentProcessed: true,
                     paymentSuccess: true,
                     amount: paymentAmount,
-                    newBalance: debitResult.newBalance,
+                    newBalance: paymentUser.balance,
                     ledgerEntry: ledgerEntryForPayment
                   };
                   updatedContext.paymentSuccess = true;
@@ -1719,12 +2168,380 @@ httpServer.on("request", async (req, res) => {
                   updatedContext.cashierOversightComplete = true;
                   break;
 
-                default:
-                  actionResult = {
-                    success: true,
-                    message: `Action ${action.type} executed`,
-                    timestamp: Date.now()
+                case 'execute_dex_trade':
+                  // Execute DEX trade (FULLY AUTOMATED)
+                  // Use handler to execute trade and update wallet
+                  console.log(`💰 [${requestId}] Executing DEX trade...`);
+                  
+                  // CRITICAL: Get selectedListing from multiple possible sources
+                  const selectedListingForTrade = updatedContext.selectedListing || 
+                                                   updatedContext.llmResponse?.selectedListing || 
+                                                   updatedContext.llmResponse?.selectedListing2 ||
+                                                   updatedContext.selectedListing2;
+                  
+                  console.log(`💰 [${requestId}] selectedListing sources:`);
+                  console.log(`💰 [${requestId}]   - updatedContext.selectedListing: ${!!updatedContext.selectedListing}`);
+                  console.log(`💰 [${requestId}]   - updatedContext.llmResponse?.selectedListing: ${!!updatedContext.llmResponse?.selectedListing}`);
+                  console.log(`💰 [${requestId}]   - updatedContext.llmResponse?.selectedListing2: ${!!updatedContext.llmResponse?.selectedListing2}`);
+                  console.log(`💰 [${requestId}]   - updatedContext.selectedListing2: ${!!updatedContext.selectedListing2}`);
+                  console.log(`💰 [${requestId}]   - selectedListingForTrade: ${!!selectedListingForTrade}`);
+                  if (selectedListingForTrade) {
+                    console.log(`💰 [${requestId}]   - selectedListingForTrade.poolId: ${(selectedListingForTrade as any)?.poolId}`);
+                    console.log(`💰 [${requestId}]   - selectedListingForTrade keys: ${Object.keys(selectedListingForTrade).join(', ')}`);
+                  }
+                  
+                  // Get poolId from multiple sources
+                  let poolIdForTrade = processedAction.poolId || 
+                                        (selectedListingForTrade as any)?.poolId ||
+                                        updatedContext.selectedListing?.poolId ||
+                                        updatedContext.llmResponse?.selectedListing?.poolId ||
+                                        updatedContext.llmResponse?.selectedListing2?.poolId;
+                  
+                  // FALLBACK: If poolId is still missing, try to get it from listings or initialize pools
+                  if (!poolIdForTrade) {
+                    console.warn(`⚠️ [${requestId}] poolId not found in selectedListing, trying fallback...`);
+                    
+                    // Try to get poolId from listings array
+                    const listings = updatedContext.listings || [];
+                    const dexListing = listings.find((l: any) => l.poolId || (l.tokenSymbol && l.baseToken));
+                    if (dexListing && dexListing.poolId) {
+                      poolIdForTrade = dexListing.poolId;
+                      console.log(`✅ [${requestId}] Found poolId from listings: ${poolIdForTrade}`);
+                    } else if (dexListing && dexListing.tokenSymbol) {
+                      // Construct poolId from tokenSymbol
+                      poolIdForTrade = `pool-solana-${dexListing.tokenSymbol.toLowerCase()}`;
+                      console.log(`✅ [${requestId}] Constructed poolId from tokenSymbol: ${poolIdForTrade}`);
+                    } else {
+                      // Last resort: Use tokenSymbol from context to construct poolId
+                      const tokenSymbol = updatedContext.tokenSymbol || updatedContext.queryResult?.query?.filters?.tokenSymbol;
+                      if (tokenSymbol) {
+                        poolIdForTrade = `pool-solana-${tokenSymbol.toLowerCase()}`;
+                        console.log(`✅ [${requestId}] Constructed poolId from context tokenSymbol: ${poolIdForTrade}`);
+                      } else {
+                        // Final fallback: Use first available pool from DEX_POOLS
+                        const { DEX_POOLS } = await import("./src/state");
+                        if (DEX_POOLS && DEX_POOLS.size > 0) {
+                          const firstPool = Array.from(DEX_POOLS.values())[0];
+                          poolIdForTrade = firstPool.poolId;
+                          console.log(`✅ [${requestId}] Using first available pool from DEX_POOLS: ${poolIdForTrade}`);
+                        } else {
+                          console.error(`❌ [${requestId}] No DEX pools available! DEX_POOLS.size: ${DEX_POOLS?.size || 0}`);
+                          // Try to initialize pools
+                          console.log(`🔧 [${requestId}] Attempting to initialize DEX pools...`);
+                          initializeDEXPools();
+                          if (DEX_POOLS && DEX_POOLS.size > 0) {
+                            const firstPool = Array.from(DEX_POOLS.values())[0];
+                            poolIdForTrade = firstPool.poolId;
+                            console.log(`✅ [${requestId}] Initialized pools and using first pool: ${poolIdForTrade}`);
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  console.log(`💰 [${requestId}] poolId: ${poolIdForTrade}`);
+                  console.log(`💰 [${requestId}] action: ${processedAction.action || updatedContext.action}`);
+                  console.log(`💰 [${requestId}] tokenAmount: ${processedAction.tokenAmount || updatedContext.tokenAmount}`);
+                  console.log(`💰 [${requestId}] userEmail: ${processedAction.userEmail || updatedContext.user?.email}`);
+                  
+                  const { createActionHandlers } = await import("./src/flowwiseHandlers");
+                  const handlers = createActionHandlers();
+                  const dexHandler = handlers.get("execute_dex_trade");
+                  
+                  if (!dexHandler) {
+                    throw new Error("execute_dex_trade handler not found");
+                  }
+                  
+                  // Prepare action for handler
+                  const dexAction = {
+                    poolId: poolIdForTrade,
+                    action: processedAction.action || updatedContext.action,
+                    tokenAmount: processedAction.tokenAmount || updatedContext.tokenAmount,
+                    userEmail: processedAction.userEmail || updatedContext.user?.email
                   };
+                  
+                  if (!dexAction.poolId || !dexAction.action || !dexAction.tokenAmount || !dexAction.userEmail) {
+                    console.error(`❌ [${requestId}] Missing DEX trade parameters:`);
+                    console.error(`❌ [${requestId}]   - poolId: ${dexAction.poolId || 'MISSING'}`);
+                    console.error(`❌ [${requestId}]   - action: ${dexAction.action || 'MISSING'}`);
+                    console.error(`❌ [${requestId}]   - tokenAmount: ${dexAction.tokenAmount || 'MISSING'}`);
+                    console.error(`❌ [${requestId}]   - userEmail: ${dexAction.userEmail || 'MISSING'}`);
+                    console.error(`❌ [${requestId}] Context keys:`, Object.keys(updatedContext));
+                    console.error(`❌ [${requestId}] selectedListing:`, selectedListingForTrade ? JSON.stringify(selectedListingForTrade, null, 2) : 'NOT FOUND');
+                    throw new Error(`Missing required DEX trade parameters: poolId=${!!dexAction.poolId}, action=${!!dexAction.action}, tokenAmount=${!!dexAction.tokenAmount}, userEmail=${!!dexAction.userEmail}`);
+                  }
+                  
+                  const dexResult = await dexHandler(dexAction, updatedContext);
+                  
+                  // Merge result into context
+                  if (dexResult.trade) {
+                    updatedContext.trade = dexResult.trade;
+                    // Update totalCost with actual trade amount
+                    updatedContext.totalCost = dexResult.trade.baseAmount + (updatedContext.iGasCost || 0);
+                    console.log(`💰 [${requestId}] DEX trade executed: ${dexResult.trade.action} ${dexResult.trade.tokenAmount} ${dexResult.trade.tokenSymbol} for ${dexResult.trade.baseAmount} ${dexResult.trade.baseToken}`);
+                  }
+                  if (dexResult.updatedBalance !== undefined) {
+                    if (updatedContext.user) {
+                      updatedContext.user.balance = dexResult.updatedBalance;
+                    }
+                    updatedContext.updatedBalance = dexResult.updatedBalance;
+                    console.log(`💰 [${requestId}] Updated balance: ${dexResult.updatedBalance}`);
+                  }
+                  if (dexResult.traderRebate !== undefined) {
+                    updatedContext.traderRebate = dexResult.traderRebate;
+                    console.log(`💰 [${requestId}] Trader rebate: ${dexResult.traderRebate}`);
+                  }
+                  
+                  actionResult = {
+                    trade: dexResult.trade,
+                    updatedBalance: dexResult.updatedBalance,
+                    traderRebate: dexResult.traderRebate
+                  };
+                  break;
+
+                default:
+                  // DEFAULT CASE: Handle llm_format_response and any other unmatched actions
+                  console.log(`🔍 [${requestId}] ========================================`);
+                  console.log(`🔍 [${requestId}] DEFAULT CASE HIT - action.type: "${action.type}"`);
+                  console.log(`🔍 [${requestId}] ========================================`);
+                  
+                  if (action.type === 'llm_format_response') {
+                    // CRITICAL: Use CLONED formatResponseWithOpenAI function directly (not imported)
+                    // This ensures selectedListing and selectedListing2 are properly set
+                    const availableListings = updatedContext.listings || [];
+                    const formatServiceType = updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie';
+                    
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    console.log(`🔍 [${requestId}] llm_format_response ACTION CALLED (EDEN-SIM-REDIS) - DEFAULT CASE`);
+                    console.log(`🔍 [${requestId}] listings count: ${availableListings.length}`);
+                    console.log(`🔍 [${requestId}] userInput: ${updatedContext.userInput?.substring(0, 100) || 'N/A'}`);
+                    console.log(`🔍 [${requestId}] serviceType: ${formatServiceType}`);
+                    console.log(`🔍 [${requestId}] ENABLE_OPENAI: ${ENABLE_OPENAI}`);
+                    console.log(`🔍 [${requestId}] Context keys:`, Object.keys(updatedContext));
+                    console.log(`🔍 [${requestId}] Context.queryResult:`, updatedContext.queryResult ? {
+                      serviceType: updatedContext.queryResult.serviceType,
+                      hasQuery: !!updatedContext.queryResult.query,
+                      hasFilters: !!updatedContext.queryResult.query?.filters,
+                      filters: updatedContext.queryResult.query?.filters
+                    } : 'null/undefined');
+                    console.log(`🔍 [${requestId}] Available listings:`, availableListings.length > 0 ? availableListings.map((l: any) => ({
+                      id: l.id,
+                      providerId: l.providerId,
+                      providerName: l.providerName,
+                      poolId: l.poolId,
+                      tokenSymbol: l.tokenSymbol,
+                      baseToken: l.baseToken,
+                      price: l.price
+                    })) : '[]');
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    
+                    // Check if we can use existing selectedListing2 from previous llmResponse
+                    if (availableListings.length === 0) {
+                      console.warn(`⚠️ [${requestId}] No listings available for LLM formatting`);
+                      console.warn(`⚠️ [${requestId}] Context state:`, {
+                        hasListings: !!updatedContext.listings,
+                        listingsLength: updatedContext.listings?.length || 0,
+                        hasQueryResult: !!updatedContext.queryResult,
+                        serviceType: formatServiceType,
+                        hasExistingLlmResponse: !!updatedContext.llmResponse,
+                        hasExistingSelectedListing: !!updatedContext.llmResponse?.selectedListing,
+                        hasExistingSelectedListing2: !!updatedContext.llmResponse?.selectedListing2
+                      });
+                      
+                      // Try to use existing selectedListing2 from previous llmResponse
+                      if (updatedContext.llmResponse?.selectedListing2) {
+                        console.log(`✅ [${requestId}] Using existing selectedListing2 from previous llmResponse`);
+                        updatedContext.selectedListing = updatedContext.llmResponse.selectedListing2;
+                        updatedContext.selectedListing2 = updatedContext.llmResponse.selectedListing2; // CRITICAL: Store in context
+                        updatedContext.llmResponse.selectedListing = updatedContext.llmResponse.selectedListing2;
+                        
+                        actionResult = {
+                          llmResponse: updatedContext.llmResponse,
+                          listings: [],
+                          iGasCost: updatedContext.llmResponse.iGasCost || 0,
+                          currentIGas: updatedContext.llmResponse.iGasCost || 0
+                        };
+                        
+                        console.log(`✅ [${requestId}] Reused selectedListing2:`, {
+                          hasSelectedListing: !!actionResult.llmResponse.selectedListing,
+                          hasSelectedListing2: !!actionResult.llmResponse.selectedListing2,
+                          hasContextSelectedListing2: !!updatedContext.selectedListing2,
+                          poolId: (actionResult.llmResponse.selectedListing as any)?.poolId,
+                          tokenSymbol: (actionResult.llmResponse.selectedListing as any)?.tokenSymbol
+                        });
+                        break;
+                      } else if (updatedContext.llmResponse?.selectedListing) {
+                        console.log(`✅ [${requestId}] Using existing selectedListing from previous llmResponse`);
+                        updatedContext.selectedListing = updatedContext.llmResponse.selectedListing;
+                        updatedContext.selectedListing2 = updatedContext.llmResponse.selectedListing; // CRITICAL: Also set as selectedListing2
+                        updatedContext.llmResponse.selectedListing2 = updatedContext.llmResponse.selectedListing; // Also set in llmResponse
+                        
+                        actionResult = {
+                          llmResponse: updatedContext.llmResponse,
+                          listings: [],
+                          iGasCost: updatedContext.llmResponse.iGasCost || 0,
+                          currentIGas: updatedContext.llmResponse.iGasCost || 0
+                        };
+                        
+                        console.log(`✅ [${requestId}] Reused selectedListing:`, {
+                          hasSelectedListing: !!actionResult.llmResponse.selectedListing,
+                          hasSelectedListing2: !!actionResult.llmResponse.selectedListing2,
+                          hasContextSelectedListing2: !!updatedContext.selectedListing2,
+                          poolId: (actionResult.llmResponse.selectedListing as any)?.poolId,
+                          tokenSymbol: (actionResult.llmResponse.selectedListing as any)?.tokenSymbol
+                        });
+                        break;
+                      } else if (updatedContext.selectedListing) {
+                        console.log(`✅ [${requestId}] Using existing selectedListing from context`);
+                        // Create a minimal llmResponse from existing selectedListing
+                        const existingLlmResponse: LLMResponse = {
+                          message: "Using previously selected listing",
+                          listings: [],
+                          selectedListing: updatedContext.selectedListing,
+                          selectedListing2: updatedContext.selectedListing,
+                          iGasCost: updatedContext.iGasCost || 0
+                        };
+                        updatedContext.llmResponse = existingLlmResponse;
+                        updatedContext.selectedListing2 = updatedContext.selectedListing; // CRITICAL: Store in context
+                        
+                        actionResult = {
+                          llmResponse: existingLlmResponse,
+                          listings: [],
+                          iGasCost: existingLlmResponse.iGasCost,
+                          currentIGas: existingLlmResponse.iGasCost
+                        };
+                        
+                        console.log(`✅ [${requestId}] Created llmResponse from existing selectedListing:`, {
+                          hasSelectedListing: !!actionResult.llmResponse.selectedListing,
+                          hasSelectedListing2: !!actionResult.llmResponse.selectedListing2,
+                          hasContextSelectedListing2: !!updatedContext.selectedListing2,
+                          poolId: (actionResult.llmResponse.selectedListing as any)?.poolId,
+                          tokenSymbol: (actionResult.llmResponse.selectedListing as any)?.tokenSymbol
+                        });
+                        break;
+                      }
+                      
+                      // If we get here, we have no listings and no existing selectedListing
+                      console.error(`❌ [${requestId}] No listings available and no existing selectedListing/selectedListing2 to use`);
+                      throw new Error("Listings required for LLM formatting");
+                    }
+                    
+                    // Use CLONED formatResponseWithOpenAI function directly (not imported)
+                    const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI_CLONED : formatResponseWithDeepSeek;
+                    console.log(`🔍 [${requestId}] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI_CLONED' : 'formatResponseWithDeepSeek'}`);
+                    
+                    // CRITICAL: Log detailed information about listings being passed to LLM
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    console.log(`🔍 [${requestId}] LISTINGS BEING PASSED TO LLM:`);
+                    console.log(`🔍 [${requestId}]   - listingsCount: ${availableListings.length}`);
+                    console.log(`🔍 [${requestId}]   - serviceType: ${updatedContext.serviceType || 'N/A'}`);
+                    if (availableListings.length > 0) {
+                      const firstListing = availableListings[0] as any;
+                      console.log(`🔍 [${requestId}]   - First listing keys:`, Object.keys(firstListing));
+                      console.log(`🔍 [${requestId}]   - First listing (full):`, JSON.stringify(firstListing, null, 2));
+                      console.log(`🔍 [${requestId}]   - Is DEX pool:`, !!(firstListing?.poolId || firstListing?.tokenSymbol));
+                      console.log(`🔍 [${requestId}]   - Has poolId: ${!!firstListing?.poolId}, has tokenSymbol: ${!!firstListing?.tokenSymbol}, has baseToken: ${!!firstListing?.baseToken}`);
+                    } else {
+                      console.warn(`⚠️ [${requestId}]   - WARNING: No listings available to pass to LLM!`);
+                    }
+                    console.log(`🔍 [${requestId}]   - userInput: ${updatedContext.userInput?.substring(0, 100) || 'N/A'}`);
+                    console.log(`🔍 [${requestId}]   - filters:`, JSON.stringify(updatedContext.queryResult?.query?.filters || {}));
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    
+                    console.log(`🔍 [${requestId}] Calling formatFn with:`, {
+                      listingsCount: availableListings.length,
+                      userInput: updatedContext.userInput?.substring(0, 50) || 'N/A',
+                      filters: updatedContext.queryResult?.query?.filters
+                    });
+                    
+                    const llmResponse = await formatFn(
+                      availableListings,
+                      updatedContext.userInput || "",
+                      updatedContext.queryResult?.query?.filters
+                    );
+                    
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    console.log(`🔍 [${requestId}] formatFn returned, llmResponse received`);
+                    console.log(`🔍 [${requestId}] llmResponse keys:`, Object.keys(llmResponse));
+                    console.log(`🔍 [${requestId}]   - hasSelectedListing: ${!!llmResponse.selectedListing}`);
+                    console.log(`🔍 [${requestId}]   - hasSelectedListing2: ${!!llmResponse.selectedListing2}`);
+                    console.log(`🔍 [${requestId}]   - selectedListingType: ${typeof llmResponse.selectedListing}`);
+                    console.log(`🔍 [${requestId}]   - selectedListing2Type: ${typeof llmResponse.selectedListing2}`);
+                    console.log(`🔍 [${requestId}]   - selectedListingValue:`, llmResponse.selectedListing ? JSON.stringify(llmResponse.selectedListing).substring(0, 200) : 'NULL/UNDEFINED');
+                    console.log(`🔍 [${requestId}]   - selectedListing2Value:`, llmResponse.selectedListing2 ? JSON.stringify(llmResponse.selectedListing2).substring(0, 200) : 'NULL/UNDEFINED');
+                    console.log(`🔍 [${requestId}]   - selectedListingKeys:`, llmResponse.selectedListing ? Object.keys(llmResponse.selectedListing).join(', ') : 'N/A');
+                    console.log(`🔍 [${requestId}]   - selectedListing2Keys:`, llmResponse.selectedListing2 ? Object.keys(llmResponse.selectedListing2).join(', ') : 'N/A');
+                    console.log(`🔍 [${requestId}]   - listingsCount: ${llmResponse.listings?.length || 0}`);
+                    console.log(`🔍 [${requestId}]   - message: ${llmResponse.message?.substring(0, 100) || 'N/A'}`);
+                    console.log(`🔍 [${requestId}]   - iGasCost: ${llmResponse.iGasCost}`);
+                    
+                    // DEBUG: Console out FULL LLM response
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    console.log(`🔍 [${requestId}] FULL LLM RESPONSE OBJECT:`);
+                    console.log(JSON.stringify(llmResponse, null, 2));
+                    console.log(`🔍 [${requestId}] ========================================`);
+                    
+                    // Store llmResponse in context (preserve original object)
+                    updatedContext.llmResponse = llmResponse;
+                    updatedContext.iGasCost = llmResponse.iGasCost;
+                    
+                    // Use llmResponse.selectedListing if available
+                    if (llmResponse.selectedListing) {
+                      updatedContext.selectedListing = llmResponse.selectedListing;
+                      // CRITICAL: Also store selectedListing2 directly in context
+                      if (llmResponse.selectedListing2) {
+                        updatedContext.selectedListing2 = llmResponse.selectedListing2;
+                        console.log(`✅ [${requestId}] Using selectedListing and selectedListing2 from llmResponse`);
+                      } else {
+                        // If selectedListing2 is not set, use selectedListing as selectedListing2
+                        updatedContext.selectedListing2 = llmResponse.selectedListing;
+                        llmResponse.selectedListing2 = llmResponse.selectedListing;
+                        console.log(`✅ [${requestId}] Using selectedListing from llmResponse, also set as selectedListing2`);
+                      }
+                    } else if (availableListings.length > 0) {
+                      // Fallback: use first listing
+                      console.warn(`⚠️ [${requestId}] llmResponse.selectedListing is null/undefined, falling back to first listing`);
+                      const fallbackListing = availableListings[0];
+                      updatedContext.selectedListing = fallbackListing;
+                      updatedContext.selectedListing2 = fallbackListing; // Also set selectedListing2
+                      llmResponse.selectedListing = fallbackListing;
+                      llmResponse.selectedListing2 = fallbackListing;
+                      console.log(`✅ [${requestId}] Set fallback selectedListing and selectedListing2:`, {
+                        id: fallbackListing.id,
+                        providerId: fallbackListing.providerId,
+                        poolId: (fallbackListing as any)?.poolId,
+                        tokenSymbol: (fallbackListing as any)?.tokenSymbol
+                      });
+                    } else {
+                      throw new Error("No listings available and LLM didn't return selectedListing");
+                    }
+                    
+                    actionResult = {
+                      llmResponse: llmResponse,
+                      listings: availableListings,
+                      iGasCost: llmResponse.iGasCost,
+                      currentIGas: llmResponse.iGasCost,
+                      // CRITICAL: Also include selectedListing directly in actionResult so it's merged into context
+                      selectedListing: updatedContext.selectedListing,
+                      selectedListing2: updatedContext.selectedListing2
+                    };
+                    
+                    console.log(`✅ [${requestId}] ========================================`);
+                    console.log(`✅ [${requestId}] FINAL VERIFICATION:`);
+                    console.log(`✅ [${requestId}]   - actionResult.llmResponse.selectedListing: ${actionResult.llmResponse.selectedListing ? 'SET' : 'NOT SET'}`);
+                    console.log(`✅ [${requestId}]   - actionResult.llmResponse.selectedListing2: ${actionResult.llmResponse.selectedListing2 ? 'SET' : 'NOT SET'}`);
+                    console.log(`✅ [${requestId}]   - updatedContext.selectedListing: ${updatedContext.selectedListing ? 'SET' : 'NOT SET'}`);
+                    console.log(`✅ [${requestId}]   - updatedContext.selectedListing2: ${updatedContext.selectedListing2 ? 'SET' : 'NOT SET'}`);
+                    console.log(`✅ [${requestId}] ========================================`);
+                  } else {
+                    // Other unmatched actions
+                    console.warn(`⚠️ [${requestId}] Unmatched action type in default case: "${action.type}"`);
+                    console.warn(`⚠️ [${requestId}] This action type is not handled by any case in the switch statement`);
+                    console.warn(`⚠️ [${requestId}] Available action types should include: llm_format_response, query_dex_pools, etc.`);
+                    
+                    // For unmatched actions, throw an error so it can be caught and handled by error_handler
+                    throw new Error(`Unknown action type: ${action.type}. This action is not implemented in the workflow execution handler.`);
+                  }
               }
 
               // Merge action result into context
@@ -1789,6 +2606,7 @@ httpServer.on("request", async (req, res) => {
         console.log(`   🔍 [${requestId}] Context keys:`, Object.keys(updatedContext));
         console.log(`   🔍 [${requestId}] llmResponse exists:`, !!updatedContext.llmResponse);
         console.log(`   🔍 [${requestId}] llmResponse.selectedListing:`, updatedContext.llmResponse?.selectedListing);
+        console.log(`   🔍 [${requestId}] llmResponse.selectedListing2:`, updatedContext.llmResponse?.selectedListing2);
 
         for (const transition of transitions) {
           // Evaluate condition
@@ -1913,6 +2731,117 @@ httpServer.on("request", async (req, res) => {
 
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error executing step atomically:`, error.message);
+        
+        // Check if step has errorHandling configuration
+        if (step.errorHandling && step.errorHandling.onError) {
+          console.log(`   ⚠️ [${requestId}] Step has errorHandling, transitioning to: ${step.errorHandling.onError}`);
+          
+          // Set error object in context with component and message
+          updatedContext.error = {
+            component: step.component || 'unknown',
+            message: error.message,
+            stepId: stepId,
+            stepName: step.name,
+            error: error.message,
+            stack: error.stack
+          };
+          
+          console.log(`   ❌ [${requestId}] ========================================`);
+          console.log(`   ❌ [${requestId}] ERROR OCCURRED IN STEP: ${stepId} (${step.name})`);
+          console.log(`   ❌ [${requestId}] Component: ${step.component || 'unknown'}`);
+          console.log(`   ❌ [${requestId}] Error Message: ${error.message}`);
+          console.log(`   ❌ [${requestId}] Error Stack: ${error.stack?.substring(0, 200) || 'N/A'}`);
+          console.log(`   ❌ [${requestId}] Error object set in context:`, JSON.stringify(updatedContext.error, null, 2));
+          console.log(`   ❌ [${requestId}] Context keys after setting error:`, Object.keys(updatedContext));
+          console.log(`   ❌ [${requestId}] Transitioning to error handler: ${step.errorHandling.onError}`);
+          console.log(`   ❌ [${requestId}] ========================================`);
+          
+          // Process errorEvents if defined
+          if (step.errorHandling.errorEvents) {
+            for (const event of step.errorHandling.errorEvents) {
+              const processedEvent = replaceTemplateVariables(event, updatedContext);
+              // Ensure timestamp is always a valid number
+              if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
+                processedEvent.timestamp = Date.now();
+              }
+              events.push(processedEvent);
+              
+              // Broadcast the error event via WebSocket
+              try {
+                broadcastEvent(processedEvent);
+                console.log(`   📡 [${requestId}] Broadcast error event: ${event.type}`);
+              } catch (broadcastError) {
+                console.warn(`   ⚠️ [${requestId}] Failed to broadcast error event: ${event.type}`, broadcastError);
+              }
+            }
+          }
+          
+          // Find the error_handler step
+          const errorHandlerStep = workflow.steps.find((s: any) => s.id === step.errorHandling.onError);
+          if (errorHandlerStep) {
+            console.log(`   🔄 [${requestId}] Transitioning to error handler step: ${errorHandlerStep.id} (${errorHandlerStep.name})`);
+            
+            // Process WebSocket events for error handler step
+            if (errorHandlerStep.websocketEvents) {
+              for (const event of errorHandlerStep.websocketEvents) {
+                const processedEvent = replaceTemplateVariables(event, updatedContext);
+                // Ensure timestamp is always a valid number
+                if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
+                  processedEvent.timestamp = Date.now();
+                }
+                events.push(processedEvent);
+                
+                // Broadcast the event via WebSocket
+                try {
+                  broadcastEvent(processedEvent);
+                  console.log(`   📡 [${requestId}] Broadcast event: ${event.type}`);
+                } catch (broadcastError) {
+                  console.warn(`   ⚠️ [${requestId}] Failed to broadcast event: ${event.type}`, broadcastError);
+                }
+              }
+            }
+            
+            // Store context for error handler step
+            if (!(global as any).workflowExecutions) {
+              (global as any).workflowExecutions = new Map();
+            }
+            const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+            const existingExecution = workflowExecutions.get(executionId);
+            
+            if (existingExecution && existingExecution.workflow) {
+              existingExecution.context = updatedContext;
+              existingExecution.currentStep = step.errorHandling.onError;
+              workflowExecutions.set(executionId, existingExecution);
+            } else {
+              workflowExecutions.set(executionId, {
+                executionId,
+                workflow,
+                context: updatedContext,
+                currentStep: step.errorHandling.onError,
+                history: []
+              });
+            }
+            
+            sendResponse(200, {
+              success: true,
+              message: `Step ${stepId} failed, transitioned to error handler`,
+              result: {
+                stepId: step.errorHandling.onError,
+                errorStepId: stepId,
+                error: error.message,
+                events,
+                updatedContext,
+                nextStepId: null,
+                shouldAutoContinue: false
+              }
+            });
+            return;
+          } else {
+            console.error(`   ❌ [${requestId}] Error handler step not found: ${step.errorHandling.onError}`);
+          }
+        }
+        
+        // If no error handling, send error response
         sendResponse(500, { success: false, error: error.message });
       }
     });
@@ -7394,181 +8323,8 @@ async function _extractQueryWithOpenAI_DEPRECATED(userInput: string): Promise<LL
   });
 }
 
-// OpenAI LLM Response Formatting
-async function formatResponseWithOpenAI(listings: MovieListing[] | TokenListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<LLMResponse> {
-  const listingsJson = JSON.stringify(listings);
-  const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
-  
-  const messages = [
-    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-    { role: "user", content: userMessage },
-  ];
-  
-  const payload = JSON.stringify({
-    model: "gpt-4o-mini",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0.7,
-  });
-
-  // Broadcast LLM formatting start
-  broadcastEvent({
-    type: "llm_response_formatting_start",
-    component: "llm",
-    message: "Starting LLM response formatting...",
-    timestamp: Date.now(),
-    data: {
-      provider: "openai",
-      model: "gpt-4o-mini",
-      systemPrompt: LLM_RESPONSE_FORMATTING_PROMPT,
-      userQuery: userQuery,
-      queryFilters: queryFilters,
-      listingsCount: listings.length,
-      userMessage: userMessage.substring(0, 500) + (userMessage.length > 500 ? "..." : "") // Truncate for display
-    }
-  });
-
-  return new Promise<LLMResponse>((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: "api.openai.com",
-        port: 443,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
-          "Content-Length": payload.length,
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              broadcastEvent({
-                type: "llm_error",
-                component: "llm",
-                message: "OpenAI API error",
-                timestamp: Date.now(),
-                data: {
-                  provider: "openai",
-                  error: parsed.error.message || JSON.stringify(parsed.error),
-                  rawResponse: data
-                }
-              });
-              reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-              return;
-            }
-            if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-              const content = JSON.parse(parsed.choices[0].message.content);
-              
-              // Ensure selectedListing has providerId by matching it back to original listings
-              let selectedListing = content.selectedListing || (listings.length > 0 ? listings[0] : null);
-              if (selectedListing && !selectedListing.providerId) {
-                // Try to find matching listing by id first (most reliable)
-                let matchedListing = listings.find(l => l.id === selectedListing.id);
-                
-                // If no id match, try matching by provider name and a unique identifier
-                // For movie: match by movieTitle + providerName
-                // For airline: match by flightNumber + providerName
-                // For others: match by name/primary field + providerName
-                if (!matchedListing && listings.length > 0) {
-                  const firstListing = listings[0] as any;
-                  const matchServiceType = firstListing.serviceType || 'movie';
-                  const matchFields = getServiceTypeFields(matchServiceType);
-                  
-                  if (matchServiceType === 'movie' && selectedListing.movieTitle) {
-                    matchedListing = listings.find((l: any) => 
-                      l.movieTitle === selectedListing.movieTitle && 
-                      l.providerName === selectedListing.providerName
-                    ) as any;
-                  } else if (matchServiceType === 'airline' && selectedListing.flightNumber) {
-                    matchedListing = listings.find((l: any) => 
-                      l.flightNumber === selectedListing.flightNumber && 
-                      l.providerName === selectedListing.providerName
-                    ) as any;
-                  } else if (selectedListing[matchFields.primary] && selectedListing.providerName) {
-                    matchedListing = listings.find((l: any) => 
-                      l[matchFields.primary] === selectedListing[matchFields.primary] && 
-                      l.providerName === selectedListing.providerName
-                    ) as any;
-                  }
-                }
-                
-                if (matchedListing) {
-                  selectedListing = { ...selectedListing, providerId: (matchedListing as any).providerId };
-                } else if (listings.length > 0) {
-                  // Fallback to first listing
-                  selectedListing = { ...selectedListing, providerId: (listings[0] as any).providerId };
-                }
-              }
-              
-              const result = {
-                message: content.message || "Service found",
-                listings: content.listings || listings,
-                selectedListing: selectedListing,
-                iGasCost: 0, // Will be calculated separately
-              };
-              
-              // Broadcast LLM formatting response
-              broadcastEvent({
-                type: "llm_response_formatting_response",
-                component: "llm",
-                message: "LLM response formatting completed",
-                timestamp: Date.now(),
-                data: {
-                  provider: "openai",
-                  model: "gpt-4o-mini",
-                  response: parsed,
-                  formattedMessage: result.message,
-                  selectedListing: result.selectedListing,
-                  listingsCount: result.listings.length
-                }
-              });
-              
-              resolve(result);
-            } else {
-              broadcastEvent({
-                type: "llm_error",
-                component: "llm",
-                message: "Invalid OpenAI formatting response format",
-                timestamp: Date.now(),
-                data: {
-                  provider: "openai",
-                  error: "Invalid response format",
-                  rawResponse: data
-                }
-              });
-              reject(new Error("Invalid OpenAI response format"));
-            }
-          } catch (err: any) {
-            broadcastEvent({
-              type: "llm_error",
-              component: "llm",
-              message: "Failed to parse OpenAI formatting response",
-              timestamp: Date.now(),
-              data: {
-                provider: "openai",
-                error: err.message,
-                rawResponse: data
-              }
-            });
-            reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-          }
-        });
-      }
-    );
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI request failed: ${err.message}`));
-    });
-    req.write(payload);
-    req.end();
-  });
-}
+// REMOVED: Duplicate formatResponseWithOpenAI function - now using imported version from ./src/llm
+// The imported function has full debugging and selectedListing2 support
 
 // DeepSeek LLM Query Extraction (Legacy)
 async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResult> {
@@ -7651,134 +8407,9 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
   });
 }
 
-// DeepSeek LLM Response Formatting (Legacy)
-async function formatResponseWithDeepSeek(listings: MovieListing[] | TokenListing[], userQuery: string, queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<LLMResponse> {
-  const listingsJson = JSON.stringify(listings);
-  const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
-  
-  const messages = [
-    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
-    { role: "user", content: userMessage },
-  ];
-  
-  const payload = JSON.stringify({
-    model: "deepseek-r1",
-    messages,
-    stream: false,
-  });
-
-  // Broadcast LLM formatting start
-  broadcastEvent({
-    type: "llm_response_formatting_start",
-    component: "llm",
-    message: "Starting LLM response formatting...",
-    timestamp: Date.now(),
-    data: {
-      provider: "deepseek",
-      model: "deepseek-r1",
-      systemPrompt: LLM_RESPONSE_FORMATTING_PROMPT,
-      userQuery: userQuery,
-      queryFilters: queryFilters,
-      listingsCount: listings.length,
-      userMessage: userMessage.substring(0, 500) + (userMessage.length > 500 ? "..." : "") // Truncate for display
-    }
-  });
-
-  return new Promise<LLMResponse>((resolve, reject) => {
-    const req = http.request(
-      { hostname: "localhost", port: 11434, path: "/api/chat", method: "POST" },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            
-            // Ensure selectedListing has providerId/poolId by matching it back to original listings
-            let selectedListing = parsed.selectedListing || (listings.length > 0 ? listings[0] : null);
-            if (selectedListing) {
-              // Check if it's a TokenListing (has poolId) or MovieListing (has movieTitle)
-              const isTokenListing = 'poolId' in selectedListing || 'tokenSymbol' in selectedListing;
-              
-              if (isTokenListing) {
-                // TokenListing: match by poolId or tokenSymbol
-                const tokenListing = selectedListing as any;
-                if (!tokenListing.poolId) {
-                  const matchedListing = listings.find((l: any) => 
-                    ('poolId' in l && l.poolId === tokenListing.poolId) ||
-                    ('tokenSymbol' in l && l.tokenSymbol === tokenListing.tokenSymbol)
-                  ) as TokenListing | undefined;
-                  if (matchedListing) {
-                    selectedListing = { ...selectedListing, ...matchedListing };
-                  } else if (listings.length > 0) {
-                    selectedListing = { ...selectedListing, ...(listings[0] as TokenListing) };
-                  }
-                }
-              } else {
-                // MovieListing: match by movie title and provider name
-                const movieListing = selectedListing as any;
-                if (!movieListing.providerId) {
-                  const matchedListing = listings.find((l: any) => 
-                    'movieTitle' in l &&
-                    l.movieTitle === movieListing.movieTitle && 
-                    l.providerName === movieListing.providerName
-                  ) as MovieListing | undefined;
-                  if (matchedListing) {
-                    selectedListing = { ...selectedListing, providerId: matchedListing.providerId };
-                  } else if (listings.length > 0) {
-                    selectedListing = { ...selectedListing, providerId: (listings[0] as MovieListing).providerId };
-                  }
-                }
-              }
-            }
-            
-            const result = {
-              message: parsed.message || "Service found",
-              listings: parsed.listings || listings,
-              selectedListing: selectedListing,
-              iGasCost: 0,
-            };
-            
-            // Broadcast LLM formatting response
-            broadcastEvent({
-              type: "llm_response_formatting_response",
-              component: "llm",
-              message: "LLM response formatting completed",
-              timestamp: Date.now(),
-              data: {
-                provider: "deepseek",
-                model: "deepseek-r1",
-                response: parsed,
-                formattedMessage: result.message,
-                selectedListing: result.selectedListing,
-                listingsCount: result.listings.length
-              }
-            });
-            
-            resolve(result);
-          } catch (err) {
-            broadcastEvent({
-              type: "llm_error",
-              component: "llm",
-              message: "Failed to parse DeepSeek formatting response",
-              timestamp: Date.now(),
-              data: {
-                provider: "deepseek",
-                error: err instanceof Error ? err.message : "Unknown error",
-                rawResponse: data
-              }
-            });
-            reject(new Error("Failed to parse DeepSeek response"));
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
-  });
-}
+// REMOVED: Duplicate formatResponseWithDeepSeek function - now using imported version from ./src/llm
+// The imported function has full debugging and selectedListing2 support
+// Entire duplicate function body removed (was ~170 lines)
 
 // Main LLM Resolution with ServiceRegistry architecture
 // 
@@ -7789,6 +8420,12 @@ async function formatResponseWithDeepSeek(listings: MovieListing[] | TokenListin
 // re-extraction unless user confirms/modifies query. This would reduce LLM calls by ~50% 
 // for DEX trades and improve latency.
 //
+// COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
+// that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
+/*
+// COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
+// that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
+/*
 async function resolveLLM(userInput: string): Promise<LLMResponse> {
   if (MOCKED_LLM) {
     // Mock response for testing
@@ -8106,6 +8743,7 @@ async function resolveLLM(userInput: string): Promise<LLMResponse> {
     throw err;
   }
 }
+*/
 
 // Ledger Component - Tracks all Eden bookings
 
@@ -9891,9 +10529,14 @@ async function processChatInput(input: string, email: string) {
     timestamp: Date.now()
   });
   
+  // COMMENTED OUT: resolveLLM is disabled - this code path should not be used for workflows
+  // Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions instead
+  throw new Error("resolveLLM is disabled - use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions");
+  /*
   const llmResponse: LLMResponse = await resolveLLM(input);
   console.log("📨 LLM Response:", llmResponse.message);
   console.log("⛽ iGas Cost:", llmResponse.iGasCost.toFixed(6));
+  */
   
   broadcastEvent({
     type: "llm_response",
@@ -10869,9 +11512,20 @@ async function main() {
   
   // Initialize DEX Pools (must be after token indexers are created and certified)
   // Initialize pools for all existing token gardens (both ROOT and non-ROOT mode)
+  console.log(`\n🌊 Checking DEX Pool initialization...`);
+  console.log(`   TOKEN_GARDENS.length: ${TOKEN_GARDENS.length}`);
+  console.log(`   TOKEN_GARDENS:`, TOKEN_GARDENS.map(tg => ({ id: tg.id, name: tg.name })));
+  console.log(`   DEX_POOLS.size before init: ${DEX_POOLS.size}`);
+  
   if (TOKEN_GARDENS.length > 0) {
     console.log("\n🌊 Initializing DEX Pools...");
     initializeDEXPools();
+    console.log(`   DEX_POOLS.size after init: ${DEX_POOLS.size}`);
+    console.log(`   DEX_POOLS entries:`, Array.from(DEX_POOLS.entries()).map(([id, pool]) => ({
+      poolId: id,
+      tokenSymbol: pool.tokenSymbol,
+      gardenId: pool.gardenId
+    })));
     
     // Create DEX pool service providers dynamically from pools (only if they don't already exist)
     console.log("\n📋 Registering DEX Pool Service Providers...");

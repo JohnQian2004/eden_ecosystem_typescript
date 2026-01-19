@@ -1,0 +1,1372 @@
+{
+  "serviceType": "Restaurant",
+  "location": {
+    "address": {
+      "street": "123 Main Street",
+      "city": "Springfield",
+      "state": "IL",
+      "zipCode": "62701",
+      "country": "USA"
+    },
+    "openingHours": {
+      "monday": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "tuesday": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "wednesday": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "thursday": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "friday": {
+        "open": "09:00",
+        "close": "23:00"
+      },
+      "saturday": {
+        "open": "10:00",
+        "close": "23:00"
+      },
+      "sunday": {
+        "closed": true
+      }
+    },
+    "phone": "(555) 000-0000"
+  },
+  "management": {
+    "owner": {
+      "ownerId": "owner_001",
+      "name": "Business Owner",
+      "email": "owner@business.com",
+      "phone": "(555) 000-0000",
+      "role": "owner",
+      "ownershipPercentage": 100,
+      "joinedDate": "2020-01-01"
+    },
+    "businessMetrics": {
+      "monthlyRevenue": 30000,
+      "monthlyExpenses": 20000,
+      "totalCustomers": 100,
+      "activeStaff": 5,
+      "inventoryValue": 15000
+    },
+    "inventory": [
+      {
+        "id": "inv_001",
+        "name": "Item 1",
+        "quantity": 50,
+        "unitPrice": 10,
+        "category": "General"
+      }
+    ],
+    "recentTransactions": [
+      {
+        "id": "txn_001",
+        "date": "2024-01-15",
+        "type": "sale",
+        "amount": 100,
+        "description": "Service provided"
+      }
+    ],
+    "forms": {
+      "addInventory": {
+        "fields": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Item Name",
+            "required": true
+          },
+          {
+            "name": "quantity",
+            "type": "number",
+            "label": "Quantity",
+            "required": true
+          },
+          {
+            "name": "unitPrice",
+            "type": "number",
+            "label": "Unit Price",
+            "required": true
+          },
+          {
+            "name": "category",
+            "type": "select",
+            "label": "Category",
+            "required": true,
+            "options": [
+              "General",
+              "Equipment",
+              "Supplies"
+            ]
+          }
+        ]
+      },
+      "recordTransaction": {
+        "fields": [
+          {
+            "name": "date",
+            "type": "date",
+            "label": "Date",
+            "required": true
+          },
+          {
+            "name": "type",
+            "type": "select",
+            "label": "Type",
+            "required": true,
+            "options": [
+              "sale",
+              "purchase",
+              "expense"
+            ]
+          },
+          {
+            "name": "amount",
+            "type": "number",
+            "label": "Amount",
+            "required": true
+          },
+          {
+            "name": "description",
+            "type": "textarea",
+            "label": "Description",
+            "required": true
+          }
+        ]
+      },
+      "updateMetrics": {
+        "fields": [
+          {
+            "name": "monthlyRevenue",
+            "type": "number",
+            "label": "Monthly Revenue",
+            "required": true
+          },
+          {
+            "name": "monthlyExpenses",
+            "type": "number",
+            "label": "Monthly Expenses",
+            "required": true
+          },
+          {
+            "name": "totalCustomers",
+            "type": "number",
+            "label": "Total Customers",
+            "required": false
+          },
+          {
+            "name": "activeStaff",
+            "type": "number",
+            "label": "Active Staff",
+            "required": false
+          }
+        ]
+      },
+      "editOwner": {
+        "fields": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Owner Name",
+            "required": true
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "label": "Email",
+            "required": true
+          },
+          {
+            "name": "phone",
+            "type": "text",
+            "label": "Phone",
+            "required": false
+          }
+        ]
+      }
+    },
+    "ui": {
+      "layout": "grid",
+      "sections": [
+        {
+          "id": "owner",
+          "title": "Owner Information",
+          "type": "owner",
+          "fields": [
+            {
+              "name": "name",
+              "type": "text",
+              "label": "Owner Name",
+              "required": true
+            },
+            {
+              "name": "email",
+              "type": "text",
+              "label": "Email",
+              "required": true
+            },
+            {
+              "name": "phone",
+              "type": "text",
+              "label": "Phone",
+              "required": false
+            }
+          ]
+        },
+        {
+          "id": "metrics",
+          "title": "Business Metrics",
+          "type": "metrics",
+          "fields": [
+            {
+              "name": "monthlyRevenue",
+              "type": "number",
+              "label": "Monthly Revenue",
+              "required": true
+            },
+            {
+              "name": "monthlyExpenses",
+              "type": "number",
+              "label": "Monthly Expenses",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "flowwiseWorkflow": {
+    "name": "Restaurant Booking Workflow (Decision + Autopay)",
+    "version": "1.0.0",
+    "description": "Restaurant booking workflow with user decision points and server-side automatic payments",
+    "steps": [
+      {
+        "id": "eden_chat_input",
+        "name": "📝 Eden Chat Input",
+        "type": "input",
+        "component": "eden_chat",
+        "description": "Receive and validate user chat input through Eden Chat interface",
+        "actions": [
+          {
+            "type": "validate",
+            "field": "input",
+            "required": true
+          },
+          {
+            "type": "validate",
+            "field": "email",
+            "required": true,
+            "format": "email"
+          },
+          {
+            "type": "eden_chat_init",
+            "serviceType": "restaurant"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "eden_chat_input",
+            "component": "eden_chat",
+            "message": "Eden Chat input received",
+            "data": {
+              "input": "{{input}}",
+              "email": "{{email}}",
+              "serviceType": "restaurant"
+            }
+          }
+        ],
+        "outputs": {
+          "input": "{{input}}",
+          "email": "{{email}}",
+          "user": "{{user}}",
+          "edenChatSession": "{{edenChatSession}}"
+        }
+      },
+      {
+        "id": "llm_resolution",
+        "name": "2️⃣ LLM Resolution (Self-Play)",
+        "type": "process",
+        "component": "llm",
+        "description": "Automated LLM processing - extracts query, finds restaurants, formats response",
+        "actions": [
+          {
+            "type": "llm_extract_query",
+            "provider": "self_play",
+            "input": "{{input}}"
+          },
+          {
+            "type": "query_service_registry",
+            "serviceType": "restaurant",
+            "filters": {
+              "cuisine": "any",
+              "time": "dinner"
+            }
+          },
+          {
+            "type": "llm_format_response",
+            "provider": "self_play",
+            "listings": "{{listings}}",
+            "userQuery": "{{input}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "llm_start",
+            "component": "llm",
+            "message": "Starting LLM query extraction...",
+            "data": {}
+          },
+          {
+            "type": "llm_response",
+            "component": "llm",
+            "message": "{{llmResponse.message}}",
+            "data": {
+              "response": "{{llmResponse}}"
+            }
+          },
+          {
+            "type": "igas",
+            "component": "igas",
+            "message": "iGas Cost: {{llmResponse.iGasCost}}",
+            "data": {
+              "igas": "{{llmResponse.iGasCost}}"
+            }
+          }
+        ],
+        "outputs": {
+          "llmResponse": "{{llmResponse}}",
+          "selectedListing": "{{llmResponse.selectedListing}}",
+          "iGasCost": "{{llmResponse.iGasCost}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "error",
+              "component": "llm",
+              "message": "{{error.message}}"
+            }
+          ]
+        }
+      },
+      {
+        "id": "user_select_listing",
+        "name": "🍽️ User Selection: Choose Restaurant",
+        "type": "decision",
+        "component": "user",
+        "description": "Present restaurant options and let user select one",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Please select a restaurant option:",
+        "decisionOptions": [],
+        "dynamicOptions": {
+          "source": "listings",
+          "valueField": "id",
+          "labelTemplate": "{{restaurantName}} at {{location}} - ${{price}}",
+          "dataTemplate": {
+            "id": "{{id}}",
+            "restaurantName": "{{restaurantName}}",
+            "location": "{{location}}",
+            "price": "{{price}}",
+            "providerId": "{{providerId}}",
+            "providerName": "{{providerName}}"
+          }
+        },
+        "websocketEvents": [
+          {
+            "type": "user_selection_required",
+            "component": "user",
+            "message": "Please select a restaurant option",
+            "data": {
+              "selectionId": "restaurant_selection",
+              "prompt": "Please select a restaurant option:",
+              "options": "{{listings}}",
+              "optionTemplate": {
+                "value": "{{id}}",
+                "label": "{{restaurantName}} at {{location}} - ${{price}}",
+                "data": {
+                  "id": "{{id}}",
+                  "restaurantName": "{{restaurantName}}",
+                  "location": "{{location}}",
+                  "price": "{{price}}",
+                  "providerId": "{{providerId}}",
+                  "providerName": "{{providerName}}"
+                }
+              },
+              "timeout": 60000
+            }
+          }
+        ],
+        "outputs": {
+          "selectedListing": "{{userSelection}}"
+        },
+        "timeout": 60000,
+        "onTimeout": "error_handler"
+      },
+      {
+        "id": "user_confirm_listing",
+        "name": "🤔 User Decision: Confirm Selection",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm the selected restaurant listing",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Would you like to proceed with {{selectedListing.restaurantName}} at {{selectedListing.location}} for {{selectedListing.price}} 🍎 APPLES?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, proceed",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm your selection",
+            "data": {
+              "decisionId": "confirm_listing",
+              "prompt": "Would you like to proceed with {{selectedListing.restaurantName}} at {{selectedListing.location}} for {{selectedListing.price}} 🍎 APPLES?",
+              "options": [
+                {
+                  "value": "YES",
+                  "label": "Yes, proceed"
+                },
+                {
+                  "value": "NO",
+                  "label": "No, cancel"
+                }
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
+        "id": "watch_restaurant",
+        "name": "🍴 Dine: Restaurant Experience",
+        "type": "process",
+        "component": "dining",
+        "description": "Simulate dining experience with table service",
+        "actions": [
+          {
+            "type": "start_dining_experience",
+            "restaurantName": "{{selectedListing.restaurantName}}",
+            "duration": 60,
+            "serviceDetails": [
+              {
+                "service": "starter",
+                "message": "Enjoying starters"
+              },
+              {
+                "service": "main_course",
+                "message": "Serving main course"
+              },
+              {
+                "service": "dessert",
+                "message": "Serving dessert"
+              }
+            ]
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🍴 Dine",
+            "data": {
+              "stepId": "watch_restaurant",
+              "stepName": "🍴 Dine: Restaurant Experience",
+              "component": "dining"
+            }
+          },
+          {
+            "type": "dining_started",
+            "component": "dining",
+            "message": "Now dining at: {{selectedListing.restaurantName}}",
+            "data": {
+              "restaurantName": "{{selectedListing.restaurantName}}",
+              "duration": 60,
+              "currentService": "starter"
+            }
+          },
+          {
+            "type": "dining_progress",
+            "component": "dining",
+            "message": "Dining progress: {{diningProgress}}%",
+            "data": {
+              "progress": "{{diningProgress}}",
+              "currentService": "{{currentService}}"
+            }
+          },
+          {
+            "type": "service_transition",
+            "component": "dining",
+            "message": "{{serviceMessage}}",
+            "data": {
+              "service": "{{currentService}}",
+              "progress": "{{diningProgress}}"
+            }
+          },
+          {
+            "type": "dining_finished",
+            "component": "dining",
+            "message": "Dining finished. Thank you for visiting {{selectedListing.restaurantName}}.",
+            "data": {
+              "completed": true
+            }
+          }
+        ],
+        "outputs": {
+          "diningCompleted": true,
+          "diningDuration": 60
+        },
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
+        "id": "root_ca_ledger_and_payment",
+        "name": "3️⃣ ROOT CA: Ledger, Payment & Settlement (Atomic)",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA atomic execution: Create ledger entry, process payment, and settle entry silently. Service providers cannot dictate this step.",
+        "actions": [
+          {
+            "type": "create_snapshot",
+            "payer": "{{user.email}}",
+            "amount": "{{diningPrice}}",
+            "providerId": "{{selectedListing.providerId}}"
+          },
+          {
+            "type": "validate_certificate",
+            "providerUuid": "{{providerUuid}}"
+          },
+          {
+            "type": "add_ledger_entry",
+            "snapshot": "{{snapshot}}",
+            "serviceType": "restaurant",
+            "iGasCost": "{{iGasCost}}",
+            "payerId": "{{user.email}}",
+            "merchantName": "{{selectedListing.providerName}}",
+            "providerUuid": "{{providerUuid}}",
+            "bookingDetails": {
+              "restaurantName": "{{selectedListing.restaurantName}}",
+              "location": "{{selectedListing.location}}",
+              "price": "{{selectedListing.price}}"
+            }
+          },
+          {
+            "type": "check_balance",
+            "email": "{{user.email}}",
+            "required": "{{ledgerEntry.amount}}"
+          },
+          {
+            "type": "process_payment",
+            "cashier": "{{cashier}}",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "user": "{{user}}"
+          },
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_ledger_payment_start",
+            "component": "root-ca",
+            "message": "ROOT CA: Starting atomic ledger creation and payment processing...",
+            "data": {
+              "step": "root_ca_ledger_and_payment",
+              "merchant": "{{selectedListing.providerName}}",
+              "amount": "{{diningPrice}}"
+            }
+          },
+          {
+            "type": "ledger_entry_created",
+            "component": "ledger",
+            "message": "Ledger entry created for booking: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "ledger_entry_added",
+            "component": "ledger",
+            "message": "Ledger entry created: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "certificate_validated",
+            "component": "root-ca",
+            "message": "Certificate validated for {{selectedListing.providerName}}",
+            "data": {
+              "providerUuid": "{{providerUuid}}",
+              "providerName": "{{selectedListing.providerName}}"
+            }
+          },
+          {
+            "type": "cashier_start",
+            "component": "cashier",
+            "message": "{{cashier.name}} processing payment...",
+            "data": {
+              "cashier": "{{cashier}}",
+              "entryId": "{{ledgerEntry.entryId}}",
+              "amount": "{{ledgerEntry.amount}}"
+            }
+          },
+          {
+            "type": "cashier_payment_processed",
+            "component": "cashier",
+            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} 🍎 APPLES",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "cashier": "{{cashier}}",
+              "userBalance": "{{user.balance}}",
+              "walletService": "wallet-service-001",
+              "entryStatus": "{{ledgerEntry.status}}"
+            }
+          },
+          {
+            "type": "purchase",
+            "component": "transaction",
+            "message": "Purchased at {{selectedListing.restaurantName}} for {{diningPrice}} 🍎 APPLES",
+            "data": {
+              "listing": "{{selectedListing}}",
+              "price": "{{diningPrice}}",
+              "ledgerEntry": "{{ledgerEntry.entryId}}",
+              "status": "{{ledgerEntry.status}}"
+            }
+          },
+          {
+            "type": "root_ca_ledger_payment_complete",
+            "component": "root-ca",
+            "message": "ROOT CA: Ledger and payment processing completed successfully",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "entryStatus": "{{ledgerEntry.status}}",
+              "paymentSuccess": "{{paymentSuccess}}",
+              "cashierProcessedCount": "{{cashier.processedCount}}",
+              "cashierTotalProcessed": "{{cashier.totalProcessed}}"
+            }
+          },
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA: Starting ledger settlement...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "Ledger entry settled: {{ledgerEntry.entryId}}",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "status": "completed",
+              "ledgerEntry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "root_ca_ledger_settlement_complete",
+            "component": "root-ca",
+            "message": "ROOT CA: Ledger settlement completed successfully",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "entryStatus": "{{ledgerEntry.status}}",
+              "settlementStatus": "{{settlementStatus}}"
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "snapshot": "{{snapshot}}",
+          "providerUuid": "{{providerUuid}}",
+          "paymentSuccess": "{{paymentSuccess}}",
+          "paymentProcessed": "{{paymentProcessed}}",
+          "updatedBalance": "{{user.balance}}",
+          "updatedCashier": "{{cashier}}",
+          "settlementStatus": "{{settlementStatus}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_ledger_payment_failed",
+              "component": "root-ca",
+              "message": "ROOT CA: Ledger and payment processing failed: {{error.message}}",
+              "data": {
+                "error": "{{error}}",
+                "entryId": "{{ledgerEntry.entryId}}"
+              }
+            },
+            {
+              "type": "cashier_payment_failed",
+              "component": "cashier",
+              "message": "Payment failed: {{error.message}}",
+              "data": {
+                "entry": "{{ledgerEntry}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "root_ca_ledger_settlement",
+        "name": "5️⃣ ROOT CA: Ledger Settlement",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA validates, settles ledger entry, and updates authoritative balances",
+        "actions": [
+          {
+            "type": "root_ca_consume_ledger",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "stream": "LEDGER_SETTLEMENT_STREAM"
+          },
+          {
+            "type": "root_ca_validate_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "certificate": "{{providerUuid}}"
+          },
+          {
+            "type": "root_ca_settle_entry",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "status": "settled"
+          },
+          {
+            "type": "root_ca_update_balances",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "feeSplit": "{{snapshot.feeSplit}}"
+          },
+          {
+            "type": "root_ca_finalize_fees",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "fees": "{{snapshot.feeSplit}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_settlement_start",
+            "component": "root-ca",
+            "message": "ROOT CA consuming ledger entry from settlement stream...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "stream": "LEDGER_SETTLEMENT_STREAM"
+            }
+          },
+          {
+            "type": "root_ca_entry_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "validationStatus": "valid"
+            }
+          },
+          {
+            "type": "ledger_entry_settled",
+            "component": "root-ca",
+            "message": "ROOT CA settled ledger entry: {{ledgerEntry.entryId}}",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "status": "settled",
+              "settlementTimestamp": "{{timestamp}}"
+            }
+          },
+          {
+            "type": "root_ca_balances_updated",
+            "component": "root-ca",
+            "message": "ROOT CA updated authoritative balances",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "feeSplit": "{{snapshot.feeSplit}}",
+              "balancesUpdated": true
+            }
+          },
+          {
+            "type": "root_ca_fees_finalized",
+            "component": "root-ca",
+            "message": "ROOT CA finalized fee distributions",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "finalized": true
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "settlementStatus": "settled",
+          "balancesUpdated": true,
+          "feesFinalized": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_settlement_failed",
+              "component": "root-ca",
+              "message": "ROOT CA settlement failed: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "root_ca_cashier_oversight",
+        "name": "6️⃣ ROOT CA: Cashier Oversight",
+        "type": "process",
+        "component": "root-ca",
+        "description": "ROOT CA oversees and validates cashier payment processing",
+        "actions": [
+          {
+            "type": "root_ca_validate_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentResult": "{{paymentSuccess}}",
+            "cashier": "{{cashier}}"
+          },
+          {
+            "type": "root_ca_verify_balance_update",
+            "userEmail": "{{user.email}}",
+            "expectedBalance": "{{updatedBalance}}",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "root_ca_authorize_payment",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "paymentStatus": "{{paymentSuccess}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "root_ca_cashier_oversight_start",
+            "component": "root-ca",
+            "message": "ROOT CA overseeing cashier payment processing...",
+            "data": {
+              "entryId": "{{ledgerEntry.entryId}}",
+              "cashier": "{{cashier.name}}",
+              "amount": "{{ledgerEntry.amount}}"
+            }
+          },
+          {
+            "type": "root_ca_payment_validated",
+            "component": "root-ca",
+            "message": "ROOT CA validated payment: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "paymentStatus": "{{paymentSuccess}}",
+              "cashier": "{{cashier.name}}"
+            }
+          },
+          {
+            "type": "root_ca_balance_verified",
+            "component": "root-ca",
+            "message": "ROOT CA verified balance update for {{user.email}}",
+            "data": {
+              "userEmail": "{{user.email}}",
+              "balance": "{{updatedBalance}}",
+              "entryId": "{{ledgerEntry.entryId}}"
+            }
+          },
+          {
+            "type": "root_ca_payment_authorized",
+            "component": "root-ca",
+            "message": "ROOT CA authorized payment: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "authorized": true,
+              "authorizationTimestamp": "{{timestamp}}"
+            }
+          }
+        ],
+        "outputs": {
+          "paymentAuthorized": true,
+          "balanceVerified": true,
+          "cashierOversightComplete": true
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "root_ca_payment_rejected",
+              "component": "root-ca",
+              "message": "ROOT CA rejected payment: {{error.message}}",
+              "data": {
+                "entryId": "{{ledgerEntry.entryId}}",
+                "error": "{{error}}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "snapshot_persist",
+        "name": "7️⃣ Snapshot + Persist",
+        "type": "process",
+        "component": "snapshot",
+        "description": "Create and persist transaction snapshot",
+        "actions": [
+          {
+            "type": "persist_snapshot",
+            "snapshot": "{{snapshot}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "snapshot_start",
+            "component": "snapshot",
+            "message": "Creating transaction snapshot...",
+            "data": {}
+          },
+          {
+            "type": "snapshot_success",
+            "component": "snapshot",
+            "message": "Snapshot created: {{snapshot.txId}}",
+            "data": {
+              "snapshot": "{{snapshot}}"
+            }
+          }
+        ],
+        "outputs": {
+          "snapshot": "{{snapshot}}"
+        }
+      },
+      {
+        "id": "stream_to_indexers",
+        "name": "6️⃣ Stream to Indexers",
+        "type": "process",
+        "component": "redis",
+        "description": "Stream transaction to indexers/gardens",
+        "actions": [
+          {
+            "type": "stream_to_indexers",
+            "snapshot": "{{snapshot}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "indexer_stream",
+            "component": "redis",
+            "message": "Streaming to indexers...",
+            "data": {
+              "snapshot": "{{snapshot}}"
+            }
+          }
+        ],
+        "outputs": {
+          "streamed": true
+        }
+      },
+      {
+        "id": "complete_booking",
+        "name": "9️⃣ Complete Booking",
+        "type": "process",
+        "component": "ledger",
+        "description": "Complete booking and deliver notifications",
+        "actions": [
+          {
+            "type": "complete_booking",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "deliver_webhook",
+            "providerId": "{{selectedListing.providerId}}",
+            "snapshot": "{{snapshot}}",
+            "ledgerEntry": "{{ledgerEntry}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "dining_experience",
+            "component": "user",
+            "message": "Dined at {{selectedListing.restaurantName}}...",
+            "data": {
+              "restaurantName": "{{selectedListing.restaurantName}}"
+            }
+          },
+          {
+            "type": "ledger_booking_completed",
+            "component": "ledger",
+            "message": "Booking completed: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          }
+        ],
+        "outputs": {
+          "completed": true
+        }
+      },
+      {
+        "id": "apply_review",
+        "name": "🔟 Review",
+        "type": "process",
+        "component": "user",
+        "description": "Apply review rebate",
+        "actions": [
+          {
+            "type": "apply_review",
+            "user": "{{user}}",
+            "review": {
+              "userId": "{{user.id}}",
+              "restaurantId": "{{selectedListing.restaurantId}}",
+              "rating": 5
+            },
+            "diningPrice": "{{diningPrice}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "wallet_credited",
+            "component": "wallet",
+            "message": "Review rebate credited: {{rebate}} 🍎 APPLES",
+            "data": {
+              "email": "{{user.email}}",
+              "amount": "{{rebate}}",
+              "balance": "{{user.balance}}"
+            }
+          }
+        ],
+        "outputs": {
+          "rebate": "{{rebate}}",
+          "updatedBalance": "{{user.balance}}"
+        }
+      },
+      {
+        "id": "summary",
+        "name": "1️⃣1️⃣ Summary",
+        "type": "output",
+        "component": "transaction",
+        "description": "Generate transaction summary",
+        "actions": [
+          {
+            "type": "generate_summary",
+            "balance": "{{user.balance}}",
+            "rebate": "{{rebate}}",
+            "fees": "{{snapshot.feeSplit}}",
+            "iGasCost": "{{iGasCost}}",
+            "selectedProvider": "{{selectedListing.providerName}}",
+            "restaurant": "{{selectedListing.restaurantName}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "summary",
+            "component": "transaction",
+            "message": "Transaction completed successfully",
+            "data": {
+              "balance": "{{user.balance}}",
+              "rebate": "{{rebate}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "iGasCost": "{{iGasCost}}",
+              "selectedProvider": "{{selectedListing.providerName}}",
+              "restaurant": "{{selectedListing.restaurantName}}"
+            }
+          }
+        ],
+        "outputs": {
+          "summary": "{{summary}}"
+        }
+      },
+      {
+        "id": "error_handler",
+        "name": "Error Handler",
+        "type": "error",
+        "component": "system",
+        "description": "Handle errors and broadcast error events",
+        "websocketEvents": [
+          {
+            "type": "error",
+            "component": "{{error.component}}",
+            "message": "{{error.message}}",
+            "data": {
+              "error": "{{error}}"
+            }
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "from": "eden_chat_input",
+        "to": "llm_resolution",
+        "condition": "always"
+      },
+      {
+        "from": "llm_resolution",
+        "to": "user_select_listing",
+        "condition": "{{listings}} && {{listings.length}} > 0"
+      },
+      {
+        "from": "llm_resolution",
+        "to": "error_handler",
+        "condition": "!{{listings}} || {{listings.length}} === 0"
+      },
+      {
+        "from": "user_select_listing",
+        "to": "user_confirm_listing",
+        "condition": "{{userSelection}}"
+      },
+      {
+        "from": "user_select_listing",
+        "to": "error_handler",
+        "condition": "!{{userSelection}}"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "root_ca_ledger_and_payment",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
+      },
+      {
+        "from": "root_ca_ledger_and_payment",
+        "to": "root_ca_cashier_oversight",
+        "condition": "{{paymentSuccess}} && {{settlementStatus}} === 'settled'"
+      },
+      {
+        "from": "root_ca_ledger_and_payment",
+        "to": "error_handler",
+        "condition": "!{{paymentSuccess}} || {{settlementStatus}} !== 'settled'"
+      },
+      {
+        "from": "root_ca_cashier_oversight",
+        "to": "watch_restaurant",
+        "condition": "{{paymentAuthorized}}"
+      },
+      {
+        "from": "root_ca_cashier_oversight",
+        "to": "error_handler",
+        "condition": "!{{paymentAuthorized}}"
+      },
+      {
+        "from": "watch_restaurant",
+        "to": "snapshot_persist",
+        "condition": "{{diningCompleted}}"
+      },
+      {
+        "from": "watch_restaurant",
+        "to": "error_handler",
+        "condition": "!{{diningCompleted}}"
+      },
+      {
+        "from": "snapshot_persist",
+        "to": "stream_to_indexers",
+        "condition": "always"
+      },
+      {
+        "from": "stream_to_indexers",
+        "to": "complete_booking",
+        "condition": "always"
+      },
+      {
+        "from": "complete_booking",
+        "to": "apply_review",
+        "condition": "always"
+      },
+      {
+        "from": "apply_review",
+        "to": "summary",
+        "condition": "always"
+      }
+    ],
+    "initialStep": "eden_chat_input",
+    "finalSteps": [
+      "summary",
+      "error_handler"
+    ]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "start",
+        "name": "Start",
+        "type": "input",
+        "description": "Service request initiated"
+      },
+      {
+        "id": "process",
+        "name": "Process",
+        "type": "process",
+        "description": "Processing request"
+      },
+      {
+        "id": "complete",
+        "name": "Complete",
+        "type": "output",
+        "description": "Service completed"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "start",
+        "to": "process"
+      },
+      {
+        "from": "process",
+        "to": "complete"
+      }
+    ]
+  },
+  "dataStructures": {
+    "Request": {
+      "id": "string",
+      "type": "string",
+      "status": "string",
+      "timestamp": "date"
+    }
+  },
+  "forms": {
+    "requestForm": {
+      "fields": [
+        {
+          "name": "type",
+          "type": "text",
+          "label": "Request Type",
+          "required": true
+        },
+        {
+          "name": "description",
+          "type": "textarea",
+          "label": "Description",
+          "required": true
+        }
+      ]
+    }
+  },
+  "lifecycle": {
+    "states": [
+      "pending",
+      "processing",
+      "completed"
+    ],
+    "transitions": {
+      "pending": [
+        "processing"
+      ],
+      "processing": [
+        "completed"
+      ]
+    },
+    "initial": "pending",
+    "final": [
+      "completed"
+    ]
+  },
+  "users": [
+    {
+      "userId": "user_001",
+      "email": "bill.draper.auto@gmail.com",
+      "name": "Bill Draper",
+      "phone": "+1-555-0101",
+      "address": "123 Madison Avenue, New York, NY 10022",
+      "dateOfBirth": "1965-03-15",
+      "role": "primary",
+      "status": "active",
+      "createdAt": "2026-01-02T02:17:26.901Z"
+    }
+  ],
+  "primaryUser": {
+    "userId": "user_001",
+    "email": "bill.draper.auto@gmail.com",
+    "name": "Bill Draper",
+    "phone": "+1-555-0101",
+    "address": "123 Madison Avenue, New York, NY 10022",
+    "dateOfBirth": "1965-03-15",
+    "role": "primary",
+    "status": "active",
+    "createdAt": "2026-01-02T02:17:26.901Z"
+  },
+  "employees": [
+    {
+      "id": "emp_001",
+      "name": "Manager",
+      "role": "Manager",
+      "position": {
+        "area": "office",
+        "x": 50,
+        "y": 30
+      },
+      "status": "available"
+    },
+    {
+      "id": "emp_002",
+      "name": "Server",
+      "role": "Server",
+      "position": {
+        "area": "counter",
+        "x": 40,
+        "y": 40
+      },
+      "status": "available"
+    },
+    {
+      "id": "emp_003",
+      "name": "Cashier",
+      "role": "Cashier",
+      "position": {
+        "area": "counter",
+        "x": 60,
+        "y": 40
+      },
+      "status": "busy"
+    }
+  ]
+}

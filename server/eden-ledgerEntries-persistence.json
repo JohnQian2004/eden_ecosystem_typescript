@@ -1728,7 +1728,138 @@
         "gardenName": "Garden-DEX",
         "createdBy": "bill.draper.auto@gmail.com"
       }
+    },
+    {
+      "entryId": "c5ed122b-ba69-4ea4-a6dd-745cfa9e1067",
+      "txId": "d997689f-a271-4b5a-a98b-323950507882",
+      "timestamp": 1768795055826,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-DEX",
+        "price": 100,
+        "serviceType": "dex",
+        "gardenName": "Garden-DEX",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "285980f7-1765-4c0c-b880-974fa2827364",
+      "txId": "tx_1768804514956",
+      "timestamp": 1768804514956,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "provider-001",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "42008144-94ee-4603-b2d6-1e46e813d9ce",
+      "txId": "tx_1768804723158",
+      "timestamp": 1768804723158,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "provider-001",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "d2940463-a198-4fef-b087-b2d9b2344438",
+      "txId": "tx_1768804885640",
+      "timestamp": 1768804885640,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "provider-001",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "4431b694-d310-4e85-92ca-6979ef60ed22",
+      "txId": "tx_1768805364299",
+      "timestamp": 1768805364299,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "dex-pool-tokena",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
     }
   ],
-  "lastSaved": "2026-01-19T03:51:30.480Z"
+  "lastSaved": "2026-01-19T06:49:29.441Z"
 }

@@ -73,21 +73,21 @@
       "gardenId": "HG"
     },
     {
-      "id": "dex-pool-tokenc",
-      "name": "TOKENC Pool (Garden-DEX)",
+      "id": "dex-pool-tokend",
+      "name": "TOKEND Pool (Garden-DEX)",
       "serviceType": "dex",
       "location": "Eden DEX",
       "bond": 5000,
       "reputation": 5,
       "status": "active",
-      "uuid": "df2bd7aa-199c-47f3-95fc-54ecb3895e05",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenc",
-      "gardenId": "T3"
+      "uuid": "36294228-92d0-40a3-a46d-d2f512703948",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokend",
+      "gardenId": "T4"
     }
   ],
   "totalProviders": 7,
   "movieProviders": 0,
   "dexProviders": 1,
   "airlineProviders": 0,
-  "lastSaved": "2026-01-19T03:53:51.356Z"
+  "lastSaved": "2026-01-19T06:49:45.306Z"
 }
