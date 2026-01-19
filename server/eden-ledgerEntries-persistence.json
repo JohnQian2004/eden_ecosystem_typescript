@@ -1859,7 +1859,126 @@
         "providerName": "Service Provider",
         "providerId": "provider-001"
       }
+    },
+    {
+      "entryId": "33423064-1199-4e08-b1c1-16e4b192dc77",
+      "txId": "tx_1768807513165",
+      "timestamp": 1768807513165,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "dex-pool-tokena",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "9f6a72ea-7ecb-4d54-9131-98d7e96d1dba",
+      "txId": "a123082c-b571-41d3-8b5f-5dffd34dbe04",
+      "timestamp": 1768807591777,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-GASSTATION",
+        "price": 100,
+        "serviceType": "gasstation",
+        "gardenName": "Garden-GASSTATION",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "dcaf1a37-d039-4237-bcc3-c98093bbbee4",
+      "txId": "16b68c2d-052a-4c4e-b04d-18d1535cf11b",
+      "timestamp": 1768807612814,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-HOTEL",
+        "price": 100,
+        "serviceType": "hotel",
+        "gardenName": "Garden-HOTEL",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "d70f4f69-559c-4fa7-bdb0-6cd9312e2ef9",
+      "txId": "b0f7d933-b749-4f57-b202-cb18d93363e8",
+      "timestamp": 1768807619964,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-PHARMACY",
+        "price": 100,
+        "serviceType": "pharmacy",
+        "gardenName": "Garden-PHARMACY",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "c060a205-db6f-408c-abf1-b48c374e9f3b",
+      "txId": "8ce03a59-1381-4ced-b0ae-0ec7f4fb0882",
+      "timestamp": 1768807631308,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-AUTOPARTS",
+        "price": 100,
+        "serviceType": "autoparts",
+        "gardenName": "Garden-AUTOPARTS",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
     }
   ],
-  "lastSaved": "2026-01-19T06:49:29.441Z"
+  "lastSaved": "2026-01-19T07:27:11.314Z"
 }

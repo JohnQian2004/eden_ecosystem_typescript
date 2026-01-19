@@ -73,21 +73,69 @@
       "gardenId": "HG"
     },
     {
-      "id": "dex-pool-tokend",
-      "name": "TOKEND Pool (Garden-DEX)",
+      "id": "dex-pool-tokenb",
+      "name": "TOKENB Pool (Garden-DEX)",
       "serviceType": "dex",
       "location": "Eden DEX",
       "bond": 5000,
       "reputation": 5,
       "status": "active",
-      "uuid": "36294228-92d0-40a3-a46d-d2f512703948",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokend",
-      "gardenId": "T4"
+      "uuid": "466340d9-b77d-4aa7-aaba-521067cca28e",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenb",
+      "gardenId": "T2"
+    },
+    {
+      "id": "gasstation-728eaafb",
+      "name": "Garden-GASSTATION Provider",
+      "serviceType": "gasstation",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "4625e5fa-48eb-4b0e-b031-2e66f3eef323",
+      "apiEndpoint": "https://api.gasstation.com/v1",
+      "gardenId": "garden-1"
+    },
+    {
+      "id": "hotel-0a492f3c",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "475f0481-92fd-4d3c-ac8b-8c3033cce283",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-2"
+    },
+    {
+      "id": "pharmacy-ad2f9672",
+      "name": "Garden-PHARMACY Provider",
+      "serviceType": "pharmacy",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "e754c783-0954-48f2-a43d-b0594260a3c5",
+      "apiEndpoint": "https://api.pharmacy.com/v1",
+      "gardenId": "garden-3"
+    },
+    {
+      "id": "autoparts-19f129f6",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-4"
     }
   ],
-  "totalProviders": 7,
+  "totalProviders": 11,
   "movieProviders": 0,
   "dexProviders": 1,
   "airlineProviders": 0,
-  "lastSaved": "2026-01-19T06:49:45.306Z"
+  "lastSaved": "2026-01-19T07:29:15.952Z"
 }

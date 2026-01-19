@@ -322,7 +322,7 @@
         <!-- Garden of Eden Main Street - Service Type Cards -->
         <!-- Main Street always shows hardcoded service types -->
         <!-- When signed out, show all public services (not tied to any Priest) -->
-        <div class="row mb-3" *ngIf="!isLoadingServices && serviceTypes.length > 0" [ngClass]="{'dark-main-street': !isUserSignedIn}">
+        <div class="row mb-3" *ngIf="!isLoadingServices && (appleServiceTypes.length > 0 || dexServiceTypes.length > 0)" [ngClass]="{'dark-main-street': !isUserSignedIn}">
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Garden of Eden Main Street</h5>
@@ -392,6 +392,84 @@
               </div>
             </div>
             <p class="small mb-3" [ngClass]="{'text-muted': isUserSignedIn}" [style.color]="!isUserSignedIn ? '#8b949e' : ''">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+
+            <!-- 🍎 Apple ecosystem services -->
+            <div *ngIf="appleServiceTypes.length > 0" class="mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🍎 Apple Ecosystem</h6>
+                <small class="text-muted" *ngIf="isUserSignedIn">SaaS gardens (regular)</small>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of appleServiceTypes">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    [ngClass]="{
+                      'movie-service': serviceType.type === 'movie', 
+                      'dex-service': serviceType.type === 'dex',
+                      'airline-service': serviceType.type === 'airline',
+                      'autoparts-service': serviceType.type === 'autoparts',
+                      'hotel-service': serviceType.type === 'hotel',
+                      'restaurant-service': serviceType.type === 'restaurant',
+                      'grocerystore-service': serviceType.type === 'grocerystore',
+                      'pharmacy-service': serviceType.type === 'pharmacy',
+                      'dogpark-service': serviceType.type === 'dogpark',
+                      'gasstation-service': serviceType.type === 'gasstation',
+                      'party-service': serviceType.type === 'party',
+                      'bank-service': serviceType.type === 'bank'
+                    }"
+                    (click)="selectServiceType(serviceType)" 
+                    style="cursor: pointer;">
+                    <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
+                      <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
+                      <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
+                      <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
+                        <span class="badge bg-success small">Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 💰 DEX ecosystem services -->
+            <div *ngIf="dexServiceTypes.length > 0">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">💰 DEX Ecosystem</h6>
+                <small class="text-muted" *ngIf="isUserSignedIn">DEX gardens (token)</small>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of dexServiceTypes">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    [ngClass]="{
+                      'movie-service': serviceType.type === 'movie', 
+                      'dex-service': serviceType.type === 'dex',
+                      'airline-service': serviceType.type === 'airline',
+                      'autoparts-service': serviceType.type === 'autoparts',
+                      'hotel-service': serviceType.type === 'hotel',
+                      'restaurant-service': serviceType.type === 'restaurant',
+                      'grocerystore-service': serviceType.type === 'grocerystore',
+                      'pharmacy-service': serviceType.type === 'pharmacy',
+                      'dogpark-service': serviceType.type === 'dogpark',
+                      'gasstation-service': serviceType.type === 'gasstation',
+                      'party-service': serviceType.type === 'party',
+                      'bank-service': serviceType.type === 'bank'
+                    }"
+                    (click)="selectServiceType(serviceType)" 
+                    style="cursor: pointer;">
+                    <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
+                      <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
+                      <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
+                      <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
+                        <span class="badge bg-success small">Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Legacy single-loop kept here for reference:
             <div class="row g-2">
               <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
                 <div 
@@ -422,6 +500,7 @@
                 </div>
               </div>
             </div>
+            -->
           </div>
         </div>
         

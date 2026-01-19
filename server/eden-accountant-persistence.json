@@ -1,8 +1,8 @@
 {
   "totalIGas": 0,
   "totalITax": 0,
-  "totalRootCAFees": 0.0016910000000000007,
-  "totalIndexerFees": 0.00042275000000000017,
+  "totalRootCAFees": 0.0018690000000000009,
+  "totalIndexerFees": 0.0004672500000000002,
   "totalProviderFees": 0,
   "revenueByServiceType": {
     "garden_deployment": {
@@ -62,15 +62,15 @@
       "totalIndexerFees": 0.0000445
     },
     "dex": {
-      "count": 1,
+      "count": 3,
       "totalAmount": 0,
-      "totalIGas": 0.00445,
+      "totalIGas": 0.01335,
       "totalITax": 0,
-      "totalRootCAFees": 0.000089,
-      "totalIndexerFees": 0.00002225
+      "totalRootCAFees": 0.000267,
+      "totalIndexerFees": 0.00006675
     }
   },
-  "lastUpdated": 1768805235887,
+  "lastUpdated": 1768807591108,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-19T06:47:15.887Z"
+  "lastSaved": "2026-01-19T07:26:31.108Z"
 }

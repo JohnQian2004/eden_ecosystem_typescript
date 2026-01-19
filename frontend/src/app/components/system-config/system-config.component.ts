@@ -206,6 +206,11 @@ export class SystemConfigComponent implements OnInit {
   calculateDeploymentFee(): number {
     // Base garden fee: 100 🍎 APPLES
     const baseGardenFee = 100;
+
+    // DEX Gardens live in the DEX ecosystem (no 🍎 APPLES deployment economics)
+    if (this.selectedServiceType?.type === 'dex') {
+      return 0;
+    }
     
     // Snake services: 2x multiplier (220 🍎 APPLES)
     if (this.selectedServiceType?.type === 'snake') {
@@ -409,18 +414,22 @@ export class SystemConfigComponent implements OnInit {
     }
 
     const requiredFee = this.calculateDeploymentFee();
+    const isDexGarden = this.gardenConfig.serviceType === 'dex';
     
-    // Check wallet balance first
-    if (this.walletBalance < requiredFee) {
-      this.creationError = `Insufficient balance. Required: ${requiredFee} 🍎 APPLES, Available: ${this.walletBalance} 🍎 APPLES. Please purchase more 🍎 APPLES first.`;
-      return;
+    // SaaS gardens use 🍎 APPLES deployment economics; DEX gardens do not.
+    if (!isDexGarden) {
+      // Check wallet balance first
+      if (this.walletBalance < requiredFee) {
+        this.creationError = `Insufficient balance. Required: ${requiredFee} 🍎 APPLES, Available: ${this.walletBalance} 🍎 APPLES. Please purchase more 🍎 APPLES first.`;
+        return;
+      }
     }
 
     this.isCreating = true;
     this.creationError = null;
     this.creationSuccess = false;
 
-    // Include email and amount in the request
+    // Include email and amount in the request (amount omitted for DEX gardens)
     const requestBody: any = {
       serviceType: this.gardenConfig.serviceType,
       gardenName: this.gardenConfig.gardenName, // Use gardenName (backend accepts both for compatibility)
@@ -429,9 +438,12 @@ export class SystemConfigComponent implements OnInit {
       serverPort: this.gardenConfig.serverPort,
       networkType: this.gardenConfig.networkType,
       isSnake: this.gardenConfig.isSnake,
-      email: this.userEmail,
-      amount: requiredFee
+      email: this.userEmail
     };
+
+    if (!isDexGarden) {
+      requestBody.amount = requiredFee;
+    }
     
     // Build providers array from both predefined (selectedProviders) and custom providers
     const providers: Array<{
@@ -481,13 +493,17 @@ export class SystemConfigComponent implements OnInit {
     console.log('📤 Creating garden with providers:', providers);
     console.log('📤 Request body:', { ...requestBody, providers: providers.length });
     
+    const createUrl = isDexGarden
+      ? `${this.apiUrl}/api/dex-gardens/create`
+      : `${this.apiUrl}/api/wizard/create-garden`;
+
     this.http.post<{success: boolean, garden?: any, balance?: number, error?: string}>(
-      `${this.apiUrl}/api/wizard/create-garden`,
+      createUrl,
       requestBody
     ).subscribe({
       next: (response) => {
         if (response.success) {
-          // Update wallet balance
+          // Update wallet balance (SaaS only; DEX may not return balance)
           if (response.balance !== undefined) {
             this.walletBalance = response.balance;
           }
