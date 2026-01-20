@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { FlowWiseService, WorkflowExecution } from '../../services/flowwise.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface ChatMessage {
   id: string;
@@ -65,9 +66,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     private webSocketService: WebSocketService,
     private cdr: ChangeDetectorRef
   ) {
-    this.apiUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000' 
-      : '';
+    this.apiUrl = getApiBaseUrl();
   }
 
   ngOnInit() {

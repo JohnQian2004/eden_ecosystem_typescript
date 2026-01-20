@@ -7,6 +7,7 @@ import { FlowWiseService, UserDecisionRequest } from './services/flowwise.servic
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
+import { getApiBaseUrl } from './services/api-base';
 
 export interface ServiceProvider {
   id: string;
@@ -287,6 +288,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private viewTransitionUntilMs: number = 0;
 
   get isGlobalLoading(): boolean {
+    // Signed-out users should never be blocked by the full-screen loading overlay.
+    // They should still see Main Street + Sign In prompt instantly.
+    if (!this.isUserSignedIn) return false;
+
     const now = Date.now();
     const inViewTransition = now < this.viewTransitionUntilMs;
     return (
@@ -311,9 +316,7 @@ export class AppComponent implements OnInit, OnDestroy {
     return 'Loading...';
   }
   
-  private apiUrl = window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : '';
+  private apiUrl = getApiBaseUrl();
 
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
@@ -771,13 +774,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // Update title to include email
     this.updateTitle();
     
-    // Open sign-in modal on page load ONLY if not signed in (no saved email)
-    // Don't show modal if user has already signed in (has saved email)
-    if (!isSignedIn) {
-      setTimeout(() => {
-        this.openSignInModal();
-      }, 1000); // Delay to ensure page is fully loaded
-    } else {
+    // Do NOT auto-open sign-in UI. We run in guest mode by default.
+    // Sign-in is only shown when the user explicitly clicks the header button
+    // or a gated action requests it.
+    if (isSignedIn) {
       console.log(`✅ [App] User already signed in (${savedEmail}), skipping sign-in modal`);
     }
     
@@ -834,9 +834,14 @@ export class AppComponent implements OnInit, OnDestroy {
       this.updateSidebarVisibility();
     }
     
-    // Load wallet balance immediately with default email
-    // It will be refreshed if Google Sign-In updates the email
-    this.loadWalletBalance();
+    // Only load wallet balance when user is actually signed in (localStorage userEmail exists).
+    // When signed out, keep the UI responsive and show Main Street + Sign In prompt without blocking on balance.
+    if (this.isUserSignedIn) {
+      this.loadWalletBalance();
+    } else {
+      this.walletBalance = 0;
+      this.isLoadingBalance = false;
+    }
     
     // Initialize Google Sign-In and get user email (may update email if Google Sign-In succeeds)
     // This is async and won't block balance loading
@@ -895,8 +900,8 @@ export class AppComponent implements OnInit, OnDestroy {
       this.checkServiceGardens();
     }, 500);
     
-    // Check priesthood status if user is signed in
-    if (this.userEmail) {
+    // Check priesthood status only if user is signed in
+    if (this.isUserSignedIn && this.userEmail) {
       setTimeout(() => {
         this.checkPriesthoodStatus();
       }, 1000);
@@ -1017,7 +1022,17 @@ export class AppComponent implements OnInit, OnDestroy {
       ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
       : `${this.apiUrl}/api/gardens?ecosystem=all`;
 
-    this.http.get<{success: boolean, gardens?: any[], indexers?: any[]}>(url).subscribe({
+    this.http
+      .get<{success: boolean, gardens?: any[], indexers?: any[]}>(url)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          // Prevent "Loading Apple gardens..." from hanging forever if backend stalls.
+          this.isLoadingAppleGardens = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
       next: (response) => {
         const gardens = (response.gardens || response.indexers || []).filter((g: any) => g && g.active !== false);
         // Apple gardens = non-DEX, non-token, non-HG
@@ -1044,14 +1059,10 @@ export class AppComponent implements OnInit, OnDestroy {
           isSnake: !!g.isSnake
           };
         });
-        this.isLoadingAppleGardens = false;
-        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Failed to load Apple gardens:', err);
         this.appleGardens = [];
-        this.isLoadingAppleGardens = false;
-        this.cdr.detectChanges();
       }
     });
   }
@@ -1763,16 +1774,19 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   
   loadWalletBalance() {
-    // Always get the latest email from localStorage to ensure we're using the current signed-in user
+    // Only load balance when signed in. When signed out, avoid "silent binding" to admin/default email.
     const savedEmail = localStorage.getItem('userEmail');
-    // If no saved email (user signed out), use default email for balance check
-    // Otherwise use saved email or current userEmail
-    const emailToUse = savedEmail || (this.userEmail || 'bill.draper.auto@gmail.com');
-    
+    if (!savedEmail || savedEmail.trim() === '') {
+      this.walletBalance = 0;
+      this.isLoadingBalance = false;
+      return;
+    }
+
+    const emailToUse = savedEmail.trim();
+
     // Update userEmail if it's different (user signed in with different account)
     if (this.userEmail !== emailToUse) {
       console.log(`📧 Email changed from ${this.userEmail} to ${emailToUse}, clearing and reloading wallet balance`);
-      // Clear balance when email changes
       this.walletBalance = 0;
       this.userEmail = emailToUse;
     }
@@ -1869,7 +1883,18 @@ export class AppComponent implements OnInit, OnDestroy {
       ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
       : `${this.apiUrl}/api/gardens?ecosystem=all`;
     
-    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
+    this.http
+      .get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          // Ensure we never get stuck on "Loading Service Registry..." if backend is down/stalled.
+          if (this.isLoadingServices) {
+            this.isLoadingServices = false;
+            this.cdr.detectChanges();
+          }
+        })
+      )
       .subscribe({
         next: (gardensResponse) => {
           // Support both 'gardens' and 'indexers' response fields for backward compatibility
@@ -1898,6 +1923,7 @@ export class AppComponent implements OnInit, OnDestroy {
           // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
           const ownerEmailParam = isPriestMode && this.userEmail ? `?ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry${ownerEmailParam}`)
+            .pipe(timeout(8000))
             .subscribe({
               next: (response) => {
                 if (response.success && response.providers) {
@@ -2089,6 +2115,7 @@ export class AppComponent implements OnInit, OnDestroy {
           console.error('Failed to load gardens for validation:', err);
           // If gardens API fails, still try to load services but without validation
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+            .pipe(timeout(8000))
             .subscribe({
               next: (response) => {
                 // Fallback: use original logic without gardenId validation
@@ -2130,7 +2157,15 @@ export class AppComponent implements OnInit, OnDestroy {
     this.isLoadingSnakeProviders = true;
     const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
     const ownerEmailParam = (isPriestMode && this.userEmail && this.isUserSignedIn) ? `&ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
-    this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
+    this.http
+      .get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          this.isLoadingSnakeProviders = false;
+          this.cdr.detectChanges();
+        })
+      )
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
@@ -2151,14 +2186,10 @@ export class AppComponent implements OnInit, OnDestroy {
           } else {
             this.snakeProviders = [];
           }
-          this.isLoadingSnakeProviders = false;
-          this.cdr.detectChanges();
         },
         error: (err) => {
           console.error('Failed to load Snake services:', err);
           this.snakeProviders = [];
-          this.isLoadingSnakeProviders = false;
-          this.cdr.detectChanges();
         }
       });
   }

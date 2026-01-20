@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface LedgerEntry {
   entryId: string;
@@ -76,6 +77,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   paginatedEntries: LedgerEntry[] = []; // Paginated entries for current page
   cashier: Cashier | null = null;
   private wsSubscription: any;
+  private apiBaseUrl = getApiBaseUrl();
   userEmail: string = '';
   readonly adminEmail = 'bill.draper.auto@gmail.com';
   
@@ -181,9 +183,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
 
   loadLedger() {
     // Build API URL with pagination parameters
-    const baseUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000/api/ledger' 
-      : '/api/ledger';
+    const baseUrl = `${this.apiBaseUrl}/api/ledger`;
     const params = new URLSearchParams();
     params.append('page', this.currentPage.toString());
     params.append('limit', this.itemsPerPage.toString());
@@ -303,9 +303,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   }
 
   loadCashierStatus() {
-    const apiUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000/api/cashier' 
-      : '/api/cashier';
+    const apiUrl = `${this.apiBaseUrl}/api/cashier`;
     
     console.log(`📡 [LedgerDisplay] Loading cashier status from: ${apiUrl}`);
     this.http.get<any>(apiUrl).subscribe({
@@ -566,9 +564,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
 
     // Use txId as snapshot_id for the RPC call
-    const apiUrl = window.location.port === '4200' 
-      ? `http://localhost:3000/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`
-      : `/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
+    const apiUrl = `${this.apiBaseUrl}/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
 
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {

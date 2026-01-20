@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import { SimulatorEvent } from '../app.component';
+import { getWsBaseUrl } from './api-base';
 
 @Injectable({
   providedIn: 'root'
@@ -14,12 +15,7 @@ export class WebSocketService {
   private reconnectDelay = 3000;
 
   connect() {
-    // Use port 3000 when running in dev mode (ng serve), otherwise use current host
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.port === '4200' 
-      ? 'localhost:3000' 
-      : window.location.host;
-    const wsUrl = `${protocol}//${host}/ws`;
+    const wsUrl = `${getWsBaseUrl()}/ws`;
     
     console.log(`🔌 Attempting WebSocket connection to: ${wsUrl}`);
     

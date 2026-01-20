@@ -97,18 +97,6 @@
       "gardenId": "garden-1"
     },
     {
-      "id": "hotel-0a492f3c",
-      "name": "Garden-HOTEL Provider",
-      "serviceType": "hotel",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "475f0481-92fd-4d3c-ac8b-8c3033cce283",
-      "apiEndpoint": "https://api.hotel.com/v1",
-      "gardenId": "garden-2"
-    },
-    {
       "id": "pharmacy-ad2f9672",
       "name": "Garden-PHARMACY Provider",
       "serviceType": "pharmacy",
@@ -119,18 +107,6 @@
       "uuid": "e754c783-0954-48f2-a43d-b0594260a3c5",
       "apiEndpoint": "https://api.pharmacy.com/v1",
       "gardenId": "garden-3"
-    },
-    {
-      "id": "autoparts-19f129f6",
-      "name": "Garden-AUTOPARTS Provider",
-      "serviceType": "autoparts",
-      "location": "Unknown",
-      "bond": 1000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "dc9caa0b-bac7-497d-87f5-896494e8cce1",
-      "apiEndpoint": "https://api.autoparts.com/v1",
-      "gardenId": "garden-4"
     },
     {
       "id": "bank-19fea4fe",
@@ -277,5 +253,5 @@
       "gardenId": "garden-14"
     }
   ],
-  "lastSaved": "2026-01-20T09:43:07.670Z"
+  "lastSaved": "2026-01-20T10:59:14.991Z"
 }

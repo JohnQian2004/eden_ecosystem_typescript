@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
+import { getApiBaseUrl } from '../services/api-base';
 
 // Avatar Movie Neural Link Simulation
 interface AvatarNeuralLink {
@@ -463,7 +464,7 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
     if (!this.selectedListing?.videoUrl) return '';
     // Ensure the video URL is absolute
     if (this.selectedListing.videoUrl.startsWith('/')) {
-      return `http://localhost:3000${this.selectedListing.videoUrl}`;
+      return `${getApiBaseUrl()}${this.selectedListing.videoUrl}`;
     }
     return this.selectedListing.videoUrl;
   }

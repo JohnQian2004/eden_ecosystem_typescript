@@ -1,5 +1,6 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface ServiceType {
   type: string;
@@ -99,9 +100,7 @@ export class SystemConfigComponent implements OnInit {
 
   @Output() gardensRefreshed = new EventEmitter<void>();
 
-  private apiUrl = window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : '';
+  private apiUrl = getApiBaseUrl();
 
   // Check if current user is in GOD mode
   get isGodMode(): boolean {
@@ -674,8 +673,8 @@ export class SystemConfigComponent implements OnInit {
         providerName: providerName,
         language: 'typescript',
         framework: 'express',
-        indexerEndpoint: `http://localhost:3000`,
-        webhookUrl: `http://localhost:3000/mock/webhook/${providerId}`,
+        indexerEndpoint: `${this.apiUrl}`,
+        webhookUrl: `${this.apiUrl}/mock/webhook/${providerId}`,
         serviceType: this.newServiceTypeName.trim(),
         notificationMethods: ['webhook', 'pull', 'rpc']
       }

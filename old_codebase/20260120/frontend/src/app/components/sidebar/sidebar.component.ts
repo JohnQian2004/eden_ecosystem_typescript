@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface ComponentStatus {
   name: string;
@@ -47,9 +48,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   isLoadingGardensTable: boolean = false;
   private subscription: any;
   private emailCheckInterval: any; // Interval for checking email changes
-  private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : `${window.location.protocol}//${window.location.host}`;
+  private apiUrl = getApiBaseUrl();
 
   constructor(
     private wsService: WebSocketService,

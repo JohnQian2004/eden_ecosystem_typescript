@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 @Component({
   selector: 'app-igas-display',
@@ -16,6 +17,7 @@ export class IgasDisplayComponent implements OnInit, OnDestroy {
   @Input() walletBalance: number = 0.0;
   @Input() onOpenStripeModal: () => void = () => {};
   private subscription: any;
+  private apiBaseUrl = getApiBaseUrl();
 
   constructor(private wsService: WebSocketService, private http: HttpClient) {}
 
@@ -91,7 +93,7 @@ export class IgasDisplayComponent implements OnInit, OnDestroy {
   }
 
   loadTotalIGas() {
-    this.http.get<{success: boolean, totalIGas: number, timestamp: number}>('http://localhost:3000/api/igas/total')
+    this.http.get<{success: boolean, totalIGas: number, timestamp: number}>(`${this.apiBaseUrl}/api/igas/total`)
       .subscribe({
         next: (response) => {
           if (response.success && response.totalIGas !== undefined) {
@@ -107,7 +109,7 @@ export class IgasDisplayComponent implements OnInit, OnDestroy {
 
   loadTotalFees() {
     // Total Fees follows AccountantService's revenue summary (backward compatible)
-    this.http.get<{success: boolean, totalRevenue: number, totalRootCAFees: number, totalIndexerFees: number, totalProviderFees: number, timestamp: number}>('http://localhost:3000/api/accountant/summary')
+    this.http.get<{success: boolean, totalRevenue: number, totalRootCAFees: number, totalIndexerFees: number, totalProviderFees: number, timestamp: number}>(`${this.apiBaseUrl}/api/accountant/summary`)
       .subscribe({
         next: (response) => {
           if (response.success && response.totalRevenue !== undefined) {

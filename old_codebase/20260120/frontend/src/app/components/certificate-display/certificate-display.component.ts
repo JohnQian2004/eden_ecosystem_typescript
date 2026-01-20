@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface EdenCertificate {
   subject: string;
@@ -58,9 +59,7 @@ export class CertificateDisplayComponent implements OnInit, OnDestroy {
   revokedCertificates: RevocationEvent[] = [];
   selectedCertificate: CertificateInfo | null = null;
   gardens: GardenInfo[] = []; // Gardens (formerly called indexers)
-  private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : `${window.location.protocol}//${window.location.host}`;
+  private apiUrl = getApiBaseUrl();
   private subscription: any;
 
   constructor(

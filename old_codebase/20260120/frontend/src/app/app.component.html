@@ -42,7 +42,7 @@
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title" id="signInModalLabel">
-                  <span *ngIf="!isGoogleSignedIn">🔐 Sign In to Eden Simulator</span>
+                  <span *ngIf="!isGoogleSignedIn">👤 Guest</span>
                   <span *ngIf="isGoogleSignedIn">👤 Account Settings</span>
                 </h5>
                 <button type="button" class="btn-close" (click)="closeSignInModal()" aria-label="Close"></button>
@@ -299,37 +299,7 @@
           </div>
         </div>
         
-        <!-- Garden of Eden Slogan (shown when signed out) -->
-        <div class="row mb-5" *ngIf="!isUserSignedIn">
-          <div class="col-12">
-            <div class="text-center py-5" style="background: linear-gradient(135deg, #1a1f2e 0%, #2d1b3d 100%); border-radius: 15px; color: #c9d1d9; border: 1px solid #30363d;">
-              <h1 class="display-4 mb-4 fw-bold" style="color: #58a6ff;">🌳 Garden of Eden</h1>
-              <p class="lead mb-3" style="font-size: 1.5rem; color: #c9d1d9;">Blockchain records history. Eden understands it.</p>
-              <p class="mb-4" style="font-size: 1.2rem; opacity: 0.9; color: #8b949e;">A garden‑first economic and intelligence system where the traditional blockchain is no longer the parent, but the <em>child</em> of the garden.</p>
-              <div class="row mt-5">
-                <div class="col-md-4 mb-3">
-                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
-                    <h4 class="mb-2" style="color: #58a6ff;">⛪ ROOT CA</h4>
-                    <p class="mb-0" style="color: #c9d1d9;">gives law</p>
-                  </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
-                    <h4 class="mb-2" style="color: #58a6ff;">🌳 Gardens</h4>
-                    <p class="mb-0" style="color: #c9d1d9;">give wisdom</p>
-                  </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <div class="p-3" style="background: rgba(88, 166, 255, 0.1); border-radius: 10px; border: 1px solid #30363d;">
-                    <h4 class="mb-2" style="color: #58a6ff;">👤 Humans</h4>
-                    <p class="mb-0" style="color: #c9d1d9;">give meaning</p>
-                  </div>
-                </div>
-              </div>
-              <p class="mt-4 mb-0" style="font-size: 1.1rem; font-style: italic; opacity: 0.85; color: #8b949e;">Eden is not a protocol. It is a living system.</p>
-            </div>
-          </div>
-        </div>
+        <!-- Signed-out: run as guest mode (no forced sign-in banner/modal). -->
         
         <!-- Garden of Eden Main Street - Service Type Cards -->
         <!-- Main Street always shows hardcoded service types -->
