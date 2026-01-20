@@ -134,18 +134,30 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   getOwnersForServiceType(serviceType: string): string[] {
+    // IMPORTANT: return a stable array reference (no .slice()) so Angular doesn't thrash DOM on every change-detection.
     const key = String(serviceType || '').toLowerCase();
-    // Prefer attached owners on serviceTypes, fallback to grouped map
-    const attached = this.serviceTypes.find(st => st.type === key)?.ownerEmails;
-    return (attached && attached.length > 0 ? attached : (this.providerOwnersByServiceType[key] || [])).slice();
+    return this.providerOwnersByServiceType[key] || [];
   }
 
   getOwnersForDexGarden(gardenId: string, fallbackOwnerEmail?: string): string[] {
+    // IMPORTANT: return a stable array reference when possible to keep UI responsive.
     const gid = String(gardenId || '');
-    const owners = (this.providerOwnersByGardenId[gid] || []).slice();
+    const owners = this.providerOwnersByGardenId[gid] || [];
     const fb = String(fallbackOwnerEmail || '').trim().toLowerCase();
     if (owners.length === 0 && fb) return [fb];
     return owners;
+  }
+
+  trackByServiceType(index: number, st: { type: string }): string {
+    return st?.type || String(index);
+  }
+
+  trackByGardenId(index: number, g: { id: string }): string {
+    return g?.id || String(index);
+  }
+
+  trackByEmail(index: number, email: string): string {
+    return email || String(index);
   }
   
   isLoadingServices: boolean = false;
@@ -217,7 +229,6 @@ export class AppComponent implements OnInit, OnDestroy {
     const inViewTransition = now < this.viewTransitionUntilMs;
     return (
       inViewTransition ||
-      this.isProcessing ||
       this.isProcessingGarden ||
       this.isProcessingStripe ||
       this.isLoadingBalance ||
@@ -235,7 +246,6 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.isLoadingGardens) return 'Loading Gardens...';
     if (this.isLoadingApplications) return 'Loading Priesthood...';
     if (this.isLoadingBalance) return 'Loading wallet balance...';
-    if (this.isProcessing) return 'Processing...';
     return 'Loading...';
   }
   
@@ -401,7 +411,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
   workflowMessages: any[] = [];
+  private activeWorkflowExecutionId: string | null = null;
+  private workflowMessagesRaf: number | null = null;
   debugWebsocketEvents: boolean = false;
+  private onEdenSendEvt: any = null;
 
   // -----------------------------
   // Garden/Service Chat History
@@ -412,6 +425,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private chatHistoryLoadSeq: number = 0;
   private lastAppendBySig: Map<string, number> = new Map();
   private conversationIdByExecutionId = new Map<string, string>();
+  private readonly MAX_CHAT_HISTORY_MESSAGES = 200; // UI render cap (history is still persisted on server)
 
   private buildConversationId(scope: 'garden' | 'service', id: string): string {
     const mode = (this.currentViewMode || 'user').toLowerCase();
@@ -422,6 +436,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private setActiveConversation(conversationId: string) {
     if (!conversationId) return;
     if (this.activeConversationId === conversationId) return;
+    // Cancel any in-flight history load so the spinner can't get stuck during rapid switching.
+    this.stopChatHistoryLoading();
+
     this.activeConversationId = conversationId;
     // Make UI feel instant: clear immediately, then async load.
     this.chatHistoryMessages = [];
@@ -432,7 +449,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   loadChatHistory(limit: number = 50) {
-    if (!this.activeConversationId) return;
+    if (!this.activeConversationId) {
+      this.isLoadingChatHistory = false;
+      this.cdr.detectChanges();
+      return;
+    }
     const cid = this.activeConversationId;
     const seq = ++this.chatHistoryLoadSeq;
     this.isLoadingChatHistory = true;
@@ -464,7 +485,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const optimistic = (this.chatHistoryMessages || []).filter(m => !(m as any).id);
         const merged = [...serverMessages, ...optimistic];
         const seen = new Set<string>();
-        this.chatHistoryMessages = merged.filter((m) => {
+        const deduped = merged.filter((m) => {
           const key = (m as any).id
             ? `id:${(m as any).id}`
             : `k:${m.role}|${m.userEmail || ''}|${m.content}|${Math.floor((m.timestamp || 0) / 1000)}`;
@@ -472,6 +493,11 @@ export class AppComponent implements OnInit, OnDestroy {
           seen.add(key);
           return true;
         });
+        // Keep UI responsive: only render the last N messages.
+        this.chatHistoryMessages =
+          deduped.length > this.MAX_CHAT_HISTORY_MESSAGES
+            ? deduped.slice(-this.MAX_CHAT_HISTORY_MESSAGES)
+            : deduped;
 
         this.cdr.detectChanges();
         },
@@ -519,7 +545,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const clientTs = Date.now();
     const local = { id: clientId, role, content: trimmed, timestamp: clientTs, userEmail: this.userEmail };
     if (this.activeConversationId === targetConversationId) {
-      this.chatHistoryMessages = [...this.chatHistoryMessages, local];
+      const next = [...this.chatHistoryMessages, local];
+      this.chatHistoryMessages =
+        next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
     }
     this.cdr.detectChanges();
 
@@ -558,8 +586,28 @@ export class AppComponent implements OnInit, OnDestroy {
       }
 
       if (this.amcWorkflowActive) {
-        this.workflowMessages.push(event);
-        this.cdr.detectChanges();
+        // Only show events for the current workflow execution (prevents old executions from re-populating after a new chat).
+        const evExecId = (event as any).data?.executionId;
+        if (!this.activeWorkflowExecutionId || (evExecId && String(evExecId) === this.activeWorkflowExecutionId)) {
+          this.workflowMessages.push(event);
+          // Keep bounded to avoid DOM slowdown after long sessions
+          if (this.workflowMessages.length > 300) {
+            this.workflowMessages = this.workflowMessages.slice(-300);
+          }
+          // Batch change detection to one paint frame (prevents click starvation)
+          if (this.workflowMessagesRaf == null) {
+            this.workflowMessagesRaf = requestAnimationFrame(() => {
+              this.workflowMessagesRaf = null;
+              this.cdr.detectChanges();
+            });
+          }
+        }
+      }
+
+      // When a workflow completes, stop streaming events into the UI console.
+      if ((event as any).type === 'workflow_completed') {
+        this.amcWorkflowActive = false;
+        this.activeWorkflowExecutionId = null;
       }
 
       // Garden-level chat history: append assistant messages from LLM responses
@@ -581,18 +629,28 @@ export class AppComponent implements OnInit, OnDestroy {
         if (m?.conversationId && m.conversationId === this.activeConversationId) {
           const exists = this.chatHistoryMessages.some(x => (x as any).id && (x as any).id === m.id);
           if (!exists) {
-            this.chatHistoryMessages = [...this.chatHistoryMessages, {
+            const next = [...this.chatHistoryMessages, {
               id: m.id,
               role: m.role,
               content: m.content,
               timestamp: m.timestamp || Date.now(),
               userEmail: m.userEmail
             }];
+            this.chatHistoryMessages =
+              next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
             this.cdr.detectChanges();
           }
         }
       }
     });
+
+    // Allow other UI components (e.g., FlowWise Chat tab) to trigger a "Send" using the main unified input.
+    // This keeps all send/reset/workflow-start logic centralized in `onSubmit()`.
+    this.onEdenSendEvt = () => {
+      // Don't bypass existing guards (empty input, processing, balance checks).
+      void this.onSubmit();
+    };
+    window.addEventListener('eden_send', this.onEdenSendEvt as any);
     
     // Suppress console errors from browser extensions
     const originalError = console.error;
@@ -1519,12 +1577,20 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.isLoadingBalance = true;
     console.log(`💰 Loading wallet balance for: ${this.userEmail}`);
-    
-    this.http.get<{success: boolean, balance: number, error?: string}>(
-      `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
-    ).subscribe({
+
+    const url = `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`;
+    this.http
+      .get<{ success: boolean; balance: number; error?: string }>(url)
+      .pipe(
+        // Prevent UI from feeling "frozen" if the backend stalls (this flag is used by the global overlay).
+        timeout(8000),
+        finalize(() => {
+          this.isLoadingBalance = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
       next: (response) => {
-        this.isLoadingBalance = false; // Clear loading state first
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES for ${this.userEmail}`);
@@ -1572,10 +1638,8 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('❌ Error loading wallet balance:', err);
-        console.error('   URL:', `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`);
+        console.error('   URL:', url);
         this.walletBalance = 0;
-        this.isLoadingBalance = false;
-        this.cdr.detectChanges();
       }
     });
   }
@@ -2493,6 +2557,14 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.workflowMessagesRaf != null) {
+      cancelAnimationFrame(this.workflowMessagesRaf);
+      this.workflowMessagesRaf = null;
+    }
+    if (this.onEdenSendEvt) {
+      window.removeEventListener('eden_send', this.onEdenSendEvt as any);
+      this.onEdenSendEvt = null;
+    }
     this.wsService.disconnect();
   }
 
@@ -2515,6 +2587,12 @@ export class AppComponent implements OnInit, OnDestroy {
       });
       return;
     }
+
+    // If not signed in, route to Sign In flow (keeps UX consistent even when send is triggered via custom events).
+    if (!this.isUserSignedIn) {
+      this.openSignInModal();
+      return;
+    }
     
     // Check balance before submitting
     if (!this.hasSufficientBalance()) {
@@ -2535,13 +2613,14 @@ export class AppComponent implements OnInit, OnDestroy {
     // If no service type detected, default to 'movie' for backward compatibility
     const serviceType = this.selectedServiceType || 'movie';
 
-    // Ensure chat history conversation is selected before we clear context
-    if (!this.activeConversationId) {
-      if (serviceType === 'dex' && this.selectedDexGarden?.id) {
-        this.setActiveConversation(this.buildConversationId('garden', this.selectedDexGarden.id));
-      } else {
-        this.setActiveConversation(this.buildConversationId('service', serviceType));
-      }
+    // Ensure chat history conversation is aligned to the service we're about to run.
+    // NOTE: activeConversationId can be left over from a previous tile; don't rely on "null" checks.
+    const desiredConversationId =
+      serviceType === 'dex' && this.selectedDexGarden?.id
+        ? this.buildConversationId('garden', this.selectedDexGarden.id)
+        : this.buildConversationId('service', serviceType);
+    if (this.activeConversationId !== desiredConversationId) {
+      this.setActiveConversation(desiredConversationId);
     }
     this.appendChatHistory('USER', this.userInput, { serviceType });
 
@@ -2550,6 +2629,11 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.isProcessing = true;
     const input = this.userInput.trim();
+
+    // New chat started: tell all panels to clear immediately (before workflow/execution id exists).
+    try {
+      window.dispatchEvent(new CustomEvent('eden_chat_reset', { detail: { reason: 'new_chat' } }));
+    } catch {}
     this.userInput = ''; // Clear input after submission
     this.selectedServiceType = null; // Reset context
     this.inputPlaceholder = 'Select a service type above or type your query...';
@@ -2569,6 +2653,8 @@ export class AppComponent implements OnInit, OnDestroy {
     try {
       // Automatically start workflow for the selected service type
       console.log(`🎬 [Workflow] Automatically starting ${serviceType} workflow for chat input:`, input);
+      // New chat = new execution. Clear the chat console immediately and ignore any late events from the prior run.
+      this.activeWorkflowExecutionId = null;
       this.amcWorkflowActive = true;
       this.workflowMessages = [];
 
@@ -2633,6 +2719,13 @@ export class AppComponent implements OnInit, OnDestroy {
         currentStep: execution.currentStep,
         workflowId: execution.workflowId
       });
+
+      // Scope the "chat console output" to this execution so starting a new chat always clears it.
+      this.activeWorkflowExecutionId = String(execution.executionId);
+      // Notify WorkflowChatDisplay tab (separate component) to clear immediately.
+      try {
+        window.dispatchEvent(new CustomEvent('eden_workflow_started', { detail: { executionId: this.activeWorkflowExecutionId } }));
+      } catch {}
 
       // Bind this execution to the current chat history conversation so assistant replies cannot leak across tiles.
       if (this.activeConversationId) {
@@ -2737,6 +2830,7 @@ export class AppComponent implements OnInit, OnDestroy {
   stopAmcWorkflow(): void {
     console.log('🛑 [AMC Workflow] Stopping AMC workflow');
     this.amcWorkflowActive = false;
+    this.activeWorkflowExecutionId = null;
     this.workflowMessages = [];
     this.showDecisionPrompt = false;
     this.pendingDecision = null;

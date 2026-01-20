@@ -11,25 +11,47 @@
         </span>
       </h5>
       <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-sm btn-outline-light" (click)="clearChat()" title="Clear Chat">
-          🗑️ Clear Chat
+        <button class="btn btn-sm btn-outline-light" (click)="newChatAndSend()" title="New Chat (Send)">
+          ➕ New Chat
         </button>
-        <small class="text-white-50">Natural conversation interface</small>
+        <small class="text-white-50">Last 10 chats</small>
       </div>
     </div>
     
     <!-- Chat Messages -->
     <div class="card-body p-0">
       <div class="chat-messages-container" style="padding: 20px;">
-        <!-- Welcome Message -->
-        <div *ngIf="chatMessages.length === 0" class="text-center text-muted py-5">
-          <h6>👋 Welcome!</h6>
-          <p class="mb-0">Start a conversation by selecting a service type and making a request.</p>
-          <p class="small mt-2">Your conversation history will appear here.</p>
-        </div>
+        <!-- Thread Stack (newest on top, like ChatGPT) -->
+        <div *ngFor="let thread of renderedThreads; let idx = index; trackBy: trackByThreadId" class="mb-4" [ngClass]="{'opacity-75': idx>0}">
+          <!-- Always show Current thread header (even if empty) so "New Chat" feels instant -->
+          <div *ngIf="idx === 0" class="small text-muted mb-2">
+            <strong>Current:</strong>
+            {{ thread.title || 'New chat' }}
+            <span class="ms-2">·</span>
+            <span class="ms-2">{{ thread.startedAt | date:'shortTime' }}</span>
+            <span *ngIf="thread.executionId" class="ms-2 badge bg-secondary">{{ thread.executionId }}</span>
+          </div>
 
-        <!-- Chat Messages -->
-        <div *ngFor="let message of chatMessages" class="mb-3">
+          <!-- Only show Previous thread headers if they have messages -->
+          <div *ngIf="idx > 0 && thread.messages.length > 0" class="small text-muted mb-2">
+            <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" (click)="toggleArchivedThread(thread)">
+              <strong>Previous:</strong>
+              {{ thread.title || 'Chat' }}
+              <span class="ms-2">·</span>
+              <span class="ms-2">{{ thread.startedAt | date:'shortTime' }}</span>
+              <span *ngIf="thread.executionId" class="ms-2 badge bg-secondary">{{ thread.executionId }}</span>
+              <span class="ms-2">({{ isThreadExpanded(thread, idx) ? 'hide' : 'show' }})</span>
+            </button>
+          </div>
+
+          <!-- Empty current thread placeholder -->
+          <div *ngIf="idx === 0 && thread.messages.length === 0" class="text-center text-muted py-4">
+            <div class="fw-semibold">New chat ready.</div>
+            <div class="small">Send a message below to start.</div>
+          </div>
+
+          <div *ngIf="isThreadExpanded(thread, idx)">
+            <div *ngFor="let message of thread.messages; trackBy: trackByMessageId" class="mb-3">
           <!-- User Message -->
           <div *ngIf="message.type === 'user'" class="d-flex justify-content-end">
             <div class="chat-bubble chat-bubble-user">
@@ -132,6 +154,8 @@
                 </div>
               </div>
               <small class="chat-timestamp">{{ message.timestamp | date:'shortTime' }}</small>
+            </div>
+          </div>
             </div>
           </div>
         </div>

@@ -408,7 +408,7 @@
                 <small class="text-muted" *ngIf="isUserSignedIn">SaaS gardens (regular)</small>
               </div>
               <div class="row g-2">
-                <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of appleServiceTypes">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of appleServiceTypes; trackBy: trackByServiceType">
                   <div 
                     class="card service-card-compact h-100" 
                     [ngClass]="{
@@ -443,7 +443,7 @@
                           <div class="list-group list-group-flush">
                             <div
                               class="list-group-item py-1 px-2 bg-transparent"
-                              *ngFor="let email of getOwnersForServiceType(serviceType.type)">
+                              *ngFor="let email of getOwnersForServiceType(serviceType.type); trackBy: trackByEmail">
                               <small>{{ email }}</small>
                             </div>
                           </div>
@@ -465,7 +465,7 @@
                 <small class="text-muted" *ngIf="isUserSignedIn">DEX gardens (token)</small>
               </div>
               <div class="row g-2">
-                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens; trackBy: trackByGardenId">
                   <div 
                     class="card service-card-compact h-100" 
                     [ngClass]="{
@@ -492,7 +492,7 @@
                           <div class="list-group list-group-flush">
                             <div
                               class="list-group-item py-1 px-2 bg-transparent"
-                              *ngFor="let email of getOwnersForDexGarden(garden.id, garden.ownerEmail)">
+                              *ngFor="let email of getOwnersForDexGarden(garden.id, garden.ownerEmail); trackBy: trackByEmail">
                               <small>{{ email }}</small>
                             </div>
                           </div>
@@ -635,9 +635,10 @@
                         'btn-danger': selectedServiceType === 'hotel',
                         'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
                       }"
-                      type="submit"
-                      [disabled]="isProcessing || !userInput?.trim() || !hasSufficientBalance()"
-                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Please purchase 🍎 APPLES first.' : ''">
+                      type="button"
+                      (click)="onSubmit(); $event.preventDefault()"
+                      [disabled]="isProcessing || !userInput.trim()"
+                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Send will be blocked until you purchase 🍎 APPLES.' : ''">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...

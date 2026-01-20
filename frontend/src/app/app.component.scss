@@ -59,7 +59,9 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(2px);
+  // Avoid expensive blur compositing that can make the UI feel unresponsive under load.
+  // Never block clicks. If any loading flag gets stuck, the UI must remain interactive.
+  pointer-events: none;
 }
 
 .global-loading-card {
@@ -72,6 +74,8 @@
   color: var(--bs-body-color);
   text-align: center;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  // Never block clicks. Overlay is informational only.
+  pointer-events: none;
 }
 
 // Movie service cards

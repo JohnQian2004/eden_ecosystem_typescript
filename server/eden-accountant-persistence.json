@@ -1,10 +1,10 @@
 {
-  "totalIGas": 0.13795,
+  "totalIGas": 0.3515500000000004,
   "totalITax": 2.0000600012000243e-8,
-  "totalRootCAFees": 51.838879003600084,
+  "totalRootCAFees": 67.18927900360012,
   "totalIndexerFees": 0.0006897500000000005,
-  "totalProviderFees": 129.59030000900017,
-  "totalCashierFees": 2.3000000000000007,
+  "totalProviderFees": 167.96630000899992,
+  "totalCashierFees": 7.099999999999991,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 27,
@@ -25,14 +25,14 @@
       "totalIndexerFees": 0.000089
     },
     "pharmacy": {
-      "count": 8,
+      "count": 36,
       "totalAmount": 0,
-      "totalIGas": 0.0356,
+      "totalIGas": 0.16020000000000004,
       "totalITax": 0,
-      "totalRootCAFees": 0.640134,
+      "totalRootCAFees": 9.594534000000001,
       "totalIndexerFees": 0.0001335,
-      "totalProviderFees": null,
-      "totalCashierFees": null
+      "totalProviderFees": 22.386000000000017,
+      "totalCashierFees": 2.800000000000001
     },
     "gasstation": {
       "count": 4,
@@ -51,14 +51,14 @@
       "totalIndexerFees": 0.000089
     },
     "party": {
-      "count": 10,
+      "count": 16,
       "totalAmount": 0,
-      "totalIGas": 0.044500000000000005,
+      "totalIGas": 0.07120000000000001,
       "totalITax": 0,
-      "totalRootCAFees": 1.2797340000000001,
+      "totalRootCAFees": 3.198534,
       "totalIndexerFees": 0.0001335,
-      "totalProviderFees": 1.5990000000000002,
-      "totalCashierFees": 0.2
+      "totalProviderFees": 6.396000000000001,
+      "totalCashierFees": 0.7999999999999999
     },
     "bank": {
       "count": 2,
@@ -107,9 +107,19 @@
       "totalIndexerFees": 0,
       "totalProviderFees": 4.797000000000001,
       "totalCashierFees": 0.6
+    },
+    "restaurant": {
+      "count": 14,
+      "totalAmount": 0,
+      "totalIGas": 0.062300000000000015,
+      "totalITax": 0,
+      "totalRootCAFees": 4.4772,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 11.193000000000001,
+      "totalCashierFees": 1.4000000000000001
     }
   },
-  "lastUpdated": 1768872250958,
+  "lastUpdated": 1768884186839,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-20T01:24:10.958Z"
+  "lastSaved": "2026-01-20T04:43:06.839Z"
 }
