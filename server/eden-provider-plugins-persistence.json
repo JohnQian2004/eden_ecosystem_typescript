@@ -1,0 +1,33 @@
+{
+  "mysql": {
+    "autoparts-001": {
+      "providerId": "autoparts-001",
+      "serviceType": "autoparts",
+      "connection": {
+        "host": "127.0.0.1",
+        "port": 3306,
+        "user": "root",
+        "password": "test",
+        "database": "testdbjwt"
+      },
+      "sql": "SELECT DISTINCT a.id, \n  i.id AS image_id,\n  i.autopart_id,\n  a.year,\n  a.make,\n  a.model,\n  a.title,\n  a.sale_price,\n  u.id AS user_id,\n  u.email AS user_email,\n  u.first_name AS user_first_name,\n  u.last_name AS user_last_name,\n  u.phone AS user_phone\nFROM autoparts a \nLEFT JOIN images i ON a.id = i.autopart_id \nLEFT JOIN users u ON a.user_id = u.id \nWHERE a.year = 2006 \n  AND a.make = 'honda' \n  AND a.model = 'civic' \n  AND a.title LIKE CONCAT('%', 'bumper', '%') \n  AND a.status = 2\n  AND a.archived = false \n  AND a.published = true \nORDER BY a.id DESC\nLIMIT 30 OFFSET 0",
+      "paramOrder": [],
+      "maxRows": 50
+    },
+    "autoparts-1768922974092": {
+      "providerId": "autoparts-1768922974092",
+      "serviceType": "autoparts",
+      "connection": {
+        "host": "127.0.0.1",
+        "port": 3306,
+        "user": "root",
+        "password": "test",
+        "database": "testdbjwt"
+      },
+      "sql": "SELECT DISTINCT a.id, \n  i.id AS image_id,\n  i.autopart_id,\n  a.year,\n  a.make,\n  a.model,\n  a.title,\n  a.sale_price,\n  u.id AS user_id,\n  u.email AS user_email,\n  u.first_name AS user_first_name,\n  u.last_name AS user_last_name,\n  u.phone AS user_phone\nFROM autoparts a \nLEFT JOIN images i ON a.id = i.autopart_id \nLEFT JOIN users u ON a.user_id = u.id \nWHERE a.year = 2006 \n  AND a.make = 'honda' \n  AND a.model = 'civic' \n  AND a.title LIKE CONCAT('%', 'bumper', '%') \n  AND a.status = 2\n  AND a.archived = false \n  AND a.published = true \nORDER BY a.id DESC\nLIMIT 30 OFFSET 0",
+      "paramOrder": [],
+      "maxRows": 50
+    }
+  },
+  "lastSaved": "2026-01-20T15:29:34.325Z"
+}

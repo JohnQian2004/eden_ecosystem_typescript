@@ -34,7 +34,8 @@ import {
   FRONTEND_PATH,
   STRIPE_SECRET_KEY,
   STRIPE_PUBLISHABLE_KEY,
-  STRIPE_WEBHOOK_SECRET
+  STRIPE_WEBHOOK_SECRET,
+  EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS
 } from "./src/config";
 import type { GardenConfig, TokenGardenConfig, LLMQueryResult } from "./src/types";
 import {
@@ -77,6 +78,8 @@ import {
   createServiceProvidersForGarden
 } from "./src/serviceProvider";
 import { initializeServiceRegistry2, getServiceRegistry2 } from "./src/serviceRegistry2";
+import { loadProviderPluginPersistence, saveProviderPluginPersistence, setMySQLProviderPluginConfig } from "./src/plugins/providerPluginRegistry";
+import { testMySQLQuery } from "./src/plugins/mysql";
 import {
   initializeGarden,
   issueGardenCertificate,
@@ -101,7 +104,7 @@ import {
   deliverWebhook,
   getCashierStatus
 } from "./src/ledger";
-import { callLLM } from "./src/llm";
+import { callLLM, extractGetDataParamsWithOpenAI, parameterizeSQLWithOpenAI, type GetDataParamsResult, type SQLParameterizationResult } from "./src/llm";
 import {
   initializeFlowWise,
   loadWorkflow,
@@ -267,6 +270,19 @@ export function broadcastEvent(event: any) {
   
   console.log(`📡 [Broadcast] Result: ${successCount} sent, ${failCount} failed`);
   console.log(`📡 [Broadcast] ========================================`);
+}
+
+// BigInt JSON replacer function for serialization
+function bigIntReplacer(key: string, value: any): any {
+  if (typeof value === 'bigint') {
+    // Convert BigInt to Number if within safe integer range, otherwise to String
+    if (value <= Number.MAX_SAFE_INTEGER && value >= Number.MIN_SAFE_INTEGER) {
+      return Number(value);
+    } else {
+      return value.toString();
+    }
+  }
+  return value;
 }
 
 // HTTP Server Routes
@@ -1570,9 +1586,31 @@ httpServer.on("request", async (req, res) => {
                   
                   console.log(`   📋 [${requestId}] Found ${providers.length} providers for serviceType: ${queryServiceType}`);
                   
-                  // Generate mock listings based on service type (in real implementation, this would query provider APIs)
-                  const queryFields = getServiceTypeFields(queryServiceType);
-                  const mockListings = providers.map((provider, index) => {
+                  // CRITICAL: Query actual provider APIs (including MySQL plugin providers)
+                  // This will use queryServiceProviders -> queryProviderAPI -> MySQL plugin if apiEndpoint is "eden:plugin:mysql"
+                  const filters = processedAction.filters || updatedContext.queryResult?.query?.filters || {};
+                  
+                  // If there's a raw user query, pass it through for ROOT CA LLM extraction
+                  if (updatedContext.input || updatedContext.userInput) {
+                    (filters as any).rawQuery = updatedContext.input || updatedContext.userInput;
+                  }
+                  
+                  let listings: any[] = [];
+                  if (providers.length > 0) {
+                    console.log(`   🔍 [${requestId}] Querying ${providers.length} provider(s) with filters:`, filters);
+                    try {
+                      listings = await queryServiceProviders(providers, filters) as any[];
+                      console.log(`   ✅ [${requestId}] Retrieved ${listings.length} listing(s) from provider APIs (including plugin providers)`);
+                    } catch (queryErr: any) {
+                      console.error(`   ❌ [${requestId}] Failed to query providers:`, queryErr.message);
+                      listings = []; // Fallback to empty array
+                    }
+                  } else {
+                    console.log(`   ⚠️  [${requestId}] No providers found for serviceType: ${queryServiceType}, generating fallback mock listings`);
+                    // Fallback to mock listings if no providers exist
+                    const queryFields = getServiceTypeFields(queryServiceType);
+                    const mockListings = Array.from({ length: 3 }, (_, index) => {
+                      const provider = { id: `mock-${index}`, name: `Mock Provider ${index + 1}`, serviceType: queryServiceType, location: 'Unknown' };
                     const baseListing: any = {
                       id: provider.id,
                       name: provider.name,
@@ -1653,30 +1691,33 @@ httpServer.on("request", async (req, res) => {
                     baseListing.location = ['Downtown', 'Financial District', 'Shopping Center', 'Suburban', 'City Center'][index % 5];
                     baseListing.hours = ['9 AM - 5 PM', '8 AM - 6 PM', '10 AM - 4 PM', '9 AM - 4 PM', '8 AM - 5 PM'][index % 5];
                     baseListing.atmAvailable = [true, true, false, true, true][index % 5];
-                  } else {
-                    // Generic fallback for other service types
-                    baseListing.name = `${provider.name} Service`;
-                    baseListing.date = new Date().toISOString().split('T')[0];
+                      } else {
+                        // Generic fallback for other service types
+                        baseListing.name = `Mock ${queryServiceType} Service ${index + 1}`;
+                        baseListing.date = new Date().toISOString().split('T')[0];
+                      }
+                      
+                      return baseListing;
+                    });
+                    listings = mockListings;
                   }
                   
-                  return baseListing;
-                });
-                
-                actionResult = {
-                  listings: mockListings,
-                  providers: providers.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    serviceType: p.serviceType,
-                    location: p.location
-                  }))
-                };
-                
-                // Store serviceType in context for later use
-                updatedContext.serviceType = queryServiceType;
-                
-                console.log(`   📋 [${requestId}] Set ${mockListings.length} ${queryServiceType} listings in context`);
-                break;
+                  actionResult = {
+                    listings: listings,
+                    providers: providers.map(p => ({
+                      id: p.id,
+                      name: p.name,
+                      serviceType: p.serviceType,
+                      location: p.location
+                    }))
+                  };
+                  
+                  // Store serviceType in context for later use
+                  updatedContext.serviceType = queryServiceType;
+                  updatedContext.listings = listings;
+                  
+                  console.log(`   📋 [${requestId}] Set ${listings.length} ${queryServiceType} listings in context`);
+                  break;
                 }
 
                 case 'add_ledger_entry': {
@@ -5877,7 +5918,7 @@ httpServer.on("request", async (req, res) => {
           language,
           framework,
           indexerEndpoint: indexerEndpoint || `http://localhost:${HTTP_PORT}`,
-          webhookUrl: webhookUrl || `http://localhost:${HTTP_PORT}/mock/webhook/${providerId}`,
+          webhookUrl: webhookUrl || `http://localhost:${HTTP_PORT}/api/provider-plugin/webhook/${providerId}`,
           serviceType: serviceType || "movie",
           notificationMethods: notificationMethods || ["webhook", "pull", "rpc"]
         });
@@ -5916,6 +5957,792 @@ httpServer.on("request", async (req, res) => {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: err.message }));
     }
+    return;
+  }
+
+  // ============================================
+  // PROVIDER PLUGIN: MYSQL/MARIADB (Wizard + Deployable Providers)
+  // ============================================
+  if (pathname === "/api/provider-plugin/mysql/test-query" && req.method === "POST") {
+    console.log(`   🧩 [${requestId}] POST /api/provider-plugin/mysql/test-query`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const connection = parsed.connection;
+        const sql = parsed.sql;
+        const params = Array.isArray(parsed.params) ? parsed.params : [];
+        const maxRows = parsed.maxRows;
+
+        // Debug: log received connection data (without password)
+        console.log(`   🔍 [${requestId}] Received connection:`, {
+          host: connection?.host,
+          port: connection?.port,
+          user: connection?.user,
+          database: connection?.database,
+          hasPassword: !!connection?.password
+        });
+
+        if (!connection?.host || !connection?.user || !connection?.password || !connection?.database) {
+          const missing = [];
+          if (!connection?.host) missing.push('host');
+          if (!connection?.user) missing.push('user');
+          if (!connection?.password) missing.push('password');
+          if (!connection?.database) missing.push('database');
+          console.log(`   ❌ [${requestId}] Missing fields: ${missing.join(', ')}`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `connection.${missing.join('/')} required` }));
+          return;
+        }
+        if (!sql || typeof sql !== "string") {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql required" }));
+          return;
+        }
+
+        // Log SQL query for debugging
+        console.log(`   📝 [${requestId}] SQL Query:`, sql);
+        console.log(`   📝 [${requestId}] SQL Params:`, params);
+        console.log(`   📝 [${requestId}] Max Rows:`, maxRows);
+
+        const result = await testMySQLQuery({
+          connection: {
+            host: String(connection.host),
+            port: connection.port ? Number(connection.port) : 3306,
+            user: String(connection.user),
+            password: String(connection.password),
+            database: String(connection.database),
+          },
+          sql,
+          params,
+          maxRows,
+        });
+
+        // Console out SQL query results
+        console.log(`   📊 [${requestId}] SQL Query Results:`);
+        console.log(`   📊 [${requestId}] - Row Count: ${result.rowCount}`);
+        console.log(`   📊 [${requestId}] - Columns: ${result.columns.join(', ')}`);
+        console.log(`   📊 [${requestId}] - Elapsed: ${result.elapsedMs}ms`);
+        if (result.rows.length > 0) {
+          console.log(`   📊 [${requestId}] - First Row:`, JSON.stringify(result.rows[0], bigIntReplacer, 2));
+          if (result.rows.length > 1) {
+            console.log(`   📊 [${requestId}] - All Rows (${result.rows.length}):`, JSON.stringify(result.rows, bigIntReplacer, 2));
+          }
+        } else {
+          console.log(`   📊 [${requestId}] - No rows returned`);
+        }
+
+        // Apply grouping for autoparts with images (same logic as test-getdata)
+        let groupedResults = result.rows;
+        const rows = result.rows || [];
+        const serviceType = parsed.serviceType || "autoparts";
+        
+        // Check if this is an autoparts query with images
+        const hasImageColumns = rows.length > 0 && (
+          'autopart_id' in rows[0] || 
+          'image_id' in rows[0] || 
+          'image_url' in rows[0] ||
+          'i.id' in rows[0] ||
+          Object.keys(rows[0]).some(k => k.startsWith('image_') || k.startsWith('i.') || k.toLowerCase().includes('image'))
+        );
+        const hasAutopartId = rows.length > 0 && (
+          'id' in rows[0] || 
+          'a.id' in rows[0] ||
+          'autopart_id' in rows[0]
+        );
+        const hasAutopartsColumns = rows.length > 0 && (
+          'make' in rows[0] || 
+          'model' in rows[0] || 
+          'year' in rows[0] ||
+          'title' in rows[0] ||
+          'part_name' in rows[0] ||
+          'sale_price' in rows[0] ||
+          'stock_number' in rows[0]
+        );
+
+        const effectiveServiceType = (serviceType || "").toLowerCase().trim();
+        const shouldGroup = (effectiveServiceType === "autoparts" || hasAutopartsColumns) && hasImageColumns && hasAutopartId;
+
+        if (shouldGroup) {
+          console.log(`   🔄 [${requestId}] Grouping autoparts with images (${rows.length} rows)`);
+          
+          const autopartsMap = new Map<number | string, any>();
+          
+          for (const row of rows) {
+            const autopartId = row.id || row['a.id'] || row.autopart_id;
+            if (!autopartId) continue;
+
+            if (!autopartsMap.has(autopartId)) {
+              const autopart: any = { imageModals: [] as any[] };
+              
+              for (const [k, v] of Object.entries(row || {})) {
+                if (k.startsWith('image_') || k.startsWith('i.') || (k.toLowerCase().includes('image') && k !== 'imageModals') || k === 'autopart_id') {
+                  continue;
+                }
+                if (k.startsWith('a.')) {
+                  autopart[k.substring(2)] = v;
+                } else {
+                  autopart[k] = v;
+                }
+              }
+
+              if (autopart.price === undefined || autopart.price === null) {
+                const maybePrice = autopart.Price ?? autopart.price_usd ?? autopart.amount ?? autopart.cost ?? autopart.sale_price;
+                autopart.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+              }
+
+              if (!autopart.partName && autopart.part_name) autopart.partName = autopart.part_name;
+              if (!autopart.partName && autopart.title) autopart.partName = autopart.title;
+
+              autopartsMap.set(autopartId, autopart);
+            }
+
+            const autopart = autopartsMap.get(autopartId)!;
+            const imageData: any = {};
+            let hasImageData = false;
+
+            for (const [k, v] of Object.entries(row || {})) {
+              if (k.startsWith('image_')) {
+                const cleanKey = k.substring(6);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                }
+              } else if (k === 'autopart_id' && v !== null && v !== undefined) {
+                imageData[k] = v;
+              } else if (k.startsWith('i.')) {
+                const cleanKey = k.substring(2);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                }
+              }
+            }
+
+            if (hasImageData && Object.keys(imageData).length > 0) {
+              const imageId = imageData.id || imageData.image_id;
+              if (imageId && !autopart.imageModals.find((img: any) => (img.id || img.image_id) === imageId)) {
+                autopart.imageModals.push(imageData);
+              } else if (!imageId) {
+                const imageUrl = imageData.url || imageData.image_url;
+                if (imageUrl && !autopart.imageModals.find((img: any) => (img.url || img.image_url) === imageUrl)) {
+                  autopart.imageModals.push(imageData);
+                } else if (!imageUrl) {
+                  autopart.imageModals.push(imageData);
+                }
+              }
+            }
+          }
+
+          // No hardcoded filtering - return all fields from grouped autoparts
+          groupedResults = Array.from(autopartsMap.values());
+          console.log(`   ✅ [${requestId}] Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+          console.log(`   📋 [${requestId}] Returning all fields (no hardcoded filtering)`);
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          result: {
+            ...result,
+            rows: groupedResults,
+            rowCount: groupedResults.length
+          }, 
+          timestamp: Date.now() 
+        }, bigIntReplacer));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // PROVIDER PLUGIN: getData Wrapper Test (pre-flight validation)
+  // This endpoint tests the full getData flow: natural language -> LLM params -> SQL parameterization -> SQL execution
+  if (pathname === "/api/provider-plugin/mysql/test-getdata" && req.method === "POST") {
+    console.log(`\n\n`);
+    console.log(`   ============================================================`);
+    console.log(`   🧪 [${requestId}] POST /api/provider-plugin/mysql/test-getdata`);
+    console.log(`   🧪 [${requestId}] getData wrapper pre-flight test STARTING`);
+    console.log(`   ============================================================`);
+    console.log(`\n`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const connection = parsed.connection;
+        const sql = String(parsed.sql || "").trim();
+        const userQuery = String(parsed.userQuery || "").trim();
+        const serviceType = String(parsed.serviceType || "autoparts").trim();
+        const returnFields = parsed.returnFields ? String(parsed.returnFields).trim() : "";
+
+        if (!connection || !connection.host || !connection.user || !connection.password || !connection.database) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "connection.host/user/password/database required" }));
+          return;
+        }
+        if (!sql) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql required" }));
+          return;
+        }
+        if (!userQuery) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userQuery required" }));
+          return;
+        }
+
+        console.log(`   🧪 [${requestId}] getData Wrapper Test:`);
+        console.log(`   📝 [${requestId}] - User Query: "${userQuery}"`);
+        console.log(`   📝 [${requestId}] - Service Type: ${serviceType}`);
+        console.log(`   📝 [${requestId}] - Original SQL:`, sql);
+
+        // Step 1: Extract getData params from natural language query
+        console.log(`   👑 [${requestId}] Step 1: Extracting getData() params from user query...`);
+        const getDataParams = await extractGetDataParamsWithOpenAI(userQuery);
+        console.log(`   ✅ [${requestId}] Step 1 Complete:`, {
+          serviceType: getDataParams.serviceType,
+          params: getDataParams.params,
+          maxCount: getDataParams.maxCount,
+          sortBy: getDataParams.sortBy,
+          order: getDataParams.order
+        });
+
+        // Step 2: Parameterize SQL query
+        console.log(`   👑 [${requestId}] Step 2: Parameterizing SQL query...`);
+        const sqlParamResult = await parameterizeSQLWithOpenAI(sql);
+        console.log(`   ✅ [${requestId}] Step 2 Complete:`, {
+          parameterizedSql: sqlParamResult.parameterizedSql,
+          paramOrder: sqlParamResult.paramOrder,
+          extractedParams: sqlParamResult.params
+        });
+
+        // Step 3: Map getData params to SQL params based on paramOrder
+        console.log(`   🔄 [${requestId}] Step 3: Mapping getData params to SQL params...`);
+        const sqlParams: any[] = [];
+        const paramOrder = sqlParamResult.paramOrder || [];
+        const getDataParamsArray = getDataParams.params || [];
+        const parameterizedSql = sqlParamResult.parameterizedSql;
+
+        // Check for LIMIT ? and OFFSET ? placeholders in parameterized SQL
+        const hasLimitPlaceholder = /LIMIT\s+\?/i.test(parameterizedSql);
+        const hasOffsetPlaceholder = /OFFSET\s+\?/i.test(parameterizedSql);
+        
+        // Count placeholders before LIMIT/OFFSET
+        let placeholdersBeforeLimit = 0;
+        if (hasLimitPlaceholder) {
+          const beforeLimit = parameterizedSql.substring(0, parameterizedSql.toUpperCase().indexOf('LIMIT'));
+          placeholdersBeforeLimit = (beforeLimit.match(/\?/g) || []).length;
+        }
+
+        // Simple mapping: use getData params in order if paramOrder matches
+        // For now, use the extracted SQL params if available, otherwise use getData params
+        if (sqlParamResult.params.length > 0) {
+          // Use the params extracted from SQL parameterization (excluding LIMIT/OFFSET if they were in original)
+          const paramsToUse = sqlParamResult.params.slice(0, placeholdersBeforeLimit);
+          sqlParams.push(...paramsToUse);
+        } else if (getDataParamsArray.length > 0) {
+          // Fallback: use getData params
+          sqlParams.push(...getDataParamsArray.slice(0, Math.min(paramOrder.length, placeholdersBeforeLimit)));
+        }
+
+        // Add LIMIT and OFFSET values if placeholders exist
+        if (hasLimitPlaceholder && hasOffsetPlaceholder) {
+          sqlParams.push(getDataParams.maxCount || 30); // LIMIT
+          sqlParams.push(0); // OFFSET
+        } else if (hasLimitPlaceholder) {
+          sqlParams.push(getDataParams.maxCount || 30); // LIMIT only
+        }
+
+        console.log(`   ✅ [${requestId}] Step 3 Complete: SQL params:`, sqlParams);
+
+        // Step 4: Execute parameterized SQL query
+        console.log(`   🗄️  [${requestId}] Step 4: Executing parameterized SQL query...`);
+        const maxRows = Math.min(getDataParams.maxCount || 30, 50);
+        const sqlResult = await testMySQLQuery({
+          connection: {
+            host: String(connection.host),
+            port: connection.port ? Number(connection.port) : 3306,
+            user: String(connection.user),
+            password: String(connection.password),
+            database: String(connection.database),
+          },
+          sql: sqlParamResult.parameterizedSql,
+          params: sqlParams,
+          maxRows,
+        });
+
+        console.log(`   ✅ [${requestId}] Step 4 Complete: ${sqlResult.rowCount} row(s) returned`);
+        
+        // Step 5: Group autoparts with images (if applicable)
+        console.log(`   🔍 [${requestId}] ========== STEP 5: GROUPING CHECK START ==========`);
+        console.log(`   🔍 [${requestId}] Raw SQL result: ${sqlResult.rowCount} rows`);
+        // Log all autopart IDs from raw rows to see if they're different
+        if (sqlResult.rows && sqlResult.rows.length > 0) {
+          const autopartIds = sqlResult.rows.map((r: any) => r.id || r['a.id'] || r.autopart_id).filter((id: any) => id !== undefined);
+          console.log(`   🔍 [${requestId}] Autopart IDs in raw rows: ${autopartIds.join(', ')}`);
+          console.log(`   🔍 [${requestId}] Unique autopart IDs: ${[...new Set(autopartIds)].join(', ')} (${[...new Set(autopartIds)].length} unique)`);
+        }
+        let groupedResults = sqlResult.rows;
+        const rows = sqlResult.rows || [];
+        
+        console.log(`   🔍 [${requestId}] Raw input values:`);
+        console.log(`   🔍 [${requestId}]   - getDataParams.serviceType: "${getDataParams.serviceType}"`);
+        console.log(`   🔍 [${requestId}]   - parsed serviceType: "${serviceType}"`);
+        console.log(`   🔍 [${requestId}]   - rows.length: ${rows.length}`);
+        
+        // Use serviceType from getDataParams (more reliable) or fallback to parsed serviceType
+        const effectiveServiceType = (getDataParams.serviceType || serviceType || "").toLowerCase().trim();
+        console.log(`   🔍 [${requestId}]   - effectiveServiceType (after lower/trim): "${effectiveServiceType}"`);
+        
+        // Check if this is an autoparts query with images
+        // Look for autoparts-specific columns: image_id, autopart_id, or columns from autoparts table
+        const hasImageColumns = rows.length > 0 && (
+          'autopart_id' in rows[0] || 
+          'image_id' in rows[0] || 
+          'image_url' in rows[0] ||
+          'i.id' in rows[0] ||
+          Object.keys(rows[0]).some(k => k.startsWith('image_') || k.startsWith('i.') || k.toLowerCase().includes('image'))
+        );
+        const hasAutopartId = rows.length > 0 && (
+          'id' in rows[0] || 
+          'a.id' in rows[0] ||
+          'autopart_id' in rows[0]
+        );
+        
+        // Also check if rows have autoparts-specific columns (make, model, year, title, etc.)
+        const hasAutopartsColumns = rows.length > 0 && (
+          'make' in rows[0] || 
+          'model' in rows[0] || 
+          'year' in rows[0] ||
+          'title' in rows[0] ||
+          'part_name' in rows[0] ||
+          'sale_price' in rows[0] ||
+          'stock_number' in rows[0]
+        );
+
+        console.log(`   🔍 [${requestId}] Step 5: Checking grouping conditions:`);
+        console.log(`   🔍 [${requestId}]   - effectiveServiceType: "${effectiveServiceType}"`);
+        console.log(`   🔍 [${requestId}]   - hasImageColumns: ${hasImageColumns}`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartId: ${hasAutopartId}`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+        if (rows.length > 0) {
+          console.log(`   🔍 [${requestId}]   - First row keys:`, Object.keys(rows[0]).join(', '));
+          console.log(`   🔍 [${requestId}]   - First row has 'image_id':`, 'image_id' in rows[0]);
+          console.log(`   🔍 [${requestId}]   - First row has 'autopart_id':`, 'autopart_id' in rows[0]);
+          console.log(`   🔍 [${requestId}]   - First row has 'id':`, 'id' in rows[0]);
+        }
+
+        // Group if: (serviceType is autoparts OR has autoparts columns) AND has images AND has autopart ID
+        // This makes grouping more robust - it will group even if serviceType doesn't match exactly
+        const serviceTypeMatch = effectiveServiceType === "autoparts";
+        const condition1 = serviceTypeMatch || hasAutopartsColumns;
+        const condition2 = hasImageColumns;
+        const condition3 = hasAutopartId;
+        const shouldGroup = condition1 && condition2 && condition3;
+        
+        console.log(`   🔍 [${requestId}] ========== GROUPING CONDITION EVALUATION ==========`);
+        console.log(`   🔍 [${requestId}] Condition 1 (serviceType OR autoparts columns): ${condition1}`);
+        console.log(`   🔍 [${requestId}]   - serviceType === "autoparts": ${serviceTypeMatch} (effectiveServiceType="${effectiveServiceType}")`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+        console.log(`   🔍 [${requestId}] Condition 2 (hasImageColumns): ${condition2}`);
+        console.log(`   🔍 [${requestId}] Condition 3 (hasAutopartId): ${condition3}`);
+        console.log(`   🔍 [${requestId}] FINAL DECISION: shouldGroup = ${shouldGroup} (${condition1} && ${condition2} && ${condition3})`);
+        console.log(`   🔍 [${requestId}] ==================================================`);
+        
+        if (shouldGroup) {
+          console.log(`   🔄 [${requestId}] ========== ENTERING GROUPING BLOCK ==========`);
+          console.log(`   🔄 [${requestId}] Step 5: Grouping autoparts with images (${rows.length} rows)`);
+          
+          const autopartsMap = new Map<number | string, any>();
+          let rowIndex = 0;
+          
+          for (const row of rows) {
+            rowIndex++;
+            console.log(`   📦 [${requestId}] Processing row ${rowIndex}/${rows.length}:`);
+            console.log(`   📦 [${requestId}]   - Row keys: ${Object.keys(row).join(', ')}`);
+            console.log(`   📦 [${requestId}]   - Row id: ${row.id}, row['a.id']: ${row['a.id']}, row.autopart_id: ${row.autopart_id}`);
+            
+            // Determine autopart ID (could be 'id', 'a.id', or 'autopart_id')
+            // Note: Since SQL uses a.*, the id column will be directly available as 'id', not 'a.id'
+            const autopartId = row.id || row['a.id'] || row.autopart_id;
+            console.log(`   📦 [${requestId}]   - Autopart ID: ${autopartId} (from: ${row.id ? 'id' : row['a.id'] ? 'a.id' : 'autopart_id'})`);
+            
+            if (!autopartId) {
+              console.log(`   ⚠️  [${requestId}]   - Skipping row ${rowIndex}: No autopart ID found`);
+              console.log(`   ⚠️  [${requestId}]   - Full row data: ${JSON.stringify(row, null, 2)}`);
+              continue;
+            }
+
+            // Get or create autopart entry
+            const isNewAutopart = !autopartsMap.has(autopartId);
+            console.log(`   📦 [${requestId}]   - Is new autopart: ${isNewAutopart}`);
+            
+            if (isNewAutopart) {
+              console.log(`   🆕 [${requestId}]   - Creating new autopart entry for ID: ${autopartId}`);
+              const autopart: any = {
+                imageModals: [] as any[]
+              };
+
+              // Copy autopart columns (skip image columns)
+              let copiedColumns = 0;
+              let skippedColumns = 0;
+              for (const [k, v] of Object.entries(row || {})) {
+                // Skip image columns (they'll be in imageModals)
+                if (k.startsWith('image_') || k.startsWith('i.') || (k.toLowerCase().includes('image') && k !== 'imageModals') || k === 'autopart_id') {
+                  skippedColumns++;
+                  continue;
+                }
+                // Copy autopart columns
+                if (k.startsWith('a.')) {
+                  const cleanKey = k.substring(2); // Remove 'a.' prefix
+                  autopart[cleanKey] = v;
+                  copiedColumns++;
+                } else {
+                  autopart[k] = v;
+                  copiedColumns++;
+                }
+              }
+              console.log(`   📋 [${requestId}]   - Copied ${copiedColumns} autopart columns, skipped ${skippedColumns} image columns`);
+
+              // Ensure price exists
+              if (autopart.price === undefined || autopart.price === null) {
+                const maybePrice = autopart.Price ?? autopart.price_usd ?? autopart.amount ?? autopart.cost ?? autopart.sale_price;
+                autopart.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+                console.log(`   💰 [${requestId}]   - Set price: ${autopart.price} (from: ${maybePrice !== undefined ? 'sale_price/Price/etc' : 'default 0'})`);
+              }
+
+              // Autoparts workflow expects partName
+              if (!autopart.partName && autopart.part_name) {
+                autopart.partName = autopart.part_name;
+                console.log(`   📝 [${requestId}]   - Set partName from part_name: ${autopart.partName}`);
+              }
+              if (!autopart.partName && autopart.title) {
+                autopart.partName = autopart.title;
+                console.log(`   📝 [${requestId}]   - Set partName from title: ${autopart.partName}`);
+              }
+
+              autopartsMap.set(autopartId, autopart);
+              console.log(`   ✅ [${requestId}]   - Autopart entry created with ${Object.keys(autopart).length} properties`);
+              console.log(`   📋 [${requestId}]   - Autopart fields: ${Object.keys(autopart).join(', ')}`);
+            } else {
+              console.log(`   🔄 [${requestId}]   - Using existing autopart entry for ID: ${autopartId}`);
+            }
+
+            // Add image to imageModals if image data exists
+            const autopart = autopartsMap.get(autopartId)!;
+            const imageData: any = {};
+            let hasImageData = false;
+
+            console.log(`   🖼️  [${requestId}]   - Extracting image data from row ${rowIndex}:`);
+            
+            // Extract image columns
+            for (const [k, v] of Object.entries(row || {})) {
+              // Handle aliased image columns (image_id, image_url, etc.)
+              if (k.startsWith('image_')) {
+                const cleanKey = k.substring(6); // Remove 'image_' prefix
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                  console.log(`   🖼️  [${requestId}]     - Found image column '${k}' -> '${cleanKey}': ${v}`);
+                }
+              } else if (k === 'autopart_id' && v !== null && v !== undefined) {
+                // Keep autopart_id for reference
+                imageData[k] = v;
+                console.log(`   🖼️  [${requestId}]     - Found autopart_id: ${v}`);
+              } else if (k.startsWith('i.')) {
+                // Handle 'i.' prefixed columns (fallback)
+                const cleanKey = k.substring(2);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                  console.log(`   🖼️  [${requestId}]     - Found image column '${k}' -> '${cleanKey}': ${v}`);
+                }
+              }
+            }
+
+            console.log(`   🖼️  [${requestId}]   - Image data extracted: hasImageData=${hasImageData}, keys: ${Object.keys(imageData).join(', ')}`);
+
+            // Only add image if it has data (not null/undefined)
+            if (hasImageData && Object.keys(imageData).length > 0) {
+              // Avoid duplicates (check if image with same ID already exists)
+              const imageId = imageData.id || imageData.image_id;
+              const existingImageCount = autopart.imageModals.length;
+              
+              if (imageId) {
+                const isDuplicate = autopart.imageModals.find((img: any) => (img.id || img.image_id) === imageId);
+                if (!isDuplicate) {
+                  autopart.imageModals.push(imageData);
+                  console.log(`   ✅ [${requestId}]   - Added image with ID ${imageId} (total images: ${autopart.imageModals.length})`);
+                } else {
+                  console.log(`   ⏭️  [${requestId}]   - Skipped duplicate image with ID ${imageId}`);
+                }
+              } else {
+                // If no ID, check by URL or other unique field to avoid duplicates
+                const imageUrl = imageData.url || imageData.image_url;
+                if (imageUrl) {
+                  const isDuplicate = autopart.imageModals.find((img: any) => (img.url || img.image_url) === imageUrl);
+                  if (!isDuplicate) {
+                    autopart.imageModals.push(imageData);
+                    console.log(`   ✅ [${requestId}]   - Added image with URL ${imageUrl} (total images: ${autopart.imageModals.length})`);
+                  } else {
+                    console.log(`   ⏭️  [${requestId}]   - Skipped duplicate image with URL ${imageUrl}`);
+                  }
+                } else {
+                  // If no unique identifier, just add it
+                  autopart.imageModals.push(imageData);
+                  console.log(`   ✅ [${requestId}]   - Added image without ID/URL (total images: ${autopart.imageModals.length})`);
+                }
+              }
+            } else {
+              console.log(`   ⚠️  [${requestId}]   - No image data to add (hasImageData=${hasImageData}, keys.length=${Object.keys(imageData).length})`);
+            }
+          }
+
+          // Filter to only include specified return fields + imageModals (if returnFields provided)
+          if (returnFields && returnFields.length > 0) {
+            const returnFieldsList = returnFields.split(',').map(f => f.trim()).filter(f => f.length > 0);
+            // Always include imageModals
+            const fieldsToInclude = [...returnFieldsList, 'imageModals'];
+            groupedResults = Array.from(autopartsMap.values()).map((ap: any) => {
+              const filtered: any = {};
+              for (const field of fieldsToInclude) {
+                if (field === 'imageModals') {
+                  filtered[field] = ap[field] || [];
+                } else if (ap[field] !== undefined) {
+                  filtered[field] = ap[field];
+                }
+              }
+              return filtered;
+            });
+            console.log(`   ✅ [${requestId}] Step 5 Complete: Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+            console.log(`   📋 [${requestId}] Filtered to return fields: ${returnFieldsList.join(', ')}, + imageModals`);
+            // Log all autopart IDs that were grouped
+            console.log(`   📋 [${requestId}] Autopart IDs in map: ${Array.from(autopartsMap.keys()).join(', ')}`);
+            // Log available fields before filtering for debugging
+            const firstAutopartBeforeFilter = Array.from(autopartsMap.values())[0];
+            if (firstAutopartBeforeFilter) {
+              console.log(`   📋 [${requestId}] Available fields in first autopart (before filtering): ${Object.keys(firstAutopartBeforeFilter).join(', ')}`);
+            }
+            for (let i = 0; i < groupedResults.length; i++) {
+              const ap = groupedResults[i];
+              const fieldValues = returnFieldsList.map(f => `${f}=${ap[f] !== undefined ? JSON.stringify(ap[f]) : 'N/A'}`).join(', ');
+              console.log(`   📊 [${requestId}]   - Autopart ${i + 1}: ${fieldValues}, images=${ap.imageModals?.length || 0}`);
+              console.log(`   📊 [${requestId}]   - Autopart ${i + 1} all fields after filtering: ${Object.keys(ap).join(', ')}`);
+            }
+          } else {
+            // No returnFields specified - return all fields (no filtering)
+            groupedResults = Array.from(autopartsMap.values());
+            console.log(`   ✅ [${requestId}] Step 5 Complete: Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+            console.log(`   📋 [${requestId}] Returning all fields (no returnFields specified, no filtering)`);
+          }
+          
+          // Update columns to reflect grouped structure (exclude image columns, include imageModals)
+          const groupedColumns = groupedResults.length > 0 ? Object.keys(groupedResults[0]).filter(k => k !== 'imageModals') : sqlResult.columns;
+          console.log(`   📋 [${requestId}] Grouped columns:`, groupedColumns.join(', '), '+ imageModals array');
+        } else {
+          console.log(`   ⏭️  [${requestId}] ========== SKIPPING GROUPING ==========`);
+          console.log(`   ⏭️  [${requestId}] Reason: Grouping condition not met`);
+          console.log(`   ⏭️  [${requestId}]   - effectiveServiceType: "${effectiveServiceType}"`);
+          console.log(`   ⏭️  [${requestId}]   - serviceType === "autoparts": ${serviceTypeMatch}`);
+          console.log(`   ⏭️  [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+          console.log(`   ⏭️  [${requestId}]   - hasImageColumns: ${hasImageColumns}`);
+          console.log(`   ⏭️  [${requestId}]   - hasAutopartId: ${hasAutopartId}`);
+          console.log(`   ⏭️  [${requestId}] ==========================================`);
+        }
+
+        console.log(`   📊 [${requestId}] getData Wrapper Test Results:`);
+        console.log(`   📊 [${requestId}] - Raw Row Count: ${sqlResult.rowCount}`);
+        console.log(`   📊 [${requestId}] - Grouped Result Count: ${groupedResults.length}`);
+        console.log(`   📊 [${requestId}] - Columns: ${sqlResult.columns.join(', ')}`);
+        console.log(`   📊 [${requestId}] - Elapsed: ${sqlResult.elapsedMs}ms`);
+        if (groupedResults.length > 0) {
+          console.log(`   📊 [${requestId}] - First Result:`, JSON.stringify(groupedResults[0], bigIntReplacer, 2));
+          if (groupedResults.length > 1) {
+            console.log(`   📊 [${requestId}] - All Results (${groupedResults.length}):`, JSON.stringify(groupedResults, bigIntReplacer, 2));
+          }
+        } else {
+          console.log(`   📊 [${requestId}] - No results returned`);
+        }
+
+        // Determine which columns to use for display
+        const wasGrouped = groupedResults.length !== sqlResult.rowCount || (groupedResults.length > 0 && groupedResults[0].imageModals !== undefined);
+        const displayColumns = wasGrouped && groupedResults.length > 0
+          ? Object.keys(groupedResults[0]).filter(k => k !== 'imageModals')
+          : sqlResult.columns;
+
+        console.log(`   📤 [${requestId}] Final Response:`);
+        console.log(`   📤 [${requestId}]   - Was grouped: ${wasGrouped}`);
+        console.log(`   📤 [${requestId}]   - Returning ${groupedResults.length} result(s) (was ${sqlResult.rowCount} raw rows)`);
+        console.log(`   📤 [${requestId}]   - Display columns: ${displayColumns.length} columns`);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        const responseData = {
+          success: true,
+          result: {
+            getDataParams,
+            sqlParameterization: sqlParamResult,
+            sqlExecution: {
+              ...sqlResult,
+              rows: groupedResults, // Return grouped results instead of raw rows
+              rowCount: groupedResults.length, // Update row count to reflect grouped results
+              columns: displayColumns // Update columns to match grouped structure
+            },
+            summary: {
+              userQuery,
+              serviceType: getDataParams.serviceType,
+              sqlParamsUsed: sqlParams,
+              rawRowsReturned: sqlResult.rowCount,
+              groupedResultsReturned: groupedResults.length,
+              wasGrouped: wasGrouped,
+              elapsedMs: sqlResult.elapsedMs
+            }
+          },
+          timestamp: Date.now()
+        };
+        
+        console.log(`   📤 [${requestId}] Response JSON size: ${JSON.stringify(responseData, bigIntReplacer).length} bytes`);
+        res.end(JSON.stringify(responseData, bigIntReplacer));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] getData Wrapper Test failed:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // ROOT CA LLM Service: SQL Parameterization (GOD-controlled SQL security)
+  // This endpoint converts SQL queries with hardcoded values to parameterized queries
+  // to prevent SQL injection. GOD (ROOT CA) has control over all SQL security patterns.
+  if (pathname === "/api/root-ca/llm/parameterize-sql" && req.method === "POST") {
+    console.log(`   👑 [${requestId}] POST /api/root-ca/llm/parameterize-sql - ROOT CA LLM SQL parameterization`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const sql = String(parsed.sql || "").trim();
+
+        if (!sql) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql is required" }));
+          return;
+        }
+
+        const result = await parameterizeSQLWithOpenAI(sql);
+
+        broadcastEvent({
+          type: "root_ca_llm_sql_parameterization_complete",
+          component: "root-ca-llm",
+          message: `SQL parameterized: ${result.paramOrder.length} parameters extracted`,
+          timestamp: Date.now(),
+          data: { result }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, result, timestamp: Date.now() }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error parameterizing SQL: ${err.message}`);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // ROOT CA LLM Service: getData() Parameter Extraction (GOD-controlled data access)
+  // This endpoint translates natural language queries into structured getData() parameters
+  // for provider data layers. GOD (ROOT CA) has control over all data access patterns.
+  if (pathname === "/api/root-ca/llm/get-data-params" && req.method === "POST") {
+    console.log(`   👑 [${requestId}] POST /api/root-ca/llm/get-data-params - ROOT CA LLM getData() parameter extraction`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const userInput = String(parsed.userInput || parsed.query || "").trim();
+        const serviceType = parsed.serviceType; // Optional: hint for service type
+
+        if (!userInput) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userInput or query is required" }));
+          return;
+        }
+
+        console.log(`   👑 [${requestId}] ROOT CA LLM: Translating user query to getData() params`);
+        console.log(`   📝 [${requestId}] User input: "${userInput}"`);
+
+        const result = await extractGetDataParamsWithOpenAI(userInput);
+
+        // If serviceType hint provided and LLM didn't detect it, use the hint
+        if (serviceType && result.serviceType !== serviceType) {
+          console.log(`   🔄 [${requestId}] Overriding serviceType from "${result.serviceType}" to "${serviceType}" (hint provided)`);
+          result.serviceType = serviceType;
+        }
+
+        console.log(`   ✅ [${requestId}] ROOT CA LLM extracted getData() params:`, {
+          serviceType: result.serviceType,
+          params: result.params,
+          maxCount: result.maxCount,
+          sortBy: result.sortBy,
+          order: result.order,
+          confidence: result.confidence
+        });
+
+        // Broadcast ROOT CA LLM event
+        broadcastEvent({
+          type: "root_ca_llm_getdata_extracted",
+          component: "root-ca",
+          message: `ROOT CA LLM extracted getData() parameters for ${result.serviceType}`,
+          timestamp: Date.now(),
+          data: {
+            userInput,
+            result,
+            provider: "openai"
+          }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, result, timestamp: Date.now() }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] ROOT CA LLM getData() extraction failed:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // Backend-hosted provider webhook receiver (deployable plugin endpoint)
+  if (pathname.startsWith("/api/provider-plugin/webhook/") && req.method === "POST") {
+    const providerId = pathname.split("/api/provider-plugin/webhook/")[1] || "";
+    console.log(`   🧩 [${requestId}] POST /api/provider-plugin/webhook/${providerId}`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+      try {
+        let payload: any = null;
+        try { payload = body ? JSON.parse(body) : null; } catch { payload = body; }
+
+        broadcastEvent({
+          type: "provider_plugin_webhook_received",
+          component: "provider-plugin",
+          message: `Webhook received for ${providerId}`,
+          timestamp: Date.now(),
+          data: { providerId, payload, requestId }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, providerId, received: true, timestamp: Date.now() }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
     return;
   }
 
@@ -6566,6 +7393,90 @@ httpServer.on("request", async (req, res) => {
           });
         }
         
+        // Provider Plugin configs (MySQL/MariaDB) - attach to providerId(s) and persist
+        // Expected shape (wizard):
+        //   providerPlugins: { mysql: [ { providerId, serviceType, connection, sql, paramOrder?, fieldMap?, maxRows? } ] }
+        try {
+          const pluginRoot = (requestData as any).providerPlugins;
+          const mysqlConfigs = pluginRoot?.mysql;
+          const list = Array.isArray(mysqlConfigs) ? mysqlConfigs : (mysqlConfigs ? [mysqlConfigs] : []);
+          if (list.length > 0) {
+            for (const cfg of list) {
+              if (!cfg?.providerId || !cfg?.connection || !cfg?.sql || !cfg?.serviceType) continue;
+              setMySQLProviderPluginConfig({
+                providerId: String(cfg.providerId),
+                serviceType: String(cfg.serviceType),
+                connection: {
+                  host: String(cfg.connection.host),
+                  port: cfg.connection.port ? Number(cfg.connection.port) : 3306,
+                  user: String(cfg.connection.user),
+                  password: String(cfg.connection.password),
+                  database: String(cfg.connection.database),
+                },
+                sql: String(cfg.sql),
+                paramOrder: Array.isArray(cfg.paramOrder) ? cfg.paramOrder.map((x: any) => String(x)) : undefined,
+                fieldMap: cfg.fieldMap && typeof cfg.fieldMap === "object" ? cfg.fieldMap : undefined,
+                maxRows: cfg.maxRows ? Number(cfg.maxRows) : undefined,
+              });
+            }
+            saveProviderPluginPersistence();
+            console.log(`   🧩 [${requestId}] Saved MySQL provider plugin config(s): ${list.map((c: any) => c?.providerId).filter(Boolean).join(", ")}`);
+            
+            // CRITICAL: Update providers to use the MySQL plugin endpoint
+            // This ensures queryProviderAPI will route to the plugin
+            const serviceRegistry2 = getServiceRegistry2();
+            for (const cfg of list) {
+              if (!cfg?.providerId) continue;
+              const provider = serviceRegistry2.getProvider(String(cfg.providerId));
+              if (provider) {
+                // Update provider to use MySQL plugin endpoint
+                if (provider.apiEndpoint !== "eden:plugin:mysql") {
+                  provider.apiEndpoint = "eden:plugin:mysql";
+                  serviceRegistry2.updateProvider(provider);
+                  console.log(`   🔌 [${requestId}] Updated provider ${provider.id} (${provider.name}) to use MySQL plugin endpoint`);
+                }
+              } else {
+                console.warn(`   ⚠️  [${requestId}] Provider ${cfg.providerId} not found in registry - plugin config saved but provider not updated`);
+              }
+            }
+            // Save service registry after updating providers
+            try {
+              serviceRegistry2.savePersistence();
+              console.log(`   💾 [${requestId}] Service registry saved after plugin deployment`);
+            } catch (saveErr: any) {
+              console.error(`   ❌ [${requestId}] Failed to save service registry after plugin deployment:`, saveErr.message);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`   ⚠️  [${requestId}] Failed to save provider plugin configs: ${err.message}`);
+        }
+
+        // Provider webhooks requested by wizard (optional)
+        // Shape: providerWebhooks: { [providerId]: webhookUrl }
+        try {
+          const providerWebhooks = (requestData as any).providerWebhooks;
+          if (providerWebhooks && typeof providerWebhooks === "object") {
+            for (const [providerId, webhookUrl] of Object.entries(providerWebhooks)) {
+              if (!providerId || !webhookUrl) continue;
+              try {
+                new URL(String(webhookUrl));
+              } catch {
+                console.warn(`   ⚠️  [${requestId}] Skipping invalid webhook URL for ${providerId}: ${webhookUrl}`);
+                continue;
+              }
+              PROVIDER_WEBHOOKS.set(String(providerId), {
+                providerId: String(providerId),
+                webhookUrl: String(webhookUrl),
+                registeredAt: Date.now(),
+                failureCount: 0,
+              });
+              console.log(`   ✅ [${requestId}] Registered provider webhook: ${providerId} → ${webhookUrl}`);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`   ⚠️  [${requestId}] Failed to register provider webhooks: ${err.message}`);
+        }
+
         // Create service providers for gardens using generic provider creation
         let providersCreated = 0;
         let providerResults: Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> = [];
@@ -11803,6 +12714,9 @@ async function main() {
   
   // Initialize garden module (needed for issueGardenCertificate to use broadcastEvent)
   initializeGarden(broadcastEvent, redis);
+
+  // Load provider plugin persistence (MySQL/MariaDB configs per providerId)
+  loadProviderPluginPersistence();
   
   // Issue certificate to Holy Ghost (ROOT CA Indexer)
   console.log("\n✨ Issuing certificate to Holy Ghost (ROOT CA Indexer)...");
@@ -12153,34 +13067,37 @@ async function main() {
   // SERVICE PROVIDER NOTIFICATION SETUP
   // ============================================
   // Register webhooks for service providers (Optional Push mechanism)
-  console.log("\n📡 Registering Service Provider Webhooks (Optional Push)...");
-  for (const provider of ROOT_CA_SERVICE_REGISTRY) {
-    // Simulate providers registering webhooks (in production, providers would call /rpc/webhook/register)
-    // For demo purposes, we'll register localhost webhook URLs that point to our mock endpoint
-    const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
-    PROVIDER_WEBHOOKS.set(provider.id, {
-      providerId: provider.id,
-      webhookUrl: mockWebhookUrl,
-      registeredAt: Date.now(),
-      failureCount: 0,
-    });
-    console.log(`   ✅ Registered webhook for ${provider.name} (${provider.id}): ${mockWebhookUrl}`);
-    
-    // Broadcast webhook registration during startup
-    broadcastEvent({
-      type: "provider_webhook_registered",
-      component: "service_provider",
-      message: `Webhook Registered: ${provider.name} (${provider.id})`,
-      timestamp: Date.now(),
-      data: {
+  if (EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS) {
+    console.log("\n📡 Registering Service Provider Webhooks (MOCK, Optional Push)... (EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS=true)");
+    for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+      // Demo only: register localhost webhook URLs that point to our mock endpoint
+      const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
+      PROVIDER_WEBHOOKS.set(provider.id, {
         providerId: provider.id,
-        providerName: provider.name,
         webhookUrl: mockWebhookUrl,
-        startup: true
-      }
-    });
+        registeredAt: Date.now(),
+        failureCount: 0,
+      });
+      console.log(`   ✅ Registered webhook for ${provider.name} (${provider.id}): ${mockWebhookUrl}`);
+      
+      broadcastEvent({
+        type: "provider_webhook_registered",
+        component: "service_provider",
+        message: `Webhook Registered: ${provider.name} (${provider.id})`,
+        timestamp: Date.now(),
+        data: {
+          providerId: provider.id,
+          providerName: provider.name,
+          webhookUrl: mockWebhookUrl,
+          startup: true
+        }
+      });
+    }
+    console.log(`\n✅ Webhook registration complete. ${PROVIDER_WEBHOOKS.size} webhook(s) registered\n`);
+  } else {
+    console.log("\n📡 Provider Webhooks: NOT auto-registered (deployable provider plugins should register explicitly).");
+    console.log("   Set EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS=true to enable demo auto-registration to /mock/webhook/*\n");
   }
-  console.log(`\n✅ Webhook registration complete. ${PROVIDER_WEBHOOKS.size} webhook(s) registered\n`);
 
   // Display Service Provider Notification Architecture
   console.log("=".repeat(70));

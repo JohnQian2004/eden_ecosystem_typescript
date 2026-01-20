@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-20T10:05:26.941Z",
+  "lastSaved": "2026-01-20T15:47:15.631Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -6639,6 +6639,71 @@
             "bank-7aa13c3d(garden-13)",
             "hotel-e8c04f09(garden-14)",
             "autoparts-a63ce6b5(garden-14)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768921573821,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AUTOPARTS",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768921573870,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 8,
+          "totalSaved": 8,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768922974324,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-AUTOPARTS",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768922974360,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 9,
+          "totalSaved": 9,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)"
           ]
         }
       }

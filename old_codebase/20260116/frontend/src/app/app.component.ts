@@ -86,7 +86,7 @@ export class AppComponent implements OnInit, OnDestroy {
       type: 'autoparts',
       icon: '🔧',
       adText: 'Auto Parts',
-      sampleQuery: 'I need brake pads for a 2020 Toyota Camry at the best price'
+      sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
     },
     {
       type: 'hotel',
@@ -1333,7 +1333,7 @@ export class AppComponent implements OnInit, OnDestroy {
                 type: 'autoparts',
                 icon: '🔧',
                 adText: 'Auto Parts',
-                sampleQuery: 'I need brake pads for a 2020 Toyota Camry at the best price'
+                sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
               },
               {
                 type: 'hotel',

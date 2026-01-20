@@ -424,6 +424,182 @@
               </div>
             </div>
           </div>
+
+          <!-- Provider Plugin: MySQL/MariaDB + Webhook (deployable provider) -->
+          <div class="row mb-3" *ngIf="selectedServiceType?.type !== 'movie' && selectedServiceType?.type !== 'dex'">
+            <div class="col-12">
+              <div class="card border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>🧩 Provider Plugin (MySQL/MariaDB)</strong>
+                    <div class="text-muted small">Optional: back your providers with SQL and a real webhook endpoint.</div>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" [(ngModel)]="enableMySqlPlugin" name="enableMySqlPlugin" id="enableMySqlPlugin">
+                    <label class="form-check-label" for="enableMySqlPlugin">
+                      Enable MySQL/MariaDB provider plugin (sets provider apiEndpoint to <code>eden:plugin:mysql</code>)
+                    </label>
+                  </div>
+
+                  <div *ngIf="enableMySqlPlugin">
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Host <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlHost" name="mySqlHost" placeholder="127.0.0.1" required>
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small">Port</label>
+                        <input class="form-control form-control-sm" type="number" [(ngModel)]="mySqlPort" name="mySqlPort" min="1" max="65535">
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">User <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlUser" name="mySqlUser" placeholder="root" required>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Password <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" type="password" [(ngModel)]="mySqlPassword" name="mySqlPassword" required>
+                      </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-6">
+                        <label class="form-label small">Database <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" type="text" [(ngModel)]="mySqlDatabase" name="mySqlDatabase" placeholder="eden_providers" required>
+                        <small class="text-muted">Current value: "{{ mySqlDatabase }}"</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small">Param Order (comma separated filter keys)</label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlParamOrder" name="mySqlParamOrder" placeholder="destination,date">
+                      </div>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small">SQL (SELECT only, use <code>?</code> params)</label>
+                      <textarea class="form-control form-control-sm" rows="3" [(ngModel)]="mySqlSql" name="mySqlSql"></textarea>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small">Field Map JSON (optional)</label>
+                      <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="mySqlFieldMapJson" name="mySqlFieldMapJson" placeholder='{"flightNumber":"flight_no","destination":"dest","date":"date","price":"price"}'></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label small">Return Fields (comma-separated)</label>
+                      <input class="form-control form-control-sm" [(ngModel)]="mySqlReturnFields" name="mySqlReturnFields" placeholder="year, make, model, title, sale_price, user_first_name, user_last_name, user_email">
+                      <small class="text-muted">Fields to include in final getData return (excludes imageModals which is always included)</small>
+                      <div class="text-muted small mt-1">
+                        ProviderId: <code>{{ getWizardProviderId() }}</code>
+                      </div>
+                    </div>
+
+                    <div class="d-flex gap-2 align-items-center mb-2">
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="testMySqlQuery()" [disabled]="isTestingMySql">
+                        <span *ngIf="!isTestingMySql">🔎 Test SQL Query</span>
+                        <span *ngIf="isTestingMySql"><span class="spinner-border spinner-border-sm me-2"></span>Testing...</span>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="enableProviderWebhook = true" *ngIf="!enableProviderWebhook">
+                        Enable Webhook
+                      </button>
+                    </div>
+                    <div *ngIf="mySqlTestError" class="alert alert-danger py-2 small mb-2">{{ mySqlTestError }}</div>
+                    <div *ngIf="mySqlTestResult?.success" class="mb-2">
+                      <div class="alert alert-success py-2 small mb-2">
+                        ✅ SQL OK ({{ mySqlTestResult.result?.rowCount || 0 }} row(s), {{ mySqlTestResult.result?.elapsedMs || 0 }}ms)
+                      </div>
+                      <!-- SQL Results Table -->
+                      <div *ngIf="mySqlTestResult.result?.rows && mySqlTestResult.result.rows.length > 0" class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-bordered table-hover mb-0">
+                          <thead class="table-light sticky-top">
+                            <tr>
+                              <th *ngFor="let col of mySqlTestResult.result.columns" class="small">{{ col }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let row of mySqlTestResult.result.rows">
+                              <td *ngFor="let col of mySqlTestResult.result.columns" class="small">
+                                <span *ngIf="row[col] !== null && row[col] !== undefined">{{ row[col] }}</span>
+                                <span *ngIf="row[col] === null || row[col] === undefined" class="text-muted">—</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div *ngIf="!mySqlTestResult.result?.rows || mySqlTestResult.result.rows.length === 0" class="text-muted small">
+                        No rows returned
+                      </div>
+                    </div>
+
+                    <!-- getData Wrapper Test (Pre-flight Validation) -->
+                    <div class="mb-3 p-2 border rounded">
+                      <label class="form-label small fw-bold">🧪 getData Wrapper Test (Pre-flight Validation)</label>
+                      <div class="text-muted small mb-2">Test the full flow: Natural Language → LLM params → SQL parameterization → SQL execution</div>
+                      <div class="mb-2">
+                        <label class="form-label small">Test Query (Natural Language)</label>
+                        <input class="form-control form-control-sm" [(ngModel)]="getDataTestQuery" name="getDataTestQuery" placeholder="I need a front bumper for 2020 Honda Civic at best price">
+                      </div>
+                      <button type="button" class="btn btn-sm btn-outline-info" (click)="testGetDataWrapper()" [disabled]="isTestingGetData">
+                        <span *ngIf="!isTestingGetData">🚀 Test getData Wrapper</span>
+                        <span *ngIf="isTestingGetData"><span class="spinner-border spinner-border-sm me-2"></span>Testing...</span>
+                      </button>
+                      <div *ngIf="getDataTestError" class="alert alert-danger py-2 small mt-2 mb-0">{{ getDataTestError }}</div>
+                      <div *ngIf="getDataTestResult?.success" class="mt-2">
+                        <div class="alert alert-success py-2 small mb-2">
+                          <div>✅ getData Wrapper OK</div>
+                          <div class="mt-1" *ngIf="getDataTestResult.result?.summary">
+                            <small>
+                              <strong>Summary:</strong><br>
+                              - Service Type: {{ getDataTestResult.result.summary.serviceType }}<br>
+                              - Rows Returned: {{ getDataTestResult.result.summary.rowsReturned }}<br>
+                              - Elapsed: {{ getDataTestResult.result.summary.elapsedMs }}ms<br>
+                              - SQL Params Used: {{ getDataTestResult.result.summary.sqlParamsUsed?.join(', ') || 'None' }}
+                            </small>
+                          </div>
+                        </div>
+                        <!-- getData Wrapper Results Table -->
+                        <div *ngIf="getDataTestResult.result?.sqlExecution?.rows && getDataTestResult.result.sqlExecution.rows.length > 0" class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                          <table class="table table-sm table-striped table-bordered table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                              <tr>
+                                <th *ngFor="let col of getDataTestResult.result.sqlExecution.columns" class="small">{{ col }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr *ngFor="let row of getDataTestResult.result.sqlExecution.rows">
+                                <td *ngFor="let col of getDataTestResult.result.sqlExecution.columns" class="small">
+                                  <span *ngIf="row[col] !== null && row[col] !== undefined">{{ row[col] }}</span>
+                                  <span *ngIf="row[col] === null || row[col] === undefined" class="text-muted">—</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div *ngIf="!getDataTestResult.result?.sqlExecution?.rows || getDataTestResult.result.sqlExecution.rows.length === 0" class="text-muted small">
+                          No rows returned
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" [(ngModel)]="enableProviderWebhook" name="enableProviderWebhook" id="enableProviderWebhook">
+                      <label class="form-check-label" for="enableProviderWebhook">
+                        Register provider webhook (Eden will deliver <code>deliver_webhook</code> events to this URL)
+                      </label>
+                    </div>
+                    <div *ngIf="enableProviderWebhook" class="mb-2">
+                      <div class="text-muted small">Webhook URL:</div>
+                      <code>{{ getWizardProviderWebhookUrl() }}</code>
+                      <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-success" (click)="testProviderWebhook()" [disabled]="isTestingProviderWebhook">
+                          <span *ngIf="!isTestingProviderWebhook">📨 Test Webhook</span>
+                          <span *ngIf="isTestingProviderWebhook"><span class="spinner-border spinner-border-sm me-2"></span>Sending...</span>
+                        </button>
+                      </div>
+                      <div *ngIf="providerWebhookTestError" class="alert alert-danger py-2 small mt-2 mb-0">{{ providerWebhookTestError }}</div>
+                      <div *ngIf="providerWebhookTestResult?.success" class="alert alert-success py-2 small mt-2 mb-0">✅ Webhook OK</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           
           <div class="row mb-3">
             <div class="col-md-4">

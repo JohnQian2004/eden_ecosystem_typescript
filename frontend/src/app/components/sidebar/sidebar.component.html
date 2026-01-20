@@ -170,6 +170,23 @@
               </div>
             </div>
           </ng-container>
+          <!-- ROOT CA LLM Service (GOD-controlled data access) -->
+          <div 
+            *ngIf="components.get('root-ca-llm-getdata')"
+            class="component-item border-start border-2 border-warning"
+            [ngClass]="getStatusClass(components.get('root-ca-llm-getdata')?.status || 'idle')"
+            [class.border-success]="components.get('root-ca-llm-getdata')?.status === 'success'"
+            [class.border-danger]="components.get('root-ca-llm-getdata')?.status === 'error'"
+            [class.border-warning]="components.get('root-ca-llm-getdata')?.status === 'active'"
+            [class.border-secondary]="components.get('root-ca-llm-getdata')?.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(components.get('root-ca-llm-getdata')?.status || 'idle') }}</span>
+                <span class="component-name">👑 {{ components.get('root-ca-llm-getdata')?.name }}</span>
+              </div>
+              <span class="badge bg-warning badge-xs">{{ components.get('root-ca-llm-getdata')?.count || 0 }}</span>
+            </div>
+          </div>
         </ng-container>
         
         <!-- Non-ROOT CA components -->

@@ -3559,7 +3559,90 @@
         "providerId": "hotel-0a492f3c",
         "rating": 4.928668528898754
       }
+    },
+    {
+      "entryId": "9d6886e1-f8aa-41f2-a301-05ec29146ff1",
+      "txId": "6ab7a17b-2393-4250-a68a-39a14dbd9dc6",
+      "timestamp": 1768921573763,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-AUTOPARTS",
+        "price": 100,
+        "serviceType": "autoparts",
+        "gardenName": "Garden-AUTOPARTS",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "76bb973a-f1f5-4f78-a6f2-a60d3ddd7666",
+      "txId": "cf1b7cda-a5d2-41e6-b7e7-ddb76871bb77",
+      "timestamp": 1768922974284,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-AUTOPARTS",
+        "price": 100,
+        "serviceType": "autoparts",
+        "gardenName": "Garden-AUTOPARTS",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "9edea791-e575-49a6-ae2e-bda868391ad1",
+      "txId": "tx_1768924097689",
+      "timestamp": 1768924097689,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AUTOPARTS Provider",
+      "providerUuid": "autoparts-001",
+      "serviceType": "autoparts",
+      "amount": 10,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.5,
+        "eden": 0.2
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 10,
+        "partName": "Bumper Bracket (Misc)",
+        "location": "Unknown",
+        "providerName": "Garden-AUTOPARTS Provider",
+        "providerId": "autoparts-001",
+        "year": 2006,
+        "make": "Honda",
+        "model": "Civic",
+        "title": "Bumper Bracket (Misc)",
+        "sale_price": 10,
+        "user_id": 4,
+        "user_email": "buyxel@gmail.com",
+        "user_first_name": "Parts",
+        "user_last_name": "Mart",
+        "user_phone": "4438684452"
+      }
     }
   ],
-  "lastSaved": "2026-01-20T09:42:50.755Z"
+  "lastSaved": "2026-01-20T15:48:17.856Z"
 }

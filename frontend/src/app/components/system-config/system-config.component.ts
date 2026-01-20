@@ -58,6 +58,56 @@ export class SystemConfigComponent implements OnInit {
   isGeneratingNotificationCode: boolean = false;
   generationError: string | null = null;
   chatHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: number}> = [];
+
+  // Provider plugin (MySQL/MariaDB) + webhook testing (garden wizard)
+  enableMySqlPlugin: boolean = true; // Default enabled for easier testing
+  mySqlHost: string = '127.0.0.1';
+  mySqlPort: number = 3306;
+  mySqlUser: string = 'root';
+  mySqlPassword: string = 'test'; // Hardcoded for testing
+  mySqlDatabase: string = 'testdbjwt'; // Hardcoded database name for testing
+  mySqlSql: string = `SELECT DISTINCT a.id, 
+  i.id AS image_id,
+  i.autopart_id,
+  a.year,
+  a.make,
+  a.model,
+  a.title,
+  a.sale_price,
+  u.id AS user_id,
+  u.email AS user_email,
+  u.first_name AS user_first_name,
+  u.last_name AS user_last_name,
+  u.phone AS user_phone
+FROM autoparts a 
+LEFT JOIN images i ON a.id = i.autopart_id 
+LEFT JOIN users u ON a.user_id = u.id 
+WHERE a.year = 2006 
+  AND a.make = 'honda' 
+  AND a.model = 'civic' 
+  AND a.title LIKE CONCAT('%', 'bumper', '%') 
+  AND a.status = 2
+  AND a.archived = false 
+  AND a.published = true 
+ORDER BY a.id DESC
+LIMIT 30 OFFSET 0`;
+  mySqlParamOrder: string = ''; // comma-separated filter keys (e.g. "destination,date")
+  mySqlFieldMapJson: string = ''; // JSON object mapping canonical fields -> column names
+  mySqlReturnFields: string = 'year, make, model, title, sale_price, user_first_name, user_last_name, user_email, user_phone'; // comma-separated fields to include in final return
+  isTestingMySql: boolean = false;
+  mySqlTestResult: any = null;
+  mySqlTestError: string | null = null;
+
+  enableProviderWebhook: boolean = true;
+  isTestingProviderWebhook: boolean = false;
+  providerWebhookTestResult: any = null;
+  providerWebhookTestError: string | null = null;
+
+  // getData wrapper testing (pre-flight validation)
+  getDataTestQuery: string = 'I need a front bumper for 2020 Honda Civic at best price';
+  isTestingGetData: boolean = false;
+  getDataTestResult: any = null;
+  getDataTestError: string | null = null;
   gardenConfig: GardenConfig = {
     serviceType: '',
     gardenName: '',
@@ -481,6 +531,87 @@ export class SystemConfigComponent implements OnInit {
     if (providers.length > 0) {
       requestBody.providers = providers;
     }
+
+    // Provider Plugin: MySQL/MariaDB (attach config to a deterministic providerId)
+    if (this.enableMySqlPlugin && !isDexGarden) {
+      const providerId = this.getWizardProviderId();
+
+      // Ensure a deterministic provider exists for plugin mode
+      if (!requestBody.providers) requestBody.providers = [];
+      const already = (requestBody.providers as any[]).some(p => p?.id === providerId);
+      if (!already) {
+        (requestBody.providers as any[]).push({
+          id: providerId,
+          name: `${this.gardenConfig.gardenName} Provider`,
+          location: 'Unknown',
+          bond: 1000,
+          reputation: 5.0,
+          apiEndpoint: 'eden:plugin:mysql'
+        });
+      }
+
+      let fieldMap: any = undefined;
+      if (this.mySqlFieldMapJson.trim()) {
+        try { fieldMap = JSON.parse(this.mySqlFieldMapJson); } catch {}
+      }
+      const paramOrder = this.mySqlParamOrder
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      // Validate MySQL plugin fields before including in request
+      if (!this.mySqlHost || !this.mySqlHost.trim()) {
+        this.creationError = 'MySQL Host is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlUser || !this.mySqlUser.trim()) {
+        this.creationError = 'MySQL User is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+        this.creationError = 'MySQL Password is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+        this.creationError = 'MySQL Database is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlSql || !this.mySqlSql.trim()) {
+        this.creationError = 'MySQL SQL query is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+
+      requestBody.providerPlugins = {
+        mysql: [{
+          providerId,
+          serviceType: this.gardenConfig.serviceType,
+          connection: {
+            host: this.mySqlHost.trim(),
+            port: this.mySqlPort || 3306,
+            user: this.mySqlUser.trim(),
+            password: this.mySqlPassword.trim(),
+            database: this.mySqlDatabase.trim()
+          },
+          sql: this.mySqlSql.trim(),
+          paramOrder,
+          fieldMap,
+          maxRows: 50
+        }]
+      };
+    }
+
+    // Provider webhook registration (optional)
+    if (this.enableProviderWebhook) {
+      const providerId = this.getWizardProviderId();
+      requestBody.providerWebhooks = {
+        [providerId]: this.getWizardProviderWebhookUrl()
+      };
+    }
     
     // Backward compatibility: Also include selectedProviders for movie (if no custom providers)
     if (this.gardenConfig.serviceType === 'movie' && providers.length === 0) {
@@ -663,7 +794,9 @@ export class SystemConfigComponent implements OnInit {
     this.isGeneratingNotificationCode = true;
     this.generationError = null;
 
-    const providerId = `${this.newServiceTypeName}-001`;
+    // Use timestamp-based unique ID instead of hardcoded -001
+    const timestamp = Date.now();
+    const providerId = `${this.newServiceTypeName}-${timestamp}`;
     const providerName = this.newServiceTypeName.charAt(0).toUpperCase() + this.newServiceTypeName.slice(1);
 
     this.http.post<{success: boolean, code?: any, redisKey?: string, error?: string}>(
@@ -674,7 +807,7 @@ export class SystemConfigComponent implements OnInit {
         language: 'typescript',
         framework: 'express',
         indexerEndpoint: `${this.apiUrl}`,
-        webhookUrl: `${this.apiUrl}/mock/webhook/${providerId}`,
+        webhookUrl: `${this.apiUrl}/api/provider-plugin/webhook/${providerId}`,
         serviceType: this.newServiceTypeName.trim(),
         notificationMethods: ['webhook', 'pull', 'rpc']
       }
@@ -696,6 +829,201 @@ export class SystemConfigComponent implements OnInit {
         console.error('Failed to generate notification code:', err);
         this.generationError = err.error?.error || err.message || 'Failed to generate notification code';
         this.isGeneratingNotificationCode = false;
+      }
+    });
+  }
+
+  getWizardProviderId(): string {
+    const st = String(this.gardenConfig?.serviceType || '').trim();
+    // Use timestamp-based unique ID instead of hardcoded -001
+    const timestamp = Date.now();
+    return st ? `${st}-${timestamp}` : `provider-${timestamp}`;
+  }
+
+  getWizardProviderWebhookUrl(): string {
+    return `${this.apiUrl}/api/provider-plugin/webhook/${this.getWizardProviderId()}`;
+  }
+
+  testMySqlQuery(): void {
+    // Validate required fields before sending
+    if (!this.mySqlHost || !this.mySqlHost.trim()) {
+      this.mySqlTestError = 'Host is required';
+      return;
+    }
+    if (!this.mySqlUser || !this.mySqlUser.trim()) {
+      this.mySqlTestError = 'User is required';
+      return;
+    }
+    if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+      this.mySqlTestError = 'Password is required';
+      return;
+    }
+    if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+      this.mySqlTestError = 'Database is required';
+      return;
+    }
+    if (!this.mySqlSql || !this.mySqlSql.trim()) {
+      this.mySqlTestError = 'SQL query is required';
+      return;
+    }
+
+    this.isTestingMySql = true;
+    this.mySqlTestError = null;
+    this.mySqlTestResult = null;
+
+    // Auto-detect LIMIT ? and OFFSET ? placeholders and provide default values
+    const sql = this.mySqlSql.trim();
+    const params: any[] = [];
+    
+    // Count all ? placeholders in the SQL
+    const allPlaceholders = sql.match(/\?/g) || [];
+    const placeholderCount = allPlaceholders.length;
+    
+    // Check for LIMIT ? and OFFSET ? patterns (case-insensitive)
+    const sqlUpper = sql.toUpperCase();
+    const hasLimitPlaceholder = /LIMIT\s+\?/i.test(sql);
+    const hasOffsetPlaceholder = /OFFSET\s+\?/i.test(sql);
+    
+    // Find positions of LIMIT ? and OFFSET ?
+    let limitIndex = -1;
+    let offsetIndex = -1;
+    if (hasLimitPlaceholder) {
+      const limitMatch = sqlUpper.match(/LIMIT\s+\?/);
+      if (limitMatch && limitMatch.index !== undefined) {
+        // Count ? before LIMIT
+        const beforeLimit = sql.substring(0, limitMatch.index);
+        limitIndex = (beforeLimit.match(/\?/g) || []).length;
+      }
+    }
+    if (hasOffsetPlaceholder) {
+      const offsetMatch = sqlUpper.match(/OFFSET\s+\?/);
+      if (offsetMatch && offsetMatch.index !== undefined) {
+        // Count ? before OFFSET
+        const beforeOffset = sql.substring(0, offsetMatch.index);
+        offsetIndex = (beforeOffset.match(/\?/g) || []).length;
+      }
+    }
+    
+    // Fill params array: null for non-LIMIT/OFFSET placeholders, values for LIMIT/OFFSET
+    for (let i = 0; i < placeholderCount; i++) {
+      if (i === limitIndex) {
+        params.push(30); // LIMIT value
+      } else if (i === offsetIndex) {
+        params.push(0);  // OFFSET value
+      } else {
+        params.push(null); // Other placeholders (will be filled by parameterization or ignored)
+      }
+    }
+
+    const requestBody = {
+      connection: {
+        host: this.mySqlHost.trim(),
+        port: this.mySqlPort || 3306,
+        user: this.mySqlUser.trim(),
+        password: this.mySqlPassword.trim(),
+        database: this.mySqlDatabase.trim()
+      },
+      sql: sql,
+      params: params,
+      maxRows: 20
+    };
+
+    // Debug: log the request body to verify database is included
+    console.log('🔍 [MySQL Test] Sending request:', { ...requestBody, connection: { ...requestBody.connection, password: '***' } });
+
+    this.http.post<any>(`${this.apiUrl}/api/provider-plugin/mysql/test-query`, requestBody).subscribe({
+      next: (res) => {
+        this.mySqlTestResult = res;
+        this.isTestingMySql = false;
+      },
+      error: (err) => {
+        this.mySqlTestError = err?.error?.error || err?.message || 'MySQL test failed';
+        this.isTestingMySql = false;
+      }
+    });
+  }
+
+  testGetDataWrapper(): void {
+    // Validate required fields before sending
+    if (!this.mySqlHost || !this.mySqlHost.trim()) {
+      this.getDataTestError = 'Host is required';
+      return;
+    }
+    if (!this.mySqlUser || !this.mySqlUser.trim()) {
+      this.getDataTestError = 'User is required';
+      return;
+    }
+    if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+      this.getDataTestError = 'Password is required';
+      return;
+    }
+    if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+      this.getDataTestError = 'Database is required';
+      return;
+    }
+    if (!this.mySqlSql || !this.mySqlSql.trim()) {
+      this.getDataTestError = 'SQL query is required';
+      return;
+    }
+    if (!this.getDataTestQuery || !this.getDataTestQuery.trim()) {
+      this.getDataTestError = 'Test query is required';
+      return;
+    }
+
+    this.isTestingGetData = true;
+    this.getDataTestError = null;
+    this.getDataTestResult = null;
+
+    const requestBody = {
+      connection: {
+        host: this.mySqlHost.trim(),
+        port: this.mySqlPort || 3306,
+        user: this.mySqlUser.trim(),
+        password: this.mySqlPassword.trim(),
+        database: this.mySqlDatabase.trim()
+      },
+      sql: this.mySqlSql.trim(),
+      userQuery: this.getDataTestQuery.trim(),
+      serviceType: this.selectedServiceType?.type || 'autoparts',
+      returnFields: this.mySqlReturnFields.trim() // comma-separated list of fields to include in final return
+    };
+
+    console.log('🔍 [getData Wrapper Test] Sending request:', { ...requestBody, connection: { ...requestBody.connection, password: '***' } });
+
+    this.http.post<any>(`${this.apiUrl}/api/provider-plugin/mysql/test-getdata`, requestBody).subscribe({
+      next: (res) => {
+        this.getDataTestResult = res;
+        this.isTestingGetData = false;
+        console.log('✅ [getData Wrapper Test] Success:', res);
+      },
+      error: (err) => {
+        this.getDataTestError = err.error?.error || err.message || 'Failed to test getData wrapper';
+        this.isTestingGetData = false;
+        console.error('❌ [getData Wrapper Test] Error:', err);
+      }
+    });
+  }
+
+  testProviderWebhook(): void {
+    this.isTestingProviderWebhook = true;
+    this.providerWebhookTestError = null;
+    this.providerWebhookTestResult = null;
+
+    const providerId = this.getWizardProviderId();
+    const url = this.getWizardProviderWebhookUrl();
+    this.http.post<any>(url, {
+      event: 'wizard-test',
+      providerId,
+      timestamp: Date.now(),
+      message: 'Hello from Garden Wizard'
+    }).subscribe({
+      next: (res) => {
+        this.providerWebhookTestResult = res;
+        this.isTestingProviderWebhook = false;
+      },
+      error: (err) => {
+        this.providerWebhookTestError = err?.error?.error || err?.message || 'Webhook test failed';
+        this.isTestingProviderWebhook = false;
       }
     });
   }

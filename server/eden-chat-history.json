@@ -851,6 +851,125 @@
         "mode": "god",
         "status": "active"
       }
+    ],
+    "conv:garden:garden-1:god": [
+      {
+        "id": "c_1768921600951_fc3834865ae118",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768921600951,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768921810670_1f64d148fc083",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768921810670,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768922017634_3de1588e55905",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768922017634,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768922986558_b14b6624adb28",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768922986558,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768922990369_38797dc53cd88",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768922990369,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768922993844_12e31249f7262",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "ASSISTANT",
+        "content": "We found some great autopart options for your 2006 Honda Civic. The best option is a Bumper Bracket (Misc) available for only $10. You can purchase it from Parts Mart. For more information, you can reach out to them at buyxel@gmail.com or call 443-868-4452.",
+        "timestamp": 1768922993844,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768922997350_25e9aeff77d708",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "ASSISTANT",
+        "content": "We found some autoparts listings that might interest you. The best option is a Bumper Bracket (Misc) for a 2006 Honda Civic, available for $10. This part is provided by Parts Mart and can be contacted at buyxel@gmail.com or 443-868-4452.",
+        "timestamp": 1768922997350,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768923837441_7f9c5e519ae56",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2006 Nissan Altima front bumper at the best price",
+        "timestamp": 1768923837441,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768923847924_590a15680a66a8",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "ASSISTANT",
+        "content": "Here are some autopart options for a 2006 Honda Civic Bumper Bracket:\n\n1. **Bumper Bracket (Misc)**\n   - **Make & Model**: Honda Civic 2006\n   - **Price**: $10\n   - **Provider**: Garden-AUTOPARTS Provider\n   - **Contact**: Parts Mart (buyxel@gmail.com, 443-868-4452)\n\nBoth listings are identical in terms of price and provider details. You can reach out directly to the provider for more details.",
+        "timestamp": 1768923847924,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768924084736_d17eb5773bf76",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2006 Nissan Altima front bumper at the best price",
+        "timestamp": 1768924084736,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "c_1768924090870_e32f5c2b4c57c",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "ASSISTANT",
+        "content": "We found a great option for a Bumper Bracket (Misc) for your 2006 Honda Civic. Available for just $10, this part is provided by Garden-AUTOPARTS Provider. For more details or purchase inquiries, you can contact Parts Mart at 443-868-4452 or via email at buyxel@gmail.com.",
+        "timestamp": 1768924090870,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
     ]
   }
 }

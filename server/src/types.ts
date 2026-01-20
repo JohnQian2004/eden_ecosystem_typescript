@@ -187,6 +187,18 @@ export type TokenListing = {
   indexerId: string;
 };
 
+// Generic listing type for ANY other service type (airline, pharmacy, autoparts, etc.)
+// Used by provider plugins (e.g., SQL-backed providers).
+export type GenericServiceListing = {
+  providerId: string;
+  providerName: string;
+  gardenId: string;
+  price: number;
+  location?: string;
+  rating?: number;
+  [key: string]: any;
+};
+
 export type DEXTrade = {
   tradeId: string;
   poolId: string;
@@ -230,9 +242,9 @@ export type LLMQueryResult = {
 
 export type LLMResponse = {
   message: string;
-  listings: MovieListing[] | TokenListing[];
-  selectedListing: MovieListing | TokenListing | null;
-  selectedListing2?: MovieListing | TokenListing | null; // DEBUG: Track lifecycle separately
+  listings: MovieListing[] | TokenListing[] | GenericServiceListing[];
+  selectedListing: MovieListing | TokenListing | GenericServiceListing | null;
+  selectedListing2?: MovieListing | TokenListing | GenericServiceListing | null; // DEBUG: Track lifecycle separately
   iGasCost: number;
   tradeDetails?: DEXTrade; // For DEX trades
 };

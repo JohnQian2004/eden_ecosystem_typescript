@@ -408,6 +408,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // 5. LLM (Intelligence Layer)
     this.addComponent('llm', 'LLM Intelligence', 'llm');
+    this.addComponent('root-ca-llm-getdata', 'ROOT CA LLM getData() Converter', 'llm');
     
     // 6. EdenCore (Ledger + Snapshots)
     this.addComponent('ledger', 'Ledger', 'edencore');
@@ -763,8 +764,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // Holy Ghost (ROOT CA's garden) shows infrastructure services
     if (isRootGarden) {
-      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
-      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
+      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet, accountant, root-ca-llm)
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
       // Match components by their key (which is derived from provider ID)
       let providerComponents = Array.from(this.components.entries())
         .filter(([componentKey, c]) => {
@@ -976,7 +977,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenInfrastructureServices(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
     return this.selectedGardenComponents.filter(c => {
       if (c.category !== 'service-provider') return false;
       const provider = this.findProviderForComponent(c);
@@ -985,7 +986,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenRegularServiceProviders(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant'];
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
     // Return all service providers that are NOT infrastructure services
     // Since selectedGardenComponents already contains correctly filtered components for this garden,
     // we just need to filter out infrastructure services
@@ -998,7 +999,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenLLM(): ComponentStatus[] {
-    return this.selectedGardenComponents.filter(c => c.category === 'llm');
+    const llmComponents = this.selectedGardenComponents.filter(c => c.category === 'llm');
+    // For Holy Ghost (HG), also include ROOT CA LLM service
+    if (this.selectedGardenTab === 'HG') {
+      const rootCALlm = this.components.get('root-ca-llm-getdata');
+      if (rootCALlm && !llmComponents.find(c => c.name === rootCALlm.name)) {
+        llmComponents.push(rootCALlm);
+      }
+    }
+    return llmComponents;
   }
   
   get selectedGardenEdenCore(): ComponentStatus[] {

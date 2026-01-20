@@ -7,7 +7,7 @@
   "totalCashierFees": 7.899999999999988,
   "revenueByServiceType": {
     "garden_deployment": {
-      "count": 29,
+      "count": 30,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
@@ -129,7 +129,7 @@
       "totalCashierFees": 0.2
     }
   },
-  "lastUpdated": 1768907054494,
+  "lastUpdated": 1768924035981,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-20T11:04:14.494Z"
+  "lastSaved": "2026-01-20T15:47:15.981Z"
 }
