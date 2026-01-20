@@ -107,7 +107,19 @@
       "uuid": "becd560a-3e01-4d17-bc41-9751e32dc229",
       "apiEndpoint": "eden:plugin:mysql",
       "gardenId": "garden-1"
+    },
+    {
+      "id": "bank-e30d3f45",
+      "name": "Garden-BANK Provider",
+      "serviceType": "bank",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "af7ce0de-9a0b-4c9d-9655-eed07d48b471",
+      "apiEndpoint": "https://api.bank.com/v1",
+      "gardenId": "garden-1"
     }
   ],
-  "lastSaved": "2026-01-20T15:47:23.417Z"
+  "lastSaved": "2026-01-20T17:50:35.492Z"
 }

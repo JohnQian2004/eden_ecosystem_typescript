@@ -394,6 +394,9 @@
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
                       </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
+                      </div>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
                         <span *ngIf="garden.serviceType">
                           {{ getServiceTypeIcon(garden.serviceType) }}
@@ -430,6 +433,9 @@
                     <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
                       </div>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
                         {{ getServiceTypeIcon('dex') }}

@@ -2,20 +2,20 @@
   "gardens": [
     {
       "id": "garden-1",
-      "name": "Garden-AUTOPARTS",
+      "name": "Garden-BANK",
       "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:b8658f0d-25e5-4d89-ae6f-ce59e9a5f43d",
+      "uuid": "eden:garden:c987871f-0d66-4676-82c4-be129e742e08",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
-      "serverDomain": "garden-autoparts.eden.local",
+      "serverDomain": "garden-bank.eden.local",
       "serverPort": 3001,
       "networkType": "http",
-      "serviceType": "autoparts",
+      "serviceType": "bank",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:b8658f0d-25e5-4d89-ae6f-ce59e9a5f43d",
+        "subject": "eden:garden:c987871f-0d66-4676-82c4-be129e742e08",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -23,14 +23,14 @@
         ],
         "constraints": {
           "gardenId": "garden-1",
-          "gardenName": "Garden-AUTOPARTS",
+          "gardenName": "Garden-BANK",
           "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1768922974320,
-        "expiresAt": 1800458974320,
-        "signature": "04aaukGDFVlc9/lR3YKk66I9HXiYiCBvPZN8p/DskI13hEZv8777GKtcP+n37UcByyKXnH/zMTZ+r9wA969RCA=="
+        "issuedAt": 1768928610900,
+        "expiresAt": 1800464610900,
+        "signature": "6GBQLjbHmvET8nG6OAcGfcnlok23PxZDsBbdVaqzRUL+EE/Yih8BaxVo5fTDOPLhLhlRhVa9BRyf+rDtn/mMDw=="
       }
     }
   ],
-  "lastSaved": "2026-01-20T15:29:34.347Z"
+  "lastSaved": "2026-01-20T17:03:30.915Z"
 }

@@ -1,6 +1,7 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { getApiBaseUrl } from '../../services/api-base';
+import { getCatalogEntry, SERVICE_TYPE_CATALOG } from '../../services/service-type-catalog.service';
 
 interface ServiceType {
   type: string;
@@ -59,8 +60,11 @@ export class SystemConfigComponent implements OnInit {
   generationError: string | null = null;
   chatHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: number}> = [];
 
+  // Data provider selection (LLM vs getData/MySQL)
+  dataProviderType: 'llm' | 'getdata' = 'llm'; // Default to LLM for all gardens except autoparts
+  
   // Provider plugin (MySQL/MariaDB) + webhook testing (garden wizard)
-  enableMySqlPlugin: boolean = true; // Default enabled for easier testing
+  enableMySqlPlugin: boolean = false; // Only enabled when dataProviderType === 'getdata'
   mySqlHost: string = '127.0.0.1';
   mySqlPort: number = 3306;
   mySqlUser: string = 'root';
@@ -302,39 +306,32 @@ LIMIT 30 OFFSET 0`;
       // Map workflow service type to ServiceType format
       const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
       
-      // Get icon based on service type
-      const iconMap: Record<string, string> = {
-        'movie': '🎬',
-        'amc': '🎬',
-        'autobodyshop': '🔧',
-        'autorepairshop': '🔧',
-        'bank': '🏦',
-        'church': '⛪',
-        'court': '⚖️',
-        'dex': '💰',
-        'dogpark': '🐕',
-        'gasstation': '⛽',
-        'grocerystore': '🏢',
-        'gym': '🏢',
-        'hospital': '🏢',
-        'hotel': '🏨',
-        'jail': '🔒',
-        'laborcamp': '🏢',
-        'library': '📚',
-        'pharmacy': '🏢',
-        'party': '🎉',
-        'policestation': '🚔',
-        'postoffice': '📮',
-        'priest': '⛪',
-        'restaurant': '🍽️',
-        'school': '🏢',
-        'university': '🏢',
-        'airline': '✈️',
-        'autoparts': '🔧',
-        'snake': '🐍'
-      };
+      // Get icon from shared catalog, fallback to hardcoded map for service types not in catalog
+      const catalogEntry = getCatalogEntry(workflow.serviceType);
+      let icon = catalogEntry?.icon;
       
-      const icon = iconMap[workflow.serviceType] || '🏢';
+      if (!icon) {
+        // Fallback icon map for service types not in the main catalog
+        const fallbackIconMap: Record<string, string> = {
+          'amc': '🎬',
+          'autobodyshop': '🔧',
+          'autorepairshop': '🔧',
+          'church': '⛪',
+          'court': '⚖️',
+          'gym': '🏢',
+          'hospital': '🏢',
+          'jail': '🔒',
+          'laborcamp': '🏢',
+          'library': '📚',
+          'policestation': '🚔',
+          'postoffice': '📮',
+          'priest': '⛪',
+          'school': '🏢',
+          'university': '🏢',
+          'snake': '🐍'
+        };
+        icon = fallbackIconMap[workflow.serviceType] || '🏢';
+      }
       
       return {
         type: workflow.serviceType,
@@ -348,10 +345,65 @@ LIMIT 30 OFFSET 0`;
     console.log(`✅ Loaded ${this.serviceTypes.length} service types from existing workflows (removed hardcoded dependencies)`);
   }
 
+  // Get service type options for dropdown (from catalog + fallback types)
+  getServiceTypeOptions(): Array<{value: string, label: string}> {
+    const options: Array<{value: string, label: string}> = [];
+    
+    // Add catalog entries
+    for (const entry of SERVICE_TYPE_CATALOG) {
+      options.push({
+        value: entry.type,
+        label: `${entry.icon} ${entry.adText} - ${entry.adText.toLowerCase()} service`
+      });
+    }
+    
+    // Add fallback service types not in catalog
+    const fallbackTypes: Record<string, {icon: string, description: string}> = {
+      'amc': { icon: '🎬', description: 'AMC movie theater service' },
+      'autobodyshop': { icon: '🔧', description: 'Auto body repair service' },
+      'autorepairshop': { icon: '🔧', description: 'Auto repair service' },
+      'church': { icon: '⛪', description: 'Church services' },
+      'court': { icon: '⚖️', description: 'Court services' },
+      'gym': { icon: '🏢', description: 'Gym and fitness services' },
+      'hospital': { icon: '🏢', description: 'Hospital services' },
+      'jail': { icon: '🔒', description: 'Jail services' },
+      'laborcamp': { icon: '🏢', description: 'Labor camp services' },
+      'library': { icon: '📚', description: 'Library services' },
+      'policestation': { icon: '🚔', description: 'Police station services' },
+      'postoffice': { icon: '📮', description: 'Post office services' },
+      'priest': { icon: '⛪', description: 'Priest services' },
+      'school': { icon: '🏢', description: 'School services' },
+      'university': { icon: '🏢', description: 'University services' },
+      'snake': { icon: '🐍', description: 'Advertising service provider' }
+    };
+    
+    for (const [type, info] of Object.entries(fallbackTypes)) {
+      // Only add if not already in catalog
+      if (!SERVICE_TYPE_CATALOG.find(e => e.type === type)) {
+        const name = type.charAt(0).toUpperCase() + type.slice(1).replace(/([A-Z])/g, ' $1');
+        options.push({
+          value: type,
+          label: `${info.icon} ${name} - ${info.description}`
+        });
+      }
+    }
+    
+    return options.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
   selectServiceType(serviceType: ServiceType) {
     this.selectedServiceType = serviceType;
     this.gardenConfig.serviceType = serviceType.type;
     this.gardenConfig.isSnake = serviceType.type === 'snake';
+    
+    // Set default data provider: getData for autoparts, LLM for everything else
+    if (serviceType.type === 'autoparts') {
+      this.dataProviderType = 'getdata';
+      this.enableMySqlPlugin = true;
+    } else {
+      this.dataProviderType = 'llm';
+      this.enableMySqlPlugin = false;
+    }
     
     // Auto-generate garden name
     const baseName = serviceType.type === 'snake' ? 'Snake' : 
@@ -378,42 +430,41 @@ LIMIT 30 OFFSET 0`;
     this.wizardStep = 2;
   }
 
+  onDataProviderTypeChange() {
+    // When user changes data provider type, update enableMySqlPlugin accordingly
+    this.enableMySqlPlugin = this.dataProviderType === 'getdata';
+  }
+
   selectWorkflowAsServiceType(workflow: {serviceType: string, filename: string, exists: boolean, stepCount?: number}) {
     // Convert workflow to ServiceType format and select it
     const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
     
-    // Get icon based on service type
-    const iconMap: Record<string, string> = {
-      'movie': '🎬',
-      'amc': '🎬',
-      'autobodyshop': '🔧',
-      'autorepairshop': '🔧',
-      'bank': '🏦',
-      'church': '⛪',
-      'court': '⚖️',
-      'dex': '💰',
-      'dogpark': '🐕',
-      'gasstation': '⛽',
-      'grocerystore': '🏢',
-      'gym': '🏢',
-      'hospital': '🏢',
-      'hotel': '🏨',
-      'jail': '🔒',
-      'laborcamp': '🏢',
-      'library': '📚',
-      'pharmacy': '🏢',
-      'policestation': '🚔',
-      'postoffice': '📮',
-      'priest': '⛪',
-      'restaurant': '🍽️',
-      'school': '🏢',
-      'university': '🏢',
-      'airline': '✈️',
-      'autoparts': '🔧',
-      'snake': '🐍'
-    };
+    // Get icon from shared catalog, fallback to hardcoded map for service types not in catalog
+    const catalogEntry = getCatalogEntry(workflow.serviceType);
+    let icon = catalogEntry?.icon;
     
-    const icon = iconMap[workflow.serviceType] || '🏢';
+    if (!icon) {
+      // Fallback icon map for service types not in the main catalog
+      const fallbackIconMap: Record<string, string> = {
+        'amc': '🎬',
+        'autobodyshop': '🔧',
+        'autorepairshop': '🔧',
+        'church': '⛪',
+        'court': '⚖️',
+        'gym': '🏢',
+        'hospital': '🏢',
+        'jail': '🔒',
+        'laborcamp': '🏢',
+        'library': '📚',
+        'policestation': '🚔',
+        'postoffice': '📮',
+        'priest': '⛪',
+        'school': '🏢',
+        'university': '🏢',
+        'snake': '🐍'
+      };
+      icon = fallbackIconMap[workflow.serviceType] || '🏢';
+    }
     
     const serviceType: ServiceType = {
       type: workflow.serviceType,
@@ -533,7 +584,7 @@ LIMIT 30 OFFSET 0`;
     }
 
     // Provider Plugin: MySQL/MariaDB (attach config to a deterministic providerId)
-    if (this.enableMySqlPlugin && !isDexGarden) {
+    if (this.dataProviderType === 'getdata' && !isDexGarden) {
       const providerId = this.getWizardProviderId();
 
       // Ensure a deterministic provider exists for plugin mode

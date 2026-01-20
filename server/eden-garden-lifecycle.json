@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-20T15:47:15.631Z",
+  "lastSaved": "2026-01-20T17:12:36.040Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -6704,6 +6704,180 @@
             "accountant-service-001(HG)",
             "autoparts-001(garden-1)",
             "autoparts-1768922974092(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768924348163,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-AUTOPARTS-baycounter.com",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768924348229,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "autoparts-1768924348038(garden-2)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768924698560,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-BANK",
+          "serviceType": "bank",
+          "hasCertificate": true,
+          "totalGardens": 3
+        }
+      },
+      {
+        "timestamp": 1768924698586,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "autoparts-1768924348038(garden-2)",
+            "bank-1768924698516(garden-3)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768927361573,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-BANK",
+          "serviceType": "bank",
+          "hasCertificate": true,
+          "totalGardens": 3
+        }
+      },
+      {
+        "timestamp": 1768927361590,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "autoparts-1768924348038(garden-2)",
+            "bank-1768924698516(garden-3)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768928244672,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-BANK",
+          "serviceType": "bank",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768928244700,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 12,
+          "totalSaved": 12,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "autoparts-1768924348038(garden-2)",
+            "bank-1768924698516(garden-3)",
+            "bank-e30d3f45(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768928610904,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-1",
+          "gardenName": "Garden-BANK",
+          "serviceType": "bank",
+          "hasCertificate": true,
+          "totalGardens": 1
+        }
+      },
+      {
+        "timestamp": 1768928610930,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 10,
+          "totalSaved": 10,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "bank-e30d3f45(garden-1)"
           ]
         }
       }

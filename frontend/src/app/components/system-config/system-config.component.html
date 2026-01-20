@@ -295,6 +295,30 @@
             </div>
           </div>
           
+          <!-- Data Provider Selection -->
+          <div class="row mb-3">
+            <div class="col-12">
+              <label class="form-label fw-bold">Data Provider</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="dataProviderType" id="dataProviderLLM" 
+                       value="llm" [(ngModel)]="dataProviderType" (change)="onDataProviderTypeChange()">
+                <label class="btn btn-outline-primary" for="dataProviderLLM">
+                  🤖 LLM (Default for most services)
+                </label>
+                
+                <input type="radio" class="btn-check" name="dataProviderType" id="dataProviderGetData" 
+                       value="getdata" [(ngModel)]="dataProviderType" (change)="onDataProviderTypeChange()">
+                <label class="btn btn-outline-primary" for="dataProviderGetData">
+                  🗄️ getData (SQL/MySQL Plugin)
+                </label>
+              </div>
+              <small class="text-muted">
+                <span *ngIf="dataProviderType === 'llm'">Using LLM to generate provider data dynamically</span>
+                <span *ngIf="dataProviderType === 'getdata'">Using SQL database queries via MySQL/MariaDB plugin</span>
+              </small>
+            </div>
+          </div>
+          
           <!-- Service Provider Configuration (for all service types) -->
           <div class="row mb-3">
             <div class="col-12">
@@ -426,24 +450,16 @@
           </div>
 
           <!-- Provider Plugin: MySQL/MariaDB + Webhook (deployable provider) -->
-          <div class="row mb-3" *ngIf="selectedServiceType?.type !== 'movie' && selectedServiceType?.type !== 'dex'">
+          <div class="row mb-3" *ngIf="dataProviderType === 'getdata' && selectedServiceType?.type !== 'movie' && selectedServiceType?.type !== 'dex'">
             <div class="col-12">
-              <div class="card border-secondary">
-                <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="card border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                   <div>
-                    <strong>🧩 Provider Plugin (MySQL/MariaDB)</strong>
-                    <div class="text-muted small">Optional: back your providers with SQL and a real webhook endpoint.</div>
+                    <strong>🗄️ getData Service (MySQL/MariaDB Plugin)</strong>
+                    <div class="small">Configure SQL database queries for provider data</div>
                   </div>
                 </div>
                 <div class="card-body">
-                  <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" [(ngModel)]="enableMySqlPlugin" name="enableMySqlPlugin" id="enableMySqlPlugin">
-                    <label class="form-check-label" for="enableMySqlPlugin">
-                      Enable MySQL/MariaDB provider plugin (sets provider apiEndpoint to <code>eden:plugin:mysql</code>)
-                    </label>
-                  </div>
-
-                  <div *ngIf="enableMySqlPlugin">
                     <div class="row g-2 mb-2">
                       <div class="col-md-4">
                         <label class="form-label small">Host <span class="text-danger">*</span></label>
@@ -595,7 +611,6 @@
                       <div *ngIf="providerWebhookTestError" class="alert alert-danger py-2 small mt-2 mb-0">{{ providerWebhookTestError }}</div>
                       <div *ngIf="providerWebhookTestResult?.success" class="alert alert-success py-2 small mt-2 mb-0">✅ Webhook OK</div>
                     </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -759,34 +774,7 @@
               name="selectedWorkflowServiceType"
               [disabled]="isGeneratingWorkflow">
               <option value="">-- Select Service Type --</option>
-              <option value="movie">🎬 Movie Tickets - Movie ticket booking service</option>
-              <option value="amc">🎬 AMC Cinema - AMC movie theater service</option>
-              <option value="autobodyshop">🔧 Auto Body Shop - Auto body repair service</option>
-              <option value="autorepairshop">🔧 Auto Repair Shop - Auto repair service</option>
-              <option value="bank">🏦 Bank - Banking services</option>
-              <option value="church">⛪ Church - Church services</option>
-              <option value="court">⚖️ Court - Court services</option>
-              <option value="dex">💰 DEX Tokens - Decentralized exchange token pools</option>
-              <option value="dogpark">🐕 Dog Park - Dog park services</option>
-              <option value="gasstation">⛽ Gas Station - Gas station services</option>
-              <option value="grocerystore">🏢 Grocery Store - Grocery store services</option>
-              <option value="gym">🏢 Gym - Gym and fitness services</option>
-              <option value="hospital">🏢 Hospital - Hospital services</option>
-              <option value="hotel">🏨 Hotel Booking - Hotel reservation service</option>
-              <option value="jail">🔒 Jail - Jail services</option>
-              <option value="laborcamp">🏢 Labor Camp - Labor camp services</option>
-              <option value="library">📚 Library - Library services</option>
-              <option value="pharmacy">🏢 Pharmacy - Pharmacy services</option>
-              <option value="party">🎉 Party & Events - Party and event ticket booking service</option>
-              <option value="policestation">🚔 Police Station - Police station services</option>
-              <option value="postoffice">📮 Post Office - Post office services</option>
-              <option value="priest">⛪ Priest - Priest services</option>
-              <option value="restaurant">🍽️ Restaurant Reservations - Restaurant booking service</option>
-              <option value="school">🏢 School - School services</option>
-              <option value="university">🏢 University - University services</option>
-              <option value="airline">✈️ Airline Tickets - Airline ticket booking service</option>
-              <option value="autoparts">🔧 Auto Parts - Automotive parts marketplace</option>
-              <option value="snake">🐍 Snake (Advertiser) - Advertising service provider</option>
+              <option *ngFor="let option of getServiceTypeOptions()" [value]="option.value">{{ option.label }}</option>
             </select>
           </div>
           <div class="col-md-6 d-flex align-items-end">

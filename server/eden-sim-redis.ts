@@ -734,8 +734,22 @@ httpServer.on("request", async (req, res) => {
         }
         console.log(`   ⚙️ [${requestId}] ========================================`);
 
-        // Initialize updatedContext from the provided context
+        // Initialize updatedContext from the provided context (like old codebase)
+        // The request context should already have all data from previous steps
         const updatedContext = { ...context };
+        
+        console.log(`   🔍 [${requestId}] Context initialization:`);
+        console.log(`   🔍 [${requestId}]   - Request context has listings: ${!!context?.listings} (${context?.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}]   - Request context has llmResponse: ${!!context?.llmResponse}`);
+        console.log(`   🔍 [${requestId}]   - Request context llmResponse has listings: ${!!context?.llmResponse?.listings} (${context?.llmResponse?.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}]   - Final updatedContext has listings: ${!!updatedContext.listings} (${updatedContext.listings?.length || 0})`);
+        
+        // CRITICAL: If listings are missing but llmResponse.listings exists, use that
+        // This handles cases where listings are in llmResponse but not in context.listings
+        if ((!updatedContext.listings || updatedContext.listings.length === 0) && updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+          updatedContext.listings = updatedContext.llmResponse.listings;
+          console.log(`   🔄 [${requestId}] Using listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+        }
         
         // CRITICAL: If executing error_handler step, ensure error object is in context
         // The error might have been set in a previous step execution
@@ -846,6 +860,20 @@ httpServer.on("request", async (req, res) => {
           console.log(`   🤔 [${requestId}] ========================================`);
 
           // For decision steps, we don't execute actions yet - we broadcast the decision request
+          // CRITICAL: Ensure listings are in updatedContext before processing events
+          // This is needed for user_select_listing step which uses "{{listings}}" template
+          if (step.id === "user_select_listing" && (!updatedContext.listings || updatedContext.listings.length === 0)) {
+            // Try to get listings from llmResponse if available
+            if (updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+              updatedContext.listings = updatedContext.llmResponse.listings;
+              console.log(`   🔄 [${requestId}] Populated updatedContext.listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+            } else {
+              console.warn(`   ⚠️ [${requestId}] No listings found in updatedContext or llmResponse for user_select_listing step`);
+              console.warn(`   ⚠️ [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+              console.warn(`   ⚠️ [${requestId}] updatedContext.llmResponse:`, updatedContext.llmResponse ? Object.keys(updatedContext.llmResponse) : 'N/A');
+            }
+          }
+          
           // Process WebSocket events for decision request
           if (step.websocketEvents) {
             for (const event of step.websocketEvents) {
@@ -872,15 +900,43 @@ httpServer.on("request", async (req, res) => {
               console.log(`   🔍 [${requestId}] processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
               
               // ALWAYS build options for user_select_listing if listings exist, even if template replacement already set it
-              // Check both updatedContext.listings and processedEvent.data.options (in case template replacement already set it)
-              const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+              // Check multiple sources: updatedContext.listings, llmResponse.listings, and processedEvent.data.options
+              // CRITICAL: llmResponse.listings might have the listings even if context.listings is empty
+              const listingsFromContext = updatedContext.listings;
+              const listingsFromLlmResponse = updatedContext.llmResponse?.listings;
+              const listingsFromEvent = Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null;
+              
+              // CRITICAL: If processedEvent.data.options is null (from template replacement), try to get from context
+              // This happens when "{{listings}}" template variable is not found
+              let listingsSource = listingsFromContext || listingsFromLlmResponse || listingsFromEvent;
+              
+              // If still no listings, check if processedEvent.data.options was set to null by replaceTemplateVariables
+              // This means the template "{{listings}}" was not found in context
+              if (!listingsSource && processedEvent.data?.options === null) {
+                console.log(`   ⚠️ [${requestId}] Template replacement returned null for "{{listings}}", checking context directly`);
+                // Try to get listings from any available source
+                listingsSource = updatedContext.listings || updatedContext.llmResponse?.listings;
+              }
+              
+              console.log(`   🔍 [${requestId}] Listing sources check:`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings: ${listingsFromContext?.length || 0} (${listingsFromContext ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings: ${listingsFromLlmResponse?.length || 0} (${listingsFromLlmResponse ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options: ${listingsFromEvent?.length || 0} (${listingsFromEvent ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options value:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - Final listingsSource: ${listingsSource?.length || 0} (${listingsSource ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - updatedContext keys:`, Object.keys(updatedContext));
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse keys:`, updatedContext.llmResponse ? Object.keys(updatedContext.llmResponse) : 'N/A');
               
               if (step.id === "user_select_listing" && listingsSource && Array.isArray(listingsSource) && listingsSource.length > 0) {
                 const selectServiceType = updatedContext.serviceType || serviceType || 'movie';
                 const selectFields = getServiceTypeFields(selectServiceType);
                 
                 console.log(`   📋 [${requestId}] ✅ Building ${selectServiceType} selection options from ${listingsSource.length} listings`);
-                console.log(`   📋 [${requestId}] Using listings from: ${updatedContext.listings ? 'updatedContext.listings' : 'processedEvent.data.options'}`);
+                let sourceName = 'unknown';
+                if (listingsSource === listingsFromContext) sourceName = 'updatedContext.listings';
+                else if (listingsSource === listingsFromLlmResponse) sourceName = 'updatedContext.llmResponse.listings';
+                else if (listingsSource === listingsFromEvent) sourceName = 'processedEvent.data.options';
+                console.log(`   📋 [${requestId}] Using listings from: ${sourceName}`);
                 processedEvent.data.options = listingsSource.map((listing: any) => {
                   // Build label dynamically based on service type
                   let label = '';
@@ -2670,15 +2726,27 @@ httpServer.on("request", async (req, res) => {
                       throw new Error("No listings available and LLM didn't return selectedListing");
                     }
                     
+                    // CRITICAL: Use listings from llmResponse if available, otherwise use availableListings
+                    // This ensures we preserve any filtering/formatting done by LLM
+                    const finalListings = (llmResponse.listings && Array.isArray(llmResponse.listings) && llmResponse.listings.length > 0) 
+                      ? llmResponse.listings 
+                      : availableListings;
+                    
+                    // Update updatedContext.listings to ensure it's available for next steps
+                    updatedContext.listings = finalListings;
+                    
                     actionResult = {
                       llmResponse: llmResponse,
-                      listings: availableListings,
+                      listings: finalListings, // Use final listings (from LLM or original)
                       iGasCost: llmResponse.iGasCost,
                       currentIGas: llmResponse.iGasCost,
                       // CRITICAL: Also include selectedListing directly in actionResult so it's merged into context
                       selectedListing: updatedContext.selectedListing,
                       selectedListing2: updatedContext.selectedListing2
                     };
+                    
+                    console.log(`✅ [${requestId}] Set listings in actionResult: ${finalListings.length} listings`);
+                    console.log(`✅ [${requestId}] Updated updatedContext.listings: ${updatedContext.listings?.length || 0} listings`);
                     
                     console.log(`✅ [${requestId}] ========================================`);
                     console.log(`✅ [${requestId}] FINAL VERIFICATION:`);
@@ -2700,6 +2768,17 @@ httpServer.on("request", async (req, res) => {
 
               // Merge action result into context
               Object.assign(updatedContext, actionResult);
+              
+              // CRITICAL: Ensure listings are preserved after action execution
+              // If actionResult has listings, use them; otherwise keep existing listings
+              if (actionResult.listings && Array.isArray(actionResult.listings) && actionResult.listings.length > 0) {
+                updatedContext.listings = actionResult.listings;
+                console.log(`   ✅ [${requestId}] Preserved ${actionResult.listings.length} listings from actionResult`);
+              } else if (actionResult.llmResponse?.listings && Array.isArray(actionResult.llmResponse.listings) && actionResult.llmResponse.listings.length > 0) {
+                updatedContext.listings = actionResult.llmResponse.listings;
+                console.log(`   ✅ [${requestId}] Preserved ${actionResult.llmResponse.listings.length} listings from actionResult.llmResponse`);
+              }
+              
               console.log(`   📋 [${requestId}] After ${action.type}: listings=${updatedContext.listings?.length || 0}, llmResponse=${!!updatedContext.llmResponse}, selectedListing=${!!updatedContext.selectedListing}`);
 
               executedActions.push({
@@ -2816,19 +2895,20 @@ httpServer.on("request", async (req, res) => {
         if (!(global as any).workflowExecutions) {
           (global as any).workflowExecutions = new Map();
         }
-        const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
-        const existingExecution = workflowExecutions.get(executionId);
+        // Get workflowExecutions from global (ensure it's accessible in this scope)
+        const workflowExecutionsForUpdate = (global as any).workflowExecutions as Map<string, any>;
+        const existingExecution = workflowExecutionsForUpdate.get(executionId);
         
         if (existingExecution && existingExecution.workflow) {
           // Preserve full execution structure - just update context
           existingExecution.context = updatedContext;
           existingExecution.currentStep = nextStepId || existingExecution.currentStep;
-          workflowExecutions.set(executionId, existingExecution);
+          workflowExecutionsForUpdate.set(executionId, existingExecution);
         } else {
           // Fallback: if no existing execution, create minimal structure
           // This shouldn't happen if FlowWiseService is used, but handle gracefully
           console.warn(`⚠️ [${requestId}] No existing execution found for ${executionId}, creating minimal structure`);
-          workflowExecutions.set(executionId, {
+          workflowExecutionsForUpdate.set(executionId, {
             executionId,
             workflow,
             context: updatedContext,
@@ -2837,6 +2917,15 @@ httpServer.on("request", async (req, res) => {
           });
         }
 
+        // CRITICAL: Final check - ensure listings are in updatedContext before returning
+        // This is especially important for decision steps where listings come from previous step
+        if ((!updatedContext.listings || updatedContext.listings.length === 0) && updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+          updatedContext.listings = updatedContext.llmResponse.listings;
+          console.log(`   🔄 [${requestId}] Final check: Populated updatedContext.listings from llmResponse (${updatedContext.llmResponse.listings.length} listings) before returning response`);
+        }
+        
+        console.log(`   📤 [${requestId}] Returning response with updatedContext.listings: ${updatedContext.listings?.length || 0}`);
+        
         sendResponse(200, {
           success: true,
           message: `Step ${stepId} executed atomically`,

@@ -8,6 +8,7 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { getApiBaseUrl } from './services/api-base';
+import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
 
 export interface ServiceProvider {
   id: string;
@@ -67,65 +68,15 @@ export class AppComponent implements OnInit, OnDestroy {
   inputPlaceholder: string = 'Select a service type above or type your query...';
   
   // Service Types (Garden of Eden Main Street)
-  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [
-    {
-      type: 'movie',
-      icon: '🎬',
-      adText: 'Movie Tickets',
-      sampleQuery: 'I want a sci-fi movie to watch tonight at the best price'
-    },
-    {
-      type: 'dex',
-      icon: '💰',
-      adText: 'DEX Tokens',
-      sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
-    },
-    {
-      type: 'airline',
-      icon: '✈️',
-      adText: 'Airline Tickets',
-      sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price'
-    },
-    {
-      type: 'autoparts',
-      icon: '🔧',
-      adText: 'Auto Parts',
-      sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
-    },
-    {
-      type: 'hotel',
-      icon: '🏨',
-      adText: 'Hotel Booking',
-      sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price'
-    },
-    {
-      type: 'restaurant',
-      icon: '🍽️',
-      adText: 'Restaurant Reservations',
-      sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
-    }
-  ];
+  // Populated dynamically from SERVICE_TYPE_CATALOG based on available providers
+  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
 
   // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
-  private readonly SERVICE_TYPE_CATALOG: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
-    { type: 'movie', icon: '🎬', adText: 'Movie Tickets', sampleQuery: 'I want a sci-fi movie to watch tonight at the best price' },
-    { type: 'dex', icon: '💰', adText: 'DEX Tokens', sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price' },
-    { type: 'airline', icon: '✈️', adText: 'Airline Tickets', sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price' },
-    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price' },
-    { type: 'hotel', icon: '🏨', adText: 'Hotel Booking', sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price' },
-    { type: 'restaurant', icon: '🍽️', adText: 'Restaurant Reservations', sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant' },
-    { type: 'grocerystore', icon: '🛒', adText: 'Grocery Store', sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices' },
-    { type: 'pharmacy', icon: '💊', adText: 'Pharmacy', sampleQuery: 'I need to find a pharmacy that has my prescription medication available' },
-    { type: 'dogpark', icon: '🐕', adText: 'Dog Park', sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains' },
-    { type: 'gasstation', icon: '⛽', adText: 'Gas Station', sampleQuery: 'I need to find a gas station with premium fuel at the best price' },
-    { type: 'party', icon: '🎉', adText: 'Party & Events', sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets' },
-    { type: 'bank', icon: '🏦', adText: 'Banking Services', sampleQuery: 'I need to find a bank near me with ATM access and business banking services' }
-  ];
+  // Now imported from shared service-type-catalog.service.ts
+  private readonly SERVICE_TYPE_CATALOG_REF = SERVICE_TYPE_CATALOG;
 
   private getCatalogEntry(serviceType?: string): {type: string, icon: string, adText: string, sampleQuery: string} | undefined {
-    const st = String(serviceType || '').toLowerCase().trim();
-    if (!st) return undefined;
-    return this.SERVICE_TYPE_CATALOG.find(s => s.type === st);
+    return getCatalogEntryFromService(serviceType);
   }
 
   getGardenCardStyle(serviceType?: string): { [k: string]: string } {
@@ -173,10 +124,7 @@ export class AppComponent implements OnInit, OnDestroy {
   providerOwnersByGardenId: Record<string, string[]> = {};
 
   getServiceTypeIcon(serviceType?: string): string {
-    const st = String(serviceType || '').toLowerCase().trim();
-    if (!st) return '🌿';
-    // Use the full catalog so Apple gardens with 0 providers still render the right icon.
-    return this.getCatalogEntry(st)?.icon || '🌿';
+    return getServiceTypeIconFromService(serviceType);
   }
 
   formatOwnerEmails(emails: string[] | undefined): string {
@@ -975,7 +923,21 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
-    return this.serviceTypes.find(st => st.type === 'dex') || {
+    // First try to find in loaded serviceTypes (has provider counts)
+    const fromServiceTypes = this.serviceTypes.find(st => st.type === 'dex');
+    if (fromServiceTypes) return fromServiceTypes;
+    
+    // Fallback to catalog entry (always available since 'dex' is in catalog)
+    const dexEntry = getCatalogEntryFromService('dex');
+    if (dexEntry) return dexEntry;
+    
+    // Last resort: get from catalog directly (should never be needed, but safety fallback)
+    const catalogEntry = SERVICE_TYPE_CATALOG.find(e => e.type === 'dex');
+    if (catalogEntry) return catalogEntry;
+    
+    // Absolute last resort (should never execute - 'dex' is guaranteed in catalog)
+    console.error('⚠️ [getDexServiceType] DEX not found in catalog - this should never happen!');
+    return {
       type: 'dex',
       icon: '💰',
       adText: 'DEX Tokens',
@@ -1982,82 +1944,10 @@ export class AppComponent implements OnInit, OnDestroy {
                     Object.entries(ownersByGardenIdSets).map(([k, set]) => [k, Array.from(set).sort()])
                   );
             
-                  // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
+                  // CRITICAL: Reset serviceTypes to the full catalog before filtering
                   // This ensures we don't lose service types that were filtered out previously
-                  const allServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
-              {
-                type: 'movie',
-                icon: '🎬',
-                adText: 'Movie Tickets',
-                sampleQuery: 'I want a sci-fi movie to watch tonight at the best price'
-              },
-              {
-                type: 'dex',
-                icon: '💰',
-                adText: 'DEX Tokens',
-                sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
-              },
-              {
-                type: 'airline',
-                icon: '✈️',
-                adText: 'Airline Tickets',
-                sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price'
-              },
-              {
-                type: 'autoparts',
-                icon: '🔧',
-                adText: 'Auto Parts',
-                sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
-              },
-              {
-                type: 'hotel',
-                icon: '🏨',
-                adText: 'Hotel Booking',
-                sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price'
-              },
-              {
-                type: 'restaurant',
-                icon: '🍽️',
-                adText: 'Restaurant Reservations',
-                sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
-              },
-              {
-                type: 'grocerystore',
-                icon: '🏢',
-                adText: 'Grocery Store',
-                sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices'
-              },
-              {
-                type: 'pharmacy',
-                icon: '🏢',
-                adText: 'Pharmacy',
-                sampleQuery: 'I need to find a pharmacy that has my prescription medication available'
-              },
-              {
-                type: 'dogpark',
-                icon: '🐕',
-                adText: 'Dog Park',
-                sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains'
-              },
-              {
-                type: 'gasstation',
-                icon: '⛽',
-                adText: 'Gas Station',
-                sampleQuery: 'I need to find a gas station with premium fuel at the best price'
-              },
-              {
-                type: 'party',
-                icon: '🎉',
-                adText: 'Party & Events',
-                sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets'
-              },
-              {
-                type: 'bank',
-                icon: '🏦',
-                adText: 'Banking Services',
-                sampleQuery: 'I need to find a bank near me with ATM access and business banking services'
-              }
-                  ];
+                  // Use shared catalog from service-type-catalog.service.ts
+                  const allServiceTypes = SERVICE_TYPE_CATALOG;
                   
                   // Only show service types that are actually available in the ServiceRegistry
                   const filteredServiceTypes = allServiceTypes.filter(st => 

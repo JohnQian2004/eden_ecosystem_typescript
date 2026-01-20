@@ -298,6 +298,7 @@ export async function startWorkflowFromUserInput(
     executionId,
     workflow,
     context,
+    serviceType, // CRITICAL: Store original serviceType from workflow - never let LLM override this
     currentStep: workflow.initialStep,
     history: [],
     flowwiseServiceUUID: FLOWWISE_SERVICE_UUID // Store certificate UUID for audit trail
@@ -672,6 +673,9 @@ async function executeStepActions(
 
         case "llm_extract_query":
           // Extract query using LLM (FULLY AUTOMATED)
+          // CRITICAL: Preserve original serviceType from workflow - don't let LLM override it for banking/autoparts/etc
+          const originalServiceType = context.serviceType;
+          
           if (MOCKED_LLM) {
             context.queryResult = {
               serviceType: context.serviceType || "movie",
@@ -686,7 +690,21 @@ async function executeStepActions(
             const extractFn = ENABLE_OPENAI ? extractQueryWithOpenAI : extractQueryWithDeepSeek;
             const queryResult = await extractFn(context.userInput || "");
             context.queryResult = queryResult;
-            context.serviceType = queryResult.serviceType;
+            
+            // CRITICAL: Only allow LLM to override serviceType for movie/dex workflows
+            // For banking, autoparts, and other services, preserve the original workflow serviceType
+            if (originalServiceType && originalServiceType !== 'movie' && originalServiceType !== 'dex') {
+              // Preserve original serviceType - don't let LLM misclassify
+              context.serviceType = originalServiceType;
+              context.queryResult.serviceType = originalServiceType;
+              if (context.queryResult.query) {
+                context.queryResult.query.serviceType = originalServiceType;
+              }
+              console.log(`🔒 [FlowWiseService] Preserved original serviceType "${originalServiceType}" (LLM suggested "${queryResult.serviceType}")`);
+            } else {
+              // For movie/dex, allow LLM to classify
+              context.serviceType = queryResult.serviceType;
+            }
           }
           // Reverse-engineered from server/data/dex.json:
           // DEX workflow expects these top-level context fields to exist for templating.
@@ -704,7 +722,12 @@ async function executeStepActions(
           if (!context.queryResult) {
             throw new Error("Query result required for service registry query");
           }
+          console.log(`🔍 [FlowWiseService] Querying service registry with query:`, JSON.stringify(context.queryResult.query, null, 2));
           const listings = await queryROOTCAServiceRegistry(context.queryResult.query);
+          console.log(`🔍 [FlowWiseService] Service registry returned ${listings.length} listings`);
+          if (listings.length > 0) {
+            console.log(`🔍 [FlowWiseService] First listing:`, JSON.stringify(listings[0], null, 2).substring(0, 200));
+          }
           context.listings = listings;
           break;
 
@@ -795,14 +818,109 @@ async function executeStepActions(
           if (!context.listings || context.listings.length === 0) {
             throw new Error("Listings required for LLM formatting");
           }
-          const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
-          console.log(`🔍 [FlowWiseService] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI' : 'formatResponseWithDeepSeek'}`);
           
-          const llmResponse = await formatFn(
-            context.listings,
-            context.userInput || "",
-            context.queryResult?.query?.filters
+          // Check if this is autoparts data - skip LLM processing for autoparts
+          // CRITICAL: Get serviceType from multiple authoritative sources
+          const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+          const execution = workflowExecutions?.get(executionId);
+          const originalWorkflowServiceType = execution?.serviceType || execution?.workflow?.serviceType;
+          
+          // Also check provider's serviceType from service registry (most authoritative - can't be wrong)
+          let providerServiceType: string | null = null;
+          if (context.listings && context.listings.length > 0 && context.listings[0].providerId) {
+            try {
+              const { serviceRegistry2 } = await import("../serviceRegistry2");
+              const provider = serviceRegistry2.getProvider(context.listings[0].providerId);
+              if (provider) {
+                providerServiceType = provider.serviceType;
+                console.log(`🔍 [FlowWiseService] Provider serviceType from registry: "${providerServiceType}" (providerId: ${context.listings[0].providerId})`);
+              }
+            } catch (err) {
+              console.warn(`⚠️ [FlowWiseService] Could not get provider serviceType from registry:`, err);
+            }
+          }
+          
+          // Use provider serviceType as MOST authoritative (from service registry), then workflow, then context
+          const serviceType = (providerServiceType || originalWorkflowServiceType || context.serviceType || context.queryResult?.serviceType || context.queryResult?.query?.serviceType || "").toLowerCase();
+          
+          // CRITICAL: If serviceType is explicitly "bank" or "banking", ALWAYS use LLM (never skip)
+          const isBankingService = serviceType === "bank" || serviceType === "banking";
+          
+          // Only skip LLM if serviceType is explicitly "autoparts"
+          const isAutopartsService = serviceType === "autoparts";
+          
+          // Also check if listings contain STRONG autoparts-specific indicators
+          // Require multiple indicators to avoid false positives (e.g., banking listings with generic "title" field)
+          const firstListing = context.listings.length > 0 ? context.listings[0] : null;
+          const hasAutopartId = firstListing && ('autopart_id' in firstListing || 'a.id' in firstListing);
+          const hasMakeModelYear = firstListing && 
+            ('make' in firstListing && 'model' in firstListing && 'year' in firstListing);
+          const hasPartName = firstListing && ('partName' in firstListing || 'part_name' in firstListing);
+          
+          // Only consider it autoparts if we have strong indicators (autopart_id OR make+model+year together OR partName)
+          const hasStrongAutopartsFields = hasAutopartId || hasMakeModelYear || hasPartName;
+          
+          // Skip LLM ONLY if:
+          // 1. serviceType is explicitly "autoparts" (and it's NOT banking - already checked above)
+          // 2. OR we have strong autoparts fields AND serviceType is empty/not set (meaning we detected autoparts from data)
+          // NEVER skip LLM if serviceType is explicitly set to "bank", "banking", or any other non-autoparts service
+          const shouldSkipLLM = !isBankingService && (
+            isAutopartsService || 
+            (hasStrongAutopartsFields && (!serviceType || serviceType === ""))
           );
+          
+          // Debug logging
+          console.log(`🔍 [FlowWiseService] LLM Skip Detection:`);
+          console.log(`   - providerServiceType (from registry): "${providerServiceType || 'N/A'}"`);
+          console.log(`   - originalWorkflowServiceType: "${originalWorkflowServiceType || 'N/A'}"`);
+          console.log(`   - context.serviceType: "${context.serviceType || 'N/A'}"`);
+          console.log(`   - final serviceType (used): "${serviceType}"`);
+          console.log(`   - isBankingService: ${isBankingService}`);
+          console.log(`   - isAutopartsService: ${isAutopartsService}`);
+          console.log(`   - hasAutopartId: ${hasAutopartId}`);
+          console.log(`   - hasMakeModelYear: ${hasMakeModelYear}`);
+          console.log(`   - hasPartName: ${hasPartName}`);
+          console.log(`   - hasStrongAutopartsFields: ${hasStrongAutopartsFields}`);
+          console.log(`   - shouldSkipLLM: ${shouldSkipLLM}`);
+          if (firstListing) {
+            console.log(`   - firstListing keys: ${Object.keys(firstListing).slice(0, 10).join(', ')}...`);
+          }
+          
+          let llmResponse: any;
+          
+          if (shouldSkipLLM) {
+            // Skip LLM for autoparts - create simple formatted response
+            console.log(`🚫 [FlowWiseService] Skipping LLM processing for autoparts data`);
+            console.log(`🚫 [FlowWiseService] ServiceType: ${serviceType}, HasStrongAutopartsFields: ${hasStrongAutopartsFields}`);
+            
+            const firstListing = context.listings[0];
+            const partName = firstListing.partName || firstListing.part_name || firstListing.title || 'Auto Part';
+            const price = firstListing.price || firstListing.sale_price || firstListing.Price || 0;
+            const providerName = firstListing.providerName || firstListing.provider || 'Provider';
+            const location = firstListing.location || '';
+            
+            // Create a simple formatted message without LLM
+            const message = `${providerName} offers ${partName}${location ? ` in ${location}` : ''} for $${price.toFixed(2)}.`;
+            
+            llmResponse = {
+              message: message,
+              listings: context.listings,
+              selectedListing: firstListing,
+              iGasCost: 0 // No LLM cost for autoparts
+            };
+            
+            console.log(`✅ [FlowWiseService] Created non-LLM response for autoparts: ${message.substring(0, 100)}`);
+          } else {
+            // Use LLM for non-autoparts services (e.g., banking)
+            const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
+            console.log(`🔍 [FlowWiseService] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI' : 'formatResponseWithDeepSeek'}`);
+            
+            llmResponse = await formatFn(
+              context.listings,
+              context.userInput || "",
+              context.queryResult?.query?.filters
+            );
+          }
           
           console.log(`🔍 [FlowWiseService] formatFn returned, llmResponse received`);
           
@@ -830,6 +948,18 @@ async function executeStepActions(
           // This ensures we preserve the original llmResponse object
           context.llmResponse = llmResponse;
           context.iGasCost = llmResponse.iGasCost;
+          
+          // CRITICAL: Preserve listings from llmResponse back to context.listings
+          // This ensures the user_select_listing step has access to listings
+          if (llmResponse.listings && Array.isArray(llmResponse.listings) && llmResponse.listings.length > 0) {
+            context.listings = llmResponse.listings;
+            console.log(`✅ [FlowWiseService] Preserved ${llmResponse.listings.length} listings from llmResponse to context.listings`);
+          } else if (context.listings && context.listings.length > 0) {
+            // If LLM didn't return listings but we have them in context, keep them
+            console.log(`✅ [FlowWiseService] Keeping existing ${context.listings.length} listings in context`);
+          } else {
+            console.warn(`⚠️ [FlowWiseService] No listings in llmResponse and context.listings is empty!`);
+          }
           
           // CRITICAL: Use llmResponse.selectedListing if available (LLM functions now ensure it's always set)
           // DO NOT modify llmResponse.selectedListing - preserve the original

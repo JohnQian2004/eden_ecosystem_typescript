@@ -3642,7 +3642,122 @@
         "user_last_name": "Mart",
         "user_phone": "4438684452"
       }
+    },
+    {
+      "entryId": "ee31d51e-2107-4702-8a21-f9ada03088ed",
+      "txId": "996fc2e2-db11-4294-b8e2-ea4d2858e615",
+      "timestamp": 1768924348051,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-AUTOPARTS-baycounter.com",
+        "price": 100,
+        "serviceType": "autoparts",
+        "gardenName": "Garden-AUTOPARTS-baycounter.com",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "7b2ed29b-07fa-462c-a3d4-66a2d9873a37",
+      "txId": "272e20ed-9276-4767-9d05-23922851e49c",
+      "timestamp": 1768924698526,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-BANK",
+        "price": 100,
+        "serviceType": "bank",
+        "gardenName": "Garden-BANK",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "a4a4e4cc-355c-47aa-9240-07fd74e8cb33",
+      "txId": "75c7be75-5a2c-4a69-a242-bfa809e2cddc",
+      "timestamp": 1768927361523,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-BANK",
+        "price": 100,
+        "serviceType": "bank",
+        "gardenName": "Garden-BANK",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "4cb31089-af41-40ff-b018-ab5bd1a65012",
+      "txId": "ae3606c7-cf7d-47ba-a69a-7eb816fd6499",
+      "timestamp": 1768928244616,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-BANK",
+        "price": 100,
+        "serviceType": "bank",
+        "gardenName": "Garden-BANK",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "6ae37d05-05ef-433d-b311-1fab813e9f6b",
+      "txId": "413c52a1-f716-4d73-8902-b2f6222293d4",
+      "timestamp": 1768928610855,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-BANK",
+        "price": 100,
+        "serviceType": "bank",
+        "gardenName": "Garden-BANK",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
     }
   ],
-  "lastSaved": "2026-01-20T15:48:17.856Z"
+  "lastSaved": "2026-01-20T17:03:30.870Z"
 }

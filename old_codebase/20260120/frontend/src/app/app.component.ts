@@ -90,7 +90,7 @@ export class AppComponent implements OnInit, OnDestroy {
       type: 'autoparts',
       icon: '🔧',
       adText: 'Auto Parts',
-      sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
+      sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price'
     },
     {
       type: 'hotel',
@@ -111,7 +111,7 @@ export class AppComponent implements OnInit, OnDestroy {
     { type: 'movie', icon: '🎬', adText: 'Movie Tickets', sampleQuery: 'I want a sci-fi movie to watch tonight at the best price' },
     { type: 'dex', icon: '💰', adText: 'DEX Tokens', sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price' },
     { type: 'airline', icon: '✈️', adText: 'Airline Tickets', sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price' },
-    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price' },
+    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price' },
     { type: 'hotel', icon: '🏨', adText: 'Hotel Booking', sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price' },
     { type: 'restaurant', icon: '🍽️', adText: 'Restaurant Reservations', sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant' },
     { type: 'grocerystore', icon: '🛒', adText: 'Grocery Store', sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices' },
@@ -2007,7 +2007,7 @@ export class AppComponent implements OnInit, OnDestroy {
                 type: 'autoparts',
                 icon: '🔧',
                 adText: 'Auto Parts',
-                sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper at the best price'
+                sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price'
               },
               {
                 type: 'hotel',

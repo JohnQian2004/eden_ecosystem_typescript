@@ -802,12 +802,14 @@ export class FlowWiseService {
    */
   private getServiceTypeProviderName(serviceType: string): string {
     const providerNames: Record<string, string> = {
+      // Use catalog adText where available, fallback to generated name
       movie: 'AMC Theatres',
       airline: 'Airline Provider',
       hotel: 'Hotel Provider',
       restaurant: 'Restaurant Provider',
       autoparts: 'Auto Parts Provider',
       dex: 'DEX Pool Provider'
+      // Note: Consider importing getCatalogEntry from service-type-catalog.service.ts for consistency
     };
     return providerNames[serviceType] || `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Provider`;
   }
