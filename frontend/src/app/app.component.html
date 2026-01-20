@@ -427,6 +427,20 @@
                           Providers: {{ serviceType.providerCount ?? (providerCountsByServiceType[serviceType.type] || 0) }}
                         </span>
                       </div>
+                      <div class="mt-1" (click)="$event.stopPropagation()">
+                        <div class="small text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                          Owners ({{ getOwnersForServiceType(serviceType.type).length }})
+                        </div>
+                        <div class="mt-1" style="max-height: 96px; overflow: auto;">
+                          <div class="list-group list-group-flush">
+                            <div
+                              class="list-group-item py-1 px-2 bg-transparent"
+                              *ngFor="let email of getOwnersForServiceType(serviceType.type)">
+                              <small>{{ email }}</small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                       <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
                         <span class="badge bg-success small">Active</span>
                       </div>
@@ -461,6 +475,20 @@
                         <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                           Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
                         </span>
+                      </div>
+                      <div class="mt-1" (click)="$event.stopPropagation()">
+                        <div class="small text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                          Owners ({{ getOwnersForDexGarden(garden.id, garden.ownerEmail).length }})
+                        </div>
+                        <div class="mt-1" style="max-height: 96px; overflow: auto;">
+                          <div class="list-group list-group-flush">
+                            <div
+                              class="list-group-item py-1 px-2 bg-transparent"
+                              *ngFor="let email of getOwnersForDexGarden(garden.id, garden.ownerEmail)">
+                              <small>{{ email }}</small>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

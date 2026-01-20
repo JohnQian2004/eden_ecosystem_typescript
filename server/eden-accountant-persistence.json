@@ -7,12 +7,14 @@
   "totalCashierFees": 1.7000000000000004,
   "revenueByServiceType": {
     "garden_deployment": {
-      "count": 26,
+      "count": 27,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
       "totalRootCAFees": 0,
-      "totalIndexerFees": 0
+      "totalIndexerFees": 0,
+      "totalProviderFees": null,
+      "totalCashierFees": null
     },
     "grocerystore": {
       "count": 4,
@@ -75,12 +77,14 @@
       "totalCashierFees": 0.2
     },
     "priesthood": {
-      "count": 2,
+      "count": 4,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
       "totalRootCAFees": 0,
-      "totalIndexerFees": 0
+      "totalIndexerFees": 0,
+      "totalProviderFees": null,
+      "totalCashierFees": null
     },
     "airline": {
       "count": 8,
@@ -103,7 +107,7 @@
       "totalCashierFees": 0.6
     }
   },
-  "lastUpdated": 1768848191978,
+  "lastUpdated": 1768867398057,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-19T18:43:11.978Z"
+  "lastSaved": "2026-01-20T00:03:18.057Z"
 }

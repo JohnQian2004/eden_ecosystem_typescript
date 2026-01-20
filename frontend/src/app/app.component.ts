@@ -17,6 +17,7 @@ export interface ServiceProvider {
   gardenId: string; // Use gardenId (preferred), indexerId kept for backward compatibility
   indexerId?: string; // Backward compatibility - prefer gardenId
   status: string;
+  ownerEmail?: string; // Some providers include ownerEmail (esp. garden-generated providers)
   // Snake Service Fields
   // Note: Snake is a SERVICE TYPE (serviceType: "snake"), not a provider type
   // Each Snake service belongs to a garden (gardenId)
@@ -63,7 +64,7 @@ export class AppComponent implements OnInit, OnDestroy {
   inputPlaceholder: string = 'Select a service type above or type your query...';
   
   // Service Types (Garden of Eden Main Street)
-  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}> = [
+  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [
     {
       type: 'movie',
       icon: '🎬',
@@ -103,7 +104,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
 
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
-  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}> = [];
+  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
   // DEX main street is garden-driven (not service-type driven)
   dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
@@ -113,6 +114,38 @@ export class AppComponent implements OnInit, OnDestroy {
   providerCountsByServiceType: Record<string, number> = {};
   // - gardenId -> provider count
   providerCountsByGardenId: Record<string, number> = {};
+  // - serviceType -> unique owner emails
+  providerOwnersByServiceType: Record<string, string[]> = {};
+  // - gardenId -> unique owner emails
+  providerOwnersByGardenId: Record<string, string[]> = {};
+
+  formatOwnerEmails(emails: string[] | undefined): string {
+    const list = (emails || []).filter(Boolean);
+    if (list.length === 0) return 'N/A';
+    if (list.length === 1) return list[0];
+    return `${list[0]} (+${list.length - 1})`;
+  }
+
+  formatOwnerEmailsAll(emails: string[] | undefined): string {
+    const list = (emails || []).filter(Boolean);
+    if (list.length === 0) return 'N/A';
+    return list.join(', ');
+  }
+
+  getOwnersForServiceType(serviceType: string): string[] {
+    const key = String(serviceType || '').toLowerCase();
+    // Prefer attached owners on serviceTypes, fallback to grouped map
+    const attached = this.serviceTypes.find(st => st.type === key)?.ownerEmails;
+    return (attached && attached.length > 0 ? attached : (this.providerOwnersByServiceType[key] || [])).slice();
+  }
+
+  getOwnersForDexGarden(gardenId: string, fallbackOwnerEmail?: string): string[] {
+    const gid = String(gardenId || '');
+    const owners = (this.providerOwnersByGardenId[gid] || []).slice();
+    const fb = String(fallbackOwnerEmail || '').trim().toLowerCase();
+    if (owners.length === 0 && fb) return [fb];
+    return owners;
+  }
   
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
@@ -1397,14 +1430,34 @@ export class AppComponent implements OnInit, OnDestroy {
                   // Group-by counts (data-driven Main Street)
                   const countsByServiceType: Record<string, number> = {};
                   const countsByGardenId: Record<string, number> = {};
+                  const ownersByServiceTypeSets: Record<string, Set<string>> = {};
+                  const ownersByGardenIdSets: Record<string, Set<string>> = {};
                   for (const p of nonInfrastructureProviders) {
                     const st = String(p.serviceType || '').toLowerCase();
                     if (st) countsByServiceType[st] = (countsByServiceType[st] || 0) + 1;
                     const gid = String((p.gardenId || p.indexerId) || '');
                     if (gid) countsByGardenId[gid] = (countsByGardenId[gid] || 0) + 1;
+
+                    const owner = String((p as any).ownerEmail || '').trim().toLowerCase();
+                    if (owner) {
+                      if (st) {
+                        if (!ownersByServiceTypeSets[st]) ownersByServiceTypeSets[st] = new Set<string>();
+                        ownersByServiceTypeSets[st].add(owner);
+                      }
+                      if (gid) {
+                        if (!ownersByGardenIdSets[gid]) ownersByGardenIdSets[gid] = new Set<string>();
+                        ownersByGardenIdSets[gid].add(owner);
+                      }
+                    }
                   }
                   this.providerCountsByServiceType = countsByServiceType;
                   this.providerCountsByGardenId = countsByGardenId;
+                  this.providerOwnersByServiceType = Object.fromEntries(
+                    Object.entries(ownersByServiceTypeSets).map(([k, set]) => [k, Array.from(set).sort()])
+                  );
+                  this.providerOwnersByGardenId = Object.fromEntries(
+                    Object.entries(ownersByGardenIdSets).map(([k, set]) => [k, Array.from(set).sort()])
+                  );
             
                   // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
                   // This ensures we don't lose service types that were filtered out previously
@@ -1490,12 +1543,14 @@ export class AppComponent implements OnInit, OnDestroy {
                   
                   // CRITICAL: Deduplicate by service type to prevent duplicates
                   // This prevents duplicates from race conditions or multiple rapid calls
-                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number}>();
+                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}>();
                   for (const st of filteredServiceTypes) {
                     if (!serviceTypeMap.has(st.type)) {
+                      const key = String(st.type || '').toLowerCase();
                       serviceTypeMap.set(st.type, {
                         ...st,
-                        providerCount: this.providerCountsByServiceType[String(st.type || '').toLowerCase()] || 0
+                        providerCount: this.providerCountsByServiceType[key] || 0,
+                        ownerEmails: this.providerOwnersByServiceType[key] || []
                       });
                     }
                   }
