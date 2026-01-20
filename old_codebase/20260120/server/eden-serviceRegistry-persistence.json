@@ -251,7 +251,31 @@
       "uuid": "d486c358-e9a8-4482-bcb2-1ce3f2a57f5c",
       "apiEndpoint": "https://api.bank.com/v1",
       "gardenId": "garden-13"
+    },
+    {
+      "id": "hotel-e8c04f09",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "fa708c29-1b82-4476-883e-e69761a3e7b4",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-14"
+    },
+    {
+      "id": "autoparts-a63ce6b5",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "a38a1ae9-95b3-4da0-a868-2e982821b32b",
+      "apiEndpoint": "https://api.autoparts.com/v1",
+      "gardenId": "garden-14"
     }
   ],
-  "lastSaved": "2026-01-20T01:24:10.955Z"
+  "lastSaved": "2026-01-20T09:43:07.670Z"
 }

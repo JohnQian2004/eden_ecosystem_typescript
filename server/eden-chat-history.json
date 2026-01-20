@@ -706,6 +706,151 @@
         "mode": "user",
         "status": "active"
       }
+    ],
+    "conv:garden:garden-12:god": [
+      {
+        "id": "c_1768899928344_b590b41798c24",
+        "conversationId": "conv:garden:garden-12:god",
+        "role": "USER",
+        "content": "I want to find a party or event happening this weekend and purchase tickets",
+        "timestamp": 1768899928344,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "party",
+        "status": "active"
+      },
+      {
+        "id": "c_1768899979350_359348a6182ee8",
+        "conversationId": "conv:garden:garden-12:god",
+        "role": "USER",
+        "content": "I want to find a party or event happening this weekend and purchase tickets",
+        "timestamp": 1768899979350,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "party",
+        "status": "active"
+      },
+      {
+        "id": "c_1768899986184_84a86261e280a",
+        "conversationId": "conv:garden:garden-12:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 option for a party. Best option: Join the New Year's Eve Gala Concert at the Convention Center for $15.99. Enjoy an exciting evening with a capacity of 500 attendees.",
+        "timestamp": 1768899986184,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-9:god": [
+      {
+        "id": "c_1768900136361_3a62ae63460cd8",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "USER",
+        "content": "I want to make a dinner reservation for 2 people tonight at the best restaurant",
+        "timestamp": 1768900136361,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "c_1768900143385_60500de269184",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 restaurant option. Best choice: 'The Gourmet Bistro' in Downtown offers Italian cuisine with a rating of 4.69. Reservation for 2 at 7:00 PM for $15.99.",
+        "timestamp": 1768900143385,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768901613080_6f2c482b7b3a48",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "USER",
+        "content": "I want to make a dinner reservation for 2 people tonight at the best restaurant",
+        "timestamp": 1768901613080,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "c_1768901619743_a387a86e96fff",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 restaurant option. Best option: The Gourmet Bistro offers Italian cuisine in Downtown at $15.99 with a high rating of 4.87. Reservation time is 7:00 PM for a party of 2.",
+        "timestamp": 1768901619743,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768901793478_c6f7b1875ac518",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "USER",
+        "content": "this is a test",
+        "timestamp": 1768901793478,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "c_1768901798494_acdc069ab19bb",
+        "conversationId": "conv:garden:garden-9:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 restaurant option. Best option: The Gourmet Bistro offers exquisite Italian cuisine located in Downtown. Reservation available at 7:00 PM for a party of 2, priced at $15.99 with a high rating of 4.7.",
+        "timestamp": 1768901798494,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-7:god": [
+      {
+        "id": "c_1768901781056_32d4942930382",
+        "conversationId": "conv:garden:garden-7:god",
+        "role": "USER",
+        "content": "this is a test",
+        "timestamp": 1768901781056,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "grocerystore",
+        "status": "active"
+      },
+      {
+        "id": "c_1768901789234_fb5f75945081c8",
+        "conversationId": "conv:garden:garden-7:god",
+        "role": "ASSISTANT",
+        "content": "We found a grocery store option for you. Best option: Fresh Market located in Downtown, offering a variety of produce with a great rating of 4.79. The store operates from 8 AM to 9 PM with a price starting at $15.99.",
+        "timestamp": 1768901789234,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-8:god": [
+      {
+        "id": "c_1768902129319_45c8f64f8bca3",
+        "conversationId": "conv:garden:garden-8:god",
+        "role": "USER",
+        "content": "this is a test",
+        "timestamp": 1768902129319,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "hotel",
+        "status": "active"
+      },
+      {
+        "id": "c_1768902136845_07bdf292814d8",
+        "conversationId": "conv:garden:garden-8:god",
+        "role": "ASSISTANT",
+        "content": "Found 3 hotel options. Best option: Grand Plaza Hotel located in Downtown with a price of $15.99 per night and a high rating of 4.93.",
+        "timestamp": 1768902136845,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
     ]
   }
 }

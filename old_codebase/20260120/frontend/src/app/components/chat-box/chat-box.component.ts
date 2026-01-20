@@ -10,12 +10,23 @@ import { SimulatorEvent } from '../../app.component';
 export class ChatBoxComponent implements OnInit, OnDestroy {
   messages: SimulatorEvent[] = [];
   private subscription: any;
+  private onChatResetEvt: any;
 
   constructor(private wsService: WebSocketService) {}
 
   ngOnInit() {
+    // Clear simulator event console on new chat
+    this.onChatResetEvt = () => {
+      this.messages = [];
+    };
+    window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
+
     this.subscription = this.wsService.events$.subscribe((event: SimulatorEvent) => {
       this.messages.push(event);
+      // Prevent DOM from growing unbounded (keeps app responsive after long sessions)
+      if (this.messages.length > 500) {
+        this.messages = this.messages.slice(-500);
+      }
       // Auto-scroll to bottom
       setTimeout(() => {
         const chatBox = document.querySelector('.chat-box');
@@ -29,6 +40,9 @@ export class ChatBoxComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     if (this.subscription) {
       this.subscription.unsubscribe();
+    }
+    if (this.onChatResetEvt) {
+      window.removeEventListener('eden_chat_reset', this.onChatResetEvt as any);
     }
   }
 

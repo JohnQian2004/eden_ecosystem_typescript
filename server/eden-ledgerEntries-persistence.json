@@ -3380,7 +3380,186 @@
         "services": "Prescriptions",
         "hours": "9 AM - 6 PM"
       }
+    },
+    {
+      "entryId": "0583cd5b-9271-4842-a0f2-76ee1fd0f4ed",
+      "txId": "13563ff3-fb92-4ca5-b457-bd41588de620",
+      "timestamp": 1768898466164,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-HOTEL",
+        "price": 100,
+        "serviceType": "hotel",
+        "gardenName": "Garden-HOTEL",
+        "createdBy": "billdraper2026@gmail.com"
+      }
+    },
+    {
+      "entryId": "3bd5dc8a-e8df-4bcb-8e05-9971e0f34f84",
+      "txId": "a0b43e4a-7b4d-49c5-bf79-f474189abd43",
+      "timestamp": 1768899745543,
+      "payer": "billdraper2026@gmail.com",
+      "payerId": "billdraper2026@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-AUTOPARTS",
+        "price": 100,
+        "serviceType": "autoparts",
+        "gardenName": "Garden-AUTOPARTS",
+        "createdBy": "billdraper2026@gmail.com"
+      }
+    },
+    {
+      "entryId": "4eda946d-81a3-44cc-954b-b6815cb1e1d5",
+      "txId": "tx_1768899991772",
+      "timestamp": 1768899991772,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-PARTY Provider",
+      "providerUuid": "party-a93b8fe1",
+      "serviceType": "party",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partyName": "New Year's Eve Gala",
+        "eventDate": "2026-12-31",
+        "location": "Convention Center",
+        "providerName": "Garden-PARTY Provider",
+        "partyType": "Concert",
+        "eventTime": "9:00 PM",
+        "capacity": 500,
+        "name": "Garden-PARTY Provider",
+        "serviceType": "party",
+        "providerId": "party-a93b8fe1",
+        "rating": 4.55109669262653
+      }
+    },
+    {
+      "entryId": "d780f06c-d566-4ae3-8acc-0f5ef221156d",
+      "txId": "tx_1768900147605",
+      "timestamp": 1768900147605,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-41fd1b09",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-41fd1b09",
+        "rating": 4.687150768375478
+      }
+    },
+    {
+      "entryId": "a0eacfad-9c05-43d8-aa4a-ff07fe2cc404",
+      "txId": "tx_1768901624608",
+      "timestamp": 1768901624608,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-RESTAURANT Provider",
+      "providerUuid": "restaurant-41fd1b09",
+      "serviceType": "restaurant",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "restaurantName": "The Gourmet Bistro",
+        "reservationTime": "7:00 PM",
+        "location": "Downtown",
+        "providerName": "Garden-RESTAURANT Provider",
+        "cuisine": "Italian",
+        "partySize": 2,
+        "name": "Garden-RESTAURANT Provider",
+        "serviceType": "restaurant",
+        "providerId": "restaurant-41fd1b09",
+        "rating": 4.870444909801671
+      }
+    },
+    {
+      "entryId": "21b50fb7-aefd-4c39-b66e-efcb92a1284e",
+      "txId": "tx_1768902170393",
+      "timestamp": 1768902170393,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-HOTEL Provider",
+      "providerUuid": "hotel-0a492f3c",
+      "serviceType": "hotel",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "hotelName": "Grand Plaza Hotel",
+        "checkIn": "2026-01-20",
+        "location": "Downtown",
+        "providerName": "Garden-HOTEL Provider",
+        "checkOut": "2026-01-22",
+        "roomType": "Standard",
+        "name": "Garden-HOTEL Provider",
+        "serviceType": "hotel",
+        "providerId": "hotel-0a492f3c",
+        "rating": 4.928668528898754
+      }
     }
   ],
-  "lastSaved": "2026-01-20T04:40:21.191Z"
+  "lastSaved": "2026-01-20T09:42:50.755Z"
 }

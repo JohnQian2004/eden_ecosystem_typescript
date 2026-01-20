@@ -1,15 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, firstValueFrom, catchError, throwError, timeout } from 'rxjs';
+import { getApiBaseUrl } from './api-base';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ChatService {
-  // Use port 3000 when running in dev mode (ng serve), otherwise use relative path
-  private apiUrl = window.location.port === '4200' 
-    ? 'http://localhost:3000/api/chat' 
-    : '/api/chat';
+  private apiUrl = `${getApiBaseUrl()}/api/chat`;
 
   constructor(private http: HttpClient) {}
 

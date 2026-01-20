@@ -7,6 +7,7 @@ import { FlowWiseService, UserDecisionRequest } from './services/flowwise.servic
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
+import { getApiBaseUrl } from './services/api-base';
 
 export interface ServiceProvider {
   id: string;
@@ -46,6 +47,7 @@ export interface SimulatorEvent {
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Eden Simulator Dashboard';
+  theme: 'dark' | 'light' = 'dark';
   userInput: string = '';
   isProcessing: boolean = false;
   userEmail: string = ''; // Will be set from localStorage or default
@@ -104,8 +106,58 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   ];
 
+  // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
+  private readonly SERVICE_TYPE_CATALOG: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+    { type: 'movie', icon: '🎬', adText: 'Movie Tickets', sampleQuery: 'I want a sci-fi movie to watch tonight at the best price' },
+    { type: 'dex', icon: '💰', adText: 'DEX Tokens', sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price' },
+    { type: 'airline', icon: '✈️', adText: 'Airline Tickets', sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price' },
+    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2020 Toyota Camry at the best price' },
+    { type: 'hotel', icon: '🏨', adText: 'Hotel Booking', sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price' },
+    { type: 'restaurant', icon: '🍽️', adText: 'Restaurant Reservations', sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant' },
+    { type: 'grocerystore', icon: '🛒', adText: 'Grocery Store', sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices' },
+    { type: 'pharmacy', icon: '💊', adText: 'Pharmacy', sampleQuery: 'I need to find a pharmacy that has my prescription medication available' },
+    { type: 'dogpark', icon: '🐕', adText: 'Dog Park', sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains' },
+    { type: 'gasstation', icon: '⛽', adText: 'Gas Station', sampleQuery: 'I need to find a gas station with premium fuel at the best price' },
+    { type: 'party', icon: '🎉', adText: 'Party & Events', sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets' },
+    { type: 'bank', icon: '🏦', adText: 'Banking Services', sampleQuery: 'I need to find a bank near me with ATM access and business banking services' }
+  ];
+
+  private getCatalogEntry(serviceType?: string): {type: string, icon: string, adText: string, sampleQuery: string} | undefined {
+    const st = String(serviceType || '').toLowerCase().trim();
+    if (!st) return undefined;
+    return this.SERVICE_TYPE_CATALOG.find(s => s.type === st);
+  }
+
+  getGardenCardStyle(serviceType?: string): { [k: string]: string } {
+    const st = String(serviceType || '').toLowerCase().trim();
+    // Dark-theme friendly tints; keep subtle to preserve readability.
+    const palette: Record<string, { bg: string; border: string }> = {
+      movie: { bg: 'rgba(56, 139, 253, 0.16)', border: 'rgba(56, 139, 253, 0.35)' }, // blue
+      dex: { bg: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)' }, // green
+      airline: { bg: 'rgba(14, 165, 233, 0.12)', border: 'rgba(14, 165, 233, 0.35)' }, // sky
+      autoparts: { bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.35)' }, // orange
+      hotel: { bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)' }, // purple
+      restaurant: { bg: 'rgba(34, 197, 94, 0.10)', border: 'rgba(34, 197, 94, 0.30)' }, // green-lite
+      grocerystore: { bg: 'rgba(132, 204, 22, 0.10)', border: 'rgba(132, 204, 22, 0.30)' }, // lime
+      pharmacy: { bg: 'rgba(244, 63, 94, 0.10)', border: 'rgba(244, 63, 94, 0.30)' }, // rose
+      dogpark: { bg: 'rgba(234, 179, 8, 0.10)', border: 'rgba(234, 179, 8, 0.30)' }, // amber
+      gasstation: { bg: 'rgba(239, 68, 68, 0.10)', border: 'rgba(239, 68, 68, 0.30)' }, // red
+      party: { bg: 'rgba(236, 72, 153, 0.10)', border: 'rgba(236, 72, 153, 0.30)' }, // pink
+      bank: { bg: 'rgba(148, 163, 184, 0.10)', border: 'rgba(148, 163, 184, 0.30)' } // slate
+    };
+
+    const p = palette[st] || { bg: 'rgba(148, 163, 184, 0.08)', border: 'rgba(148, 163, 184, 0.20)' };
+    return {
+      backgroundColor: p.bg,
+      border: `1px solid ${p.border}`
+    };
+  }
+
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
-  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
+  // Apple main street is garden-driven (like DEX): each garden is its own card.
+  appleGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, serviceType?: string, isSnake?: boolean}> = [];
+  selectedAppleGarden: {id: string, name: string} | null = null;
+  isLoadingAppleGardens: boolean = false;
   // DEX main street is garden-driven (not service-type driven)
   dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
@@ -119,6 +171,13 @@ export class AppComponent implements OnInit, OnDestroy {
   providerOwnersByServiceType: Record<string, string[]> = {};
   // - gardenId -> unique owner emails
   providerOwnersByGardenId: Record<string, string[]> = {};
+
+  getServiceTypeIcon(serviceType?: string): string {
+    const st = String(serviceType || '').toLowerCase().trim();
+    if (!st) return '🌿';
+    // Use the full catalog so Apple gardens with 0 providers still render the right icon.
+    return this.getCatalogEntry(st)?.icon || '🌿';
+  }
 
   formatOwnerEmails(emails: string[] | undefined): string {
     const list = (emails || []).filter(Boolean);
@@ -178,6 +237,10 @@ export class AppComponent implements OnInit, OnDestroy {
   activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
+  private walletBalanceRefreshTimer: any = null;
+  private servicesRefreshTimer: any = null;
+  private gardensRefreshTimer: any = null;
+  private dexGardensRefreshTimer: any = null;
   
   // Helper getter to check if user is actually signed in (has saved email in localStorage)
   get isUserSignedIn(): boolean {
@@ -225,6 +288,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private viewTransitionUntilMs: number = 0;
 
   get isGlobalLoading(): boolean {
+    // Signed-out users should never be blocked by the full-screen loading overlay.
+    // They should still see Main Street + Sign In prompt instantly.
+    if (!this.isUserSignedIn) return false;
+
     const now = Date.now();
     const inViewTransition = now < this.viewTransitionUntilMs;
     return (
@@ -249,9 +316,7 @@ export class AppComponent implements OnInit, OnDestroy {
     return 'Loading...';
   }
   
-  private apiUrl = window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : '';
+  private apiUrl = getApiBaseUrl();
 
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
@@ -567,6 +632,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.initTheme();
     // Debug toggle (keeps UI responsive by default)
     this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
 
@@ -708,13 +774,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // Update title to include email
     this.updateTitle();
     
-    // Open sign-in modal on page load ONLY if not signed in (no saved email)
-    // Don't show modal if user has already signed in (has saved email)
-    if (!isSignedIn) {
-      setTimeout(() => {
-        this.openSignInModal();
-      }, 1000); // Delay to ensure page is fully loaded
-    } else {
+    // Do NOT auto-open sign-in UI. We run in guest mode by default.
+    // Sign-in is only shown when the user explicitly clicks the header button
+    // or a gated action requests it.
+    if (isSignedIn) {
       console.log(`✅ [App] User already signed in (${savedEmail}), skipping sign-in modal`);
     }
     
@@ -771,9 +834,14 @@ export class AppComponent implements OnInit, OnDestroy {
       this.updateSidebarVisibility();
     }
     
-    // Load wallet balance immediately with default email
-    // It will be refreshed if Google Sign-In updates the email
-    this.loadWalletBalance();
+    // Only load wallet balance when user is actually signed in (localStorage userEmail exists).
+    // When signed out, keep the UI responsive and show Main Street + Sign In prompt without blocking on balance.
+    if (this.isUserSignedIn) {
+      this.loadWalletBalance();
+    } else {
+      this.walletBalance = 0;
+      this.isLoadingBalance = false;
+    }
     
     // Initialize Google Sign-In and get user email (may update email if Google Sign-In succeeds)
     // This is async and won't block balance loading
@@ -784,29 +852,20 @@ export class AppComponent implements OnInit, OnDestroy {
     // Listen for service provider creation events to refresh service types
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
       if (event.type === 'service_provider_created' || event.type === 'service_provider_registered') {
-        console.log(`🔄 Service provider created/registered, refreshing service types...`);
-        // Refresh services after a short delay to ensure backend has updated
-        setTimeout(() => {
-          this.loadServices();
-        }, 500);
+        // Throttle refresh: these events can be noisy during boot / after chats.
+        this.requestServicesRefresh();
       }
       
       // Listen for garden creation events to refresh gardens list
       if (event.type === 'garden_created') {
-        console.log(`🔄 Garden created, refreshing gardens list and Main Street...`);
-        // Refresh gardens check and services after a short delay to ensure backend has updated
-        setTimeout(() => {
-          this.checkServiceGardens();
-          this.loadServices();
-        }, 500);
+        // Throttle refresh: garden creation can fan out into many provider events.
+        this.requestGardensRefresh();
+        this.requestServicesRefresh();
       }
 
       // Listen for DEX garden creation events to refresh DEX gardens list
       if (event.type === 'dex_garden_created') {
-        console.log(`🔄 DEX garden created, refreshing DEX gardens list...`);
-        setTimeout(() => {
-          this.loadDexGardens();
-        }, 500);
+        this.requestDexGardensRefresh();
       }
       
       // Listen for ledger events to update wallet balance (event-driven, no polling)
@@ -815,11 +874,8 @@ export class AppComponent implements OnInit, OnDestroy {
           event.type === 'ledger_booking_completed' ||
           event.type === 'cashier_payment_processed' ||
           event.type === 'wallet_balance_updated') {
-        console.log(`💰 [App] Ledger event detected (${event.type}), updating wallet balance...`);
-        // Update wallet balance when ledger events occur
-        setTimeout(() => {
-          this.loadWalletBalance();
-        }, 500);
+        // Ledger events can be frequent; debounce wallet refresh to avoid flooding backend/UI.
+        this.requestWalletBalanceRefresh();
       }
     });
     
@@ -828,6 +884,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
+    // Load Apple gardens (Apple main street is garden-driven)
+    this.loadAppleGardens();
     // Load DEX gardens (DEX main street is garden-driven)
     this.loadDexGardens();
     // Load Snake providers separately
@@ -842,18 +900,78 @@ export class AppComponent implements OnInit, OnDestroy {
       this.checkServiceGardens();
     }, 500);
     
-    // Check priesthood status if user is signed in
-    if (this.userEmail) {
+    // Check priesthood status only if user is signed in
+    if (this.isUserSignedIn && this.userEmail) {
       setTimeout(() => {
         this.checkPriesthoodStatus();
       }, 1000);
     }
   }
 
+  private applyTheme(theme: 'dark' | 'light') {
+    this.theme = theme;
+    try {
+      localStorage.setItem('edenTheme', theme);
+    } catch {}
+    // Bootstrap 5.3 theme switch
+    document.documentElement.setAttribute('data-bs-theme', theme);
+  }
+
+  private initTheme() {
+    const saved = (localStorage.getItem('edenTheme') || '').toLowerCase();
+    if (saved === 'light' || saved === 'dark') {
+      this.applyTheme(saved as any);
+      return;
+    }
+    // Default to dark (matches current app styling)
+    this.applyTheme('dark');
+  }
+
+  toggleTheme() {
+    this.applyTheme(this.theme === 'dark' ? 'light' : 'dark');
+    this.cdr.detectChanges();
+  }
+
+  private requestWalletBalanceRefresh(delayMs: number = 750) {
+    if (this.walletBalanceRefreshTimer) clearTimeout(this.walletBalanceRefreshTimer);
+    this.walletBalanceRefreshTimer = setTimeout(() => {
+      this.walletBalanceRefreshTimer = null;
+      // Avoid parallel requests; loadWalletBalance has its own guards too.
+      if (!this.isLoadingBalance) {
+        this.loadWalletBalance();
+      }
+    }, delayMs);
+  }
+
+  private requestServicesRefresh(delayMs: number = 1200) {
+    if (this.servicesRefreshTimer) clearTimeout(this.servicesRefreshTimer);
+    this.servicesRefreshTimer = setTimeout(() => {
+      this.servicesRefreshTimer = null;
+      this.loadServices();
+    }, delayMs);
+  }
+
+  private requestGardensRefresh(delayMs: number = 1200) {
+    if (this.gardensRefreshTimer) clearTimeout(this.gardensRefreshTimer);
+    this.gardensRefreshTimer = setTimeout(() => {
+      this.gardensRefreshTimer = null;
+      this.checkServiceGardens();
+      this.loadAppleGardens();
+    }, delayMs);
+  }
+
+  private requestDexGardensRefresh(delayMs: number = 1200) {
+    if (this.dexGardensRefreshTimer) clearTimeout(this.dexGardensRefreshTimer);
+    this.dexGardensRefreshTimer = setTimeout(() => {
+      this.dexGardensRefreshTimer = null;
+      this.loadDexGardens();
+    }, delayMs);
+  }
+
   private recomputeMainStreetGroups() {
-    this.appleServiceTypes = this.serviceTypes
-      .filter(st => st.type !== 'dex')
-      .sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
+    // Legacy: was service-type grouping for Apple. We keep serviceTypes updated for prompts/workflow preload,
+    // but the UI now renders Apple as gardens (see loadAppleGardens()).
+    this.serviceTypes = this.serviceTypes.sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
   }
 
   private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
@@ -895,6 +1013,106 @@ export class AppComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  loadAppleGardens() {
+    this.isLoadingAppleGardens = true;
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
+    const url = isPriestMode && this.userEmail
+      ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/gardens?ecosystem=all`;
+
+    this.http
+      .get<{success: boolean, gardens?: any[], indexers?: any[]}>(url)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          // Prevent "Loading Apple gardens..." from hanging forever if backend stalls.
+          this.isLoadingAppleGardens = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+      next: (response) => {
+        const gardens = (response.gardens || response.indexers || []).filter((g: any) => g && g.active !== false);
+        // Apple gardens = non-DEX, non-token, non-HG
+        const apple = gardens.filter((g: any) => {
+          const id = String(g.id || '');
+          const serviceType = String(g.serviceType || g.type || '').toLowerCase();
+          if (!id || id === 'HG') return false;
+          if (id.startsWith('T')) return false; // token garden convention
+          if (serviceType === 'dex' || serviceType === 'token') return false;
+          return true;
+        });
+        apple.sort((a: any, b: any) => String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { sensitivity: 'base' }));
+        this.appleGardens = apple.map((g: any) => {
+          const effectiveServiceType = this.inferServiceTypeFromGarden(g);
+          return {
+          id: g.id,
+          name: g.name || g.id,
+          active: g.active !== false,
+          uuid: g.uuid,
+          ownerEmail: g.ownerEmail,
+          // IMPORTANT: do NOT let "type: regular" leak into UI/workflow selection.
+          // Always compute a workflow-capable serviceType for Apple gardens.
+          serviceType: effectiveServiceType,
+          isSnake: !!g.isSnake
+          };
+        });
+      },
+      error: (err) => {
+        console.error('Failed to load Apple gardens:', err);
+        this.appleGardens = [];
+      }
+    });
+  }
+
+  private inferServiceTypeFromGarden(garden: { name?: string; serviceType?: string; type?: string } | null | undefined): string {
+    const raw = String((garden as any)?.serviceType || (garden as any)?.type || '').toLowerCase().trim();
+    // 'regular' is the garden kind, not a workflow serviceType.
+    if (raw && raw !== 'regular' && raw !== 'root' && raw !== 'token') return raw;
+
+    const name = String((garden as any)?.name || '');
+    const m = name.match(/garden[-_\s]+([a-z0-9]+)/i);
+    const fromName = String(m?.[1] || '').toLowerCase().trim();
+    if (fromName) return fromName;
+
+    return 'movie';
+  }
+
+  private getServiceTypePrompt(serviceType: string | undefined): { type: string; sampleQuery: string } {
+    const st = String(serviceType || '').toLowerCase().trim();
+    const normalized = (!st || st === 'regular' || st === 'root' || st === 'token') ? 'movie' : st;
+    const match = this.getCatalogEntry(normalized);
+    return {
+      type: normalized,
+      sampleQuery: match?.sampleQuery || `Show me ${normalized} options`
+    };
+  }
+
+  selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
+    this.selectedAppleGarden = { id: garden.id, name: garden.name };
+    this.selectedDexGarden = null;
+
+    const inferred = this.inferServiceTypeFromGarden(garden as any);
+    const prompt = this.getServiceTypePrompt(inferred);
+    this.selectedServiceType = prompt.type;
+    this.userInput = prompt.sampleQuery;
+    this.inputPlaceholder = prompt.sampleQuery;
+    this.flowWiseService.loadWorkflowIfNeeded(prompt.type);
+
+    // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
+    this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+    setTimeout(() => {
+      const input = document.querySelector('input[name=\"userInput\"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+
+    this.cdr.detectChanges();
   }
 
   selectDexGarden(garden: {id: string, name: string}) {
@@ -1556,16 +1774,19 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   
   loadWalletBalance() {
-    // Always get the latest email from localStorage to ensure we're using the current signed-in user
+    // Only load balance when signed in. When signed out, avoid "silent binding" to admin/default email.
     const savedEmail = localStorage.getItem('userEmail');
-    // If no saved email (user signed out), use default email for balance check
-    // Otherwise use saved email or current userEmail
-    const emailToUse = savedEmail || (this.userEmail || 'bill.draper.auto@gmail.com');
-    
+    if (!savedEmail || savedEmail.trim() === '') {
+      this.walletBalance = 0;
+      this.isLoadingBalance = false;
+      return;
+    }
+
+    const emailToUse = savedEmail.trim();
+
     // Update userEmail if it's different (user signed in with different account)
     if (this.userEmail !== emailToUse) {
       console.log(`📧 Email changed from ${this.userEmail} to ${emailToUse}, clearing and reloading wallet balance`);
-      // Clear balance when email changes
       this.walletBalance = 0;
       this.userEmail = emailToUse;
     }
@@ -1662,7 +1883,18 @@ export class AppComponent implements OnInit, OnDestroy {
       ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
       : `${this.apiUrl}/api/gardens?ecosystem=all`;
     
-    this.http.get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
+    this.http
+      .get<{success: boolean, gardens?: Array<{id: string, name?: string, type?: string, active: boolean, ownerEmail?: string}>, indexers?: Array<{id: string, name?: string, type?: string, active: boolean}>}>(gardensUrl)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          // Ensure we never get stuck on "Loading Service Registry..." if backend is down/stalled.
+          if (this.isLoadingServices) {
+            this.isLoadingServices = false;
+            this.cdr.detectChanges();
+          }
+        })
+      )
       .subscribe({
         next: (gardensResponse) => {
           // Support both 'gardens' and 'indexers' response fields for backward compatibility
@@ -1691,6 +1923,7 @@ export class AppComponent implements OnInit, OnDestroy {
           // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
           const ownerEmailParam = isPriestMode && this.userEmail ? `?ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry${ownerEmailParam}`)
+            .pipe(timeout(8000))
             .subscribe({
               next: (response) => {
                 if (response.success && response.providers) {
@@ -1882,6 +2115,7 @@ export class AppComponent implements OnInit, OnDestroy {
           console.error('Failed to load gardens for validation:', err);
           // If gardens API fails, still try to load services but without validation
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry`)
+            .pipe(timeout(8000))
             .subscribe({
               next: (response) => {
                 // Fallback: use original logic without gardenId validation
@@ -1923,7 +2157,15 @@ export class AppComponent implements OnInit, OnDestroy {
     this.isLoadingSnakeProviders = true;
     const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && this.userEmail && this.userEmail !== this.adminEmail;
     const ownerEmailParam = (isPriestMode && this.userEmail && this.isUserSignedIn) ? `&ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
-    this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
+    this.http
+      .get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry?serviceType=snake${ownerEmailParam}`)
+      .pipe(
+        timeout(8000),
+        finalize(() => {
+          this.isLoadingSnakeProviders = false;
+          this.cdr.detectChanges();
+        })
+      )
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
@@ -1944,14 +2186,10 @@ export class AppComponent implements OnInit, OnDestroy {
           } else {
             this.snakeProviders = [];
           }
-          this.isLoadingSnakeProviders = false;
-          this.cdr.detectChanges();
         },
         error: (err) => {
           console.error('Failed to load Snake services:', err);
           this.snakeProviders = [];
-          this.isLoadingSnakeProviders = false;
-          this.cdr.detectChanges();
         }
       });
   }
@@ -2565,6 +2803,10 @@ export class AppComponent implements OnInit, OnDestroy {
       window.removeEventListener('eden_send', this.onEdenSendEvt as any);
       this.onEdenSendEvt = null;
     }
+    if (this.walletBalanceRefreshTimer) clearTimeout(this.walletBalanceRefreshTimer);
+    if (this.servicesRefreshTimer) clearTimeout(this.servicesRefreshTimer);
+    if (this.gardensRefreshTimer) clearTimeout(this.gardensRefreshTimer);
+    if (this.dexGardensRefreshTimer) clearTimeout(this.dexGardensRefreshTimer);
     this.wsService.disconnect();
   }
 
@@ -2593,8 +2835,41 @@ export class AppComponent implements OnInit, OnDestroy {
       this.openSignInModal();
       return;
     }
-    
-    // Check balance before submitting
+
+    // Context sensing - detect service type if not already set
+    if (!this.selectedServiceType) {
+      this.selectedServiceType = this.detectServiceType(this.userInput);
+      console.log(`🔍 Detected service type from input: ${this.selectedServiceType || 'unknown'}`);
+    }
+
+    // If no service type detected, treat this as a regular chat message (no workflow, no iGas).
+    if (!this.selectedServiceType) {
+      const input = this.userInput.trim();
+      const regularConversationId = this.buildConversationId('service', 'chat');
+      if (this.activeConversationId !== regularConversationId) {
+        this.setActiveConversation(regularConversationId);
+      }
+
+      this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
+      const help = `I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.`;
+      this.appendChatHistory('ASSISTANT', help, { serviceType: 'chat' }, regularConversationId);
+
+      // Clear input and reset selection back to "service provider" state
+      this.userInput = '';
+      this.selectedServiceType = null;
+      this.selectedDexGarden = null;
+      this.selectedAppleGarden = null;
+      this.inputPlaceholder = 'Select a service type above or type your query...';
+      this.amcWorkflowActive = false;
+      this.activeWorkflowExecutionId = null;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // From here: workflow path (requires iGas)
+    const serviceType = this.selectedServiceType;
+
+    // Check balance before submitting workflow
     if (!this.hasSufficientBalance()) {
       console.log('⚠️ Submit blocked: Insufficient balance', { 
         balance: this.walletBalance,
@@ -2604,21 +2879,14 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Context sensing - detect service type if not already set
-    if (!this.selectedServiceType) {
-      this.selectedServiceType = this.detectServiceType(this.userInput);
-      console.log(`🔍 Detected service type from input: ${this.selectedServiceType || 'unknown'}`);
-    }
-
-    // If no service type detected, default to 'movie' for backward compatibility
-    const serviceType = this.selectedServiceType || 'movie';
-
     // Ensure chat history conversation is aligned to the service we're about to run.
     // NOTE: activeConversationId can be left over from a previous tile; don't rely on "null" checks.
     const desiredConversationId =
       serviceType === 'dex' && this.selectedDexGarden?.id
         ? this.buildConversationId('garden', this.selectedDexGarden.id)
-        : this.buildConversationId('service', serviceType);
+        : (this.selectedAppleGarden?.id
+            ? this.buildConversationId('garden', this.selectedAppleGarden.id)
+            : this.buildConversationId('service', serviceType));
     if (this.activeConversationId !== desiredConversationId) {
       this.setActiveConversation(desiredConversationId);
     }

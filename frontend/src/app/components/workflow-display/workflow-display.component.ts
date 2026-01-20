@@ -4,6 +4,7 @@ import { FlowWiseService, FlowWiseWorkflow, WorkflowStep, WorkflowExecution, Use
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 import { MovieTheaterComponent } from '../../movie-theater/movie-theater.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 @Component({
   selector: 'app-workflow-display',
@@ -109,9 +110,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   private readonly LLM_HISTORY_KEY = 'eden_llm_history';
   private readonly MAX_HISTORY_ITEMS = 50; // Keep last 50 responses
 
-  public apiUrl = window.location.port === '4200'
-    ? 'http://localhost:3000'
-    : '';
+  public apiUrl = getApiBaseUrl();
 
   constructor(
     private http: HttpClient,
@@ -1012,9 +1011,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     console.log(`✅ [WorkflowDisplay] Submitting movie selection:`, selectedOption);
 
     // Send the selection to the server
-    const baseUrl = window.location.port === '4200'
-      ? 'http://localhost:3000'
-      : '';
+    const baseUrl = this.apiUrl;
 
     // Store the selection data for the FlowWise service
     if (this.activeExecution) {

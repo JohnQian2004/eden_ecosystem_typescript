@@ -84,6 +84,7 @@
             <td>
               <span class="badge" 
                     [ngClass]="getServiceTypeBadgeClass(garden.serviceType)">
+                <span class="me-1">{{ getServiceTypeIcon(garden.serviceType) }}</span>
                 {{ garden.serviceType }}
               </span>
             </td>
@@ -206,9 +207,7 @@
         type="button"
         (click)="selectGardenTab(garden.id)">
         <span class="tab-icon">
-          <span *ngIf="garden.type === 'root'">✨</span>
-          <span *ngIf="garden.type === 'token'">🔷</span>
-          <span *ngIf="garden.type !== 'root' && garden.type !== 'token'">🌳</span>
+          {{ getGardenIcon(garden) }}
         </span>
         <span class="tab-label">{{ garden.name }}</span>
       </button>
@@ -238,8 +237,7 @@
           <div *ngIf="selectedGardenTab" class="garden-node">
             <div class="garden-header">
               <span class="garden-icon">
-                <span *ngIf="selectedGardenTab === 'HG'">✨</span>
-                <span *ngIf="selectedGardenTab !== 'HG'">🌳</span>
+                {{ getSelectedGardenIcon() }}
               </span>
               <span class="garden-name">{{ selectedGardenName }}</span>
               <span class="badge bg-success badge-xs">{{ selectedGardenNodeCount }}</span>

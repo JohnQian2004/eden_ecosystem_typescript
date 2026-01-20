@@ -48,6 +48,11 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   // Cache for step statuses to avoid repeated calculations
   private stepStatusCache: Map<string, string> = new Map();
 
+  // Scope UI to the most recent execution so "new chat" always clears the console output
+  private activeExecutionId: string | null = null;
+  private onWorkflowStartedEvt: any;
+  private onChatResetEvt: any;
+
   // Computed properties for template bindings (avoiding filter() in templates)
   get processingCount(): number {
     return this.llmResponses.filter(r => r.type === 'start').length;
@@ -125,6 +130,22 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     
     this.loadLlmHistory();
 
+    // Instant reset when AppComponent starts a new workflow (new chat)
+    this.onWorkflowStartedEvt = (e: any) => {
+      const id = e?.detail?.executionId ? String(e.detail.executionId) : '';
+      if (!id) return;
+      if (id !== this.activeExecutionId) {
+        this.resetForNewExecution(id);
+      }
+    };
+    window.addEventListener('eden_workflow_started', this.onWorkflowStartedEvt as any);
+
+    // Clear immediately on "new chat" (before executionId exists)
+    this.onChatResetEvt = () => {
+      this.resetForNewExecution('__pending__');
+    };
+    window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
+
     // Listen for workflow decision requests
     this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
       console.log('🤔 [WorkflowDisplay] Decision required:', decisionRequest);
@@ -177,6 +198,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       if (latestExecution && latestExecution.executionId !== lastExecutionId) {
         lastExecutionId = latestExecution.executionId;
         console.log(`🔄 [WorkflowDisplay] Active execution detected: ${latestExecution.serviceType} (${latestExecution.executionId})`);
+        this.resetForNewExecution(String(latestExecution.executionId));
         this.activeExecution = latestExecution;
         this.selectedWorkflow = latestExecution.serviceType;
         
@@ -204,6 +226,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         console.log(`🔄 [WorkflowDisplay] Active execution cleared`);
         lastExecutionId = null;
         this.activeExecution = null;
+        this.activeExecutionId = null;
         this.updateCurrentWorkflow();
         this.updateDebugWorkflowSteps();
       }
@@ -229,6 +252,12 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     // Clean up interval
     if ((this as any)._executionCheckInterval) {
       clearInterval((this as any)._executionCheckInterval);
+    }
+    if (this.onWorkflowStartedEvt) {
+      window.removeEventListener('eden_workflow_started', this.onWorkflowStartedEvt as any);
+    }
+    if (this.onChatResetEvt) {
+      window.removeEventListener('eden_chat_reset', this.onChatResetEvt as any);
     }
     
     // Clean up any active executions
@@ -1020,6 +1049,23 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     console.log('📡 [WorkflowDisplay] Event data:', JSON.stringify(event.data, null, 2));
     console.log('📡 [WorkflowDisplay] ========================================');
 
+    // If we're scoped to a specific execution, ignore late events from older executions.
+    const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
+    const isExecutionScopedEvent =
+      event.type === 'llm_start' ||
+      event.type === 'llm_response' ||
+      event.type === 'igas' ||
+      event.type === 'user_selection_required' ||
+      event.type === 'user_decision_required' ||
+      event.type === 'workflow_step_changed';
+    if (isExecutionScopedEvent && this.activeExecutionId) {
+      // During pending reset, ignore everything until we know the new execution id.
+      if (this.activeExecutionId === '__pending__') return;
+      // If event doesn't carry an execution id, ignore (prevents old noise from re-populating after reset)
+      if (!evExecId) return;
+      if (String(evExecId) !== this.activeExecutionId) return;
+    }
+
     switch (event.type) {
       case 'llm_start':
         console.log('🤖 [WorkflowDisplay] LLM processing started');
@@ -1184,6 +1230,30 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         // Other events (ledger, payment, etc.) can be handled here if needed
         break;
     }
+  }
+
+  private resetForNewExecution(executionId: string): void {
+    this.activeExecutionId = executionId;
+
+    // Clear "console output" (LLM history panel) + prompts + step state
+    this.llmResponses = [];
+    this.latestLlmResponse = null;
+    this.iGasCost = null;
+    this.selectedListing = null;
+    this.completedSteps = [];
+    this.currentStepIndex = 0;
+    this.pendingDecision = null;
+    this.showDecisionPrompt = false;
+    this.pendingSelection = null;
+    this.showSelectionPrompt = false;
+    this.clearStatusCache();
+
+    // Also clear persisted LLM history so it doesn't re-hydrate old output
+    try {
+      localStorage.removeItem(this.LLM_HISTORY_KEY);
+    } catch {}
+
+    this.cdr.detectChanges();
   }
 }
 

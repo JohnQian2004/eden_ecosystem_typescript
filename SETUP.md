@@ -1,3 +1,6 @@
+npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run build
+npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run dev
+
 # Eden Simulator - Full Stack Setup Guide
 
 ## Architecture

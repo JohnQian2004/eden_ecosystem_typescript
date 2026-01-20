@@ -14,6 +14,14 @@ interface ChatMessage {
   options?: Array<{ value: string; label: string; data: any }>;
 }
 
+interface ChatThread {
+  id: string;
+  title: string;
+  startedAt: number;
+  executionId?: string | null;
+  messages: ChatMessage[];
+}
+
 @Component({
   selector: 'app-workflow-chat-display',
   templateUrl: './workflow-chat-display.component.html',
@@ -21,7 +29,16 @@ interface ChatMessage {
 })
 export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   chatMessages: ChatMessage[] = [];
+  // Keep prior chats instead of clearing (ChatGPT-style stack)
+  archivedThreads: ChatThread[] = [];
+  private currentThreadStartedAt: number = Date.now();
+  private currentThreadExecutionId: string | null = null;
+  private readonly MAX_THREADS = 10; // current + last 9 archived
+  private readonly MAX_MESSAGES_PER_THREAD = 200;
+  expandedArchivedThreadIds: Set<string> = new Set();
+
   activeExecution: WorkflowExecution | null = null;
+  private activeExecutionId: string | null = null;
   isLoading: boolean = false;
   apiUrl: string = '';
   
@@ -38,6 +55,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   private decisionSubscription: any;
   private selectionSubscription: any;
   private executionCheckInterval: any;
+  private emailCheckInterval: any;
+  private onWorkflowStartedEvt: any;
+  private onChatResetEvt: any;
 
   constructor(
     private http: HttpClient,
@@ -73,7 +93,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     });
     
     // Also check periodically for email changes (for same-window updates)
-    setInterval(() => {
+    // IMPORTANT: store interval id so we can clear it (otherwise it keeps running forever and makes UI feel "stuck").
+    this.emailCheckInterval = setInterval(() => {
       const currentEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
       if (this.userEmail !== currentEmail) {
         console.log(`🔄 [WorkflowChat] User email changed from ${this.userEmail} to ${currentEmail}, clearing wallet balance`);
@@ -84,19 +105,25 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         // Reload balance for new user
         this.loadWalletBalance(false);
       }
-    }, 1000);
+    }, 1500);
     
     // Check for active executions periodically
     this.executionCheckInterval = setInterval(() => {
       const latestExecution = this.flowWiseService.getLatestActiveExecution();
       if (latestExecution && latestExecution.executionId !== this.activeExecution?.executionId) {
         console.log('💬 [WorkflowChat] New active execution detected:', latestExecution.executionId);
+        // Bind current (latest) thread to this execution.
+        // NOTE: New thread creation happens on eden_chat_reset (on send).
+        this.activeExecutionId = String(latestExecution.executionId);
+        this.currentThreadExecutionId = this.activeExecutionId;
         this.activeExecution = latestExecution;
         this.processExecutionMessages(latestExecution);
       } else if (!latestExecution && this.activeExecution) {
         // Workflow completed - no more active execution
         console.log('💬 [WorkflowChat] Workflow completed (no active execution)');
         this.activeExecution = null;
+        this.activeExecutionId = null;
+        this.currentThreadExecutionId = null;
         // Show wallet balance after workflow completion
         setTimeout(() => {
           this.loadWalletBalance(true);
@@ -108,6 +135,22 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     this.wsSubscription = this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
       this.handleWebSocketEvent(event);
     });
+
+    // Instant clear when a new chat/workflow starts (emitted by AppComponent onSubmit)
+    this.onWorkflowStartedEvt = (e: any) => {
+      const id = e?.detail?.executionId ? String(e.detail.executionId) : '';
+      if (!id) return;
+      this.activeExecutionId = id;
+      this.currentThreadExecutionId = id;
+    };
+    window.addEventListener('eden_workflow_started', this.onWorkflowStartedEvt as any);
+
+    // Clear immediately on "new chat" (before executionId exists)
+    this.onChatResetEvt = () => {
+      this.activeExecutionId = '__pending__';
+      this.startNewChatThread();
+    };
+    window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
 
     // Listen for decision requests from FlowWiseService
     this.decisionSubscription = this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: any) => {
@@ -135,6 +178,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     if (this.executionCheckInterval) {
       clearInterval(this.executionCheckInterval);
     }
+    if (this.emailCheckInterval) {
+      clearInterval(this.emailCheckInterval);
+    }
     if (this.wsSubscription) {
       this.wsSubscription.unsubscribe();
     }
@@ -143,6 +189,12 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     }
     if (this.selectionSubscription) {
       this.selectionSubscription.unsubscribe();
+    }
+    if (this.onWorkflowStartedEvt) {
+      window.removeEventListener('eden_workflow_started', this.onWorkflowStartedEvt as any);
+    }
+    if (this.onChatResetEvt) {
+      window.removeEventListener('eden_chat_reset', this.onChatResetEvt as any);
     }
     // Remove storage event listener
     window.removeEventListener('storage', () => {});
@@ -223,6 +275,35 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   private handleWebSocketEvent(event: SimulatorEvent) {
+    // If the backend provides executionId, scope "chat console" to the latest execution.
+    if (event.type === 'workflow_started' && (event as any).data?.executionId) {
+      const newId = String((event as any).data.executionId);
+      if (newId && newId !== this.activeExecutionId) {
+        this.activeExecutionId = newId;
+        this.resetChat();
+      }
+      // Let the event fall through (we don't render workflow_started itself)
+    }
+
+    const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
+    const isChatScopedEvent =
+      event.type === 'llm_response' ||
+      event.type === 'user_decision_required' ||
+      event.type === 'user_selection_required' ||
+      event.type === 'eden_chat_input' ||
+      event.type === 'llm_query_extraction_start' ||
+      event.type === 'llm_query_extraction_complete' ||
+      event.type === 'igas';
+
+    // Ignore late chat-scoped events from previous executions.
+    // If we have an activeExecutionId, REQUIRE the event to carry a matching executionId.
+    if (isChatScopedEvent && this.activeExecutionId) {
+      // During pending reset, ignore everything until we know the new execution id.
+      if (this.activeExecutionId === '__pending__') return;
+      if (!evExecId) return;
+      if (String(evExecId) !== this.activeExecutionId) return;
+    }
+
     // Filter events to only show user-facing ones (hide technical details)
     switch (event.type) {
       case 'llm_response':
@@ -462,6 +543,11 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       this.chatMessages.push(chatMessage);
     }
     
+    // Keep current thread bounded (prevents UI slowdown over long sessions)
+    if (this.chatMessages.length > this.MAX_MESSAGES_PER_THREAD) {
+      this.chatMessages = this.chatMessages.slice(-this.MAX_MESSAGES_PER_THREAD);
+    }
+
     // Sort messages by timestamp to ensure correct chronological order
     this.chatMessages.sort((a, b) => a.timestamp - b.timestamp);
     
@@ -692,23 +778,107 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   clearChat() {
-    if (confirm('Are you sure you want to clear the chat? This will remove all messages but keep workflow executions running.')) {
-      this.resetChat();
-    }
+    // No destructive clear; just start a new chat thread (keeps last N threads)
+    this.startNewChatThread();
+  }
+
+  requestSendFromMainInput() {
+    // Tie "➕ New Chat" to the main unified input send path (AppComponent.onSubmit).
+    // This lets the user one-click send the prefilled prompt/sample query.
+    try {
+      window.dispatchEvent(new CustomEvent('eden_send', { detail: { source: 'workflow_chat_new_chat' } }));
+    } catch {}
+  }
+
+  newChatAndSend() {
+    // Always do something visible: clear the current chat thread immediately,
+    // reset other panels, then try to send whatever is currently in the unified input.
+    this.startNewChatThread();
+    try {
+      window.dispatchEvent(new CustomEvent('eden_chat_reset', { detail: { reason: 'new_chat_button' } }));
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('eden_send', { detail: { source: 'workflow_chat_new_chat' } }));
+    } catch {}
   }
 
   // Public method to reset chat (called from app component on send)
   public resetChat() {
-    // Only clear chat messages - DO NOT reset active execution or ledger tracking
-    // This allows workflows to continue running in the background
-    this.chatMessages = [];
-    
-    // Keep displayedLedgerEntryIds to prevent duplicate ledger entries from reappearing
-    // Keep activeExecution to allow workflows to continue
-    
+    // Back-compat: treat reset as "new chat thread"
+    this.startNewChatThread();
+  }
+
+  get renderedThreads(): ChatThread[] {
+    const currentTitle = this.buildThreadTitle(this.chatMessages) || 'New chat';
+    return [
+      {
+        id: 'current',
+        title: currentTitle,
+        startedAt: this.currentThreadStartedAt,
+        executionId: this.currentThreadExecutionId,
+        messages: this.chatMessages
+      },
+      ...this.archivedThreads
+    ];
+  }
+
+  trackByThreadId(index: number, thread: ChatThread): string {
+    return thread.id;
+  }
+
+  trackByMessageId(index: number, message: ChatMessage): string {
+    return message.id;
+  }
+
+  isThreadExpanded(thread: ChatThread, idx: number): boolean {
+    if (idx === 0) return true; // current always expanded
+    return this.expandedArchivedThreadIds.has(thread.id);
+  }
+
+  toggleArchivedThread(thread: ChatThread) {
+    if (thread.id === 'current') return;
+    if (this.expandedArchivedThreadIds.has(thread.id)) {
+      this.expandedArchivedThreadIds.delete(thread.id);
+    } else {
+      this.expandedArchivedThreadIds.add(thread.id);
+    }
     this.cdr.detectChanges();
-    
-    // Don't add any system message - let workflow messages appear naturally from WebSocket events
+  }
+
+  private startNewChatThread() {
+    // Archive current thread if it has any messages
+    if (this.chatMessages.length > 0) {
+      const title = this.buildThreadTitle(this.chatMessages) || 'Chat';
+      const bounded = this.chatMessages.length > this.MAX_MESSAGES_PER_THREAD
+        ? this.chatMessages.slice(-this.MAX_MESSAGES_PER_THREAD)
+        : this.chatMessages;
+      this.archivedThreads.unshift({
+        id: `t_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        title,
+        startedAt: this.currentThreadStartedAt,
+        executionId: this.currentThreadExecutionId,
+        messages: bounded
+      });
+      // Keep only last N-1 archived (current thread is shown separately)
+      if (this.archivedThreads.length > this.MAX_THREADS - 1) {
+        this.archivedThreads = this.archivedThreads.slice(0, this.MAX_THREADS - 1);
+      }
+    }
+
+    // Start fresh current thread
+    this.chatMessages = [];
+    this.currentThreadStartedAt = Date.now();
+    this.currentThreadExecutionId = null;
+    // Collapse all archived threads by default (keeps UI responsive)
+    this.expandedArchivedThreadIds.clear();
+    this.cdr.detectChanges();
+  }
+
+  private buildThreadTitle(messages: ChatMessage[]): string {
+    const firstUser = messages.find(m => m.type === 'user' && !!m.content)?.content || '';
+    const t = firstUser.trim();
+    if (!t) return '';
+    return t.length > 48 ? `${t.slice(0, 48)}…` : t;
   }
 
   private loadLedgerEntries() {

@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { WebSocketService } from './websocket.service';
+import { getApiBaseUrl } from './api-base';
 
 export interface WorkflowStep {
   id: string;
@@ -94,6 +95,7 @@ export interface UserDecisionRequest {
   providedIn: 'root'
 })
 export class FlowWiseService {
+  private apiBaseUrl = getApiBaseUrl();
   private workflows: Map<string, FlowWiseWorkflow> = new Map();
   private activeExecutions: Map<string, WorkflowExecution> = new Map();
   private decisionRequest$ = new Subject<UserDecisionRequest>();
@@ -165,9 +167,7 @@ export class FlowWiseService {
    * Dynamically loads workflows for all available service types
    */
   private loadWorkflows(): void {
-    const baseUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000' 
-      : '';
+    const baseUrl = this.apiBaseUrl;
     
     // Get list of available workflows from backend
     this.http.get<{ success: boolean; workflows: Array<{serviceType: string, filename: string, exists: boolean}> }>(`${baseUrl}/api/workflow/list`)
@@ -251,9 +251,7 @@ export class FlowWiseService {
       return;
     }
     
-    const baseUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000' 
-      : '';
+    const baseUrl = this.apiBaseUrl;
     
     console.log(`🔄 [FlowWise] Loading ${serviceType} workflow on demand from ${baseUrl}/api/workflow/${serviceType}`);
     this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/${serviceType}`)
@@ -278,9 +276,7 @@ export class FlowWiseService {
    * Load workflow synchronously (returns Observable)
    */
   private loadWorkflow(serviceType: string): Observable<FlowWiseWorkflow | null> {
-    const baseUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000' 
-      : '';
+    const baseUrl = this.apiBaseUrl;
     
     console.log(`🔄 [FlowWise] Loading ${serviceType} workflow from ${baseUrl}/api/workflow/${serviceType}`);
     return this.http.get<{ success: boolean; flowwiseWorkflow: FlowWiseWorkflow }>(`${baseUrl}/api/workflow/${serviceType}`)
@@ -460,7 +456,7 @@ export class FlowWiseService {
     console.log(`✅ [FlowWise] Submitting decision: ${decision} for execution: ${executionId}, step: ${stepId || 'unknown'}`);
 
     // Send decision to server for processing
-    const baseUrl = window.location.port === '4200' ? 'http://localhost:3000' : '';
+    const baseUrl = this.apiBaseUrl;
     const payload: any = {
       workflowId: executionId,
       decision: decision,
@@ -550,9 +546,7 @@ export class FlowWiseService {
   private async executeStepOnServer(step: WorkflowStep, execution: WorkflowExecution): Promise<string | null> {
     console.log(`🔄 [FlowWise] Executing step atomically on server: ${step.name} (${step.id})`);
 
-    const baseUrl = window.location.port === '4200'
-      ? 'http://localhost:3000'
-      : '';
+    const baseUrl = this.apiBaseUrl;
 
     // Send entire step to server for atomic execution
     try {
@@ -1007,9 +1001,7 @@ export class FlowWiseService {
   async executeStepManually(executionId: string, stepId: string, context?: any): Promise<boolean> {
     console.log(`▶️ [FlowWise] Manually executing step: ${stepId} in execution: ${executionId}`);
 
-    const baseUrl = window.location.port === '4200'
-      ? 'http://localhost:3000'
-      : '';
+    const baseUrl = this.apiBaseUrl;
 
     try {
       const response = await this.http.post<any>(`${baseUrl}/api/workflow/execute-step`, {

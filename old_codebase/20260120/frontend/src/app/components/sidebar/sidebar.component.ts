@@ -25,6 +25,7 @@ interface GardenInfo {
   stream: string;
   active: boolean;
   type?: 'root' | 'regular' | 'token'; // 'root' = Holy Ghost (ROOT CA's garden)
+  serviceType?: string; // workflow service type (e.g. pharmacy, gasstation, dex)
 }
 
 @Component({
@@ -54,6 +55,38 @@ export class SidebarComponent implements OnInit, OnDestroy {
     private wsService: WebSocketService,
     private http: HttpClient
   ) {}
+
+  private readonly serviceTypeIconMap: Record<string, string> = {
+    movie: '🎬',
+    airline: '✈️',
+    autoparts: '🔧',
+    bank: '🏦',
+    dogpark: '🐕',
+    gasstation: '⛽',
+    grocerystore: '🛒',
+    hotel: '🏨',
+    party: '🎉',
+    pharmacy: '💊',
+    restaurant: '🍽️',
+    dex: '💰',
+    token: '🔷'
+  };
+
+  getServiceTypeIcon(serviceType?: string): string {
+    const st = String(serviceType || '').toLowerCase().trim();
+    return this.serviceTypeIconMap[st] || '🌳';
+  }
+
+  getGardenIcon(garden: GardenInfo): string {
+    if (garden?.type === 'root') return '✨';
+    if (garden?.type === 'token') return '🔷';
+    return this.getServiceTypeIcon(garden?.serviceType);
+  }
+
+  getSelectedGardenIcon(): string {
+    const g = this.gardens.find(x => x.id === this.selectedGardenTab);
+    return g ? this.getGardenIcon(g) : (this.selectedGardenTab === 'HG' ? '✨' : '🌳');
+  }
 
   ngOnInit() {
     // Set view mode based on user email:

@@ -3874,6 +3874,9 @@ httpServer.on("request", async (req, res) => {
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
         type: 'regular' as const,
+        // IMPORTANT: include serviceType so frontend can load the correct workflow JSON
+        // (otherwise it falls back to type=regular => tries /api/workflow/regular which does not exist)
+        serviceType: (i as any).serviceType,
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
       }))),
       ...((ecosystem === 'saas') ? [] : Array.from(allTokenGardens.values()).map(i => ({
@@ -3884,6 +3887,8 @@ httpServer.on("request", async (req, res) => {
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
         type: 'token' as const,
+        // Include serviceType for completeness (some clients may rely on it)
+        serviceType: (i as any).serviceType || 'dex',
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
       })))
     ];

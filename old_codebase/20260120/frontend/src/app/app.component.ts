@@ -46,6 +46,7 @@ export interface SimulatorEvent {
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Eden Simulator Dashboard';
+  theme: 'dark' | 'light' = 'dark';
   userInput: string = '';
   isProcessing: boolean = false;
   userEmail: string = ''; // Will be set from localStorage or default
@@ -104,8 +105,58 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   ];
 
+  // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
+  private readonly SERVICE_TYPE_CATALOG: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+    { type: 'movie', icon: '🎬', adText: 'Movie Tickets', sampleQuery: 'I want a sci-fi movie to watch tonight at the best price' },
+    { type: 'dex', icon: '💰', adText: 'DEX Tokens', sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price' },
+    { type: 'airline', icon: '✈️', adText: 'Airline Tickets', sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price' },
+    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2020 Toyota Camry at the best price' },
+    { type: 'hotel', icon: '🏨', adText: 'Hotel Booking', sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price' },
+    { type: 'restaurant', icon: '🍽️', adText: 'Restaurant Reservations', sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant' },
+    { type: 'grocerystore', icon: '🛒', adText: 'Grocery Store', sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices' },
+    { type: 'pharmacy', icon: '💊', adText: 'Pharmacy', sampleQuery: 'I need to find a pharmacy that has my prescription medication available' },
+    { type: 'dogpark', icon: '🐕', adText: 'Dog Park', sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains' },
+    { type: 'gasstation', icon: '⛽', adText: 'Gas Station', sampleQuery: 'I need to find a gas station with premium fuel at the best price' },
+    { type: 'party', icon: '🎉', adText: 'Party & Events', sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets' },
+    { type: 'bank', icon: '🏦', adText: 'Banking Services', sampleQuery: 'I need to find a bank near me with ATM access and business banking services' }
+  ];
+
+  private getCatalogEntry(serviceType?: string): {type: string, icon: string, adText: string, sampleQuery: string} | undefined {
+    const st = String(serviceType || '').toLowerCase().trim();
+    if (!st) return undefined;
+    return this.SERVICE_TYPE_CATALOG.find(s => s.type === st);
+  }
+
+  getGardenCardStyle(serviceType?: string): { [k: string]: string } {
+    const st = String(serviceType || '').toLowerCase().trim();
+    // Dark-theme friendly tints; keep subtle to preserve readability.
+    const palette: Record<string, { bg: string; border: string }> = {
+      movie: { bg: 'rgba(56, 139, 253, 0.16)', border: 'rgba(56, 139, 253, 0.35)' }, // blue
+      dex: { bg: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)' }, // green
+      airline: { bg: 'rgba(14, 165, 233, 0.12)', border: 'rgba(14, 165, 233, 0.35)' }, // sky
+      autoparts: { bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.35)' }, // orange
+      hotel: { bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)' }, // purple
+      restaurant: { bg: 'rgba(34, 197, 94, 0.10)', border: 'rgba(34, 197, 94, 0.30)' }, // green-lite
+      grocerystore: { bg: 'rgba(132, 204, 22, 0.10)', border: 'rgba(132, 204, 22, 0.30)' }, // lime
+      pharmacy: { bg: 'rgba(244, 63, 94, 0.10)', border: 'rgba(244, 63, 94, 0.30)' }, // rose
+      dogpark: { bg: 'rgba(234, 179, 8, 0.10)', border: 'rgba(234, 179, 8, 0.30)' }, // amber
+      gasstation: { bg: 'rgba(239, 68, 68, 0.10)', border: 'rgba(239, 68, 68, 0.30)' }, // red
+      party: { bg: 'rgba(236, 72, 153, 0.10)', border: 'rgba(236, 72, 153, 0.30)' }, // pink
+      bank: { bg: 'rgba(148, 163, 184, 0.10)', border: 'rgba(148, 163, 184, 0.30)' } // slate
+    };
+
+    const p = palette[st] || { bg: 'rgba(148, 163, 184, 0.08)', border: 'rgba(148, 163, 184, 0.20)' };
+    return {
+      backgroundColor: p.bg,
+      border: `1px solid ${p.border}`
+    };
+  }
+
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
-  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
+  // Apple main street is garden-driven (like DEX): each garden is its own card.
+  appleGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, serviceType?: string, isSnake?: boolean}> = [];
+  selectedAppleGarden: {id: string, name: string} | null = null;
+  isLoadingAppleGardens: boolean = false;
   // DEX main street is garden-driven (not service-type driven)
   dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
@@ -119,6 +170,13 @@ export class AppComponent implements OnInit, OnDestroy {
   providerOwnersByServiceType: Record<string, string[]> = {};
   // - gardenId -> unique owner emails
   providerOwnersByGardenId: Record<string, string[]> = {};
+
+  getServiceTypeIcon(serviceType?: string): string {
+    const st = String(serviceType || '').toLowerCase().trim();
+    if (!st) return '🌿';
+    // Use the full catalog so Apple gardens with 0 providers still render the right icon.
+    return this.getCatalogEntry(st)?.icon || '🌿';
+  }
 
   formatOwnerEmails(emails: string[] | undefined): string {
     const list = (emails || []).filter(Boolean);
@@ -134,18 +192,30 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   getOwnersForServiceType(serviceType: string): string[] {
+    // IMPORTANT: return a stable array reference (no .slice()) so Angular doesn't thrash DOM on every change-detection.
     const key = String(serviceType || '').toLowerCase();
-    // Prefer attached owners on serviceTypes, fallback to grouped map
-    const attached = this.serviceTypes.find(st => st.type === key)?.ownerEmails;
-    return (attached && attached.length > 0 ? attached : (this.providerOwnersByServiceType[key] || [])).slice();
+    return this.providerOwnersByServiceType[key] || [];
   }
 
   getOwnersForDexGarden(gardenId: string, fallbackOwnerEmail?: string): string[] {
+    // IMPORTANT: return a stable array reference when possible to keep UI responsive.
     const gid = String(gardenId || '');
-    const owners = (this.providerOwnersByGardenId[gid] || []).slice();
+    const owners = this.providerOwnersByGardenId[gid] || [];
     const fb = String(fallbackOwnerEmail || '').trim().toLowerCase();
     if (owners.length === 0 && fb) return [fb];
     return owners;
+  }
+
+  trackByServiceType(index: number, st: { type: string }): string {
+    return st?.type || String(index);
+  }
+
+  trackByGardenId(index: number, g: { id: string }): string {
+    return g?.id || String(index);
+  }
+
+  trackByEmail(index: number, email: string): string {
+    return email || String(index);
   }
   
   isLoadingServices: boolean = false;
@@ -166,6 +236,10 @@ export class AppComponent implements OnInit, OnDestroy {
   activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
+  private walletBalanceRefreshTimer: any = null;
+  private servicesRefreshTimer: any = null;
+  private gardensRefreshTimer: any = null;
+  private dexGardensRefreshTimer: any = null;
   
   // Helper getter to check if user is actually signed in (has saved email in localStorage)
   get isUserSignedIn(): boolean {
@@ -217,7 +291,6 @@ export class AppComponent implements OnInit, OnDestroy {
     const inViewTransition = now < this.viewTransitionUntilMs;
     return (
       inViewTransition ||
-      this.isProcessing ||
       this.isProcessingGarden ||
       this.isProcessingStripe ||
       this.isLoadingBalance ||
@@ -235,7 +308,6 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.isLoadingGardens) return 'Loading Gardens...';
     if (this.isLoadingApplications) return 'Loading Priesthood...';
     if (this.isLoadingBalance) return 'Loading wallet balance...';
-    if (this.isProcessing) return 'Processing...';
     return 'Loading...';
   }
   
@@ -401,7 +473,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
   workflowMessages: any[] = [];
+  private activeWorkflowExecutionId: string | null = null;
+  private workflowMessagesRaf: number | null = null;
   debugWebsocketEvents: boolean = false;
+  private onEdenSendEvt: any = null;
 
   // -----------------------------
   // Garden/Service Chat History
@@ -412,6 +487,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private chatHistoryLoadSeq: number = 0;
   private lastAppendBySig: Map<string, number> = new Map();
   private conversationIdByExecutionId = new Map<string, string>();
+  private readonly MAX_CHAT_HISTORY_MESSAGES = 200; // UI render cap (history is still persisted on server)
 
   private buildConversationId(scope: 'garden' | 'service', id: string): string {
     const mode = (this.currentViewMode || 'user').toLowerCase();
@@ -422,6 +498,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private setActiveConversation(conversationId: string) {
     if (!conversationId) return;
     if (this.activeConversationId === conversationId) return;
+    // Cancel any in-flight history load so the spinner can't get stuck during rapid switching.
+    this.stopChatHistoryLoading();
+
     this.activeConversationId = conversationId;
     // Make UI feel instant: clear immediately, then async load.
     this.chatHistoryMessages = [];
@@ -432,7 +511,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   loadChatHistory(limit: number = 50) {
-    if (!this.activeConversationId) return;
+    if (!this.activeConversationId) {
+      this.isLoadingChatHistory = false;
+      this.cdr.detectChanges();
+      return;
+    }
     const cid = this.activeConversationId;
     const seq = ++this.chatHistoryLoadSeq;
     this.isLoadingChatHistory = true;
@@ -464,7 +547,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const optimistic = (this.chatHistoryMessages || []).filter(m => !(m as any).id);
         const merged = [...serverMessages, ...optimistic];
         const seen = new Set<string>();
-        this.chatHistoryMessages = merged.filter((m) => {
+        const deduped = merged.filter((m) => {
           const key = (m as any).id
             ? `id:${(m as any).id}`
             : `k:${m.role}|${m.userEmail || ''}|${m.content}|${Math.floor((m.timestamp || 0) / 1000)}`;
@@ -472,6 +555,11 @@ export class AppComponent implements OnInit, OnDestroy {
           seen.add(key);
           return true;
         });
+        // Keep UI responsive: only render the last N messages.
+        this.chatHistoryMessages =
+          deduped.length > this.MAX_CHAT_HISTORY_MESSAGES
+            ? deduped.slice(-this.MAX_CHAT_HISTORY_MESSAGES)
+            : deduped;
 
         this.cdr.detectChanges();
         },
@@ -519,7 +607,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const clientTs = Date.now();
     const local = { id: clientId, role, content: trimmed, timestamp: clientTs, userEmail: this.userEmail };
     if (this.activeConversationId === targetConversationId) {
-      this.chatHistoryMessages = [...this.chatHistoryMessages, local];
+      const next = [...this.chatHistoryMessages, local];
+      this.chatHistoryMessages =
+        next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
     }
     this.cdr.detectChanges();
 
@@ -539,6 +629,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.initTheme();
     // Debug toggle (keeps UI responsive by default)
     this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
 
@@ -558,8 +649,28 @@ export class AppComponent implements OnInit, OnDestroy {
       }
 
       if (this.amcWorkflowActive) {
-        this.workflowMessages.push(event);
-        this.cdr.detectChanges();
+        // Only show events for the current workflow execution (prevents old executions from re-populating after a new chat).
+        const evExecId = (event as any).data?.executionId;
+        if (!this.activeWorkflowExecutionId || (evExecId && String(evExecId) === this.activeWorkflowExecutionId)) {
+          this.workflowMessages.push(event);
+          // Keep bounded to avoid DOM slowdown after long sessions
+          if (this.workflowMessages.length > 300) {
+            this.workflowMessages = this.workflowMessages.slice(-300);
+          }
+          // Batch change detection to one paint frame (prevents click starvation)
+          if (this.workflowMessagesRaf == null) {
+            this.workflowMessagesRaf = requestAnimationFrame(() => {
+              this.workflowMessagesRaf = null;
+              this.cdr.detectChanges();
+            });
+          }
+        }
+      }
+
+      // When a workflow completes, stop streaming events into the UI console.
+      if ((event as any).type === 'workflow_completed') {
+        this.amcWorkflowActive = false;
+        this.activeWorkflowExecutionId = null;
       }
 
       // Garden-level chat history: append assistant messages from LLM responses
@@ -581,18 +692,28 @@ export class AppComponent implements OnInit, OnDestroy {
         if (m?.conversationId && m.conversationId === this.activeConversationId) {
           const exists = this.chatHistoryMessages.some(x => (x as any).id && (x as any).id === m.id);
           if (!exists) {
-            this.chatHistoryMessages = [...this.chatHistoryMessages, {
+            const next = [...this.chatHistoryMessages, {
               id: m.id,
               role: m.role,
               content: m.content,
               timestamp: m.timestamp || Date.now(),
               userEmail: m.userEmail
             }];
+            this.chatHistoryMessages =
+              next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
             this.cdr.detectChanges();
           }
         }
       }
     });
+
+    // Allow other UI components (e.g., FlowWise Chat tab) to trigger a "Send" using the main unified input.
+    // This keeps all send/reset/workflow-start logic centralized in `onSubmit()`.
+    this.onEdenSendEvt = () => {
+      // Don't bypass existing guards (empty input, processing, balance checks).
+      void this.onSubmit();
+    };
+    window.addEventListener('eden_send', this.onEdenSendEvt as any);
     
     // Suppress console errors from browser extensions
     const originalError = console.error;
@@ -726,29 +847,20 @@ export class AppComponent implements OnInit, OnDestroy {
     // Listen for service provider creation events to refresh service types
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
       if (event.type === 'service_provider_created' || event.type === 'service_provider_registered') {
-        console.log(`🔄 Service provider created/registered, refreshing service types...`);
-        // Refresh services after a short delay to ensure backend has updated
-        setTimeout(() => {
-          this.loadServices();
-        }, 500);
+        // Throttle refresh: these events can be noisy during boot / after chats.
+        this.requestServicesRefresh();
       }
       
       // Listen for garden creation events to refresh gardens list
       if (event.type === 'garden_created') {
-        console.log(`🔄 Garden created, refreshing gardens list and Main Street...`);
-        // Refresh gardens check and services after a short delay to ensure backend has updated
-        setTimeout(() => {
-          this.checkServiceGardens();
-          this.loadServices();
-        }, 500);
+        // Throttle refresh: garden creation can fan out into many provider events.
+        this.requestGardensRefresh();
+        this.requestServicesRefresh();
       }
 
       // Listen for DEX garden creation events to refresh DEX gardens list
       if (event.type === 'dex_garden_created') {
-        console.log(`🔄 DEX garden created, refreshing DEX gardens list...`);
-        setTimeout(() => {
-          this.loadDexGardens();
-        }, 500);
+        this.requestDexGardensRefresh();
       }
       
       // Listen for ledger events to update wallet balance (event-driven, no polling)
@@ -757,11 +869,8 @@ export class AppComponent implements OnInit, OnDestroy {
           event.type === 'ledger_booking_completed' ||
           event.type === 'cashier_payment_processed' ||
           event.type === 'wallet_balance_updated') {
-        console.log(`💰 [App] Ledger event detected (${event.type}), updating wallet balance...`);
-        // Update wallet balance when ledger events occur
-        setTimeout(() => {
-          this.loadWalletBalance();
-        }, 500);
+        // Ledger events can be frequent; debounce wallet refresh to avoid flooding backend/UI.
+        this.requestWalletBalanceRefresh();
       }
     });
     
@@ -770,6 +879,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
+    // Load Apple gardens (Apple main street is garden-driven)
+    this.loadAppleGardens();
     // Load DEX gardens (DEX main street is garden-driven)
     this.loadDexGardens();
     // Load Snake providers separately
@@ -792,10 +903,70 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  private applyTheme(theme: 'dark' | 'light') {
+    this.theme = theme;
+    try {
+      localStorage.setItem('edenTheme', theme);
+    } catch {}
+    // Bootstrap 5.3 theme switch
+    document.documentElement.setAttribute('data-bs-theme', theme);
+  }
+
+  private initTheme() {
+    const saved = (localStorage.getItem('edenTheme') || '').toLowerCase();
+    if (saved === 'light' || saved === 'dark') {
+      this.applyTheme(saved as any);
+      return;
+    }
+    // Default to dark (matches current app styling)
+    this.applyTheme('dark');
+  }
+
+  toggleTheme() {
+    this.applyTheme(this.theme === 'dark' ? 'light' : 'dark');
+    this.cdr.detectChanges();
+  }
+
+  private requestWalletBalanceRefresh(delayMs: number = 750) {
+    if (this.walletBalanceRefreshTimer) clearTimeout(this.walletBalanceRefreshTimer);
+    this.walletBalanceRefreshTimer = setTimeout(() => {
+      this.walletBalanceRefreshTimer = null;
+      // Avoid parallel requests; loadWalletBalance has its own guards too.
+      if (!this.isLoadingBalance) {
+        this.loadWalletBalance();
+      }
+    }, delayMs);
+  }
+
+  private requestServicesRefresh(delayMs: number = 1200) {
+    if (this.servicesRefreshTimer) clearTimeout(this.servicesRefreshTimer);
+    this.servicesRefreshTimer = setTimeout(() => {
+      this.servicesRefreshTimer = null;
+      this.loadServices();
+    }, delayMs);
+  }
+
+  private requestGardensRefresh(delayMs: number = 1200) {
+    if (this.gardensRefreshTimer) clearTimeout(this.gardensRefreshTimer);
+    this.gardensRefreshTimer = setTimeout(() => {
+      this.gardensRefreshTimer = null;
+      this.checkServiceGardens();
+      this.loadAppleGardens();
+    }, delayMs);
+  }
+
+  private requestDexGardensRefresh(delayMs: number = 1200) {
+    if (this.dexGardensRefreshTimer) clearTimeout(this.dexGardensRefreshTimer);
+    this.dexGardensRefreshTimer = setTimeout(() => {
+      this.dexGardensRefreshTimer = null;
+      this.loadDexGardens();
+    }, delayMs);
+  }
+
   private recomputeMainStreetGroups() {
-    this.appleServiceTypes = this.serviceTypes
-      .filter(st => st.type !== 'dex')
-      .sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
+    // Legacy: was service-type grouping for Apple. We keep serviceTypes updated for prompts/workflow preload,
+    // but the UI now renders Apple as gardens (see loadAppleGardens()).
+    this.serviceTypes = this.serviceTypes.sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
   }
 
   private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
@@ -837,6 +1008,100 @@ export class AppComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  loadAppleGardens() {
+    this.isLoadingAppleGardens = true;
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
+    const url = isPriestMode && this.userEmail
+      ? `${this.apiUrl}/api/gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/gardens?ecosystem=all`;
+
+    this.http.get<{success: boolean, gardens?: any[], indexers?: any[]}>(url).subscribe({
+      next: (response) => {
+        const gardens = (response.gardens || response.indexers || []).filter((g: any) => g && g.active !== false);
+        // Apple gardens = non-DEX, non-token, non-HG
+        const apple = gardens.filter((g: any) => {
+          const id = String(g.id || '');
+          const serviceType = String(g.serviceType || g.type || '').toLowerCase();
+          if (!id || id === 'HG') return false;
+          if (id.startsWith('T')) return false; // token garden convention
+          if (serviceType === 'dex' || serviceType === 'token') return false;
+          return true;
+        });
+        apple.sort((a: any, b: any) => String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { sensitivity: 'base' }));
+        this.appleGardens = apple.map((g: any) => {
+          const effectiveServiceType = this.inferServiceTypeFromGarden(g);
+          return {
+          id: g.id,
+          name: g.name || g.id,
+          active: g.active !== false,
+          uuid: g.uuid,
+          ownerEmail: g.ownerEmail,
+          // IMPORTANT: do NOT let "type: regular" leak into UI/workflow selection.
+          // Always compute a workflow-capable serviceType for Apple gardens.
+          serviceType: effectiveServiceType,
+          isSnake: !!g.isSnake
+          };
+        });
+        this.isLoadingAppleGardens = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load Apple gardens:', err);
+        this.appleGardens = [];
+        this.isLoadingAppleGardens = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private inferServiceTypeFromGarden(garden: { name?: string; serviceType?: string; type?: string } | null | undefined): string {
+    const raw = String((garden as any)?.serviceType || (garden as any)?.type || '').toLowerCase().trim();
+    // 'regular' is the garden kind, not a workflow serviceType.
+    if (raw && raw !== 'regular' && raw !== 'root' && raw !== 'token') return raw;
+
+    const name = String((garden as any)?.name || '');
+    const m = name.match(/garden[-_\s]+([a-z0-9]+)/i);
+    const fromName = String(m?.[1] || '').toLowerCase().trim();
+    if (fromName) return fromName;
+
+    return 'movie';
+  }
+
+  private getServiceTypePrompt(serviceType: string | undefined): { type: string; sampleQuery: string } {
+    const st = String(serviceType || '').toLowerCase().trim();
+    const normalized = (!st || st === 'regular' || st === 'root' || st === 'token') ? 'movie' : st;
+    const match = this.getCatalogEntry(normalized);
+    return {
+      type: normalized,
+      sampleQuery: match?.sampleQuery || `Show me ${normalized} options`
+    };
+  }
+
+  selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
+    this.selectedAppleGarden = { id: garden.id, name: garden.name };
+    this.selectedDexGarden = null;
+
+    const inferred = this.inferServiceTypeFromGarden(garden as any);
+    const prompt = this.getServiceTypePrompt(inferred);
+    this.selectedServiceType = prompt.type;
+    this.userInput = prompt.sampleQuery;
+    this.inputPlaceholder = prompt.sampleQuery;
+    this.flowWiseService.loadWorkflowIfNeeded(prompt.type);
+
+    // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
+    this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+    setTimeout(() => {
+      const input = document.querySelector('input[name=\"userInput\"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+
+    this.cdr.detectChanges();
   }
 
   selectDexGarden(garden: {id: string, name: string}) {
@@ -1519,12 +1784,20 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.isLoadingBalance = true;
     console.log(`💰 Loading wallet balance for: ${this.userEmail}`);
-    
-    this.http.get<{success: boolean, balance: number, error?: string}>(
-      `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`
-    ).subscribe({
+
+    const url = `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`;
+    this.http
+      .get<{ success: boolean; balance: number; error?: string }>(url)
+      .pipe(
+        // Prevent UI from feeling "frozen" if the backend stalls (this flag is used by the global overlay).
+        timeout(8000),
+        finalize(() => {
+          this.isLoadingBalance = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
       next: (response) => {
-        this.isLoadingBalance = false; // Clear loading state first
         if (response.success) {
           this.walletBalance = response.balance || 0;
           console.log(`✅ Wallet balance loaded: ${this.walletBalance} 🍎 APPLES for ${this.userEmail}`);
@@ -1572,10 +1845,8 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('❌ Error loading wallet balance:', err);
-        console.error('   URL:', `${this.apiUrl}/api/jsc/balance/${encodeURIComponent(this.userEmail)}`);
+        console.error('   URL:', url);
         this.walletBalance = 0;
-        this.isLoadingBalance = false;
-        this.cdr.detectChanges();
       }
     });
   }
@@ -2493,6 +2764,18 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.workflowMessagesRaf != null) {
+      cancelAnimationFrame(this.workflowMessagesRaf);
+      this.workflowMessagesRaf = null;
+    }
+    if (this.onEdenSendEvt) {
+      window.removeEventListener('eden_send', this.onEdenSendEvt as any);
+      this.onEdenSendEvt = null;
+    }
+    if (this.walletBalanceRefreshTimer) clearTimeout(this.walletBalanceRefreshTimer);
+    if (this.servicesRefreshTimer) clearTimeout(this.servicesRefreshTimer);
+    if (this.gardensRefreshTimer) clearTimeout(this.gardensRefreshTimer);
+    if (this.dexGardensRefreshTimer) clearTimeout(this.dexGardensRefreshTimer);
     this.wsService.disconnect();
   }
 
@@ -2515,14 +2798,10 @@ export class AppComponent implements OnInit, OnDestroy {
       });
       return;
     }
-    
-    // Check balance before submitting
-    if (!this.hasSufficientBalance()) {
-      console.log('⚠️ Submit blocked: Insufficient balance', { 
-        balance: this.walletBalance,
-        required: 0.01
-      });
-      alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} 🍎 APPLES. You need at least 0.01 🍎 APPLES (for iGas) to send messages. Please purchase 🍎 APPLES first.`);
+
+    // If not signed in, route to Sign In flow (keeps UX consistent even when send is triggered via custom events).
+    if (!this.isUserSignedIn) {
+      this.openSignInModal();
       return;
     }
 
@@ -2532,16 +2811,53 @@ export class AppComponent implements OnInit, OnDestroy {
       console.log(`🔍 Detected service type from input: ${this.selectedServiceType || 'unknown'}`);
     }
 
-    // If no service type detected, default to 'movie' for backward compatibility
-    const serviceType = this.selectedServiceType || 'movie';
-
-    // Ensure chat history conversation is selected before we clear context
-    if (!this.activeConversationId) {
-      if (serviceType === 'dex' && this.selectedDexGarden?.id) {
-        this.setActiveConversation(this.buildConversationId('garden', this.selectedDexGarden.id));
-      } else {
-        this.setActiveConversation(this.buildConversationId('service', serviceType));
+    // If no service type detected, treat this as a regular chat message (no workflow, no iGas).
+    if (!this.selectedServiceType) {
+      const input = this.userInput.trim();
+      const regularConversationId = this.buildConversationId('service', 'chat');
+      if (this.activeConversationId !== regularConversationId) {
+        this.setActiveConversation(regularConversationId);
       }
+
+      this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
+      const help = `I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.`;
+      this.appendChatHistory('ASSISTANT', help, { serviceType: 'chat' }, regularConversationId);
+
+      // Clear input and reset selection back to "service provider" state
+      this.userInput = '';
+      this.selectedServiceType = null;
+      this.selectedDexGarden = null;
+      this.selectedAppleGarden = null;
+      this.inputPlaceholder = 'Select a service type above or type your query...';
+      this.amcWorkflowActive = false;
+      this.activeWorkflowExecutionId = null;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // From here: workflow path (requires iGas)
+    const serviceType = this.selectedServiceType;
+
+    // Check balance before submitting workflow
+    if (!this.hasSufficientBalance()) {
+      console.log('⚠️ Submit blocked: Insufficient balance', { 
+        balance: this.walletBalance,
+        required: 0.01
+      });
+      alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} 🍎 APPLES. You need at least 0.01 🍎 APPLES (for iGas) to send messages. Please purchase 🍎 APPLES first.`);
+      return;
+    }
+
+    // Ensure chat history conversation is aligned to the service we're about to run.
+    // NOTE: activeConversationId can be left over from a previous tile; don't rely on "null" checks.
+    const desiredConversationId =
+      serviceType === 'dex' && this.selectedDexGarden?.id
+        ? this.buildConversationId('garden', this.selectedDexGarden.id)
+        : (this.selectedAppleGarden?.id
+            ? this.buildConversationId('garden', this.selectedAppleGarden.id)
+            : this.buildConversationId('service', serviceType));
+    if (this.activeConversationId !== desiredConversationId) {
+      this.setActiveConversation(desiredConversationId);
     }
     this.appendChatHistory('USER', this.userInput, { serviceType });
 
@@ -2550,6 +2866,11 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.isProcessing = true;
     const input = this.userInput.trim();
+
+    // New chat started: tell all panels to clear immediately (before workflow/execution id exists).
+    try {
+      window.dispatchEvent(new CustomEvent('eden_chat_reset', { detail: { reason: 'new_chat' } }));
+    } catch {}
     this.userInput = ''; // Clear input after submission
     this.selectedServiceType = null; // Reset context
     this.inputPlaceholder = 'Select a service type above or type your query...';
@@ -2569,6 +2890,8 @@ export class AppComponent implements OnInit, OnDestroy {
     try {
       // Automatically start workflow for the selected service type
       console.log(`🎬 [Workflow] Automatically starting ${serviceType} workflow for chat input:`, input);
+      // New chat = new execution. Clear the chat console immediately and ignore any late events from the prior run.
+      this.activeWorkflowExecutionId = null;
       this.amcWorkflowActive = true;
       this.workflowMessages = [];
 
@@ -2633,6 +2956,13 @@ export class AppComponent implements OnInit, OnDestroy {
         currentStep: execution.currentStep,
         workflowId: execution.workflowId
       });
+
+      // Scope the "chat console output" to this execution so starting a new chat always clears it.
+      this.activeWorkflowExecutionId = String(execution.executionId);
+      // Notify WorkflowChatDisplay tab (separate component) to clear immediately.
+      try {
+        window.dispatchEvent(new CustomEvent('eden_workflow_started', { detail: { executionId: this.activeWorkflowExecutionId } }));
+      } catch {}
 
       // Bind this execution to the current chat history conversation so assistant replies cannot leak across tiles.
       if (this.activeConversationId) {
@@ -2737,6 +3067,7 @@ export class AppComponent implements OnInit, OnDestroy {
   stopAmcWorkflow(): void {
     console.log('🛑 [AMC Workflow] Stopping AMC workflow');
     this.amcWorkflowActive = false;
+    this.activeWorkflowExecutionId = null;
     this.workflowMessages = [];
     this.showDecisionPrompt = false;
     this.pendingDecision = null;

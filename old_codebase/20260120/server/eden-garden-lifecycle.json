@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-20T00:28:57.656Z",
+  "lastSaved": "2026-01-20T09:45:20.312Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -6546,6 +6546,99 @@
             "party-a93b8fe1(garden-12)",
             "accountant-service-001(HG)",
             "bank-7aa13c3d(garden-13)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768898466219,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-14",
+          "gardenName": "Garden-HOTEL",
+          "serviceType": "hotel",
+          "hasCertificate": true,
+          "totalGardens": 13
+        }
+      },
+      {
+        "timestamp": 1768898466255,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 22,
+          "totalSaved": 22,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)",
+            "hotel-0a492f3c(garden-2)",
+            "pharmacy-ad2f9672(garden-3)",
+            "autoparts-19f129f6(garden-4)",
+            "bank-19fea4fe(garden-5)",
+            "dogpark-2bc75220(garden-6)",
+            "grocerystore-4cf2d103(garden-7)",
+            "hotel-ae537161(garden-8)",
+            "restaurant-41fd1b09(garden-9)",
+            "airline-dc4d2a1b(garden-10)",
+            "autoparts-3583c13a(garden-11)",
+            "party-a93b8fe1(garden-12)",
+            "accountant-service-001(HG)",
+            "bank-7aa13c3d(garden-13)",
+            "hotel-e8c04f09(garden-14)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768899745604,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-14",
+          "gardenName": "Garden-AUTOPARTS",
+          "serviceType": "autoparts",
+          "hasCertificate": true,
+          "totalGardens": 12
+        }
+      },
+      {
+        "timestamp": 1768899745636,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 23,
+          "totalSaved": 23,
+          "movieProviders": 0,
+          "dexProviders": 1,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "dex-pool-tokenb(T2)",
+            "gasstation-728eaafb(garden-1)",
+            "hotel-0a492f3c(garden-2)",
+            "pharmacy-ad2f9672(garden-3)",
+            "autoparts-19f129f6(garden-4)",
+            "bank-19fea4fe(garden-5)",
+            "dogpark-2bc75220(garden-6)",
+            "grocerystore-4cf2d103(garden-7)",
+            "hotel-ae537161(garden-8)",
+            "restaurant-41fd1b09(garden-9)",
+            "airline-dc4d2a1b(garden-10)",
+            "autoparts-3583c13a(garden-11)",
+            "party-a93b8fe1(garden-12)",
+            "accountant-service-001(HG)",
+            "bank-7aa13c3d(garden-13)",
+            "hotel-e8c04f09(garden-14)",
+            "autoparts-a63ce6b5(garden-14)"
           ]
         }
       }

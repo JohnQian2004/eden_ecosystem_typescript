@@ -1,12 +1,40 @@
 // Compact Service Card Styles (Garden of Eden Main Street)
 .service-card-compact {
   border: 1px solid var(--bs-border-color);
-  border-radius: 8px;
+  border-radius: 7px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
-  min-height: 80px;
+  min-height: 64px;
   background-color: var(--bs-body-bg);
   color: var(--bs-body-color);
+
+  .card-body {
+    // Override Bootstrap spacing utilities to make cards denser
+    padding: 0.35rem !important;
+  }
+
+  .service-icon-compact {
+    font-size: 1.35rem !important;
+    margin-bottom: 0.15rem !important;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.35rem;
+  }
+
+  .owners-list {
+    max-height: 56px;
+    overflow: auto;
+  }
+
+  .owners-list .list-group-item {
+    padding: 0.125rem 0.35rem;
+  }
+
+  .owners-list small {
+    font-size: 0.65rem;
+  }
   
   // Dark theme styling when in dark-main-street container
   .dark-main-street & {
@@ -31,7 +59,7 @@
   }
   
   &:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
   }
   
@@ -45,8 +73,8 @@
   
   .card-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    line-height: 1.2;
+    font-size: 0.7rem;
+    line-height: 1.15;
   }
 }
 
@@ -179,7 +207,7 @@
   background: linear-gradient(135deg, #ff6b9d 0%, #c44569 100%);
   color: white;
   border: 2px solid #ff6b9d !important;
-  min-height: 120px;
+  min-height: 96px;
   
   .card-title {
     color: white;
@@ -195,7 +223,8 @@
     background-color: rgba(255, 255, 255, 0.2) !important;
     color: white !important;
     margin: 2px;
-    font-size: 0.65rem;
+    font-size: 0.62rem;
+    padding: 0.18rem 0.32rem;
   }
   
   &:hover {

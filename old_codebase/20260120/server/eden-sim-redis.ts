@@ -3123,12 +3123,21 @@ httpServer.on("request", async (req, res) => {
       res.end(JSON.stringify(data));
     }
   };
-  if (pathname === "/api/chat-history/history" && req.method === "GET") {
+  if ((pathname === "/api/chat-history/history" || pathname === "/api/chat-history/history/") && req.method === "GET") {
     try {
       const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
-      const conversationId = String(queryParams.get("conversationId") || "");
-      const limit = parseInt(String(queryParams.get("limit") || "50"));
-      const before = queryParams.get("before") ? parseInt(String(queryParams.get("before"))) : undefined;
+      const conversationId = String(queryParams.get("conversationId") || "").trim();
+      const limitRaw = parseInt(String(queryParams.get("limit") || "50"));
+      const limit = Number.isFinite(limitRaw) ? limitRaw : 50;
+      const beforeRaw = queryParams.get("before") ? parseInt(String(queryParams.get("before"))) : undefined;
+      const before = typeof beforeRaw === "number" && Number.isFinite(beforeRaw) ? beforeRaw : undefined;
+
+      // IMPORTANT: no-history is a normal case. Always return a JSON response quickly.
+      // If the conversationId is missing/invalid, treat it as an empty history instead of throwing/500'ing.
+      if (!conversationId || !conversationId.startsWith("conv:")) {
+        sendChatHistoryResponse(200, { success: true, conversationId, messages: [] });
+        return;
+      }
       const { getConversationMessages } = require("./src/chatHistory");
       const messages = getConversationMessages(conversationId, limit, before);
       sendChatHistoryResponse(200, { success: true, conversationId, messages });
@@ -3138,7 +3147,7 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  if (pathname === "/api/chat-history/append" && req.method === "POST") {
+  if ((pathname === "/api/chat-history/append" || pathname === "/api/chat-history/append/") && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => (body += chunk.toString()));
     req.on("end", () => {
@@ -3493,26 +3502,17 @@ httpServer.on("request", async (req, res) => {
     const serviceType = url.searchParams.get('serviceType'); // Optional filter by service type (e.g., "movie", "dex", "snake")
     const ownerEmail = url.searchParams.get('ownerEmail'); // Optional filter by owner email (for Priest mode)
     const cleanupOrphans = (url.searchParams.get('cleanupOrphans') || '').toLowerCase() === 'true'; // destructive cleanup opt-in
+    const debugRegistryApi = String(process.env.EDEN_DEBUG_REGISTRY_API || '').toLowerCase() === 'true';
     
     // Use ServiceRegistry2 (new implementation)
     const serviceRegistry2 = getServiceRegistry2();
     let allProviders = serviceRegistry2.getAllProviders();
     
-    // Debug: Log provider assignments for movie service type
-    if (!serviceType || serviceType === 'movie') {
-      const movieProviders = allProviders.filter(p => p.serviceType === 'movie');
-      console.log(`   🔍 [Service Registry API] Movie providers in memory: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
+    if (debugRegistryApi) {
+      console.log(
+        `   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, airline=${allProviders.filter(p => p.serviceType === 'airline').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`
+      );
     }
-    if (!serviceType || serviceType === 'dex') {
-      const dexProviders = allProviders.filter(p => p.serviceType === 'dex');
-      console.log(`   🔍 [Service Registry API] DEX providers in memory: ${dexProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ')}`);
-    }
-    // Debug: Log provider assignments for airline service type
-    if (!serviceType || serviceType === 'airline') {
-      const airlineProviders = allProviders.filter(p => p.serviceType === 'airline');
-      console.log(`   🔍 [Service Registry API] Airline providers in memory: ${airlineProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}`).join(', ') || 'NONE'}`);
-    }
-    console.log(`   📊 [Service Registry API] Total providers in ServiceRegistry2: ${allProviders.length} (by type: movie=${allProviders.filter(p => p.serviceType === 'movie').length}, dex=${allProviders.filter(p => p.serviceType === 'dex').length}, airline=${allProviders.filter(p => p.serviceType === 'airline').length}, infrastructure=${allProviders.filter(p => ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'].includes(p.serviceType)).length})`);
     
     // Helper function to get ownerEmail for a provider based on its gardenId
     const getOwnerEmailForProvider = (gardenId: string): string | undefined => {
@@ -3528,47 +3528,24 @@ httpServer.on("request", async (req, res) => {
       return garden?.ownerEmail || garden?.priestEmail || undefined;
     };
     
-    // Clean up providers that belong to non-existent gardens (except HG)
-    // CRITICAL: Also check gardens from persistence file to avoid false positives
+    // Orphan cleanup is destructive + slow (disk reads). Only do the persistence-file cross-check when cleanup is explicitly requested.
     const allGardenIds = [...GARDENS.map(g => g.id), ...TOKEN_GARDENS.map(g => g.id)];
-    
-    // Load gardens from persistence file to include in validation
-    const gardensPersistenceFile = path.join(__dirname, 'eden-gardens-persistence.json');
     let persistedGardenIds: string[] = [];
-    if (fs.existsSync(gardensPersistenceFile)) {
-      try {
-        const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
-        const persisted = JSON.parse(fileContent);
-        // Backward compatibility: some files store gardens under "indexers"
-        const persistedGardens = persisted.gardens || persisted.indexers || [];
-        persistedGardenIds = persistedGardens.map((g: any) => g.id);
-        console.log(`   🔍 [Service Registry API] Loaded ${persistedGardenIds.length} garden ID(s) from persistence file for orphaned provider check`);
-      } catch (err: any) {
-        console.warn(`   ⚠️  [Service Registry API] Failed to load gardens from persistence file for orphaned check: ${err.message}`);
-      }
-    }
-    
-    // Extra backward compatibility: if gardens file is empty/missing, also check old combined file
-    if (persistedGardenIds.length === 0) {
-      const legacyPersistenceFile = path.join(__dirname, 'eden-wallet-persistence.json');
-      if (fs.existsSync(legacyPersistenceFile)) {
+    if (cleanupOrphans) {
+      const gardensPersistenceFile = path.join(__dirname, 'eden-gardens-persistence.json');
+      if (fs.existsSync(gardensPersistenceFile)) {
         try {
-          const fileContent = fs.readFileSync(legacyPersistenceFile, 'utf-8');
+          const fileContent = fs.readFileSync(gardensPersistenceFile, 'utf-8');
           const persisted = JSON.parse(fileContent);
-          const legacyGardens = persisted.gardens || persisted.indexers || [];
-          const legacyIds = legacyGardens.map((g: any) => g.id).filter((id: any) => typeof id === 'string');
-          if (legacyIds.length > 0) {
-            persistedGardenIds = legacyIds;
-            console.log(`   🔍 [Service Registry API] Loaded ${persistedGardenIds.length} garden ID(s) from legacy persistence file for orphaned provider check`);
-          }
+          const persistedGardens = persisted.gardens || persisted.indexers || [];
+          persistedGardenIds = persistedGardens.map((g: any) => g.id);
         } catch (err: any) {
-          // ignore legacy read errors
+          console.warn(`   ⚠️  [Service Registry API] Failed to load gardens from persistence file for orphaned check: ${err.message}`);
         }
       }
     }
-    
-    // Combine in-memory and persisted garden IDs
-    const validGardenIds = new Set([...allGardenIds, ...persistedGardenIds, 'HG']); // HG is always valid (Holy Ghost)
+
+    const validGardenIds = new Set([...allGardenIds, ...persistedGardenIds, 'HG']); // HG always valid
     const orphanedProviders = allProviders.filter(p => p.gardenId && p.gardenId !== 'HG' && !validGardenIds.has(p.gardenId));
     if (orphanedProviders.length > 0) {
       console.warn(`   ⚠️  [Service Registry API] Found ${orphanedProviders.length} orphaned provider(s) with invalid gardenIds: ${orphanedProviders.map(p => `${p.id} (gardenId: ${p.gardenId})`).join(', ')}`);
@@ -3647,12 +3624,13 @@ httpServer.on("request", async (req, res) => {
       console.log(`   🔍 [Service Registry API] Filtered by ownerEmail: ${ownerEmail} → ${providers.length} provider(s)`);
     }
     
-    // Debug: Log movie providers and their gardenId assignments
-    const movieProviders = providers.filter(p => p.serviceType === 'movie');
-    const nonHGProviders = movieProviders.filter(p => p.gardenId !== 'HG');
-    if (movieProviders.length > 0) {
-      console.log(`   🔍 [Service Registry API] Movie providers: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}, ownerEmail: ${p.ownerEmail || 'N/A'}`).join(', ')}`);
-      console.log(`   🔍 [Service Registry API] Non-HG movie providers: ${nonHGProviders.length} (${nonHGProviders.map(p => p.name).join(', ')})`);
+    if (debugRegistryApi) {
+      const movieProviders = providers.filter(p => p.serviceType === 'movie');
+      const nonHGProviders = movieProviders.filter(p => p.gardenId !== 'HG');
+      if (movieProviders.length > 0) {
+        console.log(`   🔍 [Service Registry API] Movie providers: ${movieProviders.map(p => `${p.name} (${p.id}) → gardenId: ${p.gardenId}, ownerEmail: ${p.ownerEmail || 'N/A'}`).join(', ')}`);
+        console.log(`   🔍 [Service Registry API] Non-HG movie providers: ${nonHGProviders.length} (${nonHGProviders.map(p => p.name).join(', ')})`);
+      }
     }
     
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -3896,6 +3874,9 @@ httpServer.on("request", async (req, res) => {
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
         type: 'regular' as const,
+        // IMPORTANT: include serviceType so frontend can load the correct workflow JSON
+        // (otherwise it falls back to type=regular => tries /api/workflow/regular which does not exist)
+        serviceType: (i as any).serviceType,
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
       }))),
       ...((ecosystem === 'saas') ? [] : Array.from(allTokenGardens.values()).map(i => ({
@@ -3906,6 +3887,8 @@ httpServer.on("request", async (req, res) => {
         uuid: i.uuid,
         hasCertificate: !!i.certificate,
         type: 'token' as const,
+        // Include serviceType for completeness (some clients may rely on it)
+        serviceType: (i as any).serviceType || 'dex',
         ownerEmail: i.ownerEmail || i.priestEmail || undefined
       })))
     ];
@@ -12006,39 +11989,36 @@ async function main() {
   
   console.log("   ✅ All modules initialized");
   
-  // DEBUG: Save in-memory service registry to debug file every second
-  // This helps track what's actually in memory vs what's in persistence
-  // CRITICAL: Merge both ROOT_CA_SERVICE_REGISTRY and ServiceRegistry2 to show all providers
-  setInterval(() => {
-    try {
-      const memoryFile = path.join(__dirname, 'eden-serviceRegistry-memory.json');
-      
-      // Get providers from both old and new registries
-      const serviceRegistry2 = getServiceRegistry2();
-      const allProvidersFromServiceRegistry2 = serviceRegistry2.getAllProviders();
-      
-      // Merge: Use ServiceRegistry2 as source of truth, but also include any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2
-      const providerMap = new Map<string, any>();
-      
-      // First, add all from ServiceRegistry2 (new implementation - source of truth)
-      for (const provider of allProvidersFromServiceRegistry2) {
-        providerMap.set(provider.id, {
-          id: provider.id,
-          name: provider.name,
-          serviceType: provider.serviceType,
-          location: provider.location,
-          bond: provider.bond,
-          reputation: provider.reputation,
-          status: provider.status,
-          uuid: provider.uuid,
-          apiEndpoint: provider.apiEndpoint,
-          gardenId: provider.gardenId
-        });
-      }
-      
-      // Then, add any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2 (backward compatibility)
-      for (const provider of ROOT_CA_SERVICE_REGISTRY) {
-        if (!providerMap.has(provider.id)) {
+  // DEBUG (opt-in): Dump in-memory service registry snapshot to disk.
+  // IMPORTANT: writeFileSync in a tight loop will block the Node event loop and make the UI feel "frozen".
+  // Enable only when debugging:
+  //   - PowerShell: `$env:EDEN_DEBUG_SERVICE_REGISTRY_DUMP='true'`
+  // Optional tuning:
+  //   - `$env:EDEN_DEBUG_SERVICE_REGISTRY_DUMP_INTERVAL_MS='15000'`
+  const EDEN_DEBUG_SERVICE_REGISTRY_DUMP =
+    String(process.env.EDEN_DEBUG_SERVICE_REGISTRY_DUMP || "").toLowerCase() === "true";
+  const EDEN_DEBUG_SERVICE_REGISTRY_DUMP_INTERVAL_MS = Math.max(
+    5000,
+    parseInt(String(process.env.EDEN_DEBUG_SERVICE_REGISTRY_DUMP_INTERVAL_MS || "15000"), 10) || 15000
+  );
+
+  if (EDEN_DEBUG_SERVICE_REGISTRY_DUMP) {
+    let dumpInFlight = false;
+    setInterval(async () => {
+      if (dumpInFlight) return;
+      dumpInFlight = true;
+      try {
+        const memoryFile = path.join(__dirname, "eden-serviceRegistry-memory.json");
+
+        // Get providers from both old and new registries
+        const serviceRegistry2 = getServiceRegistry2();
+        const allProvidersFromServiceRegistry2 = serviceRegistry2.getAllProviders();
+
+        // Merge: Use ServiceRegistry2 as source of truth, but also include any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2
+        const providerMap = new Map<string, any>();
+
+        // First, add all from ServiceRegistry2 (new implementation - source of truth)
+        for (const provider of allProvidersFromServiceRegistry2) {
           providerMap.set(provider.id, {
             id: provider.id,
             name: provider.name,
@@ -12049,25 +12029,51 @@ async function main() {
             status: provider.status,
             uuid: provider.uuid,
             apiEndpoint: provider.apiEndpoint,
-            gardenId: provider.gardenId
+            gardenId: provider.gardenId,
           });
         }
+
+        // Then, add any from ROOT_CA_SERVICE_REGISTRY that aren't in ServiceRegistry2 (backward compatibility)
+        for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+          if (!providerMap.has(provider.id)) {
+            providerMap.set(provider.id, {
+              id: provider.id,
+              name: provider.name,
+              serviceType: provider.serviceType,
+              location: provider.location,
+              bond: provider.bond,
+              reputation: provider.reputation,
+              status: provider.status,
+              uuid: provider.uuid,
+              apiEndpoint: provider.apiEndpoint,
+              gardenId: provider.gardenId,
+            });
+          }
+        }
+
+        const all = Array.from(providerMap.values());
+        const memoryData = {
+          serviceRegistry: all,
+          totalProviders: providerMap.size,
+          movieProviders: all.filter((p: any) => p.serviceType === "movie").length,
+          dexProviders: all.filter((p: any) => p.serviceType === "dex").length,
+          airlineProviders: all.filter((p: any) => p.serviceType === "airline").length,
+          lastSaved: new Date().toISOString(),
+        };
+
+        await fs.promises.writeFile(memoryFile, JSON.stringify(memoryData, null, 2), "utf-8");
+      } catch {
+        // Silently fail - this is just for debugging
+      } finally {
+        dumpInFlight = false;
       }
-      
-      const memoryData = {
-        serviceRegistry: Array.from(providerMap.values()),
-        totalProviders: providerMap.size,
-        movieProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'movie').length,
-        dexProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'dex').length,
-        airlineProviders: Array.from(providerMap.values()).filter((p: any) => p.serviceType === 'airline').length,
-        lastSaved: new Date().toISOString()
-      };
-      fs.writeFileSync(memoryFile, JSON.stringify(memoryData, null, 2), 'utf-8');
-    } catch (err: any) {
-      // Silently fail - this is just for debugging
-    }
-  }, 1000);
-  console.log("   🔍 [DEBUG] Started saving in-memory service registry to eden-serviceRegistry-memory.json every second");
+    }, EDEN_DEBUG_SERVICE_REGISTRY_DUMP_INTERVAL_MS);
+    console.log(
+      `   🔍 [DEBUG] Service registry memory dump ENABLED: eden-serviceRegistry-memory.json every ${EDEN_DEBUG_SERVICE_REGISTRY_DUMP_INTERVAL_MS}ms`
+    );
+  } else {
+    console.log("   🔍 [DEBUG] Service registry memory dump DISABLED (set EDEN_DEBUG_SERVICE_REGISTRY_DUMP=true to enable)");
+  }
   
   // Initialize DEX Pools (must be after token indexers are created and certified)
   // Initialize pools for all existing token gardens (both ROOT and non-ROOT mode)

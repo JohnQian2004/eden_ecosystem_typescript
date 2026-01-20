@@ -22,6 +22,10 @@
           </div>
           <!-- Sign In/Out Button - Right Side (SaaS style) -->
           <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleTheme()" title="Toggle theme">
+              <span *ngIf="theme === 'dark'">🌙 Dark</span>
+              <span *ngIf="theme === 'light'">☀️ Light</span>
+            </button>
             <button class="btn" [ngClass]="{'btn-primary': isUserSignedIn, 'btn-success': !isUserSignedIn}" (click)="openSignInModal()" [style.background-color]="!isUserSignedIn ? '#238636' : ''" [style.border-color]="!isUserSignedIn ? '#238636' : ''" [style.color]="!isUserSignedIn ? '#fff' : ''">
               <span *ngIf="!isUserSignedIn">🔐 Sign In</span>
               <span *ngIf="isUserSignedIn">👤 {{ userEmail }}</span>
@@ -330,7 +334,7 @@
         <!-- Garden of Eden Main Street - Service Type Cards -->
         <!-- Main Street always shows hardcoded service types -->
         <!-- When signed out, show all public services (not tied to any Priest) -->
-        <div class="row mb-3" *ngIf="!isLoadingServices && (appleServiceTypes.length > 0 || dexGardens.length > 0)" [ngClass]="{'dark-main-street': !isUserSignedIn}">
+        <div class="row mb-3" *ngIf="(isLoadingAppleGardens || appleGardens.length > 0 || dexGardens.length > 0)" [ngClass]="{'dark-main-street': !isUserSignedIn}">
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Garden of Eden Main Street</h5>
@@ -401,57 +405,37 @@
             </div>
             <p class="small mb-3" [ngClass]="{'text-muted': isUserSignedIn}" [style.color]="!isUserSignedIn ? '#8b949e' : ''">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
 
-            <!-- 🍎 Apple ecosystem services -->
-            <div *ngIf="appleServiceTypes.length > 0" class="mb-3">
+            <!-- 🍎 Apple ecosystem (garden-driven, like DEX: no grouping by serviceType) -->
+            <div *ngIf="isLoadingAppleGardens || appleGardens.length > 0" class="mb-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🍎 Apple Ecosystem</h6>
                 <small class="text-muted" *ngIf="isUserSignedIn">SaaS gardens (regular)</small>
               </div>
+              <div *ngIf="isLoadingAppleGardens && appleGardens.length === 0" class="text-muted small mb-2" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                Loading Apple gardens...
+              </div>
               <div class="row g-2">
-                <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of appleServiceTypes">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of appleGardens; let idx = index; trackBy: trackByGardenId">
                   <div 
                     class="card service-card-compact h-100" 
-                    [ngClass]="{
-                      'movie-service': serviceType.type === 'movie', 
-                      'dex-service': serviceType.type === 'dex',
-                      'airline-service': serviceType.type === 'airline',
-                      'autoparts-service': serviceType.type === 'autoparts',
-                      'hotel-service': serviceType.type === 'hotel',
-                      'restaurant-service': serviceType.type === 'restaurant',
-                      'grocerystore-service': serviceType.type === 'grocerystore',
-                      'pharmacy-service': serviceType.type === 'pharmacy',
-                      'dogpark-service': serviceType.type === 'dogpark',
-                      'gasstation-service': serviceType.type === 'gasstation',
-                      'party-service': serviceType.type === 'party',
-                      'bank-service': serviceType.type === 'bank'
-                    }"
-                    (click)="selectServiceType(serviceType)" 
+                    (click)="selectAppleGarden(garden)" 
                     style="cursor: pointer;">
-                    <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
-                      <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
-                      <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
-                      <div class="mt-1">
-                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
-                          Providers: {{ serviceType.providerCount ?? (providerCountsByServiceType[serviceType.type] || 0) }}
+                    <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle(garden.serviceType)" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                      <div class="small mb-1">
+                        <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
+                      <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                        <span *ngIf="garden.serviceType">
+                          {{ getServiceTypeIcon(garden.serviceType) }}
+                          <span class="ms-1">{{ (garden.serviceType || '').toString().toUpperCase() }}</span>
                         </span>
                       </div>
-                      <div class="mt-1" (click)="$event.stopPropagation()">
-                        <div class="small text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
-                          Owners ({{ getOwnersForServiceType(serviceType.type).length }})
-                        </div>
-                        <div class="mt-1" style="max-height: 96px; overflow: auto;">
-                          <div class="list-group list-group-flush">
-                            <div
-                              class="list-group-item py-1 px-2 bg-transparent"
-                              *ngFor="let email of getOwnersForServiceType(serviceType.type)">
-                              <small>{{ email }}</small>
-                            </div>
-                          </div>
-                        </div>
+                      <div class="mt-1">
+                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                          Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                        </span>
                       </div>
-                      <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
-                        <span class="badge bg-success small">Active</span>
-                      </div>
+                      <!-- Owners removed by request -->
                     </div>
                   </div>
                 </div>
@@ -465,7 +449,7 @@
                 <small class="text-muted" *ngIf="isUserSignedIn">DEX gardens (token)</small>
               </div>
               <div class="row g-2">
-                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens; let idx = index; trackBy: trackByGardenId">
                   <div 
                     class="card service-card-compact h-100" 
                     [ngClass]="{
@@ -473,31 +457,20 @@
                     }"
                     (click)="selectDexGarden(garden)" 
                     style="cursor: pointer;">
-                    <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
-                      <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">🔷</div>
-                      <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ garden.name }}</h6>
+                    <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                      <div class="small mb-1">
+                        <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
-                        <span>{{ garden.id }}</span>
+                        {{ getServiceTypeIcon('dex') }}
+                        <span class="ms-1">DEX</span>
                       </div>
                       <div class="mt-1">
                         <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                           Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
                         </span>
                       </div>
-                      <div class="mt-1" (click)="$event.stopPropagation()">
-                        <div class="small text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
-                          Owners ({{ getOwnersForDexGarden(garden.id, garden.ownerEmail).length }})
-                        </div>
-                        <div class="mt-1" style="max-height: 96px; overflow: auto;">
-                          <div class="list-group list-group-flush">
-                            <div
-                              class="list-group-item py-1 px-2 bg-transparent"
-                              *ngFor="let email of getOwnersForDexGarden(garden.id, garden.ownerEmail)">
-                              <small>{{ email }}</small>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <!-- Owners removed by request -->
                     </div>
                   </div>
                 </div>
@@ -635,9 +608,10 @@
                         'btn-danger': selectedServiceType === 'hotel',
                         'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
                       }"
-                      type="submit"
-                      [disabled]="isProcessing || !userInput?.trim() || !hasSufficientBalance()"
-                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Please purchase 🍎 APPLES first.' : ''">
+                      type="button"
+                      (click)="onSubmit(); $event.preventDefault()"
+                      [disabled]="isProcessing || !userInput.trim()"
+                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Send will be blocked until you purchase 🍎 APPLES.' : ''">
                       <span *ngIf="!isProcessing">Send</span>
                       <span *ngIf="isProcessing">
                         <span class="spinner-border spinner-border-sm me-2"></span>Processing...
@@ -1002,7 +976,6 @@
                 <div class="ms-2 me-auto">
                   <div class="fw-bold">{{ garden.name }}</div>
                   <small class="text-muted">
-                    ID: {{ garden.id }} | 
                     Service: {{ garden.serviceType || 'N/A' }} | 
                     Status: <span [ngClass]="{'text-success': garden.active, 'text-danger': !garden.active}">{{ garden.active ? 'Active' : 'Inactive' }}</span>
                   </small>

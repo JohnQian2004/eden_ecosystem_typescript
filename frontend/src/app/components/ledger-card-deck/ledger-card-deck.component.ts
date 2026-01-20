@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface LedgerEntry {
   entryId: string;
@@ -72,6 +73,7 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
   userEmail: string = '';
   readonly adminEmail = 'bill.draper.auto@gmail.com';
   private wsSubscription: any;
+  private apiBaseUrl = getApiBaseUrl();
   
   // Transaction snapshot modal
   showTransactionModal: boolean = false;
@@ -140,9 +142,7 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
   }
 
   loadLedger() {
-    const apiUrl = window.location.port === '4200' 
-      ? 'http://localhost:3000/api/ledger' 
-      : '/api/ledger';
+    const apiUrl = `${this.apiBaseUrl}/api/ledger`;
     
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {
@@ -309,9 +309,7 @@ export class LedgerCardDeckComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
 
     // Use txId as snapshot_id for the RPC call
-    const apiUrl = window.location.port === '4200' 
-      ? `http://localhost:3000/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`
-      : `/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
+    const apiUrl = `${this.apiBaseUrl}/rpc/getTransactionBySnapshot?snapshot_id=${encodeURIComponent(txId)}`;
 
     this.http.get<any>(apiUrl).subscribe({
       next: (response) => {

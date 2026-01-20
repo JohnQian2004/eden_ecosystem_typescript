@@ -28,6 +28,8 @@ export class InMemoryRedisServer extends EventEmitter {
   private serviceRegistryFile: string; // Separate file for service registry
   private saveTimeout: NodeJS.Timeout | null = null;
   private readonly SAVE_DELAY_MS = 1000; // Debounce saves by 1 second
+  private serviceRegistrySaveTimer: NodeJS.Timeout | null = null;
+  private serviceRegistrySavePending: boolean = false;
 
   constructor() {
     super();
@@ -861,14 +863,28 @@ export class InMemoryRedisServer extends EventEmitter {
       // The check for whether to save is handled by the caller
     }
     
-    // REFACTOR: Force immediate save of ServiceRegistry to separate file
-    // CRITICAL: Preserve existing indexerId assignments from file - don't overwrite with hardcoded defaults
-    try {
+    // IMPORTANT: This used to do huge console logs + writeFileSync, which can freeze the server for seconds on Windows.
+    // Make it debounced + async (and quiet by default).
+    this.serviceRegistrySavePending = true;
+    if (this.serviceRegistrySaveTimer) return;
+
+    const verbose =
+      String(process.env.EDEN_DEBUG_SERVICE_REGISTRY_PERSIST_VERBOSE || "").toLowerCase() === "true";
+
+    this.serviceRegistrySaveTimer = setTimeout(() => {
+      this.serviceRegistrySaveTimer = null;
+      if (!this.serviceRegistrySavePending) return;
+      this.serviceRegistrySavePending = false;
+
+      void (async () => {
+        // REFACTOR: Save ServiceRegistry to separate file
+        // CRITICAL: Preserve existing gardenId assignments from file - don't overwrite with hardcoded defaults
+        try {
       // Load existing service registry from file to preserve indexerId assignments
       let existingProviders: Map<string, any> = new Map();
       if (fs.existsSync(this.serviceRegistryFile)) {
         try {
-          const fileContent = fs.readFileSync(this.serviceRegistryFile, 'utf-8');
+          const fileContent = await fs.promises.readFile(this.serviceRegistryFile, "utf-8");
           const persisted = JSON.parse(fileContent);
           if (persisted.serviceRegistry && Array.isArray(persisted.serviceRegistry)) {
             for (const provider of persisted.serviceRegistry) {
@@ -879,44 +895,34 @@ export class InMemoryRedisServer extends EventEmitter {
                 existingProviders.set(provider.id, { ...provider, gardenId: gardenId });
               }
             }
-            console.log(`📂 [ServiceRegistry Persistence] Loaded ${existingProviders.size} existing providers from file to preserve assignments`);
+            if (verbose) {
+              console.log(
+                `📂 [ServiceRegistry Persistence] Loaded ${existingProviders.size} existing providers from file to preserve assignments`
+              );
+            }
           }
         } catch (err: any) {
           console.warn(`⚠️  [ServiceRegistry Persistence] Failed to load existing file: ${err.message}`);
         }
       }
       
-      // Console output: Show in-memory service registry
-      console.log(`📋 [In-Memory Service Registry] BEFORE save - Total: ${ROOT_CA_SERVICE_REGISTRY.length}`);
-      console.log(`📋 [In-Memory Service Registry] All providers:`, ROOT_CA_SERVICE_REGISTRY.map(p => ({
-        id: p.id,
-        name: p.name,
-        serviceType: p.serviceType,
-        gardenId: p.gardenId || 'MISSING'
-      })));
-      console.log(`📋 [In-Memory Service Registry] Movie providers:`, ROOT_CA_SERVICE_REGISTRY.filter(p => p.serviceType === 'movie').map(p => ({
-        id: p.id,
-        name: p.name,
-        gardenId: p.gardenId || 'MISSING'
-      })));
+      if (verbose) {
+        console.log(`📋 [In-Memory Service Registry] BEFORE save - Total: ${ROOT_CA_SERVICE_REGISTRY.length}`);
+        console.log(`📋 [In-Memory Service Registry] All providers:`, ROOT_CA_SERVICE_REGISTRY.map(p => ({
+          id: p.id,
+          name: p.name,
+          serviceType: p.serviceType,
+          gardenId: p.gardenId || 'MISSING'
+        })));
+      }
       
       // Update ServiceRegistry ONLY (do not touch gardens)
       // NO FILTERING - Save everything in memory as-is (in-memory is source of truth)
       const servicesToSave = ROOT_CA_SERVICE_REGISTRY; // Save ALL providers, no filtering
       
-      // Console output: Show what's being saved
-      console.log(`📋 [In-Memory Service Registry] Saving ALL ${servicesToSave.length} providers (NO FILTERING)`);
-      console.log(`📋 [In-Memory Service Registry] Providers being saved:`, servicesToSave.map(p => ({
-        id: p.id,
-        name: p.name,
-        serviceType: p.serviceType,
-        gardenId: p.gardenId
-      })));
-      console.log(`📋 [In-Memory Service Registry] Movie providers being saved:`, servicesToSave.filter(p => p.serviceType === 'movie').map(p => ({
-        id: p.id,
-        name: p.name,
-        gardenId: p.gardenId
-      })));
+      if (verbose) {
+        console.log(`📋 [In-Memory Service Registry] Saving ALL ${servicesToSave.length} providers (NO FILTERING)`);
+      }
       
       const serviceRegistry = servicesToSave.map(p => {
         // CRITICAL: For NEW providers (not in file), use in-memory value
@@ -927,10 +933,12 @@ export class InMemoryRedisServer extends EventEmitter {
         const preservedGardenId = existingProvider ? (existingProvider.gardenId || p.gardenId) : p.gardenId;
         
         // Log if we're preserving a different value from file
-        if (existingProvider && existingProvider.gardenId && existingProvider.gardenId !== p.gardenId) {
-          console.log(`💾 [ServiceRegistry Persistence] Preserving ${p.name} (${p.id}) gardenId "${preservedGardenId}" from file (in-memory has "${p.gardenId}")`);
-        } else if (!existingProvider) {
-          console.log(`💾 [ServiceRegistry Persistence] Saving NEW provider ${p.name} (${p.id}) with gardenId "${preservedGardenId}"`);
+        if (verbose) {
+          if (existingProvider && existingProvider.gardenId && existingProvider.gardenId !== p.gardenId) {
+            console.log(`💾 [ServiceRegistry Persistence] Preserving ${p.name} (${p.id}) gardenId "${preservedGardenId}" from file (in-memory has "${p.gardenId}")`);
+          } else if (!existingProvider) {
+            console.log(`💾 [ServiceRegistry Persistence] Saving NEW provider ${p.name} (${p.id}) with gardenId "${preservedGardenId}"`);
+          }
         }
         
         const provider: any = {
@@ -982,22 +990,18 @@ export class InMemoryRedisServer extends EventEmitter {
         lastSaved: new Date().toISOString()
       };
       
-      fs.writeFileSync(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), 'utf-8');
-      // Detailed console output
-      const saveLogData = {
-        totalInMemory: ROOT_CA_SERVICE_REGISTRY.length,
-        totalSaved: serviceRegistry.length,
-        movieProviders: servicesToSave.filter(p => p.serviceType === 'movie').length,
-        dexProviders: servicesToSave.filter(p => p.serviceType === 'dex').length,
-        movieProviderIds: servicesToSave.filter(p => p.serviceType === 'movie').map(p => `${p.id}(${p.gardenId})`),
-        allProviderIds: servicesToSave.map(p => `${p.id}(${p.gardenId})`),
-        preservedFromFile: existingProviders.size
-      };
-      console.log(`💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile} (preserved ${existingProviders.size} existing assignments)`);
-      console.log(`📝 [Garden Lifecycle] 💾 Service registry save:`, JSON.stringify(saveLogData, null, 2));
-    } catch (err: any) {
-      console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
-    }
+      await fs.promises.writeFile(this.serviceRegistryFile, JSON.stringify(serviceRegistryData, null, 2), "utf-8");
+
+      if (verbose) {
+        console.log(
+          `💾 [ServiceRegistry Persistence] Saved ${serviceRegistry.length} service providers to ${this.serviceRegistryFile} (preserved ${existingProviders.size} existing assignments)`
+        );
+      }
+        } catch (err: any) {
+          console.error(`❌ [ServiceRegistry Persistence] Failed to save: ${err.message}`);
+        }
+      })();
+    }, 500);
   }
 
   async connect(): Promise<void> {
