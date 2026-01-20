@@ -458,7 +458,9 @@ export function getCertificationStats(): {
   const stats = {
     total: all.length,
     pending: all.filter(c => c.status === 'pending').length,
-    approved: all.filter(c => c.status === 'approved').length,
+    // "Certified Priests" must come from PriestHoodService truth:
+    // approved + certificate present (legacy rows may be "approved" but missing cert)
+    approved: all.filter(c => c.status === 'approved' && !!c.certificate).length,
     rejected: all.filter(c => c.status === 'rejected').length,
     revoked: all.filter(c => c.status === 'revoked').length,
     suspended: all.filter(c => c.status === 'suspended').length,

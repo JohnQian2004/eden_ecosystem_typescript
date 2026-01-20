@@ -2382,7 +2382,108 @@
         "services": "Prescriptions",
         "hours": "9 AM - 6 PM"
       }
+    },
+    {
+      "entryId": "78500f89-eed0-429c-9ec0-2427aa7fa505",
+      "txId": "tx_1768835354733",
+      "timestamp": 1768835354733,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "dex-pool-tokena",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "name": "Demo Service",
+        "location": "Demo Location",
+        "providerName": "Service Provider",
+        "providerId": "provider-001"
+      }
+    },
+    {
+      "entryId": "f9e35315-4e76-4217-95bf-8a411dfee5ee",
+      "txId": "tx_1768835613624",
+      "timestamp": 1768835613624,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Service Provider",
+      "providerUuid": "provider-001",
+      "serviceType": "dex",
+      "amount": 0.002000060001200024,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.00010000300006000121,
+        "eden": 0.00004000120002400048
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "tokenSymbol": "TOKENA",
+        "baseToken": "SOL",
+        "action": "BUY",
+        "tokenAmount": 2,
+        "baseAmount": 0.002000060001200024,
+        "price": 0.00100004000140004,
+        "iTax": 1.0000300006000122e-8,
+        "tradeId": "4c60aa25-389a-454f-83ef-0175faf8433a",
+        "poolId": "pool-solana-tokena"
+      }
+    },
+    {
+      "entryId": "2c29f2f4-0397-4673-91dc-e7c1cb7821d1",
+      "txId": "priesthood_app_fee_1768848907825_e265228b29be0bbb",
+      "timestamp": 1768848907826,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "merchant": "Eden Treasury",
+      "providerUuid": "eden:root:ca:priesthood",
+      "serviceType": "priesthood",
+      "amount": 1,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "application_fee",
+        "description": "Priesthood Application Fee (Non-refundable)",
+        "price": 1
+      }
+    },
+    {
+      "entryId": "5a1a34ae-a6a6-471e-930f-c4d961a5f8cf",
+      "txId": "34ee1504-a1ba-436a-9184-25250010beac",
+      "timestamp": 1768848995117,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-BANK",
+        "price": 100,
+        "serviceType": "bank",
+        "gardenName": "Garden-BANK",
+        "createdBy": "billdraper25@gmail.com"
+      }
     }
   ],
-  "lastSaved": "2026-01-19T13:38:06.126Z"
+  "lastSaved": "2026-01-19T18:56:35.122Z"
 }

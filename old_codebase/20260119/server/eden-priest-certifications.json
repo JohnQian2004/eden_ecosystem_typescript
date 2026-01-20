@@ -34,9 +34,9 @@
     },
     {
       "email": "reshardgarcia@gmail.com",
-      "status": "approved",
+      "status": "revoked",
       "appliedAt": 1768779020834,
-      "reason": "dddd",
+      "reason": "jjj",
       "metadata": {},
       "applicationFeePaid": true,
       "activityCount": 1,
@@ -45,8 +45,27 @@
       "applicationFeeTxId": "priesthood_app_fee_1768779020798_940c2c6921d4bec8",
       "approvedAt": 1768779147929,
       "approvedBy": "bill.draper.auto@gmail.com",
+      "membershipActiveUntil": 1771371355334,
+      "lastActivityDate": 1768779355334,
+      "suspendedForNonPayment": false,
+      "revokedAt": 1768844305254,
+      "revokedBy": "bill.draper.auto@gmail.com"
+    },
+    {
+      "email": "billdraper25@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768848907905,
+      "reason": "ff",
+      "metadata": {},
+      "applicationFeePaid": true,
+      "activityCount": 0,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768848907825_e265228b29be0bbb",
+      "approvedAt": 1768848970904,
+      "approvedBy": "bill.draper.auto@gmail.com",
       "certificate": {
-        "subject": "priest:reshardgarcia@gmail.com:1768779147929",
+        "subject": "priest:billdraper25@gmail.com:1768848970904",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "PRIEST_MODE",
@@ -54,35 +73,15 @@
           "MANAGE_GARDENS"
         ],
         "constraints": {
-          "email": "reshardgarcia@gmail.com",
+          "email": "billdraper25@gmail.com",
           "grantedBy": "bill.draper.auto@gmail.com",
-          "grantedAt": 1768779147929,
+          "grantedAt": 1768848970904,
           "priesthoodLevel": "certified"
         },
-        "issuedAt": 1768779147929,
-        "expiresAt": 1800315147929,
-        "signature": "l0tv20lQjFK47JgOA9bv6nK5OIvbiDc9UK9PHLavLcyu1YVrG7tKfhUQ4rJ1racjra229hNLkRXs8xF86S/kCg=="
-      },
-      "membershipActiveUntil": 1771371355334,
-      "lastActivityDate": 1768779355334,
-      "suspendedForNonPayment": false
-    },
-    {
-      "email": "billdraper25@gmail.com",
-      "status": "revoked",
-      "appliedAt": 1768750152943,
-      "reason": "ddd",
-      "metadata": {},
-      "applicationFeePaid": false,
-      "membershipPaymentTxIds": [],
-      "approvedAt": 1768751453313,
-      "approvedBy": "bill.draper.auto@gmail.com",
-      "membershipActiveUntil": 1773935511822,
-      "lastActivityDate": 1768751533473,
-      "activityCount": 2,
-      "suspendedForNonPayment": false,
-      "revokedAt": 1768751636768,
-      "revokedBy": "bill.draper.auto@gmail.com"
+        "issuedAt": 1768848970904,
+        "expiresAt": 1800384970904,
+        "signature": "fDQzYobXz/B50DbVNOLpncVWseisFVvSPD5OSbEgRzs1mNTVLkgHb9MvryzALjC3QPZY7Bpol+C5uX8pNCjSDg=="
+      }
     },
     {
       "email": "rashardgarcia@gmail.com",
@@ -120,5 +119,5 @@
       "suspendedForNonPayment": false
     }
   ],
-  "lastSaved": "2026-01-19T13:06:31.043Z"
+  "lastSaved": "2026-01-19T18:56:10.904Z"
 }

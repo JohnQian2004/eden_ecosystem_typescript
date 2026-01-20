@@ -373,6 +373,37 @@
       }
     },
     {
+      "id": "garden-13",
+      "name": "Garden-BANK",
+      "stream": "eden:garden:garden-13",
+      "active": true,
+      "uuid": "eden:garden:caab786f-92c2-4ac3-b00f-8759e9c83c8d",
+      "ownerEmail": "billdraper25@gmail.com",
+      "priestEmail": "billdraper25@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-bank.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "bank",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:caab786f-92c2-4ac3-b00f-8759e9c83c8d",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-13",
+          "gardenName": "Garden-BANK",
+          "stream": "eden:garden:garden-13"
+        },
+        "issuedAt": 1768848995156,
+        "expiresAt": 1800384995156,
+        "signature": "yG/XZwdZLnmNky/QbYh9v3jde0RIWhLOF8FYAoO+13arSJUFoXJrF/KW2zY6gCr1Dv/5pihsnrSabDqY8ECaCQ=="
+      }
+    },
+    {
       "id": "T1",
       "name": "Garden-DEX",
       "stream": "eden:token-garden:T1",
@@ -435,5 +466,5 @@
       }
     }
   ],
-  "lastSaved": "2026-01-19T13:06:05.835Z"
+  "lastSaved": "2026-01-19T18:56:35.179Z"
 }

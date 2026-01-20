@@ -17,6 +17,7 @@ export interface ServiceProvider {
   gardenId: string; // Use gardenId (preferred), indexerId kept for backward compatibility
   indexerId?: string; // Backward compatibility - prefer gardenId
   status: string;
+  ownerEmail?: string; // Some providers include ownerEmail (esp. garden-generated providers)
   // Snake Service Fields
   // Note: Snake is a SERVICE TYPE (serviceType: "snake"), not a provider type
   // Each Snake service belongs to a garden (gardenId)
@@ -63,7 +64,7 @@ export class AppComponent implements OnInit, OnDestroy {
   inputPlaceholder: string = 'Select a service type above or type your query...';
   
   // Service Types (Garden of Eden Main Street)
-  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
+  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [
     {
       type: 'movie',
       icon: '🎬',
@@ -103,8 +104,48 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
 
   // Main Street grouping (matches architecture split: 🍎 Apple SaaS vs 💰 DEX)
-  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
-  dexServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [];
+  appleServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
+  // DEX main street is garden-driven (not service-type driven)
+  dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
+  selectedDexGarden: {id: string, name: string} | null = null;
+
+  // Data-driven counts from ServiceRegistry (group-by filter)
+  // - serviceType -> provider count
+  providerCountsByServiceType: Record<string, number> = {};
+  // - gardenId -> provider count
+  providerCountsByGardenId: Record<string, number> = {};
+  // - serviceType -> unique owner emails
+  providerOwnersByServiceType: Record<string, string[]> = {};
+  // - gardenId -> unique owner emails
+  providerOwnersByGardenId: Record<string, string[]> = {};
+
+  formatOwnerEmails(emails: string[] | undefined): string {
+    const list = (emails || []).filter(Boolean);
+    if (list.length === 0) return 'N/A';
+    if (list.length === 1) return list[0];
+    return `${list[0]} (+${list.length - 1})`;
+  }
+
+  formatOwnerEmailsAll(emails: string[] | undefined): string {
+    const list = (emails || []).filter(Boolean);
+    if (list.length === 0) return 'N/A';
+    return list.join(', ');
+  }
+
+  getOwnersForServiceType(serviceType: string): string[] {
+    const key = String(serviceType || '').toLowerCase();
+    // Prefer attached owners on serviceTypes, fallback to grouped map
+    const attached = this.serviceTypes.find(st => st.type === key)?.ownerEmails;
+    return (attached && attached.length > 0 ? attached : (this.providerOwnersByServiceType[key] || [])).slice();
+  }
+
+  getOwnersForDexGarden(gardenId: string, fallbackOwnerEmail?: string): string[] {
+    const gid = String(gardenId || '');
+    const owners = (this.providerOwnersByGardenId[gid] || []).slice();
+    const fb = String(fallbackOwnerEmail || '').trim().toLowerCase();
+    if (owners.length === 0 && fb) return [fb];
+    return owners;
+  }
   
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
@@ -495,6 +536,14 @@ export class AppComponent implements OnInit, OnDestroy {
           this.loadServices();
         }, 500);
       }
+
+      // Listen for DEX garden creation events to refresh DEX gardens list
+      if (event.type === 'dex_garden_created') {
+        console.log(`🔄 DEX garden created, refreshing DEX gardens list...`);
+        setTimeout(() => {
+          this.loadDexGardens();
+        }, 500);
+      }
       
       // Listen for ledger events to update wallet balance (event-driven, no polling)
       if (event.type === 'ledger_entry_added' || 
@@ -515,6 +564,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Load services from ROOT CA ServiceRegistry (Garden of Eden Main Street)
     this.loadServices();
+    // Load DEX gardens (DEX main street is garden-driven)
+    this.loadDexGardens();
     // Load Snake providers separately
     this.loadSnakeProviders();
     
@@ -536,10 +587,59 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private recomputeMainStreetGroups() {
-    this.dexServiceTypes = this.serviceTypes.filter(st => st.type === 'dex');
     this.appleServiceTypes = this.serviceTypes
       .filter(st => st.type !== 'dex')
       .sort((a, b) => (a.adText || a.type).localeCompare((b.adText || b.type), undefined, { sensitivity: 'base' }));
+  }
+
+  private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
+    return this.serviceTypes.find(st => st.type === 'dex') || {
+      type: 'dex',
+      icon: '💰',
+      adText: 'DEX Tokens',
+      sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
+    };
+  }
+
+  loadDexGardens() {
+    const isPriestMode = this.isUserSignedIn && this.currentViewMode === 'priest' && !!this.userEmail;
+    const url = isPriestMode && this.userEmail
+      ? `${this.apiUrl}/api/dex-gardens/by-owner?email=${encodeURIComponent(this.userEmail)}`
+      : `${this.apiUrl}/api/dex-gardens`;
+
+    this.http.get<{success: boolean, gardens?: any[]}>(url).subscribe({
+      next: (response) => {
+        if (response.success) {
+          const gardens = (response.gardens || []).filter((g: any) => g && g.active !== false);
+          this.dexGardens = gardens.map((g: any) => ({
+            id: g.id,
+            name: g.name || g.id,
+            active: g.active !== false,
+            uuid: g.uuid,
+            ownerEmail: g.ownerEmail,
+            type: g.type || 'token'
+          }));
+          console.log(`💰 [DEX Main Street] Loaded ${this.dexGardens.length} DEX garden(s): ${this.dexGardens.map(g => g.id).join(', ')}`);
+        } else {
+          this.dexGardens = [];
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load DEX gardens:', err);
+        this.dexGardens = [];
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  selectDexGarden(garden: {id: string, name: string}) {
+    this.selectedDexGarden = garden;
+    const dexServiceType = this.getDexServiceType();
+    this.selectServiceType(dexServiceType);
+    // Future: can be used to filter DEX pools/providers by garden in backend
+    (this as any).selectedDexGardenId = garden.id;
+    this.cdr.detectChanges();
   }
   
   checkServiceGardens() {
@@ -1326,6 +1426,38 @@ export class AppComponent implements OnInit, OnDestroy {
                   
                   // Create Set of unique service types from non-infrastructure providers
                   const availableTypes = new Set(nonInfrastructureProviders.map(p => p.serviceType));
+
+                  // Group-by counts (data-driven Main Street)
+                  const countsByServiceType: Record<string, number> = {};
+                  const countsByGardenId: Record<string, number> = {};
+                  const ownersByServiceTypeSets: Record<string, Set<string>> = {};
+                  const ownersByGardenIdSets: Record<string, Set<string>> = {};
+                  for (const p of nonInfrastructureProviders) {
+                    const st = String(p.serviceType || '').toLowerCase();
+                    if (st) countsByServiceType[st] = (countsByServiceType[st] || 0) + 1;
+                    const gid = String((p.gardenId || p.indexerId) || '');
+                    if (gid) countsByGardenId[gid] = (countsByGardenId[gid] || 0) + 1;
+
+                    const owner = String((p as any).ownerEmail || '').trim().toLowerCase();
+                    if (owner) {
+                      if (st) {
+                        if (!ownersByServiceTypeSets[st]) ownersByServiceTypeSets[st] = new Set<string>();
+                        ownersByServiceTypeSets[st].add(owner);
+                      }
+                      if (gid) {
+                        if (!ownersByGardenIdSets[gid]) ownersByGardenIdSets[gid] = new Set<string>();
+                        ownersByGardenIdSets[gid].add(owner);
+                      }
+                    }
+                  }
+                  this.providerCountsByServiceType = countsByServiceType;
+                  this.providerCountsByGardenId = countsByGardenId;
+                  this.providerOwnersByServiceType = Object.fromEntries(
+                    Object.entries(ownersByServiceTypeSets).map(([k, set]) => [k, Array.from(set).sort()])
+                  );
+                  this.providerOwnersByGardenId = Object.fromEntries(
+                    Object.entries(ownersByGardenIdSets).map(([k, set]) => [k, Array.from(set).sort()])
+                  );
             
                   // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
                   // This ensures we don't lose service types that were filtered out previously
@@ -1411,10 +1543,15 @@ export class AppComponent implements OnInit, OnDestroy {
                   
                   // CRITICAL: Deduplicate by service type to prevent duplicates
                   // This prevents duplicates from race conditions or multiple rapid calls
-                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string}>();
+                  const serviceTypeMap = new Map<string, {type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}>();
                   for (const st of filteredServiceTypes) {
                     if (!serviceTypeMap.has(st.type)) {
-                      serviceTypeMap.set(st.type, st);
+                      const key = String(st.type || '').toLowerCase();
+                      serviceTypeMap.set(st.type, {
+                        ...st,
+                        providerCount: this.providerCountsByServiceType[key] || 0,
+                        ownerEmails: this.providerOwnersByServiceType[key] || []
+                      });
                     }
                   }
                   this.serviceTypes = Array.from(serviceTypeMap.values());

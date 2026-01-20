@@ -688,6 +688,15 @@ async function executeStepActions(
             context.queryResult = queryResult;
             context.serviceType = queryResult.serviceType;
           }
+          // Reverse-engineered from server/data/dex.json:
+          // DEX workflow expects these top-level context fields to exist for templating.
+          if ((context.serviceType || context.queryResult?.serviceType) === 'dex') {
+            const filters: any = (context.queryResult as any)?.query?.filters || {};
+            (context as any).action = filters.action || (context as any).action;
+            (context as any).tokenAmount = filters.tokenAmount || (context as any).tokenAmount;
+            (context as any).tokenSymbol = filters.tokenSymbol || (context as any).tokenSymbol;
+            (context as any).baseToken = filters.baseToken || (context as any).baseToken;
+          }
           break;
 
         case "query_service_registry":

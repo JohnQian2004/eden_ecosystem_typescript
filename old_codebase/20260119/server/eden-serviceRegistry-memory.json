@@ -239,11 +239,23 @@
       "uuid": "550e8400-e29b-41d4-a716-446655440106",
       "apiEndpoint": "internal://accountant",
       "gardenId": "HG"
+    },
+    {
+      "id": "bank-7aa13c3d",
+      "name": "Garden-BANK Provider",
+      "serviceType": "bank",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "d486c358-e9a8-4482-bcb2-1ce3f2a57f5c",
+      "apiEndpoint": "https://api.bank.com/v1",
+      "gardenId": "garden-13"
     }
   ],
-  "totalProviders": 20,
+  "totalProviders": 21,
   "movieProviders": 0,
   "dexProviders": 1,
   "airlineProviders": 1,
-  "lastSaved": "2026-01-19T13:42:53.165Z"
+  "lastSaved": "2026-01-20T00:07:10.405Z"
 }

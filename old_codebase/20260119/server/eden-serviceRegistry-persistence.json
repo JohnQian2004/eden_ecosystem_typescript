@@ -227,7 +227,31 @@
       "uuid": "3482c4ab-87c8-477f-ad51-8b5a3aba318d",
       "apiEndpoint": "https://api.party.com/v1",
       "gardenId": "garden-12"
+    },
+    {
+      "id": "accountant-service-001",
+      "name": "Accountant Service",
+      "serviceType": "accountant",
+      "location": "ROOT CA",
+      "bond": 75000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440106",
+      "apiEndpoint": "internal://accountant",
+      "gardenId": "HG"
+    },
+    {
+      "id": "bank-7aa13c3d",
+      "name": "Garden-BANK Provider",
+      "serviceType": "bank",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "d486c358-e9a8-4482-bcb2-1ce3f2a57f5c",
+      "apiEndpoint": "https://api.bank.com/v1",
+      "gardenId": "garden-13"
     }
   ],
-  "lastSaved": "2026-01-19T13:42:51.184Z"
+  "lastSaved": "2026-01-20T00:03:17.437Z"
 }
