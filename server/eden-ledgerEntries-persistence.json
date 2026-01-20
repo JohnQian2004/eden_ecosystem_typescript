@@ -3757,7 +3757,54 @@
         "gardenName": "Garden-BANK",
         "createdBy": "bill.draper.auto@gmail.com"
       }
+    },
+    {
+      "entryId": "a158ddb2-1e87-4d3b-9d18-d6e7c1b3550e",
+      "txId": "86f78a75-565e-4373-94c9-f181241ed581",
+      "timestamp": 1768935782947,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "ROOT CA",
+      "providerUuid": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+      "serviceType": "garden_deployment",
+      "amount": 100,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "garden_deployment",
+        "description": "Garden deployment: Garden-DOGPARK",
+        "price": 100,
+        "serviceType": "dogpark",
+        "gardenName": "Garden-DOGPARK",
+        "createdBy": "bill.draper.auto@gmail.com"
+      }
+    },
+    {
+      "entryId": "b913bb14-7e47-474b-b819-77a71b2840e1",
+      "txId": "tx_1768940095510",
+      "timestamp": 1768940095510,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Bank Provider",
+      "providerUuid": "option-0",
+      "serviceType": "bank",
+      "amount": 50,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 2.5,
+        "eden": 1
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 50,
+        "providerId": "option-0"
+      }
     }
   ],
-  "lastSaved": "2026-01-20T17:03:30.870Z"
+  "lastSaved": "2026-01-20T20:14:55.736Z"
 }

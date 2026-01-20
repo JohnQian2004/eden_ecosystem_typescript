@@ -30,7 +30,38 @@
         "expiresAt": 1800464610900,
         "signature": "6GBQLjbHmvET8nG6OAcGfcnlok23PxZDsBbdVaqzRUL+EE/Yih8BaxVo5fTDOPLhLhlRhVa9BRyf+rDtn/mMDw=="
       }
+    },
+    {
+      "id": "garden-2",
+      "name": "Garden-DOGPARK",
+      "stream": "eden:garden:garden-2",
+      "active": true,
+      "uuid": "eden:garden:24ca404d-c1ee-497b-9c73-2081fc6f96e7",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-dogpark.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "dogpark",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:24ca404d-c1ee-497b-9c73-2081fc6f96e7",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-DOGPARK",
+          "stream": "eden:garden:garden-2"
+        },
+        "issuedAt": 1768935782982,
+        "expiresAt": 1800471782982,
+        "signature": "60HOvS2l+rvNojUQPebs3JF9GtDHrazpxtHBrq6wD9zoa1yeXlbC3INThiqYCW+NyunFQph7l7HM2Mh04VyjBg=="
+      }
     }
   ],
-  "lastSaved": "2026-01-20T17:03:30.915Z"
+  "lastSaved": "2026-01-20T19:03:02.997Z"
 }

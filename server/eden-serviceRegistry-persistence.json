@@ -119,7 +119,19 @@
       "uuid": "af7ce0de-9a0b-4c9d-9655-eed07d48b471",
       "apiEndpoint": "https://api.bank.com/v1",
       "gardenId": "garden-1"
+    },
+    {
+      "id": "dogpark-f0b81af9",
+      "name": "Garden-DOGPARK Provider",
+      "serviceType": "dogpark",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "0d74f8b8-145f-46c1-962b-4a73f9a48281",
+      "apiEndpoint": "https://api.dogpark.com/v1",
+      "gardenId": "garden-2"
     }
   ],
-  "lastSaved": "2026-01-20T17:50:35.492Z"
+  "lastSaved": "2026-01-20T20:14:28.030Z"
 }

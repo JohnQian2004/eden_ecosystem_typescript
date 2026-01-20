@@ -1142,6 +1142,105 @@
         "mode": "god",
         "serviceType": "bank",
         "status": "active"
+      },
+      {
+        "id": "c_1768935764230_67c77b1282de88",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768935764230,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768935960504_364f439eea46b",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768935960504,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768935965181_34611a89327a8",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768935965181,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768936131741_3d187e748df858",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768936131741,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768936234120_6934ad1f8ff898",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768936234120,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768937340457_ba89b7c690252",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768937340457,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768937610756_0820b94bfbf3a",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768937610756,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768939945489_2b3ef851578f38",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768939945489,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
+      },
+      {
+        "id": "c_1768940083736_4dc26292067a5",
+        "conversationId": "conv:garden:garden-1:god",
+        "role": "USER",
+        "content": "I need to find a bank near me with ATM access and business banking services",
+        "timestamp": 1768940083736,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "bank",
+        "status": "active"
       }
     ],
     "conv:garden:garden-3:god": [
@@ -1292,6 +1391,19 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "serviceType": "bank",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-2:god": [
+      {
+        "id": "c_1768935791477_2579fbe5e6cf18",
+        "conversationId": "conv:garden:garden-2:god",
+        "role": "USER",
+        "content": "I want to find a dog park near me with off-leash areas and water fountains",
+        "timestamp": 1768935791477,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dogpark",
         "status": "active"
       }
     ]

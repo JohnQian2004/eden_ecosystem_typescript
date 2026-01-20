@@ -1,5 +1,5 @@
 {
-  "lastSaved": "2026-01-20T17:12:36.040Z",
+  "lastSaved": "2026-01-20T19:05:43.040Z",
   "logs": {
     "garden-lifecycle": [
       {
@@ -6878,6 +6878,41 @@
             "autoparts-001(garden-1)",
             "autoparts-1768922974092(garden-1)",
             "bank-e30d3f45(garden-1)"
+          ]
+        }
+      },
+      {
+        "timestamp": 1768935782985,
+        "event": "garden-added-to-memory",
+        "data": {
+          "gardenId": "garden-2",
+          "gardenName": "Garden-DOGPARK",
+          "serviceType": "dogpark",
+          "hasCertificate": true,
+          "totalGardens": 2
+        }
+      },
+      {
+        "timestamp": 1768935783003,
+        "event": "service-registry-save",
+        "data": {
+          "totalInMemory": 11,
+          "totalSaved": 11,
+          "movieProviders": 0,
+          "dexProviders": 0,
+          "movieProviderIds": [],
+          "allProviderIds": [
+            "stripe-payment-rail-001(HG)",
+            "settlement-service-001(HG)",
+            "service-registry-001(HG)",
+            "webserver-service-001(HG)",
+            "websocket-service-001(HG)",
+            "wallet-service-001(HG)",
+            "accountant-service-001(HG)",
+            "autoparts-001(garden-1)",
+            "autoparts-1768922974092(garden-1)",
+            "bank-e30d3f45(garden-1)",
+            "dogpark-f0b81af9(garden-2)"
           ]
         }
       }

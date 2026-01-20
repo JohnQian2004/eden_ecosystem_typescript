@@ -738,17 +738,34 @@ httpServer.on("request", async (req, res) => {
         // The request context should already have all data from previous steps
         const updatedContext = { ...context };
         
-        console.log(`   🔍 [${requestId}] Context initialization:`);
-        console.log(`   🔍 [${requestId}]   - Request context has listings: ${!!context?.listings} (${context?.listings?.length || 0})`);
-        console.log(`   🔍 [${requestId}]   - Request context has llmResponse: ${!!context?.llmResponse}`);
-        console.log(`   🔍 [${requestId}]   - Request context llmResponse has listings: ${!!context?.llmResponse?.listings} (${context?.llmResponse?.listings?.length || 0})`);
-        console.log(`   🔍 [${requestId}]   - Final updatedContext has listings: ${!!updatedContext.listings} (${updatedContext.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] CONTEXT INITIALIZATION FOR STEP: ${stepId}`);
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] Request context keys:`, Object.keys(context || {}));
+        console.log(`   🔍 [${requestId}] Request context has listings: ${!!context?.listings} (${context?.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}] Request context listings type: ${typeof context?.listings}`);
+        console.log(`   🔍 [${requestId}] Request context listings is array: ${Array.isArray(context?.listings)}`);
+        if (context?.listings && Array.isArray(context.listings) && context.listings.length > 0) {
+          console.log(`   🔍 [${requestId}] First listing keys:`, Object.keys(context.listings[0]));
+          console.log(`   🔍 [${requestId}] First listing:`, JSON.stringify(context.listings[0], null, 2).substring(0, 500));
+        }
+        console.log(`   🔍 [${requestId}] Request context has llmResponse: ${!!context?.llmResponse}`);
+        console.log(`   🔍 [${requestId}] Request context llmResponse keys:`, context?.llmResponse ? Object.keys(context.llmResponse) : 'N/A');
+        console.log(`   🔍 [${requestId}] Request context llmResponse has listings: ${!!context?.llmResponse?.listings} (${context?.llmResponse?.listings?.length || 0})`);
+        if (context?.llmResponse?.listings && Array.isArray(context.llmResponse.listings) && context.llmResponse.listings.length > 0) {
+          console.log(`   🔍 [${requestId}] llmResponse first listing keys:`, Object.keys(context.llmResponse.listings[0]));
+        }
+        console.log(`   🔍 [${requestId}] Final updatedContext has listings: ${!!updatedContext.listings} (${updatedContext.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}] ========================================`);
         
         // CRITICAL: If listings are missing but llmResponse.listings exists, use that
         // This handles cases where listings are in llmResponse but not in context.listings
         if ((!updatedContext.listings || updatedContext.listings.length === 0) && updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
           updatedContext.listings = updatedContext.llmResponse.listings;
-          console.log(`   🔄 [${requestId}] Using listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+          console.log(`   🔄 [${requestId}] ✅ Using listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+        } else if (!updatedContext.listings || updatedContext.listings.length === 0) {
+          console.warn(`   ⚠️ [${requestId}] ⚠️ NO LISTINGS FOUND in context or llmResponse!`);
+          console.warn(`   ⚠️ [${requestId}] This will cause empty options array for user_select_listing step`);
         }
         
         // CRITICAL: If executing error_handler step, ensure error object is in context
@@ -888,16 +905,42 @@ httpServer.on("request", async (req, res) => {
               };
 
               // Special handling for user_select_listing - build options from listings
-              console.log(`   🔍 [${requestId}] Checking for user_select_listing step:`);
+              console.log(`   🔍 [${requestId}] ========================================`);
+              console.log(`   🔍 [${requestId}] BUILDING OPTIONS FOR user_select_listing`);
+              console.log(`   🔍 [${requestId}] ========================================`);
               console.log(`   🔍 [${requestId}] Step ID: ${step.id}`);
               console.log(`   🔍 [${requestId}] Step ID matches "user_select_listing": ${step.id === "user_select_listing"}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings exists: ${!!updatedContext.listings}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings type: ${typeof updatedContext.listings}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options BEFORE special handling:`, processedEvent.data?.options);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options type:`, typeof processedEvent.data?.options);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              
+              // DEBUG: Full context dump
+              console.log(`   🔍 [${requestId}] FULL updatedContext DUMP:`);
+              console.log(`   🔍 [${requestId}]   - updatedContext keys:`, Object.keys(updatedContext));
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings:`, updatedContext.listings);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings exists: ${!!updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings type: ${typeof updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
+              if (updatedContext.listings && Array.isArray(updatedContext.listings) && updatedContext.listings.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First listing:`, JSON.stringify(updatedContext.listings[0], null, 2));
+              }
+              
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse:`, updatedContext.llmResponse ? 'EXISTS' : 'MISSING');
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings:`, updatedContext.llmResponse?.listings);
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings length: ${updatedContext.llmResponse?.listings?.length || 0}`);
+              if (updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First llmResponse listing:`, JSON.stringify(updatedContext.llmResponse.listings[0], null, 2));
+              }
+              
+              // DEBUG: What did template replacement return?
+              console.log(`   🔍 [${requestId}] TEMPLATE REPLACEMENT RESULT:`);
+              console.log(`   🔍 [${requestId}]   - Original event.data.options:`, event.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options type:`, typeof processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options length: ${Array.isArray(processedEvent.data?.options) ? processedEvent.data.options.length : 'N/A'}`);
+              if (processedEvent.data?.options && Array.isArray(processedEvent.data.options) && processedEvent.data.options.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First option from template:`, JSON.stringify(processedEvent.data.options[0], null, 2));
+              }
+              console.log(`   🔍 [${requestId}] ========================================`);
               
               // ALWAYS build options for user_select_listing if listings exist, even if template replacement already set it
               // Check multiple sources: updatedContext.listings, llmResponse.listings, and processedEvent.data.options
@@ -906,26 +949,120 @@ httpServer.on("request", async (req, res) => {
               const listingsFromLlmResponse = updatedContext.llmResponse?.listings;
               const listingsFromEvent = Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null;
               
+              // CRITICAL: Check if selectedListing2 contains listings or if we need to reconstruct from selectedListing2
+              // Sometimes listings might be stored differently or we need to use selectedListing2 to build options
+              let listingsFromSelectedListing2: any[] | null = null;
+              if (updatedContext.selectedListing2 && Array.isArray(updatedContext.selectedListing2)) {
+                // If selectedListing2 is an array, use it as listings
+                listingsFromSelectedListing2 = updatedContext.selectedListing2;
+                console.log(`   🔍 [${requestId}] selectedListing2 is an array with ${listingsFromSelectedListing2.length} items`);
+              } else if (updatedContext.llmResponse?.selectedListing2 && Array.isArray(updatedContext.llmResponse.selectedListing2)) {
+                listingsFromSelectedListing2 = updatedContext.llmResponse.selectedListing2;
+                console.log(`   🔍 [${requestId}] llmResponse.selectedListing2 is an array with ${listingsFromSelectedListing2.length} items`);
+              } else if (updatedContext.selectedListing2 || updatedContext.llmResponse?.selectedListing2) {
+                // If selectedListing2 is a single listing, create array with it
+                const singleListing = updatedContext.selectedListing2 || updatedContext.llmResponse?.selectedListing2;
+                listingsFromSelectedListing2 = [singleListing];
+                console.log(`   🔍 [${requestId}] selectedListing2 is a single listing, creating array with 1 item`);
+              }
+              
               // CRITICAL: If processedEvent.data.options is null (from template replacement), try to get from context
               // This happens when "{{listings}}" template variable is not found
-              let listingsSource = listingsFromContext || listingsFromLlmResponse || listingsFromEvent;
+              // IMPORTANT: Check array length, not just truthiness (empty arrays are truthy!)
+              let listingsSource: any[] | null = null;
+              
+              // Priority order: selectedListing2 first (if it's an array or can be converted), then context listings, then llmResponse listings, then event options
+              if (listingsFromSelectedListing2 && listingsFromSelectedListing2.length > 0) {
+                listingsSource = listingsFromSelectedListing2;
+                console.log(`   ✅ [${requestId}] Using listingsFromSelectedListing2 (${listingsSource.length} items)`);
+              } else if (listingsFromContext && listingsFromContext.length > 0) {
+                listingsSource = listingsFromContext;
+                console.log(`   ✅ [${requestId}] Using listingsFromContext (${listingsSource.length} items)`);
+              } else if (listingsFromLlmResponse && listingsFromLlmResponse.length > 0) {
+                listingsSource = listingsFromLlmResponse;
+                console.log(`   ✅ [${requestId}] Using listingsFromLlmResponse (${listingsSource.length} items)`);
+              } else if (listingsFromEvent && listingsFromEvent.length > 0) {
+                listingsSource = listingsFromEvent;
+                console.log(`   ✅ [${requestId}] Using listingsFromEvent (${listingsSource.length} items)`);
+              }
               
               // If still no listings, check if processedEvent.data.options was set to null by replaceTemplateVariables
               // This means the template "{{listings}}" was not found in context
               if (!listingsSource && processedEvent.data?.options === null) {
                 console.log(`   ⚠️ [${requestId}] Template replacement returned null for "{{listings}}", checking context directly`);
-                // Try to get listings from any available source
-                listingsSource = updatedContext.listings || updatedContext.llmResponse?.listings;
+                // Try to get listings from any available source (checking length)
+                if (listingsFromSelectedListing2 && listingsFromSelectedListing2.length > 0) {
+                  listingsSource = listingsFromSelectedListing2;
+                  console.log(`   ✅ [${requestId}] Fallback: Using listingsFromSelectedListing2 (${listingsSource.length} items)`);
+                } else if (updatedContext.listings && updatedContext.listings.length > 0) {
+                  listingsSource = updatedContext.listings;
+                  console.log(`   ✅ [${requestId}] Fallback: Using updatedContext.listings (${listingsSource.length} items)`);
+                } else if (updatedContext.llmResponse?.listings && updatedContext.llmResponse.listings.length > 0) {
+                  listingsSource = updatedContext.llmResponse.listings;
+                  console.log(`   ✅ [${requestId}] Fallback: Using updatedContext.llmResponse.listings (${listingsSource.length} items)`);
+                }
               }
               
               console.log(`   🔍 [${requestId}] Listing sources check:`);
               console.log(`   🔍 [${requestId}]   - updatedContext.listings: ${listingsFromContext?.length || 0} (${listingsFromContext ? 'EXISTS' : 'MISSING'})`);
               console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings: ${listingsFromLlmResponse?.length || 0} (${listingsFromLlmResponse ? 'EXISTS' : 'MISSING'})`);
+              // ========================================
+              // ========================================
+              // CRITICAL DEBUG: selectedListing2 IN user_select_listing
+              // ========================================
+              // ========================================
+              console.log(`\n\n\n`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              console.log(`║         🔍🔍🔍 selectedListing2 IN user_select_listing DEBUG 🔍🔍🔍              ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`[${requestId}] ========================================`);
+              console.log(`[${requestId}] selectedListing2 IN user_select_listing STEP:`);
+              console.log(`[${requestId}]   - updatedContext.selectedListing2:`, updatedContext.selectedListing2 ? (Array.isArray(updatedContext.selectedListing2) ? `ARRAY[${updatedContext.selectedListing2.length}]` : 'OBJECT') : 'MISSING');
+              if (updatedContext.selectedListing2) {
+                console.log(`[${requestId}]   - updatedContext.selectedListing2 (FULL):`, JSON.stringify(updatedContext.selectedListing2, null, 2));
+              }
+              console.log(`[${requestId}]   - updatedContext.llmResponse?.selectedListing2:`, updatedContext.llmResponse?.selectedListing2 ? (Array.isArray(updatedContext.llmResponse.selectedListing2) ? `ARRAY[${updatedContext.llmResponse.selectedListing2.length}]` : 'OBJECT') : 'MISSING');
+              if (updatedContext.llmResponse?.selectedListing2) {
+                console.log(`[${requestId}]   - updatedContext.llmResponse.selectedListing2 (FULL):`, JSON.stringify(updatedContext.llmResponse.selectedListing2, null, 2));
+              }
+              console.log(`[${requestId}] ========================================`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              console.log(`║         🔍🔍🔍 END selectedListing2 IN user_select_listing DEBUG 🔍🔍🔍        ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`\n\n\n`);
+              console.log(`   🔍 [${requestId}]   - listingsFromSelectedListing2: ${listingsFromSelectedListing2?.length || 0} (${listingsFromSelectedListing2 ? 'EXISTS' : 'MISSING'})`);
               console.log(`   🔍 [${requestId}]   - processedEvent.data.options: ${listingsFromEvent?.length || 0} (${listingsFromEvent ? 'EXISTS' : 'MISSING'})`);
               console.log(`   🔍 [${requestId}]   - processedEvent.data.options value:`, processedEvent.data?.options);
               console.log(`   🔍 [${requestId}]   - Final listingsSource: ${listingsSource?.length || 0} (${listingsSource ? 'EXISTS' : 'MISSING'})`);
               console.log(`   🔍 [${requestId}]   - updatedContext keys:`, Object.keys(updatedContext));
               console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse keys:`, updatedContext.llmResponse ? Object.keys(updatedContext.llmResponse) : 'N/A');
+              
+              // ========================================
+              // ========================================
+              // CRITICAL DEBUG: Which source was selected?
+              // ========================================
+              // ========================================
+              console.log(`\n\n\n`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              if (listingsSource === listingsFromSelectedListing2) {
+                console.log(`║     ✅✅✅ USING selectedListing2 AS LISTINGS SOURCE! ✅✅✅                    ║`);
+                console.log(`║     listingsSource === listingsFromSelectedListing2                             ║`);
+                console.log(`║     listingsFromSelectedListing2 length: ${listingsFromSelectedListing2?.length || 0} ║`);
+              } else if (listingsSource === listingsFromContext) {
+                console.log(`║     ⚠️ Using listingsFromContext (NOT selectedListing2)                          ║`);
+                console.log(`║     listingsFromContext length: ${listingsFromContext?.length || 0}              ║`);
+              } else if (listingsSource === listingsFromLlmResponse) {
+                console.log(`║     ⚠️ Using listingsFromLlmResponse (NOT selectedListing2)                     ║`);
+                console.log(`║     listingsFromLlmResponse length: ${listingsFromLlmResponse?.length || 0}        ║`);
+              } else if (listingsSource === listingsFromEvent) {
+                console.log(`║     ⚠️ Using listingsFromEvent (NOT selectedListing2)                         ║`);
+                console.log(`║     listingsFromEvent length: ${listingsFromEvent?.length || 0}                  ║`);
+              } else {
+                console.log(`║     ❌ NO LISTINGS SOURCE SELECTED! listingsSource is null/undefined            ║`);
+              }
+              console.log(`║     Final listingsSource length: ${listingsSource?.length || 0}                  ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`\n\n\n`);
               
               if (step.id === "user_select_listing" && listingsSource && Array.isArray(listingsSource) && listingsSource.length > 0) {
                 const selectServiceType = updatedContext.serviceType || serviceType || 'movie';
@@ -935,8 +1072,9 @@ httpServer.on("request", async (req, res) => {
                 let sourceName = 'unknown';
                 if (listingsSource === listingsFromContext) sourceName = 'updatedContext.listings';
                 else if (listingsSource === listingsFromLlmResponse) sourceName = 'updatedContext.llmResponse.listings';
+                else if (listingsSource === listingsFromSelectedListing2) sourceName = 'selectedListing2 (array or single)';
                 else if (listingsSource === listingsFromEvent) sourceName = 'processedEvent.data.options';
-                console.log(`   📋 [${requestId}] Using listings from: ${sourceName}`);
+                console.log(`   📋 [${requestId}] ✅ Using listings from: ${sourceName}`);
                 processedEvent.data.options = listingsSource.map((listing: any) => {
                   // Build label dynamically based on service type
                   let label = '';
@@ -1122,6 +1260,28 @@ httpServer.on("request", async (req, res) => {
                               content = JSON.parse(contentStr);
                               console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
                               console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
+                              console.log(`🔧 [LLM] content.selectedListing2 exists: ${!!content.selectedListing2}, type: ${typeof content.selectedListing2}`);
+                              
+                              // ========================================
+                              // ========================================
+                              // CRITICAL DEBUG: Check if LLM returned selectedListing2
+                              // ========================================
+                              // ========================================
+                              console.log(`\n\n\n`);
+                              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                              console.log(`║        🔍🔍🔍 LLM RESPONSE selectedListing2 CHECK 🔍🔍🔍                        ║`);
+                              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                              if (content.selectedListing2) {
+                                console.log(`✅✅✅ [LLM] LLM RETURNED selectedListing2! ✅✅✅`);
+                                console.log(`[LLM] selectedListing2 (FULL):`, JSON.stringify(content.selectedListing2, null, 2));
+                              } else {
+                                console.log(`⚠️⚠️⚠️ [LLM] LLM did NOT return selectedListing2! ⚠️⚠️⚠️`);
+                                console.log(`[LLM] Will set it to selectedListing later.`);
+                              }
+                              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                              console.log(`║        🔍🔍🔍 END LLM RESPONSE selectedListing2 CHECK 🔍🔍🔍                   ║`);
+                              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                              console.log(`\n\n\n`);
                               
                               // CRITICAL: Block "Demo Service" fallback - force use of actual listings
                               if (content.selectedListing) {
@@ -1181,38 +1341,76 @@ httpServer.on("request", async (req, res) => {
                               }
                             }
                             
-                            // DEX query detection and hardcoded mock
-                            const isDEXQuery = listings.length > 0 && ('poolId' in listings[0] || 'tokenSymbol' in listings[0]);
-                            const filters = queryFilters || {};
-                            const isDEXFromFilters = filters?.tokenSymbol || filters?.baseToken;
-                            
+                            // CRITICAL: Use selectedListing2 from LLM response if available
                             let selectedListing2: TokenListing | MovieListing | null = null;
-                            
-                            if (isDEXQuery || isDEXFromFilters) {
-                              console.log(`🔧 [LLM] DEX QUERY DETECTED - USING FIRST LISTING`);
-                              if (listings.length > 0 && 'poolId' in listings[0]) {
-                                selectedListing = listings[0] as TokenListing;
-                                selectedListing2 = listings[0] as TokenListing;
-                                console.log(`🔧 [LLM] Using first actual DEX pool listing`);
-                              } else {
-                                const mockDEXPool: TokenListing = {
-                                  poolId: 'pool-solana-tokena',
-                                  providerId: 'dex-pool-tokena',
-                                  providerName: 'DEX Pool Provider',
-                                  tokenSymbol: filters?.tokenSymbol || 'TOKENA',
-                                  tokenName: 'Token A',
-                                  baseToken: filters?.baseToken || 'SOL',
-                                  price: 1.5,
-                                  liquidity: 10000,
-                                  volume24h: 5000,
-                                  indexerId: 'T1'
-                                };
-                                selectedListing = mockDEXPool;
-                                selectedListing2 = mockDEXPool;
-                                console.log(`🔧 [LLM] No listings available, using hardcoded mock DEX pool`);
+                            if (content.selectedListing2) {
+                              // LLM returned selectedListing2 - use it
+                              selectedListing2 = content.selectedListing2 as TokenListing | MovieListing;
+                              console.log(`✅ [LLM] Using selectedListing2 from LLM response`);
+                              
+                              // Validate and match selectedListing2 similar to selectedListing
+                              if (selectedListing2) {
+                                const isTokenListing2 = 'poolId' in selectedListing2 || 'tokenSymbol' in selectedListing2;
+                                
+                                if (isTokenListing2) {
+                                  const tokenListing2 = selectedListing2 as any;
+                                  if (!tokenListing2.poolId || !tokenListing2.providerId) {
+                                    const matchedListing2 = listings.find((l: any) => 
+                                      ('poolId' in l && l.poolId === tokenListing2.poolId) ||
+                                      ('tokenSymbol' in l && l.tokenSymbol === tokenListing2.tokenSymbol && l.baseToken === tokenListing2.baseToken)
+                                    ) as TokenListing | undefined;
+                                    if (matchedListing2) {
+                                      selectedListing2 = { ...matchedListing2, ...tokenListing2 };
+                                      console.log(`✅ [LLM] Matched selectedListing2 DEX pool listing by poolId/tokenSymbol`);
+                                    }
+                                  }
+                                } else {
+                                  if (!selectedListing2.providerId) {
+                                    const matchedListing2 = listings.find((l: any) => 
+                                      l.movieTitle === selectedListing2.movieTitle && 
+                                      l.providerName === selectedListing2.providerName
+                                    );
+                                    if (matchedListing2) {
+                                      selectedListing2 = { ...selectedListing2, providerId: matchedListing2.providerId };
+                                    }
+                                  }
+                                }
                               }
                             } else {
-                              selectedListing2 = selectedListing;
+                              // LLM did not return selectedListing2 - use selectedListing as fallback
+                              console.warn(`⚠️ [LLM] LLM did not return selectedListing2, using selectedListing as selectedListing2`);
+                              
+                              // DEX query detection and hardcoded mock
+                              const isDEXQuery = listings.length > 0 && ('poolId' in listings[0] || 'tokenSymbol' in listings[0]);
+                              const filters = queryFilters || {};
+                              const isDEXFromFilters = filters?.tokenSymbol || filters?.baseToken;
+                              
+                              if (isDEXQuery || isDEXFromFilters) {
+                                console.log(`🔧 [LLM] DEX QUERY DETECTED - USING FIRST LISTING`);
+                                if (listings.length > 0 && 'poolId' in listings[0]) {
+                                  selectedListing = listings[0] as TokenListing;
+                                  selectedListing2 = listings[0] as TokenListing;
+                                  console.log(`🔧 [LLM] Using first actual DEX pool listing`);
+                                } else {
+                                  const mockDEXPool: TokenListing = {
+                                    poolId: 'pool-solana-tokena',
+                                    providerId: 'dex-pool-tokena',
+                                    providerName: 'DEX Pool Provider',
+                                    tokenSymbol: filters?.tokenSymbol || 'TOKENA',
+                                    tokenName: 'Token A',
+                                    baseToken: filters?.baseToken || 'SOL',
+                                    price: 1.5,
+                                    liquidity: 10000,
+                                    volume24h: 5000,
+                                    indexerId: 'T1'
+                                  };
+                                  selectedListing = mockDEXPool;
+                                  selectedListing2 = mockDEXPool;
+                                  console.log(`🔧 [LLM] No listings available, using hardcoded mock DEX pool`);
+                                }
+                              } else {
+                                selectedListing2 = selectedListing;
+                              }
                             }
                             
                             const result = {
@@ -1229,6 +1427,31 @@ httpServer.on("request", async (req, res) => {
                               result.selectedListing2 = listings[0];
                               console.warn(`⚠️ [LLM] FINAL SAFETY: Setting selectedListing to first listing`);
                             }
+                            
+                            // CRITICAL: Ensure selectedListing2 is always set
+                            if (!result.selectedListing2 && result.selectedListing) {
+                              result.selectedListing2 = result.selectedListing;
+                              console.log(`✅ [LLM] Set selectedListing2 to selectedListing as final fallback`);
+                            }
+                            
+                            // ========================================
+                            // ========================================
+                            // CRITICAL DEBUG: selectedListing2 IN RESULT
+                            // ========================================
+                            // ========================================
+                            console.log(`\n\n\n`);
+                            console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                            console.log(`║              🔍🔍🔍 FINAL RESULT selectedListing2 DEBUG 🔍🔍🔍                 ║`);
+                            console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                            console.log(`[LLM] ========================================`);
+                            console.log(`[LLM] FINAL RESULT selectedListing2:`);
+                            console.log(`[LLM]   - result.selectedListing2 exists: ${!!result.selectedListing2}`);
+                            console.log(`[LLM]   - result.selectedListing2 (FULL):`, JSON.stringify(result.selectedListing2, null, 2));
+                            console.log(`[LLM] ========================================`);
+                            console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                            console.log(`║              🔍🔍🔍 END FINAL RESULT selectedListing2 DEBUG 🔍🔍🔍             ║`);
+                            console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                            console.log(`\n\n\n`);
                             
                             resolve(result);
                           } else {
@@ -1772,7 +1995,10 @@ httpServer.on("request", async (req, res) => {
                   updatedContext.serviceType = queryServiceType;
                   updatedContext.listings = listings;
                   
-                  console.log(`   📋 [${requestId}] Set ${listings.length} ${queryServiceType} listings in context`);
+                  // CRITICAL: Also set in actionResult to ensure it's preserved when merged
+                  actionResult = { listings: listings };
+                  
+                  console.log(`   📋 [${requestId}] Set ${listings.length} ${queryServiceType} listings in context and actionResult`);
                   break;
                 }
 
@@ -2691,6 +2917,39 @@ httpServer.on("request", async (req, res) => {
                     console.log(JSON.stringify(llmResponse, null, 2));
                     console.log(`🔍 [${requestId}] ========================================`);
                     
+                    // ========================================
+                    // ========================================
+                    // CRITICAL DEBUG: selectedListing2 INSPECTION
+                    // ========================================
+                    // ========================================
+                    console.log(`\n\n\n`);
+                    console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                    console.log(`║                    🔍🔍🔍 selectedListing2 DEBUG 🔍🔍🔍                        ║`);
+                    console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                    console.log(`[${requestId}] ========================================`);
+                    console.log(`[${requestId}] SELECTEDLISTING2 DETAILED INSPECTION:`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 exists: ${!!llmResponse.selectedListing2}`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 type: ${typeof llmResponse.selectedListing2}`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 is array: ${Array.isArray(llmResponse.selectedListing2)}`);
+                    if (llmResponse.selectedListing2) {
+                      console.log(`[${requestId}]   - llmResponse.selectedListing2 (FULL):`, JSON.stringify(llmResponse.selectedListing2, null, 2));
+                      if (Array.isArray(llmResponse.selectedListing2)) {
+                        console.log(`[${requestId}]   - selectedListing2 array length: ${llmResponse.selectedListing2.length}`);
+                        if (llmResponse.selectedListing2.length > 0) {
+                          console.log(`[${requestId}]   - First item in selectedListing2 array:`, JSON.stringify(llmResponse.selectedListing2[0], null, 2));
+                        }
+                      } else {
+                        console.log(`[${requestId}]   - selectedListing2 keys:`, Object.keys(llmResponse.selectedListing2));
+                      }
+                    } else {
+                      console.log(`[${requestId}]   - ⚠️⚠️⚠️ WARNING: llmResponse.selectedListing2 is NULL/UNDEFINED! ⚠️⚠️⚠️`);
+                    }
+                    console.log(`[${requestId}] ========================================`);
+                    console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                    console.log(`║                    🔍🔍🔍 END selectedListing2 DEBUG 🔍🔍🔍                    ║`);
+                    console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                    console.log(`\n\n\n`);
+                    
                     // Store llmResponse in context (preserve original object)
                     updatedContext.llmResponse = llmResponse;
                     updatedContext.iGasCost = llmResponse.iGasCost;
@@ -2841,10 +3100,16 @@ httpServer.on("request", async (req, res) => {
         let nextStepId: string | null = null;
         const transitions = workflow.transitions.filter((t: any) => t.from === stepId);
 
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] EVALUATING TRANSITIONS FROM STEP: ${stepId}`);
+        console.log(`   🔍 [${requestId}] ========================================`);
         console.log(`   🔍 [${requestId}] Context keys:`, Object.keys(updatedContext));
-        console.log(`   🔍 [${requestId}] llmResponse exists:`, !!updatedContext.llmResponse);
+        console.log(`   🔍 [${requestId}] updatedContext.listings: ${updatedContext.listings?.length || 0} (${updatedContext.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   🔍 [${requestId}] updatedContext.llmResponse: ${!!updatedContext.llmResponse}`);
+        console.log(`   🔍 [${requestId}] updatedContext.llmResponse.listings: ${updatedContext.llmResponse?.listings?.length || 0} (${updatedContext.llmResponse?.listings ? 'EXISTS' : 'MISSING'})`);
         console.log(`   🔍 [${requestId}] llmResponse.selectedListing:`, updatedContext.llmResponse?.selectedListing);
         console.log(`   🔍 [${requestId}] llmResponse.selectedListing2:`, updatedContext.llmResponse?.selectedListing2);
+        console.log(`   🔍 [${requestId}] Found ${transitions.length} transitions from ${stepId}`);
 
         for (const transition of transitions) {
           // Evaluate condition
@@ -2854,6 +3119,15 @@ httpServer.on("request", async (req, res) => {
           } else if (transition.condition) {
             // Replace template variables in condition
             const processedCondition = replaceTemplateVariables(transition.condition, updatedContext);
+            
+            console.log(`   🔍 [${requestId}] Evaluating transition: ${stepId} -> ${transition.to}`);
+            console.log(`   🔍 [${requestId}]   - Original condition: ${transition.condition}`);
+            console.log(`   🔍 [${requestId}]   - Processed condition: ${processedCondition}`);
+            if (transition.condition.includes('listings')) {
+              console.log(`   🔍 [${requestId}]   - Condition references listings, checking context:`);
+              console.log(`   🔍 [${requestId}]     - updatedContext.listings: ${updatedContext.listings?.length || 0}`);
+              console.log(`   🔍 [${requestId}]     - updatedContext.llmResponse?.listings: ${updatedContext.llmResponse?.listings?.length || 0}`);
+            }
 
             // Check if the processed condition is different from the original
             // If it still contains {{ }}, the variable doesn't exist
@@ -2924,7 +3198,21 @@ httpServer.on("request", async (req, res) => {
           console.log(`   🔄 [${requestId}] Final check: Populated updatedContext.listings from llmResponse (${updatedContext.llmResponse.listings.length} listings) before returning response`);
         }
         
-        console.log(`   📤 [${requestId}] Returning response with updatedContext.listings: ${updatedContext.listings?.length || 0}`);
+        console.log(`   📤 [${requestId}] ========================================`);
+        console.log(`   📤 [${requestId}] RETURNING RESPONSE FOR STEP: ${stepId}`);
+        console.log(`   📤 [${requestId}] ========================================`);
+        console.log(`   📤 [${requestId}] updatedContext.listings: ${updatedContext.listings?.length || 0} (${updatedContext.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   📤 [${requestId}] updatedContext.llmResponse?.listings: ${updatedContext.llmResponse?.listings?.length || 0} (${updatedContext.llmResponse?.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   📤 [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+        if (updatedContext.listings && Array.isArray(updatedContext.listings) && updatedContext.listings.length > 0) {
+          console.log(`   📤 [${requestId}] First listing in response:`, JSON.stringify(updatedContext.listings[0], null, 2).substring(0, 500));
+        }
+        console.log(`   📤 [${requestId}] nextStepId: ${nextStepId}`);
+        console.log(`   📤 [${requestId}] events count: ${events.length}`);
+        if (events.length > 0 && events[0].data?.options) {
+          console.log(`   📤 [${requestId}] First event options count: ${Array.isArray(events[0].data.options) ? events[0].data.options.length : 'N/A'}`);
+        }
+        console.log(`   📤 [${requestId}] ========================================`);
         
         sendResponse(200, {
           success: true,

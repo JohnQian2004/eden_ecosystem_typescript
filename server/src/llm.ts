@@ -345,7 +345,14 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
 export const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
 Format service listings into a user-friendly message.
-Return JSON only with: message (string), selectedListing (object), listings (array).
+Return JSON only with: message (string), selectedListing (object), selectedListing2 (object), listings (array).
+
+CRITICAL REQUIREMENTS:
+1. selectedListing is REQUIRED and MUST NOT be null or undefined
+2. selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
+3. selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
+4. selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
+5. If you cannot find a better match, pick the FIRST listing from the provided listings array
 
 CRITICAL: Never output "service type not supported" or similar errors.
 Always format the response for ANY service type provided.
@@ -355,8 +362,17 @@ For ANY OTHER SERVICE TYPE (not movie or dex):
 - Format as a natural language message
 - Select the best option based on user query
 - Return the selected listing and all listings
+- selectedListing2 MUST be set to the same value as selectedListing
 
 Service type: {serviceType}
+
+Return JSON format:
+{
+  "message": "...",
+  "listings": [...],
+  "selectedListing": { /* complete listing object with ALL fields */ },
+  "selectedListing2": { /* MUST be the same as selectedListing */ }
+}
 `;
 
 /**
@@ -556,10 +572,12 @@ export async function formatResponseWithDeepSeek(
   queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
   // Stub implementation - can be filled in later
+  const selectedListing = listings[0] || null;
   return {
     message: "DeepSeek response (stub)",
     listings: listings.slice(0, 5),
-    selectedListing: listings[0] || null,
+    selectedListing: selectedListing,
+    selectedListing2: selectedListing, // CRITICAL: Must return selectedListing2
     iGasCost: 0.001
   };
 }
