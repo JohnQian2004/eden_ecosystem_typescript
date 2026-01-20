@@ -13,9 +13,9 @@ export class ChatService {
 
   constructor(private http: HttpClient) {}
 
-  sendMessage(input: string, email: string): Observable<any> {
-    console.log(`📤 Sending chat message to ${this.apiUrl}:`, { input: input.substring(0, 50), email });
-    return this.http.post(this.apiUrl, { input, email }).pipe(
+  sendMessage(input: string, email: string, conversationId?: string, mode?: string): Observable<any> {
+    console.log(`📤 Sending chat message to ${this.apiUrl}:`, { input: input.substring(0, 50), email, conversationId, mode });
+    return this.http.post(this.apiUrl, { input, email, conversationId, mode }).pipe(
       timeout(120000), // 2 minute timeout
       catchError((error: HttpErrorResponse | Error) => {
         console.error('❌ HTTP error:', error);
@@ -25,9 +25,9 @@ export class ChatService {
     );
   }
 
-  async sendMessageAsync(input: string, email: string): Promise<any> {
+  async sendMessageAsync(input: string, email: string, conversationId?: string, mode?: string): Promise<any> {
     try {
-      const response = await firstValueFrom(this.sendMessage(input, email));
+      const response = await firstValueFrom(this.sendMessage(input, email, conversationId, mode));
       console.log('✅ HTTP response received:', response);
       return response;
     } catch (error: any) {

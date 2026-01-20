@@ -1437,6 +1437,7 @@ httpServer.on("request", async (req, res) => {
                   console.log(`   🔍 [${requestId}] llm_extract_query: Extracting query from input: "${userInputForExtraction.substring(0, 100)}..."`);
                   
                   let queryResult: LLMQueryResult;
+                  const forcedServiceType = processedAction.serviceType || updatedContext.serviceType || serviceType || 'movie';
                   
                   if (MOCKED_LLM) {
                     // Mock extraction for testing
@@ -1467,9 +1468,26 @@ httpServer.on("request", async (req, res) => {
                     console.log(`   ✅ [${requestId}] llm_extract_query: Extracted query result:`, JSON.stringify(queryResult, null, 2));
                   }
                   
-                  // Set queryResult in context
+                  // IMPORTANT:
+                  // Our query extractor prompt currently focuses on movie/dex.
+                  // For non-movie/non-dex workflows (pharmacy/airline/etc), do NOT let extraction overwrite the workflow's serviceType.
+                  if (forcedServiceType && forcedServiceType !== 'movie' && forcedServiceType !== 'dex') {
+                    (queryResult as any).serviceType = forcedServiceType;
+                    (queryResult as any).query = (queryResult as any).query || { serviceType: forcedServiceType, filters: {} };
+                    (queryResult as any).query.serviceType = forcedServiceType;
+                    (queryResult as any).query.filters = (queryResult as any).query.filters || {};
+                    updatedContext.serviceType = forcedServiceType;
+                  } else {
+                    // movie/dex: keep extractor classification, but normalize shape
+                    (queryResult as any).serviceType = (queryResult as any).serviceType || forcedServiceType;
+                    (queryResult as any).query = (queryResult as any).query || { serviceType: (queryResult as any).serviceType, filters: {} };
+                    (queryResult as any).query.serviceType = (queryResult as any).query.serviceType || (queryResult as any).serviceType;
+                    (queryResult as any).query.filters = (queryResult as any).query.filters || {};
+                    updatedContext.serviceType = (queryResult as any).serviceType;
+                  }
+                  
+                  // Set queryResult in context (after normalization)
                   updatedContext.queryResult = queryResult;
-                  updatedContext.serviceType = queryResult.serviceType;
                   
                   // CRITICAL: Extract action and tokenAmount from queryResult.query.filters for DEX trades
                   // These need to be top-level context variables for the workflow outputs
@@ -2549,7 +2567,10 @@ httpServer.on("request", async (req, res) => {
                     const llmResponse = await formatFn(
                       availableListings,
                       updatedContext.userInput || "",
-                      updatedContext.queryResult?.query?.filters
+                      {
+                        ...(updatedContext.queryResult?.query?.filters || {}),
+                        serviceType: processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie'
+                      }
                     );
                     
                     console.log(`🔍 [${requestId}] ========================================`);
@@ -2662,6 +2683,11 @@ httpServer.on("request", async (req, res) => {
         if (step.websocketEvents) {
           for (const event of step.websocketEvents) {
             const processedEvent = replaceTemplateVariables(event, updatedContext);
+            // Attach execution context so UIs can correctly scope events (chat history, multi-execution)
+            processedEvent.data = processedEvent.data || {};
+            processedEvent.data.executionId = executionId;
+            processedEvent.data.serviceType = serviceType;
+            processedEvent.data.stepId = stepId;
             // Ensure timestamp is always a valid number
             if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
               processedEvent.timestamp = Date.now();
@@ -3086,6 +3112,70 @@ httpServer.on("request", async (req, res) => {
   // - executeStepAtomically function
   // - All old workflow execution logic
   // This code is now handled by FlowWiseService in server/src/components/flowwiseService.ts
+
+  // -----------------------------
+  // Chat History (Garden-scoped)
+  // -----------------------------
+  // Intentionally isolated from FlowWise execution state so it cannot break decision steps.
+  const sendChatHistoryResponse = (statusCode: number, data: any) => {
+    if (!res.headersSent) {
+      res.writeHead(statusCode, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(data));
+    }
+  };
+  if (pathname === "/api/chat-history/history" && req.method === "GET") {
+    try {
+      const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+      const conversationId = String(queryParams.get("conversationId") || "");
+      const limit = parseInt(String(queryParams.get("limit") || "50"));
+      const before = queryParams.get("before") ? parseInt(String(queryParams.get("before"))) : undefined;
+      const { getConversationMessages } = require("./src/chatHistory");
+      const messages = getConversationMessages(conversationId, limit, before);
+      sendChatHistoryResponse(200, { success: true, conversationId, messages });
+    } catch (e: any) {
+      sendChatHistoryResponse(500, { success: false, error: e?.message || "Failed to load chat history" });
+    }
+    return;
+  }
+
+  if (pathname === "/api/chat-history/append" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk.toString()));
+    req.on("end", () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const { appendChatMessage } = require("./src/chatHistory");
+        const saved = appendChatMessage({
+          conversationId: parsed.conversationId,
+          id: parsed.id,
+          role: parsed.role,
+          content: parsed.content,
+          timestamp: parsed.timestamp,
+          userEmail: parsed.userEmail,
+          mode: parsed.mode,
+          scope: parsed.scope,
+          gardenId: parsed.gardenId,
+          serviceType: parsed.serviceType,
+          linkedTransactionId: parsed.linkedTransactionId,
+          status: parsed.status
+        });
+
+        // Live stream to UI
+        broadcastEvent({
+          type: "chat_history_message",
+          component: "chatHistory",
+          message: "Chat message appended",
+          timestamp: Date.now(),
+          data: { message: saved }
+        });
+
+        sendChatHistoryResponse(200, { success: true, message: saved });
+      } catch (e: any) {
+        sendChatHistoryResponse(400, { success: false, error: e?.message || "Failed to append" });
+      }
+    });
+    return;
+  }
 
   if (pathname === "/api/chat" && req.method === "POST") {
     console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);

@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { timeout, finalize } from 'rxjs/operators';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService, UserDecisionRequest } from './services/flowwise.service';
@@ -207,6 +208,36 @@ export class AppComponent implements OnInit, OnDestroy {
   priesthoodApplications: any[] = [];
   isLoadingApplications: boolean = false;
   priesthoodStats: any = null;
+
+  // Global UX: full-screen loading overlay (especially useful in GOD mode boot)
+  private viewTransitionUntilMs: number = 0;
+
+  get isGlobalLoading(): boolean {
+    const now = Date.now();
+    const inViewTransition = now < this.viewTransitionUntilMs;
+    return (
+      inViewTransition ||
+      this.isProcessing ||
+      this.isProcessingGarden ||
+      this.isProcessingStripe ||
+      this.isLoadingBalance ||
+      this.isLoadingServices ||
+      this.isLoadingGardens ||
+      this.isLoadingApplications ||
+      this.isLoadingSnakeProviders
+    );
+  }
+
+  get globalLoadingMessage(): string {
+    if (this.isProcessingStripe) return 'Processing payment rail...';
+    if (this.isProcessingGarden) return 'Processing garden request...';
+    if (this.isLoadingServices) return 'Loading Service Registry...';
+    if (this.isLoadingGardens) return 'Loading Gardens...';
+    if (this.isLoadingApplications) return 'Loading Priesthood...';
+    if (this.isLoadingBalance) return 'Loading wallet balance...';
+    if (this.isProcessing) return 'Processing...';
+    return 'Loading...';
+  }
   
   private apiUrl = window.location.port === '4200' 
     ? 'http://localhost:3000' 
@@ -234,6 +265,8 @@ export class AppComponent implements OnInit, OnDestroy {
   setViewMode(mode: 'god' | 'priest' | 'user'): void {
     localStorage.setItem('edenViewMode', mode);
     this._currentViewMode = mode;
+    // Tiny forced overlay window so the UI always feels responsive during big GOD-mode boot loads.
+    this.viewTransitionUntilMs = Date.now() + 800;
     this.cdr.detectChanges();
   }
 
@@ -368,8 +401,147 @@ export class AppComponent implements OnInit, OnDestroy {
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
   workflowMessages: any[] = [];
+  debugWebsocketEvents: boolean = false;
+
+  // -----------------------------
+  // Garden/Service Chat History
+  // -----------------------------
+  activeConversationId: string | null = null;
+  chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string }> = [];
+  isLoadingChatHistory: boolean = false;
+  private chatHistoryLoadSeq: number = 0;
+  private lastAppendBySig: Map<string, number> = new Map();
+  private conversationIdByExecutionId = new Map<string, string>();
+
+  private buildConversationId(scope: 'garden' | 'service', id: string): string {
+    const mode = (this.currentViewMode || 'user').toLowerCase();
+    const safeId = String(id || '').trim().replace(/\s+/g, '-');
+    return `conv:${scope}:${safeId}:${mode}`;
+  }
+
+  private setActiveConversation(conversationId: string) {
+    if (!conversationId) return;
+    if (this.activeConversationId === conversationId) return;
+    this.activeConversationId = conversationId;
+    // Make UI feel instant: clear immediately, then async load.
+    this.chatHistoryMessages = [];
+    this.isLoadingChatHistory = true;
+    this.lastAppendBySig.clear();
+    this.cdr.detectChanges();
+    this.loadChatHistory();
+  }
+
+  loadChatHistory(limit: number = 50) {
+    if (!this.activeConversationId) return;
+    const cid = this.activeConversationId;
+    const seq = ++this.chatHistoryLoadSeq;
+    this.isLoadingChatHistory = true;
+    const url = `${this.apiUrl}/api/chat-history/history?conversationId=${encodeURIComponent(cid)}&limit=${encodeURIComponent(String(limit))}`;
+    this.http.get<{ success: boolean; messages?: any[] }>(url)
+      .pipe(
+        // Safety: avoid indefinite spinners if the backend is slow/hung.
+        timeout(8000),
+        finalize(() => {
+          // Only clear loading for the latest active request
+          if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
+          this.isLoadingChatHistory = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+        // Ignore stale responses (switching conversations quickly)
+        if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
+        const serverMessages = (resp.messages || []).map((m: any) => ({
+          id: m.id,
+          role: (m.role || 'SYSTEM') as 'USER' | 'ASSISTANT' | 'SYSTEM',
+          content: m.content,
+          timestamp: m.timestamp || Date.now(),
+          userEmail: m.userEmail
+        }));
+
+        // Merge: don't clobber optimistic UI appends that may have happened while this request was in-flight.
+        const optimistic = (this.chatHistoryMessages || []).filter(m => !(m as any).id);
+        const merged = [...serverMessages, ...optimistic];
+        const seen = new Set<string>();
+        this.chatHistoryMessages = merged.filter((m) => {
+          const key = (m as any).id
+            ? `id:${(m as any).id}`
+            : `k:${m.role}|${m.userEmail || ''}|${m.content}|${Math.floor((m.timestamp || 0) / 1000)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        this.cdr.detectChanges();
+        },
+        error: (err) => {
+          if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
+          console.error('Failed to load chat history:', err);
+          // finalize() will clear isLoadingChatHistory
+        }
+      });
+  }
+
+  stopChatHistoryLoading() {
+    // Cancels the current request *logically* (ignores response) and clears the spinner.
+    this.chatHistoryLoadSeq++;
+    this.isLoadingChatHistory = false;
+    this.cdr.detectChanges();
+  }
+
+  clearChatHistoryPanel() {
+    // UI-only clear. Does not delete persisted history.
+    this.chatHistoryLoadSeq++; // cancel any in-flight load
+    this.chatHistoryMessages = [];
+    this.isLoadingChatHistory = false;
+    this.lastAppendBySig.clear();
+    this.cdr.detectChanges();
+  }
+
+  private appendChatHistory(role: 'USER' | 'ASSISTANT' | 'SYSTEM', content: string, extra?: any, conversationIdOverride?: string) {
+    const targetConversationId = conversationIdOverride || this.activeConversationId;
+    if (!targetConversationId) return;
+    const trimmed = String(content || '').trim();
+    if (!trimmed) return;
+
+    // Dedupe only for non-USER messages (USER should always append, even if repeated)
+    const sig = `${role}|${targetConversationId}|${trimmed}`;
+    if (role !== 'USER') {
+      const lastAt = this.lastAppendBySig.get(sig);
+      if (lastAt && Date.now() - lastAt < 2000) return;
+      this.lastAppendBySig.set(sig, Date.now());
+    }
+
+    // optimistic UI
+    // IMPORTANT: generate a client id and send it to the server so the WebSocket echo can be deduped.
+    const clientId = `c_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const clientTs = Date.now();
+    const local = { id: clientId, role, content: trimmed, timestamp: clientTs, userEmail: this.userEmail };
+    if (this.activeConversationId === targetConversationId) {
+      this.chatHistoryMessages = [...this.chatHistoryMessages, local];
+    }
+    this.cdr.detectChanges();
+
+    this.http.post<{ success: boolean; message?: any }>(`${this.apiUrl}/api/chat-history/append`, {
+      conversationId: targetConversationId,
+      id: clientId,
+      role,
+      content: trimmed,
+      timestamp: clientTs,
+      userEmail: this.userEmail,
+      mode: this.currentViewMode,
+      ...extra
+    }).subscribe({
+      next: () => {},
+      error: (err) => console.error('Failed to append chat history:', err)
+    });
+  }
 
   ngOnInit() {
+    // Debug toggle (keeps UI responsive by default)
+    this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
+
     // Subscribe to FlowWise decision requests
     this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
       console.log('🤔 [FlowWise] Decision required:', decisionRequest);
@@ -380,11 +552,45 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Subscribe to WebSocket events for workflow updates
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
-      console.log(`📨 [App] Received event: ${event.type}`, event);
+      // Logging every event (with full payload) can freeze the UI when events are frequent.
+      if (this.debugWebsocketEvents) {
+        console.log(`📨 [App] Received event: ${event.type}`, event);
+      }
 
       if (this.amcWorkflowActive) {
         this.workflowMessages.push(event);
         this.cdr.detectChanges();
+      }
+
+      // Garden-level chat history: append assistant messages from LLM responses
+      if (event.type === 'llm_response') {
+        const llmMsg =
+          (event as any).data?.response?.message ||
+          (event as any).data?.message ||
+          (event as any).message;
+        const evExecId = (event as any).data?.executionId;
+        const conv = evExecId ? this.conversationIdByExecutionId.get(String(evExecId)) : null;
+        if (llmMsg && typeof llmMsg === 'string') {
+          this.appendChatHistory('ASSISTANT', llmMsg, { executionId: evExecId }, conv || undefined);
+        }
+      }
+
+      // Live sync from backend append (multi-client)
+      if (event.type === 'chat_history_message' && (event as any).data?.message) {
+        const m = (event as any).data.message;
+        if (m?.conversationId && m.conversationId === this.activeConversationId) {
+          const exists = this.chatHistoryMessages.some(x => (x as any).id && (x as any).id === m.id);
+          if (!exists) {
+            this.chatHistoryMessages = [...this.chatHistoryMessages, {
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              timestamp: m.timestamp || Date.now(),
+              userEmail: m.userEmail
+            }];
+            this.cdr.detectChanges();
+          }
+        }
       }
     });
     
@@ -635,8 +841,28 @@ export class AppComponent implements OnInit, OnDestroy {
 
   selectDexGarden(garden: {id: string, name: string}) {
     this.selectedDexGarden = garden;
+
+    // DEX garden click should be fast: DO NOT call selectServiceType() because it triggers
+    // a service-scoped conversation switch + history load, then we switch again to garden scope.
+    // Instead, just set the input context and preload workflow, then switch conversation ONCE.
     const dexServiceType = this.getDexServiceType();
-    this.selectServiceType(dexServiceType);
+    this.selectedServiceType = dexServiceType.type;
+    this.userInput = dexServiceType.sampleQuery;
+    this.inputPlaceholder = dexServiceType.sampleQuery;
+    this.flowWiseService.loadWorkflowIfNeeded(dexServiceType.type);
+
+    // Garden-scoped chat history for DEX gardens (single switch)
+    this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+    // Focus input quickly (non-blocking)
+    setTimeout(() => {
+      const input = document.querySelector('input[name="userInput"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+
     // Future: can be used to filter DEX pools/providers by garden in backend
     (this as any).selectedDexGardenId = garden.id;
     this.cdr.detectChanges();
@@ -1840,6 +2066,9 @@ export class AppComponent implements OnInit, OnDestroy {
     // Set context and populate input with sample query
     this.selectedServiceType = serviceType.type;
     this.userInput = serviceType.sampleQuery;
+
+    // Service-scoped chat history for Apple ecosystem service tiles
+    this.setActiveConversation(this.buildConversationId('service', serviceType.type));
     
     // Update placeholder based on service type
     this.inputPlaceholder = serviceType.sampleQuery;
@@ -2306,6 +2535,16 @@ export class AppComponent implements OnInit, OnDestroy {
     // If no service type detected, default to 'movie' for backward compatibility
     const serviceType = this.selectedServiceType || 'movie';
 
+    // Ensure chat history conversation is selected before we clear context
+    if (!this.activeConversationId) {
+      if (serviceType === 'dex' && this.selectedDexGarden?.id) {
+        this.setActiveConversation(this.buildConversationId('garden', this.selectedDexGarden.id));
+      } else {
+        this.setActiveConversation(this.buildConversationId('service', serviceType));
+      }
+    }
+    this.appendChatHistory('USER', this.userInput, { serviceType });
+
     console.log('📤 Submitting chat message:', this.userInput);
     console.log(`📋 Context: Service Type = ${serviceType}`);
     
@@ -2394,6 +2633,11 @@ export class AppComponent implements OnInit, OnDestroy {
         currentStep: execution.currentStep,
         workflowId: execution.workflowId
       });
+
+      // Bind this execution to the current chat history conversation so assistant replies cannot leak across tiles.
+      if (this.activeConversationId) {
+        this.conversationIdByExecutionId.set(String(execution.executionId), this.activeConversationId);
+      }
       
       // Add user message to workflow chat
       this.workflowMessages.push({

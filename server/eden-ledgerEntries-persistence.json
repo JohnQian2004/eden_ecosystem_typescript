@@ -2483,7 +2483,142 @@
         "gardenName": "Garden-BANK",
         "createdBy": "billdraper25@gmail.com"
       }
+    },
+    {
+      "entryId": "5baa5090-6f3f-4161-a8ee-31199bf2cc2c",
+      "txId": "tx_1768869342114",
+      "timestamp": 1768869342114,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-AIRLINE Provider",
+      "providerUuid": "airline-dc4d2a1b",
+      "serviceType": "airline",
+      "amount": 299.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 14.999500000000001,
+        "eden": 5.9998000000000005
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 299.99,
+        "flightNumber": "AA123",
+        "date": "2026-01-20",
+        "destination": "Los Angeles",
+        "providerName": "Garden-AIRLINE Provider",
+        "departure": "8:00 AM",
+        "arrival": "11:00 AM",
+        "name": "Garden-AIRLINE Provider",
+        "serviceType": "airline",
+        "location": "Unknown",
+        "providerId": "airline-dc4d2a1b",
+        "rating": 4.696593321688841
+      }
+    },
+    {
+      "entryId": "a10f210f-b301-4dcb-9db8-38ca144e9115",
+      "txId": "tx_1768870679290",
+      "timestamp": 1768870679290,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-PARTY Provider",
+      "providerUuid": "party-a93b8fe1",
+      "serviceType": "party",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partyName": "New Year's Eve Gala",
+        "eventDate": "2026-12-31",
+        "location": "Convention Center",
+        "providerName": "Garden-PARTY Provider",
+        "partyType": "Concert",
+        "eventTime": "9:00 PM",
+        "capacity": 500,
+        "name": "Garden-PARTY Provider",
+        "serviceType": "party",
+        "providerId": "party-a93b8fe1",
+        "rating": 4.691382640367837
+      }
+    },
+    {
+      "entryId": "05b13def-ed77-424b-aae3-7d95ace6858b",
+      "txId": "tx_1768871968391",
+      "timestamp": 1768871968391,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Garden-PARTY Provider",
+      "providerUuid": "party-a93b8fe1",
+      "serviceType": "party",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "partyName": "New Year's Eve Gala",
+        "eventDate": "2026-12-31",
+        "location": "Convention Center",
+        "providerName": "Garden-PARTY Provider",
+        "partyType": "Concert",
+        "eventTime": "9:00 PM",
+        "capacity": 500,
+        "name": "Garden-PARTY Provider",
+        "serviceType": "party",
+        "providerId": "party-a93b8fe1",
+        "rating": 4.532053437943438
+      }
+    },
+    {
+      "entryId": "086cf043-9721-466c-b778-c7c5d1b89ee5",
+      "txId": "tx_1768872274295",
+      "timestamp": 1768872274295,
+      "payer": "reshardgarcia@gmail.com",
+      "payerId": "reshardgarcia@gmail.com",
+      "merchant": "Garden-PHARMACY Provider",
+      "providerUuid": "pharmacy-ad2f9672",
+      "serviceType": "pharmacy",
+      "amount": 15.99,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.7995000000000001,
+        "eden": 0.31980000000000003
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 15.99,
+        "name": "Garden-PHARMACY Provider",
+        "location": "Downtown",
+        "providerName": "Garden-PHARMACY Provider",
+        "serviceType": "pharmacy",
+        "providerId": "pharmacy-ad2f9672",
+        "rating": 4.919574065265006,
+        "pharmacyName": "Health Pharmacy",
+        "pharmacyType": "Retail Pharmacy",
+        "services": "Prescriptions",
+        "hours": "9 AM - 6 PM"
+      }
     }
   ],
-  "lastSaved": "2026-01-19T18:56:35.122Z"
+  "lastSaved": "2026-01-20T01:24:34.551Z"
 }

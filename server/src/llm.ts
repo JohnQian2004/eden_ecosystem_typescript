@@ -60,7 +60,14 @@ export const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
 Format service provider listings into user-friendly chat response.
 
-Your responsibilities depend on serviceType:
+Your responsibilities depend on serviceType.
+
+GLOBAL RULES (apply to ALL service types):
+- NEVER respond with "service type not supported".
+- If you are unsure, fall back to generic formatting rules (see "FOR ANY OTHER SERVICE TYPE").
+- selectedListing is REQUIRED and MUST NOT be null or undefined.
+- selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent).
+- If you cannot find a better match, pick the FIRST listing from the provided listings array.
 
 FOR MOVIE SERVICE:
 1. Filter listings based on user query filters (e.g., maxPrice, genre, time, location)
@@ -81,6 +88,13 @@ FOR DEX TOKEN SERVICE:
 6. Format the results showing: token symbol, price, liquidity, pool provider
 
 IMPORTANT: When returning selectedListing for DEX, you MUST include ALL fields: poolId, providerId, tokenSymbol, baseToken, price, liquidity, gardenId.
+
+FOR ANY OTHER SERVICE TYPE:
+1. Treat each listing as a candidate provider offering.
+2. Prefer the "best value" option: lowest price first, then highest rating.
+3. Use queryFilters hints when present (e.g., location/time/date/destination/category/availability).
+4. Return a concise message and include up to 3 top options.
+5. selectedListing MUST include ALL original fields from the chosen listing (especially providerId/providerName/location/price).
 
 CRITICAL REQUIREMENTS:
 1. selectedListing is REQUIRED and MUST NOT be null or undefined
@@ -241,7 +255,7 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
 export async function formatResponseWithOpenAI(
   listings: MovieListing[] | TokenListing[],
   userQuery: string,
-  queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }
+  queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
   console.log(`🔍 [LLM] ========================================`);
   console.log(`🔍 [LLM] formatResponseWithOpenAI FUNCTION ENTRY - UPDATED VERSION WITH HARDCODED DEX MOCK`);
@@ -253,7 +267,8 @@ export async function formatResponseWithOpenAI(
   
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  const serviceTypeHint = queryFilters?.serviceType ? String(queryFilters.serviceType) : "unknown";
+  const userMessage = `Service type: ${serviceTypeHint}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
   
   const messages = [
     { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
@@ -589,7 +604,7 @@ export async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQu
 export async function formatResponseWithDeepSeek(
   listings: MovieListing[] | TokenListing[],
   userQuery: string,
-  queryFilters?: { maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }
+  queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
   console.log(`🔍 [LLM] ========================================`);
   console.log(`🔍 [LLM] formatResponseWithDeepSeek FUNCTION ENTRY - UPDATED VERSION WITH HARDCODED DEX MOCK`);
@@ -601,7 +616,8 @@ export async function formatResponseWithDeepSeek(
   
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `User query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  const serviceTypeHint = queryFilters?.serviceType ? String(queryFilters.serviceType) : "unknown";
+  const userMessage = `Service type: ${serviceTypeHint}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
   
   const messages = [
     { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT },
