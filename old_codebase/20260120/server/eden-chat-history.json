@@ -1,0 +1,226 @@
+{
+  "conversations": {
+    "conv:service:airline:god": [
+      {
+        "id": "m_1768869330393_34201779b68f9",
+        "conversationId": "conv:service:airline:god",
+        "role": "USER",
+        "content": "I want to book a flight from New York to Los Angeles next week at the best price",
+        "timestamp": 1768869330393,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "airline",
+        "status": "active"
+      },
+      {
+        "id": "m_1768869336622_e03c67271f925",
+        "conversationId": "conv:service:airline:god",
+        "role": "ASSISTANT",
+        "content": "No movie or DEX token listings available. Please check your query or provide a different service type.",
+        "timestamp": 1768869336622,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:pharmacy:god": [
+      {
+        "id": "m_1768869994801_5fbf1bea00a61",
+        "conversationId": "conv:service:pharmacy:god",
+        "role": "USER",
+        "content": "I need to find a pharmacy that has my prescription medication available",
+        "timestamp": 1768869994801,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "pharmacy",
+        "status": "active"
+      },
+      {
+        "id": "m_1768869997143_a49f4e65d478f",
+        "conversationId": "conv:service:pharmacy:god",
+        "role": "ASSISTANT",
+        "content": "Service type 'pharmacy' is not supported. Please provide a query for a supported service type.",
+        "timestamp": 1768869997143,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768872127453_86a8e0473b7d38",
+        "conversationId": "conv:service:pharmacy:god",
+        "role": "USER",
+        "content": "I need to find a pharmacy that has my prescription medication available",
+        "timestamp": 1768872127453,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "pharmacy",
+        "status": "active"
+      }
+    ],
+    "conv:service:party:god": [
+      {
+        "id": "m_1768870655813_59bfb9f35786e",
+        "conversationId": "conv:service:party:god",
+        "role": "USER",
+        "content": "I want to find a party or event happening this weekend and purchase tickets",
+        "timestamp": 1768870655813,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "party",
+        "status": "active"
+      },
+      {
+        "id": "m_1768870659669_c15d57e2f3fe1",
+        "conversationId": "conv:service:party:god",
+        "role": "ASSISTANT",
+        "content": "We found an option for a party service. Join the 'New Year's Eve Gala' concert at the Convention Center for $15.99. Rated 4.7 stars!",
+        "timestamp": 1768870659669,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768871939572_2997aeebf22f58",
+        "conversationId": "conv:service:party:god",
+        "role": "USER",
+        "content": "I want to find a party or event happening this weekend and purchase tickets",
+        "timestamp": 1768871939572,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "party",
+        "status": "active"
+      },
+      {
+        "id": "c_1768871945782_dbabf8253d2608",
+        "conversationId": "conv:service:party:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 option for a party. Best option: Enjoy the New Year's Eve Gala at the Convention Center with Garden-PARTY Provider. It's a concert-type party happening on 2026-12-31 at 9:00 PM, priced at $15.99.",
+        "timestamp": 1768871945782,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:autoparts:god": [
+      {
+        "id": "m_1768871414425_ecbfb28578c67",
+        "conversationId": "conv:service:autoparts:god",
+        "role": "USER",
+        "content": "I need brake pads for a 2020 Toyota Camry at the best price",
+        "timestamp": 1768871414425,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "autoparts",
+        "status": "active"
+      },
+      {
+        "id": "m_1768871420440_802dc4400a8ba",
+        "conversationId": "conv:service:autoparts:god",
+        "role": "ASSISTANT",
+        "content": "Found 2 auto parts options. Best option: 'Brake Pads' for $15.99 with a high rating of 4.83.",
+        "timestamp": 1768871420440,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:restaurant:god": [
+      {
+        "id": "m_1768871527413_a93fb9706774",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "USER",
+        "content": "I want to make a dinner reservation for 2 people tonight at the best restaurant",
+        "timestamp": 1768871527405,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "m_1768871531395_4564bc03e8dfa",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 option. Best option: The Gourmet Bistro offers Italian cuisine at Downtown. Price per person is $15.99. Reservation available at 7:00 PM for a party size of 2.",
+        "timestamp": 1768871531378,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "m_1768871571957_d0e3aa6debb8a",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "USER",
+        "content": "I want to make a dinner reservation for 2 people tonight at the best restaurant",
+        "timestamp": 1768871571948,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "m_1768871575464_ee499ee7a6806",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 option. Best option: The Gourmet Bistro offers Italian cuisine at a price of $15.99 per person. Located in Downtown with a 7:00 PM reservation time.",
+        "timestamp": 1768871575423,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768872077055_6d50222d0966e8",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "USER",
+        "content": "I want to make a dinner reservation for 2 people tonight at the best restaurant",
+        "timestamp": 1768872077055,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "restaurant",
+        "status": "active"
+      },
+      {
+        "id": "c_1768872084261_2c7aaece384818",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "ASSISTANT",
+        "content": "Found 1 option for a restaurant reservation. Best option: 'The Gourmet Bistro' in Downtown offers Italian cuisine at $15.99 per person with a high rating of 4.65. Reservation is available at 7:00 PM for a party size of 2.",
+        "timestamp": 1768872084261,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1768872267920_21ab433c4019",
+        "conversationId": "conv:service:restaurant:god",
+        "role": "ASSISTANT",
+        "content": "We found 1 pharmacy option for you. Best option: Health Pharmacy located in Downtown offers prescription services at $15.99 with a high rating of 4.92. Open from 9 AM to 6 PM.",
+        "timestamp": 1768872267920,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:pharmacy:user": [
+      {
+        "id": "c_1768872263062_120a7984b7cfb",
+        "conversationId": "conv:service:pharmacy:user",
+        "role": "USER",
+        "content": "I need to find a pharmacy that has my prescription medication available",
+        "timestamp": 1768872263062,
+        "userEmail": "reshardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "pharmacy",
+        "status": "active"
+      },
+      {
+        "id": "c_1768872267879_e005f300d26e88",
+        "conversationId": "conv:service:pharmacy:user",
+        "role": "ASSISTANT",
+        "content": "We found 1 pharmacy option for you. Best option: Health Pharmacy located in Downtown offers prescription services at $15.99 with a high rating of 4.92. Open from 9 AM to 6 PM.",
+        "timestamp": 1768872267879,
+        "userEmail": "reshardgarcia@gmail.com",
+        "mode": "user",
+        "status": "active"
+      }
+    ]
+  }
+}

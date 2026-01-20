@@ -1,0 +1,123 @@
+{
+  "certifications": [
+    {
+      "email": "billdraper2026@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768827964874,
+      "reason": "ff",
+      "metadata": {},
+      "applicationFeePaid": true,
+      "activityCount": 0,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768827964802_2f38bff6852a94b5",
+      "approvedAt": 1768827991043,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "certificate": {
+        "subject": "priest:billdraper2026@gmail.com:1768827991042",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "billdraper2026@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768827991042,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768827991042,
+        "expiresAt": 1800363991042,
+        "signature": "8OpQPwm6CKlFejnSfZ7CVOvtfKCsj3fgs6tb6X3uD4WfRee5AsmumQKM4pVNw0WfOr81JItc/DSJ97bzcQlJDg=="
+      }
+    },
+    {
+      "email": "reshardgarcia@gmail.com",
+      "status": "revoked",
+      "appliedAt": 1768779020834,
+      "reason": "jjj",
+      "metadata": {},
+      "applicationFeePaid": true,
+      "activityCount": 1,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768779020798_940c2c6921d4bec8",
+      "approvedAt": 1768779147929,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "membershipActiveUntil": 1771371355334,
+      "lastActivityDate": 1768779355334,
+      "suspendedForNonPayment": false,
+      "revokedAt": 1768844305254,
+      "revokedBy": "bill.draper.auto@gmail.com"
+    },
+    {
+      "email": "billdraper25@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768848907905,
+      "reason": "ff",
+      "metadata": {},
+      "applicationFeePaid": true,
+      "activityCount": 0,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768848907825_e265228b29be0bbb",
+      "approvedAt": 1768848970904,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "certificate": {
+        "subject": "priest:billdraper25@gmail.com:1768848970904",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "billdraper25@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768848970904,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768848970904,
+        "expiresAt": 1800384970904,
+        "signature": "fDQzYobXz/B50DbVNOLpncVWseisFVvSPD5OSbEgRzs1mNTVLkgHb9MvryzALjC3QPZY7Bpol+C5uX8pNCjSDg=="
+      }
+    },
+    {
+      "email": "rashardgarcia@gmail.com",
+      "status": "approved",
+      "appliedAt": 1768751675297,
+      "reason": "dd",
+      "metadata": {},
+      "applicationFeePaid": true,
+      "activityCount": 1,
+      "trustScore": 0,
+      "dailyActionCount": 0,
+      "applicationFeeTxId": "priesthood_app_fee_1768751675253_283c5942f0bf0a18",
+      "approvedAt": 1768751841487,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "certificate": {
+        "subject": "priest:rashardgarcia@gmail.com:1768751841487",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "PRIEST_MODE",
+          "CREATE_GARDEN",
+          "MANAGE_GARDENS"
+        ],
+        "constraints": {
+          "email": "rashardgarcia@gmail.com",
+          "grantedBy": "bill.draper.auto@gmail.com",
+          "grantedAt": 1768751841487,
+          "priesthoodLevel": "certified"
+        },
+        "issuedAt": 1768751841487,
+        "expiresAt": 1800287841487,
+        "signature": "iRHEUr9rIV2KTI97+JTn1nj7BAo5+FBu0AgtCt4CVBxctdpBstdWcyo4YgfLFn1cPoQCEhdP1Z6+OnK09OEiCg=="
+      },
+      "membershipActiveUntil": 1771343902574,
+      "lastActivityDate": 1768751902574,
+      "suspendedForNonPayment": false
+    }
+  ],
+  "lastSaved": "2026-01-19T18:56:10.904Z"
+}
