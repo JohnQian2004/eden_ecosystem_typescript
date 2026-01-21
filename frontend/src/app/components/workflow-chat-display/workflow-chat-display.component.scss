@@ -112,6 +112,17 @@
     margin-top: 12px;
   }
 
+  // Video player styling
+  video {
+    display: block !important;
+    visibility: visible !important;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    background-color: #000;
+  }
+
   .option-card {
     padding: 12px;
     background-color: var(--bs-tertiary-bg);

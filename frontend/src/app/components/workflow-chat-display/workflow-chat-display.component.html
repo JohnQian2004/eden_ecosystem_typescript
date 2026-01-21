@@ -65,6 +65,35 @@
             <div class="chat-bubble chat-bubble-assistant">
               <div class="chat-content">{{ message.content }}</div>
               
+              <!-- Debug: Video URL info -->
+              <div *ngIf="message.showOptions" class="small text-muted mb-2" style="background: #fff3cd; padding: 5px; border-radius: 4px; font-size: 0.75rem;">
+                🔍 DEBUG: message.videoUrl = "{{ message.videoUrl || 'undefined' }}", message.movieTitle = "{{ message.movieTitle || 'undefined' }}"
+                <br>
+                🔍 DEBUG: videoUrl truthy = {{ !!message.videoUrl }}, videoUrl length = {{ message.videoUrl ? message.videoUrl.length : 0 }}
+              </div>
+              
+              <!-- Video Player for Movie Viewing -->
+              <div *ngIf="message.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
+                <div class="card" style="display: block !important; visibility: visible !important;">
+                  <div class="card-body" style="display: block !important; visibility: visible !important;">
+                    <h6 class="card-title" *ngIf="message.movieTitle">🎬 {{ message.movieTitle }}</h6>
+                    <video 
+                      controls 
+                      autoplay
+                      class="w-100" 
+                      style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                      [src]="getVideoUrl(message.videoUrl)"
+                      preload="auto">
+                      Your browser does not support the video tag.
+                    </video>
+                    <div class="small text-muted mt-1">
+                      Video Source: {{ getVideoUrl(message.videoUrl) }}
+                    </div>
+                    <small class="text-muted d-block mt-1">Video URL: {{ message.videoUrl }}</small>
+                  </div>
+                </div>
+              </div>
+              
               <!-- Show listings if available -->
               <div *ngIf="message.data?.listings && message.data.listings.length > 0" class="mt-2">
                 <div class="listings-preview">

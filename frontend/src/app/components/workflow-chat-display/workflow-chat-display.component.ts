@@ -13,6 +13,8 @@ interface ChatMessage {
   data?: any; // For structured data like listings or ledger entry
   showOptions?: boolean;
   options?: Array<{ value: string; label: string; data: any }>;
+  videoUrl?: string; // For movie video playback
+  movieTitle?: string; // For movie title display
 }
 
 interface ChatThread {
@@ -245,12 +247,42 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           ? this.chatMessages[userMessageIndex].timestamp + 100 // 100ms after user input
           : Date.now();
         
+        // Extract videoUrl and movieTitle from llmResponse or context
+        // Also check listings array for videoUrl
+        const listings = llmResponse.listings || context['listings'] || [];
+        const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
+        
+        const videoUrl = llmResponse.selectedListing?.videoUrl || 
+                        llmResponse.selectedListing2?.videoUrl ||
+                        context['selectedListing']?.['videoUrl'] ||
+                        context['selectedListing2']?.['videoUrl'] ||
+                        context['videoUrl'] ||
+                        firstListing?.videoUrl ||
+                        undefined;
+        const movieTitle = llmResponse.selectedListing?.movieTitle || 
+                          llmResponse.selectedListing2?.movieTitle ||
+                          context['selectedListing']?.['movieTitle'] ||
+                          context['selectedListing2']?.['movieTitle'] ||
+                          context['movieTitle'] ||
+                          firstListing?.movieTitle ||
+                          undefined;
+        
+        console.log('🎬 [WorkflowChat] Extracted video info from processExecutionMessages:', {
+          videoUrl: videoUrl,
+          movieTitle: movieTitle,
+          hasListings: listings.length > 0,
+          firstListingVideoUrl: firstListing?.videoUrl,
+          selectedListingVideoUrl: llmResponse.selectedListing?.videoUrl
+        });
+        
         const llmMessage: ChatMessage = {
           id: `llm-${Date.now()}`,
           type: 'assistant',
           content: llmResponse.message,
           timestamp: llmTimestamp,
-          data: llmResponse.listings ? { listings: llmResponse.listings } : undefined
+          data: listings.length > 0 ? { listings: listings } : undefined,
+          videoUrl: videoUrl,
+          movieTitle: movieTitle
         };
         
         // Insert after user message if it exists, otherwise add at end
@@ -318,12 +350,39 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               ? lastUserMessage.timestamp + 100 // 100ms after last user message
               : event.timestamp;
             
+            // Extract videoUrl and movieTitle from event data
+            // Check multiple sources: direct videoUrl, selectedListing, and listings array
+            const listings = event.data?.response?.listings || event.data?.listings || [];
+            const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
+            
+            const videoUrl = event.data?.response?.videoUrl || 
+                            event.data?.videoUrl || 
+                            event.data?.response?.selectedListing?.videoUrl ||
+                            event.data?.selectedListing?.videoUrl ||
+                            firstListing?.videoUrl ||
+                            undefined;
+            const movieTitle = event.data?.response?.movieTitle || 
+                              event.data?.movieTitle || 
+                              event.data?.response?.selectedListing?.movieTitle ||
+                              event.data?.selectedListing?.movieTitle ||
+                              firstListing?.movieTitle ||
+                              undefined;
+            
+            console.log('🎬 [WorkflowChat] Extracted video info from llm_response:', {
+              videoUrl: videoUrl,
+              movieTitle: movieTitle,
+              hasListings: listings.length > 0,
+              firstListingVideoUrl: firstListing?.videoUrl
+            });
+            
             const llmChatMessage: ChatMessage = {
               id: `llm-${Date.now()}`,
               type: 'assistant',
               content: llmMessage,
               timestamp: llmTimestamp,
-              data: (event.data?.response?.listings || event.data?.listings) ? { listings: event.data?.response?.listings || event.data?.listings } : undefined
+              data: listings.length > 0 ? { listings: listings } : undefined,
+              videoUrl: videoUrl,
+              movieTitle: movieTitle
             };
             
             // Insert after last user message if it exists
@@ -369,7 +428,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
             stepId: event.data.stepId,
             timeout: event.data.timeout || 30000,
             data: event.data,
-            iGasCost: event.data.iGasCost || event.data.igas
+            iGasCost: event.data.iGasCost || event.data.igas,
+            videoUrl: event.data?.videoUrl,
+            movieTitle: event.data?.movieTitle
           });
         }
         break;
@@ -511,7 +572,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       timestamp: message.timestamp || Date.now(),
       data: message.data,
       showOptions: message.showOptions || false,
-      options: message.options
+      options: message.options,
+      videoUrl: message.videoUrl,
+      movieTitle: message.movieTitle
     };
     
     // Prevent duplicate user confirmations
@@ -610,8 +673,25 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         stepId: decisionRequest.stepId,
         isDecision: true,
         iGasCost: decisionRequest.data?.iGasCost || decisionRequest.data?.igas || decisionRequest.iGasCost
-      }
+      },
+      videoUrl: decisionRequest.videoUrl,
+      movieTitle: decisionRequest.movieTitle
     });
+  }
+
+  getVideoUrl(videoUrl?: string): string {
+    if (!videoUrl) return '';
+    // Ensure the video URL is absolute (match workflow-display implementation)
+    if (videoUrl.startsWith('/')) {
+      return `${this.apiUrl}${videoUrl}`;
+    }
+    // If already absolute URL, return as-is
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      return videoUrl;
+    }
+    // Convert relative URL to absolute URL
+    const baseUrl = this.apiUrl.replace(/\/$/, ''); // Remove trailing slash
+    return `${baseUrl}/${videoUrl}`;
   }
 
   private addSelectionMessage(options: any[], serviceType: string) {
