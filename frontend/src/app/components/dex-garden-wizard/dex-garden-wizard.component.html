@@ -1,0 +1,201 @@
+<!-- DEX Garden Wizard Component -->
+<div class="container-fluid py-3" style="min-height: 100vh; background-color: #0d1117; color: #c9d1d9;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">💰 DEX Garden Wizard</h2>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Wallet Balance Display -->
+      <div class="card border-primary" style="min-width: 200px;">
+        <div class="card-body py-2 px-3">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-muted small">Wallet Balance:</span>
+            <span *ngIf="isLoadingBalance" class="spinner-border spinner-border-sm text-primary"></span>
+            <strong *ngIf="!isLoadingBalance" class="text-primary ms-2">
+              {{ walletBalance.toFixed(2) }} 🍎 APPLES
+            </strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Step 2: Configuration -->
+  <div *ngIf="wizardStep === 2" class="wizard-step">
+    <h4 class="mb-3">Configure DEX Garden</h4>
+    <p class="text-muted mb-4">Configure your DEX garden settings and load initial liquidity</p>
+    
+    <form>
+      <!-- Garden Name -->
+      <div class="mb-3">
+        <label class="form-label fw-bold">Garden Name</label>
+        <input 
+          type="text" 
+          class="form-control" 
+          [(ngModel)]="gardenConfig.gardenName"
+          name="gardenName"
+          placeholder="Garden-DEX"
+          required>
+        <small class="text-muted">A unique name for your DEX garden</small>
+      </div>
+      
+      <!-- Token Pair Configuration -->
+      <div class="mb-3">
+        <label class="form-label fw-bold">Token Pair Configuration</label>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label small">Token Symbol</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              [(ngModel)]="gardenConfig.tokenSymbol"
+              name="tokenSymbol"
+              placeholder="TOKEN"
+              required>
+            <small class="text-muted">The token symbol (e.g., TOKEN)</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small">Base Token</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              [(ngModel)]="gardenConfig.baseToken"
+              name="baseToken"
+              placeholder="SOL"
+              required>
+            <small class="text-muted">The base token (e.g., SOL)</small>
+          </div>
+        </div>
+        <div class="alert alert-info mt-2 mb-0 py-2 small">
+          <strong>Token Pair:</strong> <code>{{ gardenConfig.tokenSymbol || 'TOKEN' }}/{{ gardenConfig.baseToken || 'SOL' }}</code>
+          <br><small>This pair will be used for all DEX trading operations in this garden.</small>
+        </div>
+      </div>
+      
+      <!-- Stripe Payment Rail - Initial Liquidity Loading -->
+      <div class="mb-4">
+        <div class="card border-primary" style="border-width: 2px;">
+          <div class="card-header bg-primary text-white py-2">
+            <h6 class="mb-0">💳 Stripe Payment Rail - Initial Token Liquidity</h6>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info mb-3">
+              <strong>ℹ️ Optional:</strong> You can provision initial liquidity via Stripe Payment Rail, or use your wallet balance.
+              <br><small>Minimum liquidity: <strong>10,000 🍎 APPLES</strong> to prevent spam and ensure pool stability.</small>
+              <br><small *ngIf="walletBalance >= (gardenConfig.initialLiquidity || 10000)">✅ Your balance is sufficient to create the DEX garden.</small>
+            </div>
+            <div class="alert alert-success mb-3" *ngIf="gardenConfig.stripePaymentIntentId && gardenConfig.stripePaymentIntentId !== ''">
+              <strong>✅ Payment Confirmed:</strong> Your Stripe payment has been verified. You can now create the DEX garden.
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Initial Liquidity Amount (🍎 APPLES)</label>
+              <div class="input-group">
+                <input 
+                  type="number" 
+                  class="form-control" 
+                  [(ngModel)]="gardenConfig.initialLiquidity"
+                  name="initialLiquidity"
+                  placeholder="10000"
+                  min="10000"
+                  step="1000"
+                  required>
+                <span class="input-group-text">🍎 APPLES</span>
+              </div>
+              <small class="text-muted">
+                Minimum: 10,000 🍎 APPLES. This amount will be loaded into the token pool via Stripe Payment Rail.
+              </small>
+              <div *ngIf="gardenConfig.initialLiquidity && gardenConfig.initialLiquidity < 10000" class="text-danger small mt-1">
+                ❌ Amount must be at least 10,000 🍎 APPLES
+              </div>
+            </div>
+            
+            <div class="d-flex align-items-center gap-2">
+              <button 
+                type="button"
+                class="btn btn-primary"
+                (click)="initiateStripeLiquidityPayment()"
+                [disabled]="!gardenConfig.initialLiquidity || gardenConfig.initialLiquidity < 10000 || isProcessingStripePayment">
+                <span *ngIf="!isProcessingStripePayment">💳 Load Liquidity via Stripe</span>
+                <span *ngIf="isProcessingStripePayment">
+                  <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                </span>
+              </button>
+              <span *ngIf="gardenConfig.stripePaymentIntentId" class="badge bg-success">
+                ✅ Payment Confirmed
+              </span>
+            </div>
+            
+            <div *ngIf="stripePaymentError" class="alert alert-danger mt-2 mb-0 py-2">
+              <strong>❌ Error:</strong> {{ stripePaymentError }}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Server Configuration -->
+      <div class="mb-3">
+        <label class="form-label fw-bold">Server Configuration</label>
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label small">Server IP</label>
+            <input 
+              type="text" 
+              class="form-control form-control-sm" 
+              [(ngModel)]="gardenConfig.serverIp"
+              name="serverIp"
+              placeholder="localhost">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Server Domain</label>
+            <input 
+              type="text" 
+              class="form-control form-control-sm" 
+              [(ngModel)]="gardenConfig.serverDomain"
+              name="serverDomain"
+              placeholder="garden-dex.eden.local">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">Port</label>
+            <input 
+              type="number" 
+              class="form-control form-control-sm" 
+              [(ngModel)]="gardenConfig.serverPort"
+              name="serverPort"
+              placeholder="3001">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">Network</label>
+            <select 
+              class="form-select form-select-sm" 
+              [(ngModel)]="gardenConfig.networkType"
+              name="networkType">
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="d-flex justify-content-end">
+        <button 
+          type="button" 
+          class="btn btn-primary"
+          (click)="createGarden()"
+          [disabled]="isCreating">
+          <span *ngIf="!isCreating">Create DEX Garden</span>
+          <span *ngIf="isCreating">
+            <span class="spinner-border spinner-border-sm me-2"></span>Creating...
+          </span>
+        </button>
+      </div>
+      
+      <div *ngIf="creationError" class="alert alert-danger mt-3">
+        {{ creationError }}
+      </div>
+      
+      <div *ngIf="creationSuccess" class="alert alert-success mt-3">
+        <strong>✅ Success!</strong> DEX garden created successfully. Redirecting...
+      </div>
+    </form>
+  </div>
+</div>
+

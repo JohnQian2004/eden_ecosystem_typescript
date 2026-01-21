@@ -260,22 +260,10 @@
       "bond": 5000,
       "reputation": 5,
       "status": "active",
-      "uuid": "a9fb4350-78b4-4830-be78-f8bc0708a9eb",
+      "uuid": "81132417-f923-4852-bd53-fc2a652f4138",
       "apiEndpoint": "https://dex.eden.com/pools/pool-sol-token-1",
       "gardenId": "T1"
-    },
-    {
-      "id": "dex-pool-token-2",
-      "name": "TOKEN Pool (Garden-DEX)",
-      "serviceType": "dex",
-      "location": "Eden DEX",
-      "bond": 5000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "fbac6569-143b-4896-879e-2bbf72795342",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-sol-token-2",
-      "gardenId": "T2"
     }
   ],
-  "lastSaved": "2026-01-21T21:06:26.423Z"
+  "lastSaved": "2026-01-21T23:28:54.790Z"
 }

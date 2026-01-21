@@ -112,9 +112,31 @@ export function initializeDEXPools(): void {
   console.log(`💰 ROOT CA Liquidity Pool: ${rootCALiquidity} SOL`);
   console.log(`🔷 Token Gardens: ${TOKEN_GARDENS.map(ti => ti.name).join(", ")}`);
   
-  // Display pool assignments
+  // Display pool assignments and register with liquidity accountant
   for (const [poolId, pool] of DEX_POOLS.entries()) {
     console.log(`   ${pool.tokenSymbol} Pool → ${pool.gardenId} (${pool.poolLiquidity} SOL liquidity)`);
+    
+    // Register existing pools with liquidity accountant (if not already registered)
+    // Use dynamic import without await (synchronous registration)
+    import("./liquidityAccountant").then(({ getLiquidityRecord, registerInitialLiquidity }) => {
+      const existing = getLiquidityRecord(poolId);
+      if (!existing) {
+        // Register pool with current liquidity state
+        registerInitialLiquidity(
+          poolId,
+          pool.tokenSymbol,
+          pool.baseToken,
+          pool.gardenId,
+          pool.baseReserve || pool.poolLiquidity,
+          pool.baseReserve || pool.poolLiquidity,
+          pool.tokenReserve,
+          pool.stripePaymentIntentId
+        );
+        console.log(`   💧 [LiquidityAccountant] Registered existing pool ${pool.tokenSymbol}/${pool.baseToken}`);
+      }
+    }).catch((err: any) => {
+      console.warn(`   ⚠️  [DEX] Failed to register pool with liquidity accountant: ${err.message}`);
+    });
   }
 }
 
@@ -249,6 +271,18 @@ export function executeDEXTrade(
   // Update pool stats
   pool.totalVolume += tradeValue;
   pool.totalTrades += 1;
+  
+  // Update liquidity accountant service (async, don't block)
+  import("./liquidityAccountant").then(({ updateLiquidityAfterTrade }) => {
+    updateLiquidityAfterTrade(
+      pool.poolId,
+      pool.baseReserve,
+      pool.tokenReserve,
+      tradeValue
+    );
+  }).catch((err: any) => {
+    console.warn(`⚠️  [DEX] Failed to update liquidity accountant: ${err.message}`);
+  });
   
   // Create trade record
   const trade: DEXTrade = {

@@ -319,6 +319,63 @@
             </div>
           </div>
           
+          <!-- Stripe Payment Rail - Initial Liquidity Loading (for DEX service type) - MOVED TO TOP FOR VISIBILITY -->
+          <div *ngIf="selectedServiceType?.type === 'dex'" class="mb-4">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white py-2">
+                <h6 class="mb-0">💳 Stripe Payment Rail - Initial Token Liquidity</h6>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                  <strong>⚠️ Required:</strong> DEX gardens must be provisioned with initial liquidity via Stripe Payment Rail.
+                  <br><small>Minimum liquidity: <strong>10,000 🍎 APPLES</strong> to prevent spam and ensure pool stability.</small>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Initial Liquidity Amount (🍎 APPLES)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      class="form-control" 
+                      [(ngModel)]="gardenConfig.initialLiquidity"
+                      name="initialLiquidity"
+                      placeholder="10000"
+                      min="10000"
+                      step="1000"
+                      required>
+                    <span class="input-group-text">🍎 APPLES</span>
+                  </div>
+                  <small class="text-muted">
+                    Minimum: 10,000 🍎 APPLES. This amount will be loaded into the token pool via Stripe Payment Rail.
+                  </small>
+                  <div *ngIf="gardenConfig.initialLiquidity && gardenConfig.initialLiquidity < 10000" class="text-danger small mt-1">
+                    ❌ Amount must be at least 10,000 🍎 APPLES
+                  </div>
+                </div>
+                
+                <div class="d-flex align-items-center gap-2">
+                  <button 
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="initiateStripeLiquidityPayment()"
+                    [disabled]="!gardenConfig.initialLiquidity || gardenConfig.initialLiquidity < 10000 || isProcessingStripePayment">
+                    <span *ngIf="!isProcessingStripePayment">💳 Load Liquidity via Stripe</span>
+                    <span *ngIf="isProcessingStripePayment">
+                      <span class="spinner-border spinner-border-sm me-2"></span>Processing...
+                    </span>
+                  </button>
+                  <span *ngIf="gardenConfig.stripePaymentIntentId" class="badge bg-success">
+                    ✅ Payment Confirmed
+                  </span>
+                </div>
+                
+                <div *ngIf="stripePaymentError" class="alert alert-danger mt-2 mb-0 py-2">
+                  <strong>❌ Error:</strong> {{ stripePaymentError }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <!-- Service Provider Configuration (for all service types) -->
           <div class="row mb-3">
             <div class="col-12">

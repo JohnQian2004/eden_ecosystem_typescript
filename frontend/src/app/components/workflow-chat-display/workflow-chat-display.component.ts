@@ -1318,44 +1318,54 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     
     let amount = 0;
     
-    // For DEX trades, prioritize bookingDetails.baseAmount (the actual SOL amount traded)
-    // BUT: If baseAmount is 0 or missing, use entry.amount (which should be set correctly by backend)
-    if (isDexTrade && bookingDetails) {
-      const baseAmount = bookingDetails.baseAmount;
-      const totalAmount = bookingDetails.totalAmount;
-      const bookingAmount = bookingDetails.amount;
-      
-      console.log('💬 [WorkflowChat] DEX trade amount extraction:', {
-        entryId: entry.entryId,
-        entryAmount: entry.amount,
-        baseAmount,
-        totalAmount,
-        bookingAmount,
-        hasBookingDetails: !!bookingDetails
-      });
-      
-      // For DEX trades, baseAmount is the actual SOL amount traded (what user sees)
-      // If baseAmount exists and is > 0, use it; otherwise fall back to entry.amount
-      if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
-        amount = Number(baseAmount);
-        console.log('💬 [WorkflowChat] Using baseAmount from bookingDetails:', amount);
-      } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
-        amount = Number(totalAmount);
-        console.log('💬 [WorkflowChat] Using totalAmount from bookingDetails:', amount);
-      } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
-        amount = Number(bookingAmount);
-        console.log('💬 [WorkflowChat] Using bookingAmount from bookingDetails:', amount);
-      } else {
-        // Fall back to entry.amount if bookingDetails amounts are missing or 0
-        if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
-          amount = entry.amount;
-          console.log('💬 [WorkflowChat] Using entry.amount (bookingDetails amounts missing/zero):', amount);
+    // CRITICAL: For DEX trades, backend sets entry.amount correctly, so prioritize it
+    // Use bookingDetails.baseAmount only if entry.amount is missing/0 (shouldn't happen, but safety)
+    if (isDexTrade) {
+      // First, try entry.amount (backend sets this correctly)
+      if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
+        amount = entry.amount;
+        console.log('💬 [WorkflowChat] DEX trade: Using entry.amount from backend:', amount);
+      } else if (entry.entry?.amount !== undefined && entry.entry?.amount !== null && entry.entry.amount > 0) {
+        amount = entry.entry.amount;
+        console.log('💬 [WorkflowChat] DEX trade: Using entry.entry.amount:', amount);
+      } else if (bookingDetails) {
+        // Fallback to bookingDetails only if entry.amount is missing
+        const baseAmount = bookingDetails.baseAmount;
+        const totalAmount = bookingDetails.totalAmount;
+        const bookingAmount = bookingDetails.amount;
+        
+        console.log('💬 [WorkflowChat] DEX trade amount extraction (fallback):', {
+          entryId: entry.entryId,
+          entryAmount: entry.amount,
+          baseAmount,
+          totalAmount,
+          bookingAmount,
+          hasBookingDetails: !!bookingDetails
+        });
+        
+        if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
+          amount = Number(baseAmount);
+          console.log('💬 [WorkflowChat] Using baseAmount from bookingDetails (fallback):', amount);
+        } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
+          amount = Number(totalAmount);
+          console.log('💬 [WorkflowChat] Using totalAmount from bookingDetails (fallback):', amount);
+        } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
+          amount = Number(bookingAmount);
+          console.log('💬 [WorkflowChat] Using bookingAmount from bookingDetails (fallback):', amount);
         }
       }
-    }
-    
-    // If not DEX or bookingDetails didn't have amount, check standard fields
-    if ((amount === 0 || amount === null || amount === undefined) && !isDexTrade) {
+      
+      // Final safety check
+      if ((amount === 0 || amount === null || amount === undefined)) {
+        console.error('💬 [WorkflowChat] DEX trade: Could not extract amount!', {
+          entryId: entry.entryId,
+          entryAmount: entry.amount,
+          entryEntryAmount: entry.entry?.amount,
+          bookingDetails: bookingDetails ? JSON.stringify(bookingDetails) : 'missing'
+        });
+      }
+    } else {
+      // Non-DEX trades: check standard fields
       amount = entry.amount !== undefined && entry.amount !== null && entry.amount > 0
         ? entry.amount
         : (entry.entry?.amount !== undefined && entry.entry?.amount !== null && entry.entry.amount > 0
@@ -1363,20 +1373,6 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
             : (entry.snapshot?.amount !== undefined && entry.snapshot?.amount !== null && entry.snapshot.amount > 0
                 ? entry.snapshot.amount
                 : 0));
-    }
-    
-    // For DEX: Final fallback to entry.amount if still 0 (should not happen, but safety net)
-    if (isDexTrade && (amount === 0 || amount === null || amount === undefined)) {
-      if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
-        console.warn('💬 [WorkflowChat] DEX trade: Using entry.amount as final fallback:', entry.amount);
-        amount = entry.amount;
-      } else {
-        console.error('💬 [WorkflowChat] DEX trade: Could not extract amount!', {
-          entryId: entry.entryId,
-          entryAmount: entry.amount,
-          bookingDetails: bookingDetails ? JSON.stringify(bookingDetails) : 'missing'
-        });
-      }
     }
     
     // Final fallback: try bookingDetails for non-DEX or if still 0
@@ -1479,6 +1475,19 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     const num = typeof iGasCost === 'string' ? parseFloat(iGasCost) : iGasCost;
     if (isNaN(num)) return '0.000000';
     return num.toFixed(6);
+  }
+
+  formatAmount(amount: number | undefined | null): string {
+    if (amount === undefined || amount === null || isNaN(amount)) return '0.00';
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(num)) return '0.00';
+    
+    // For very small amounts (< 0.01), show more decimal places
+    if (Math.abs(num) < 0.01 && num !== 0) {
+      return num.toFixed(6);
+    }
+    // For regular amounts, show 2 decimal places
+    return num.toFixed(2);
   }
 
   formatBookingDetails(entry: any): string {

@@ -21,7 +21,7 @@ export const SERVICE_TYPE_CATALOG: ServiceTypeCatalogEntry[] = [
     type: 'dex',
     icon: '💰',
     adText: 'DEX Tokens',
-    sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
+    sampleQuery: 'Trade 2 SOL with TOKEN'
   },
   {
     type: 'airline',

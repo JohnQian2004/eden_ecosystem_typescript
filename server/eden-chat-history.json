@@ -1645,6 +1645,94 @@
         "mode": "god",
         "serviceType": "dex",
         "status": "active"
+      },
+      {
+        "id": "c_1769031047315_35b9304cdd781",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKENA",
+        "timestamp": 1769031047315,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031187322_5bce51fa415718",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031187322,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031393382_1eba23e10fc9",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031393382,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031580995_73870f47c24738",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031580995,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031879205_127ccbf7b8767",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031879205,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031966432_4240ea6447fc9",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031966432,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769032120271_057d34d1b6507",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769032120271,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769032208340_d830a301ce0c68",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769032208340,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
       }
     ],
     "conv:garden:garden-13:god": [
@@ -4240,6 +4328,74 @@
         "role": "USER",
         "content": "trade 2 SOL with Token",
         "timestamp": 1769023180050,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769029740361_880c20d29eeeb8",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL for TOKEN",
+        "timestamp": 1769029740361,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769029781127_e61aa4554779d8",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769029781127,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030038993_d24561fce947a",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769030038994,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030483300_d63aec3ef4969",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL for 1 TOKEN",
+        "timestamp": 1769030483300,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030908527_274226f6ce1fe",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKENA",
+        "timestamp": 1769030908527,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      }
+    ],
+    "conv:garden:T1:god": [
+      {
+        "id": "c_1769038144998_23fe85180271c8",
+        "conversationId": "conv:garden:T1:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769038144998,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "serviceType": "dex",

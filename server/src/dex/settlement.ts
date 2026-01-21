@@ -174,9 +174,12 @@ export async function finalizeSettlement(
     }
   }
   
+  // CRITICAL: Use recoveredBaseAmount instead of baseAmount for all calculations
+  const finalBaseAmount = recoveredBaseAmount > 0 ? recoveredBaseAmount : baseAmount;
+  
   // Calculate fees (simplified - in production, get from match result)
-  const tradeFee = baseAmount * 0.003; // 0.3% trade fee
-  const iTax = baseAmount * 0.000005; // 0.0005% iTax
+  const tradeFee = finalBaseAmount * 0.003; // 0.3% trade fee
+  const iTax = finalBaseAmount * 0.000005; // 0.0005% iTax
   const iGas = 0.001; // Fixed iGas for now
   
   // Debit/credit wallet
@@ -185,9 +188,9 @@ export async function finalizeSettlement(
       // BUY: debit baseToken
       const debitResult = await debitWallet(
         settlement.userEmail,
-        baseAmount + tradeFee + iGas,
+        finalBaseAmount + tradeFee + iGas,
         settlement.tradeId,
-        `DEX BUY: ${tokenAmount} ${tokenSymbol} for ${baseAmount} ${baseTokenSymbol}`,
+        `DEX BUY: ${tokenAmount} ${tokenSymbol} for ${finalBaseAmount} ${baseTokenSymbol}`,
         { tradeId: settlement.tradeId, action: 'BUY' }
       );
       
@@ -210,9 +213,9 @@ export async function finalizeSettlement(
       // SELL: credit baseToken
       const creditResult = await creditWallet(
         settlement.userEmail,
-        baseAmount - tradeFee,
+        finalBaseAmount - tradeFee,
         settlement.tradeId,
-        `DEX SELL: ${tokenAmount} ${tokenSymbol} for ${baseAmount} ${baseTokenSymbol}`,
+        `DEX SELL: ${tokenAmount} ${tokenSymbol} for ${finalBaseAmount} ${baseTokenSymbol}`,
         { tradeId: settlement.tradeId, action: 'SELL' }
       );
       
@@ -256,10 +259,7 @@ export async function finalizeSettlement(
     }
   }
   
-  // CRITICAL: Use recoveredBaseAmount if baseAmount was 0
-  // This handles cases where symbol matching fails but we can infer from order side
-  const finalBaseAmount = recoveredBaseAmount;
-  
+  // finalBaseAmount is already declared above, just verify it's not 0
   if (finalBaseAmount === 0) {
     console.error(`❌ [Settlement] CRITICAL: finalBaseAmount is still 0 after recovery attempts!`);
     console.error(`   This will cause ledger entry to have 0 amount.`);

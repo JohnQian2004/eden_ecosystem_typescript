@@ -37,10 +37,15 @@ MOVIE SERVICE (serviceType: "movie"):
 - Extract filters: location, maxPrice, genre, time, showtime
 
 DEX TOKEN SERVICE (serviceType: "dex"):
-- Keywords: "token", "TOKENA", "TOKENB", "TOKENC", "DEX", "pool", "trade", "buy token", "sell token", "token A", "token B"
-- Examples: "buy TOKENA", "buy 2 TOKENA", "sell token A", "buy token with SOL", "DEX trade"
-- If user explicitly mentions "token" AND a token symbol (TOKENA, TOKENB, etc.) OR mentions "DEX" or "pool", it's a DEX query
-- Extract: tokenSymbol, baseToken, action (BUY/SELL), tokenAmount, maxPrice
+- Keywords: "token", "TOKEN", "TOKENA", "TOKENB", "TOKENC", "DEX", "pool", "trade", "swap", "exchange", "buy token", "sell token", "token A", "token B", "SOL", "SOLANA"
+- Examples: "buy TOKEN", "buy TOKENA", "buy 2 TOKENA", "sell token A", "buy token with SOL", "DEX trade", "Trade 2 SOL with TOKEN", "swap SOL for TOKEN"
+- CRITICAL CLASSIFICATION RULES (in priority order):
+  1. If user mentions "TOKEN" (with or without a letter) AND mentions "SOL" or "SOLANA" → ALWAYS DEX
+  2. If user mentions "trade" AND mentions "TOKEN" or "SOL" → ALWAYS DEX
+  3. If user mentions "DEX" or "pool" → ALWAYS DEX
+  4. If user mentions "token" (lowercase) AND a token symbol (TOKEN, TOKENA, TOKENB, etc.) → ALWAYS DEX
+  5. If user mentions "swap" or "exchange" with "TOKEN" or "SOL" → ALWAYS DEX
+- Extract: tokenSymbol, baseToken, action (BUY/SELL), tokenAmount, baseAmount, maxPrice
 
 For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
@@ -48,22 +53,54 @@ Example: {"query": {"serviceType": "movie", "filters": {"maxPrice": "best"}}, "s
 Example: {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
 
 For DEX token trading queries (BUY/SELL tokens):
-- tokenSymbol: The token being bought/sold (e.g., "TOKENA", "TOKENB", "Token A")
-  * If user says "BUY token A" or "token A", tokenSymbol = "TOKENA"
-  * If user says "SOLANA token A", tokenSymbol = "TOKENA" (token A is what's being traded)
+- tokenSymbol: The token being bought/sold (e.g., "TOKENA", "TOKENB", "TOKENC", "Token A", "TOKEN")
+  * If user says "BUY token A" or "token A" or "TOKENA", tokenSymbol = "TOKENA"
+  * If user says "BUY token B" or "token B" or "TOKENB", tokenSymbol = "TOKENB"
+  * If user says "SOLANA token A" or "Trade X SOL with TOKENA", tokenSymbol = "TOKENA" (token A is what's being traded)
+  * If user says "Trade X SOL with TOKENB", tokenSymbol = "TOKENB"
+  * If user says "TOKEN" without a letter (A, B, C, etc.), tokenSymbol = "TOKEN"
+  * CRITICAL: "TOKENA", "TOKENB", "TOKENC" are valid token symbols - extract them exactly as written
 - baseToken: The currency used to buy/sell (e.g., "SOL", "USDC", "SOLANA")
   * If user says "BUY with SOL" or "SOLANA token A", baseToken = "SOL" (SOL is the payment currency)
 - Extract action: "BUY" or "SELL"
-- Extract tokenAmount if specified
+- Extract tokenAmount if user specifies token quantity (e.g., "buy 2 TOKEN" means tokenAmount = 2)
+- Extract baseAmount if user specifies base token quantity (e.g., "Trade 2 SOL with TOKEN" means baseAmount = 2, "Trade 2 SOL with TOKENA" means baseAmount = 2 and tokenSymbol = "TOKENA")
+- CRITICAL: When user says "Trade X SOL with TOKENA" or "Trade X SOL with TOKENB", the number X is ALWAYS the baseAmount (amount of SOL to spend), NOT the tokenAmount
 - Extract maxPrice if specified (e.g., "1 Token/SOL" means price <= 1)
+
+CRITICAL: Understanding quantity specifications:
+- "Trade 2 SOL with TOKEN" or "Trade 2 SOL with TOKENA" → baseAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY" (user wants to spend 2 SOL to buy tokens)
+- "Buy TOKEN with 2 SOL" or "Buy TOKENA with 2 SOL" → baseAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY"
+- "Swap 2 SOL for TOKEN" or "Swap 2 SOL for TOKENA" → baseAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY"
+- "Buy 2 TOKEN" or "Buy 2 TOKENA" → tokenAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY" (user wants 2 tokens)
+- When baseAmount is specified, the system will calculate tokenAmount from the pool price
+- When tokenAmount is specified, the system will calculate baseAmount from the pool price
+
+PATTERN RECOGNITION:
+- "Trade X SOL with TOKEN" → baseAmount = X, tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
+- "Trade X SOL with TOKENA" → baseAmount = X, tokenSymbol = "TOKENA", baseToken = "SOL", action = "BUY"
+- "Trade X SOL with TOKENB" → baseAmount = X, tokenSymbol = "TOKENB", baseToken = "SOL", action = "BUY"
 
 IMPORTANT: In phrases like "BUY 2 SOLANA token A":
 - tokenSymbol = "TOKENA" (the token being bought)
 - baseToken = "SOL" (SOLANA/SOL is the currency used to buy)
+- tokenAmount = 2 (if "2" refers to tokens) OR baseAmount = 2 (if "2" refers to SOL - need context)
 
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
+Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+Example for "Trade 2 SOL with TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+Example for "Trade 2 SOL with TOKENA": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+Example for "Trade 2 SOL with TOKENB": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENB", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+Example for "buy TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "tokenAmount": 1}}, "serviceType": "dex", "confidence": 0.95}
+Example for "buy 2 TOKENA": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
 
-REMEMBER: "buy tickets" or "buy 2 tickets" = MOVIE, not DEX. Only classify as DEX if user explicitly mentions "token" with a token symbol.
+CRITICAL DISAMBIGUATION RULES:
+- "buy tickets" or "buy 2 tickets" = MOVIE (only if NO mention of "TOKEN", "SOL", "DEX", "pool", "trade", "swap")
+- "Trade 2 SOL with TOKEN" = DEX (has "trade", "SOL", and "TOKEN")
+- "buy TOKEN" = DEX (has "TOKEN")
+- "buy token with SOL" = DEX (has "token" and "SOL")
+- If user mentions BOTH movie keywords AND DEX keywords (TOKEN, SOL, DEX, pool, trade), prioritize DEX classification
+- When in doubt between movie and DEX, check: Does the query mention "TOKEN", "SOL", "DEX", "pool", or "trade"? If YES → DEX. If NO → Movie.
 `;
 
 /**

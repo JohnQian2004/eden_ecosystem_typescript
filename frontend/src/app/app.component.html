@@ -7,7 +7,12 @@
       <div class="small text-muted mt-1">Please wait…</div>
     </div>
   </div>
-  <div class="row">
+  <!-- Router Outlet for DEX Garden Wizard (always visible for child routes) -->
+  <div style="position: relative;">
+    <router-outlet></router-outlet>
+  </div>
+  <!-- Main App Content (hidden when on DEX wizard route) -->
+  <div *ngIf="!isDexWizardRoute" class="row">
     <!-- Sidebar (hidden in USER and PRIEST modes, only shown in GOD mode) -->
     <div class="col-md-3 sidebar" *ngIf="showSidebar">
       <app-sidebar #sidebarComponent></app-sidebar>
@@ -444,6 +449,16 @@
                       <div class="mt-1">
                         <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                           Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.initialLiquidity && garden.initialLiquidity > 0">
+                        <span class="badge bg-success-subtle text-success small" [style.background-color]="!isUserSignedIn ? '#1a472a' : ''" [style.color]="!isUserSignedIn ? '#3fb950' : ''">
+                          💧 {{ (garden.currentLiquidity || garden.initialLiquidity).toLocaleString() }} {{ garden.baseToken || 'SOL' }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.liquidityCertified">
+                        <span class="badge bg-primary-subtle text-primary small" [style.background-color]="!isUserSignedIn ? '#1c2128' : ''" [style.color]="!isUserSignedIn ? '#58a6ff' : ''">
+                          ✅ Certified
                         </span>
                       </div>
                       <!-- Owners removed by request -->

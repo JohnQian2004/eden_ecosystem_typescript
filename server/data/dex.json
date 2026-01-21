@@ -465,61 +465,6 @@
         "onTimeout": "error_handler"
       },
       {
-        "id": "ledger_create_entry",
-        "name": "4️⃣ Ledger: Create DEX Entry",
-        "type": "process",
-        "component": "ledger",
-        "description": "Create ledger entry for DEX trade",
-        "actions": [
-          {
-            "type": "create_snapshot",
-            "payer": "{{user.email}}",
-            "amount": "{{trade.baseAmount}}",
-            "providerId": "{{selectedListing.providerId}}"
-          },
-          {
-            "type": "add_ledger_entry",
-            "snapshot": "{{snapshot}}",
-            "serviceType": "dex",
-            "iGasCost": "{{iGasCost}}",
-            "payerId": "{{user.email}}",
-            "merchantName": "{{selectedListing.providerName}}",
-            "providerUuid": "{{providerUuid}}",
-            "bookingDetails": {
-              "tokenSymbol": "{{tokenSymbol}}",
-              "baseToken": "{{baseToken}}",
-              "action": "{{action}}",
-              "tokenAmount": "{{tokenAmount}}",
-              "baseAmount": "{{trade.baseAmount}}",
-              "price": "{{trade.price}}",
-              "iTax": "{{trade.iTax}}"
-            }
-          }
-        ],
-        "websocketEvents": [
-          {
-            "type": "ledger_entry_created",
-            "component": "ledger",
-            "message": "Ledger entry created for DEX trade: {{ledgerEntry.entryId}}",
-            "data": {
-              "entry": "{{ledgerEntry}}"
-            }
-          },
-          {
-            "type": "ledger_entry_added",
-            "component": "ledger",
-            "message": "Ledger entry created: {{ledgerEntry.entryId}}",
-            "data": {
-              "entry": "{{ledgerEntry}}"
-            }
-          }
-        ],
-        "outputs": {
-          "ledgerEntry": "{{ledgerEntry}}",
-          "snapshot": "{{snapshot}}"
-        }
-      },
-      {
         "id": "complete_trade",
         "name": "5️⃣ Complete Trade",
         "type": "process",
@@ -666,18 +611,13 @@
       },
       {
         "from": "execute_dex_trade",
-        "to": "ledger_create_entry",
+        "to": "complete_trade",
         "condition": "{{trade}}"
       },
       {
         "from": "execute_dex_trade",
         "to": "error_handler",
         "condition": "!{{trade}}"
-      },
-      {
-        "from": "ledger_create_entry",
-        "to": "complete_trade",
-        "condition": "always"
       },
       {
         "from": "complete_trade",

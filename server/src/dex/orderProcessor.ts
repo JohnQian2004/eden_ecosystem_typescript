@@ -65,6 +65,7 @@ export async function processOrder(order: DEXOrder): Promise<{
   matchResult: MatchResult;
   settlement: ProvisionalSettlement;
   trade?: DEXTrade;
+  ledgerEntry?: any; // Ledger entry created by finalizeSettlement
 }> {
   // Select matching engine
   const engine = createMatchingEngine(order.matchingModel, DEX_POOLS);
@@ -229,7 +230,7 @@ export async function processOrder(order: DEXOrder): Promise<{
     broadcastPriceUpdate(order.pair, matchResult.executionPrice);
   }
   
-  return { order, matchResult, settlement, trade };
+  return { order, matchResult, settlement, trade, ledgerEntry };
 }
 
 /**

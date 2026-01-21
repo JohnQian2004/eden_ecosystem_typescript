@@ -345,6 +345,52 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     return num.toFixed(6);
   }
 
+  formatAmount(entry: LedgerEntry): string {
+    // For DEX trades, prioritize baseAmount from bookingDetails if entry.amount is 0 or very small
+    if (entry.serviceType === 'dex' && entry.bookingDetails) {
+      // Try to get baseAmount (handle both number and string)
+      const baseAmount = typeof entry.bookingDetails['baseAmount'] === 'string' 
+        ? parseFloat(entry.bookingDetails['baseAmount']) 
+        : entry.bookingDetails['baseAmount'];
+      const totalAmount = typeof entry.bookingDetails['totalAmount'] === 'string'
+        ? parseFloat(entry.bookingDetails['totalAmount'])
+        : entry.bookingDetails['totalAmount'];
+      
+      // Use baseAmount if entry.amount is 0 or very small (< 0.01) and baseAmount is valid
+      if ((!entry.amount || entry.amount < 0.01) && baseAmount && !isNaN(baseAmount) && baseAmount > 0) {
+        console.log(`💰 [LedgerDisplay] Using baseAmount for DEX trade: ${baseAmount}`);
+        return this.formatAmountValue(baseAmount);
+      }
+      // Otherwise use totalAmount if available
+      if (totalAmount && !isNaN(totalAmount) && totalAmount > 0) {
+        console.log(`💰 [LedgerDisplay] Using totalAmount for DEX trade: ${totalAmount}`);
+        return this.formatAmountValue(totalAmount);
+      }
+      // Debug: log what we have
+      console.log(`💰 [LedgerDisplay] DEX trade amount debug:`, {
+        entryAmount: entry.amount,
+        baseAmount: entry.bookingDetails['baseAmount'],
+        totalAmount: entry.bookingDetails['totalAmount'],
+        bookingDetails: entry.bookingDetails
+      });
+    }
+    // For all other cases, use entry.amount
+    return this.formatAmountValue(entry.amount || 0);
+  }
+
+  formatAmountValue(amount: number | string | undefined | null): string {
+    if (amount === undefined || amount === null || isNaN(Number(amount))) return '0.00';
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(num)) return '0.00';
+    
+    // For very small amounts (< 0.01), show more decimal places
+    if (Math.abs(num) < 0.01 && num !== 0) {
+      return num.toFixed(6);
+    }
+    // For regular amounts, show 2 decimal places
+    return num.toFixed(2);
+  }
+
   /**
    * Get service type field configuration for dynamic formatting
    */
@@ -496,9 +542,39 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
             key: 'tokenSymbol', 
             label: 'DEX', 
             format: (val: any, details: any) => {
-              const action = details.action || 'TRADE';
-              const amount = details.tokenAmount || 0;
-              return `${action} ${amount} ${val}`;
+              const action = details.action || 'BUY';
+              // Handle both string and number types
+              let tokenAmount = typeof details.tokenAmount === 'string' 
+                ? parseFloat(details.tokenAmount) 
+                : details.tokenAmount;
+              const baseAmount = typeof details['baseAmount'] === 'string'
+                ? parseFloat(details['baseAmount'])
+                : details['baseAmount'];
+              const price = typeof details.price === 'string'
+                ? parseFloat(details.price)
+                : details.price;
+              
+              // If tokenAmount is missing, default (1), or 0, calculate from baseAmount
+              if ((!tokenAmount || tokenAmount === 0 || tokenAmount === 1 || isNaN(tokenAmount)) && baseAmount && !isNaN(baseAmount) && baseAmount > 0) {
+                if (price && !isNaN(price) && price > 0) {
+                  tokenAmount = baseAmount / price;
+                  console.log(`💰 [LedgerDisplay] Calculated tokenAmount from baseAmount: ${baseAmount} / ${price} = ${tokenAmount}`);
+                } else {
+                  // If no price, use a default calculation or show baseAmount
+                  tokenAmount = baseAmount; // Fallback: show baseAmount as tokenAmount
+                }
+              }
+              
+              // Ensure tokenAmount is valid
+              if (!tokenAmount || isNaN(tokenAmount) || tokenAmount <= 0) {
+                tokenAmount = 0;
+              }
+              
+              // Format tokenAmount to show reasonable precision
+              const formattedAmount = tokenAmount >= 1 
+                ? tokenAmount.toFixed(0) 
+                : tokenAmount.toFixed(6).replace(/\.?0+$/, '');
+              return `${action} ${formattedAmount} ${val || 'TOKEN'}`;
             }
           }
         ]
@@ -601,4 +677,5 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
   // Expose Math for template
   Math = Math;
 }
+
 

@@ -172,6 +172,11 @@ export type TokenPool = {
   createdAt: number;
   totalVolume: number;
   totalTrades: number;
+  // Stripe Payment Rail binding and liquidity certification
+  stripePaymentRailBound?: boolean;
+  liquidityCertified?: boolean;
+  initialLiquidity?: number;
+  stripePaymentIntentId?: string;
 };
 
 export type TokenListing = {

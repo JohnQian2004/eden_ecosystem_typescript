@@ -144,6 +144,16 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
     if (action.price) orderIntent.price = action.price;
     if (action.matchingModel) orderIntent.matchingModel = action.matchingModel;
     
+    // CRITICAL: If baseAmount is specified but tokenAmount is not, convert baseAmount to tokenAmount
+    // This handles cases like "Trade 2 SOL with TOKEN" where user specifies baseAmount
+    const baseAmount = context.baseAmount || context.queryResult?.query?.filters?.baseAmount;
+    if (baseAmount && baseAmount > 0 && (!orderIntent.amount || orderIntent.amount === 1)) {
+      // Calculate tokenAmount from baseAmount using pool price
+      const poolPrice = ctxSelected?.price || 0.001; // Default price if missing
+      orderIntent.amount = baseAmount / poolPrice;
+      console.log(`💰 [DEX Handler] Converting baseAmount to tokenAmount: ${baseAmount} ${ctxSelected?.baseToken || 'SOL'} / ${poolPrice} = ${orderIntent.amount} ${ctxSelected?.tokenSymbol || 'TOKEN'}`);
+    }
+    
     // Determine pair from selected listing or context
     if (ctxSelected?.tokenSymbol && ctxSelected?.baseToken) {
       orderIntent.pair = `${ctxSelected.tokenSymbol}/${ctxSelected.baseToken}`;
@@ -193,7 +203,8 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
       trade: result.trade,
       updatedBalance: currentBalance,
       settlement: result.settlement,
-      matchResult: result.matchResult
+      matchResult: result.matchResult,
+      ledgerEntry: result.ledgerEntry // Ledger entry created by settlement
     };
   });
   

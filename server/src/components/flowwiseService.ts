@@ -1390,6 +1390,11 @@ async function executeStepActions(
           if (dexResult.traderRebate !== undefined) {
             context.traderRebate = dexResult.traderRebate;
           }
+          if (dexResult.ledgerEntry) {
+            // Settlement system already created ledger entry, store it in context for workflow steps
+            context.ledgerEntry = dexResult.ledgerEntry;
+            console.log(`💰 [FlowWiseService] Ledger entry from settlement: ${dexResult.ledgerEntry.entryId}`);
+          }
           break;
 
         case "llm_format_response": {
@@ -1650,11 +1655,29 @@ async function executeStepActions(
           console.log(`✅ [FlowWiseService]   - context.llmResponse.selectedListing2 sample: ${context.llmResponse.selectedListing2 ? JSON.stringify(context.llmResponse.selectedListing2).substring(0, 100) : 'N/A'}`);
           console.log(`✅ [FlowWiseService] ========================================`);
           
-          // Extract action and tokenAmount from query filters for DEX trades
+          // Extract action and tokenAmount/baseAmount from query filters for DEX trades
           // Set defaults if not present (BUY and 1 are common defaults)
           const filters = context.queryResult?.query?.filters || {};
           context.action = filters.action || 'BUY';
-          context.tokenAmount = filters.tokenAmount || 1;
+          
+          // CRITICAL: Handle both tokenAmount and baseAmount
+          // If user specifies baseAmount (e.g., "Trade 2 SOL with TOKEN"), convert to tokenAmount
+          let tokenAmount = filters.tokenAmount;
+          const baseAmount = filters.baseAmount;
+          
+          if (baseAmount && baseAmount > 0 && !tokenAmount) {
+            // User specified baseAmount (e.g., "Trade 2 SOL with TOKEN")
+            // Calculate tokenAmount from baseAmount using pool price
+            const tokenListing = context.selectedListing as any;
+            const poolPrice = tokenListing?.price || 0.001; // Default price if missing
+            tokenAmount = baseAmount / poolPrice;
+            console.log(`   💰 [FlowWiseService] Converting baseAmount to tokenAmount: ${baseAmount} ${tokenListing?.baseToken || 'SOL'} / ${poolPrice} = ${tokenAmount} ${tokenListing?.tokenSymbol || 'TOKEN'}`);
+          } else {
+            // Use tokenAmount if specified, otherwise default to 1
+            tokenAmount = tokenAmount || 1;
+          }
+          
+          context.tokenAmount = tokenAmount;
           
           // For DEX trades, calculate estimated totalCost
           const isDEXTrade = context.selectedListing && 
@@ -1662,7 +1685,10 @@ async function executeStepActions(
           if (isDEXTrade) {
             const tokenListing = context.selectedListing as any;
             // Estimate baseAmount from price * tokenAmount (will be recalculated in execute_dex_trade)
-            const estimatedBaseAmount = (tokenListing.price || 0) * (context.tokenAmount || 1);
+            // If baseAmount was specified, use it directly for totalCost estimation
+            const estimatedBaseAmount = baseAmount && baseAmount > 0 
+              ? baseAmount 
+              : (tokenListing.price || 0) * (context.tokenAmount || 1);
             context.totalCost = estimatedBaseAmount + llmResponse.iGasCost;
             context.tokenSymbol = tokenListing.tokenSymbol;
             context.baseToken = tokenListing.baseToken || 'SOL';
@@ -1829,26 +1855,42 @@ async function executeStepActions(
           }
           // Ensure snapshot amount is valid - check service-type-specific prices
           const ledgerServiceType = context.serviceType || "movie";
-          const ledgerServiceTypePrice = ledgerServiceType === 'hotel' ? context.hotelPrice :
-                                        ledgerServiceType === 'airline' ? context.airlinePrice :
-                                        ledgerServiceType === 'restaurant' ? (context.diningPrice || context.restaurantPrice) :
-                                        ledgerServiceType === 'movie' ? context.moviePrice :
-                                        ledgerServiceType === 'grocerystore' ? context.grocerystorePrice :
-                                        ledgerServiceType === 'pharmacy' ? context.pharmacyPrice :
-                                        ledgerServiceType === 'dogpark' ? context.dogparkPrice :
-                                        ledgerServiceType === 'gasstation' ? context.gasstationPrice :
-                                        ledgerServiceType === 'party' ? context.partyPrice :
-                                        ledgerServiceType === 'bank' ? context.bankPrice :
-                                        context.totalCost;
           
-          const entryAmount = context.snapshot.amount && context.snapshot.amount > 0
-            ? context.snapshot.amount
-            : (ledgerServiceTypePrice || context.selectedListing?.price || 0);
+          // CRITICAL: For DEX trades, use trade.baseAmount + iTax for BUY (total cost), baseAmount for SELL
+          let entryAmount = 0;
+          if (ledgerServiceType === 'dex' && context.trade) {
+            // For BUY trades: user pays baseAmount + iTax (total cost)
+            // For SELL trades: user receives baseAmount (iTax is deducted, but entry.amount = baseAmount for ledger)
+            entryAmount = context.trade.action === 'BUY' 
+              ? context.trade.baseAmount + context.trade.iTax 
+              : context.trade.baseAmount;
+            console.log(`   💰 [FlowWiseService] DEX trade amount: baseAmount=${context.trade.baseAmount}, iTax=${context.trade.iTax}, action=${context.trade.action}, entryAmount=${entryAmount}`);
+          } else {
+            // Regular services: use service-type-specific prices
+            const ledgerServiceTypePrice = ledgerServiceType === 'hotel' ? context.hotelPrice :
+                                          ledgerServiceType === 'airline' ? context.airlinePrice :
+                                          ledgerServiceType === 'restaurant' ? (context.diningPrice || context.restaurantPrice) :
+                                          ledgerServiceType === 'movie' ? context.moviePrice :
+                                          ledgerServiceType === 'grocerystore' ? context.grocerystorePrice :
+                                          ledgerServiceType === 'pharmacy' ? context.pharmacyPrice :
+                                          ledgerServiceType === 'dogpark' ? context.dogparkPrice :
+                                          ledgerServiceType === 'gasstation' ? context.gasstationPrice :
+                                          ledgerServiceType === 'party' ? context.partyPrice :
+                                          ledgerServiceType === 'bank' ? context.bankPrice :
+                                          context.totalCost;
+            
+            entryAmount = context.snapshot.amount && context.snapshot.amount > 0
+              ? context.snapshot.amount
+              : (ledgerServiceTypePrice || context.selectedListing?.price || 0);
+          }
           
           console.log(`   💰 [FlowWiseService] add_ledger_entry - Amount calculation:`, {
             snapshotAmount: context.snapshot.amount,
             serviceType: ledgerServiceType,
-            serviceTypePrice: ledgerServiceTypePrice,
+            isDexTrade: ledgerServiceType === 'dex' && !!context.trade,
+            tradeBaseAmount: context.trade?.baseAmount,
+            tradeITax: context.trade?.iTax,
+            tradeAction: context.trade?.action,
             diningPrice: context.diningPrice,
             restaurantPrice: context.restaurantPrice,
             selectedListingPrice: context.selectedListing?.price,
@@ -1873,12 +1915,19 @@ async function executeStepActions(
           
           if (ledgerServiceType === 'dex' && context.trade) {
             // DEX trade: use trade details
+            // For BUY trades: totalAmount = baseAmount + iTax (total cost to user)
+            // For SELL trades: totalAmount = baseAmount (amount received, iTax already deducted)
+            const totalAmount = context.trade.action === 'BUY' 
+              ? context.trade.baseAmount + context.trade.iTax 
+              : context.trade.baseAmount;
+            
             bookingDetails = {
               tokenSymbol: context.tokenSymbol || context.trade.tokenSymbol,
               baseToken: context.baseToken || context.trade.baseToken,
               action: context.action || context.trade.action,
               tokenAmount: context.tokenAmount || context.trade.tokenAmount,
               baseAmount: context.trade.baseAmount,
+              totalAmount: totalAmount, // CRITICAL: Include totalAmount for ledger.ts to use
               price: context.trade.price,
               iTax: context.trade.iTax,
               tradeId: context.trade.tradeId,
