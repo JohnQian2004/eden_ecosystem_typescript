@@ -126,6 +126,7 @@ import {
   executeNextStep,
   getWorkflowState
 } from "./src/components/flowwiseService";
+import { initializePriceBroadcaster } from "./src/dex/priceBroadcaster";
 import {
   initializePriesthoodCertification,
   applyForPriesthood,
@@ -540,6 +541,61 @@ httpServer.on("request", async (req, res) => {
       totalIGas,
       timestamp: Date.now()
     }));
+    return;
+  }
+
+  // GET /api/liquidity-accountant/summary - Get Liquidity Accountant Service summary
+  if (pathname === "/api/liquidity-accountant/summary" && req.method === "GET") {
+    console.log(`   💧 [${requestId}] GET /api/liquidity-accountant/summary - Fetching liquidity summary`);
+    try {
+      const { getLiquiditySummary } = await import("./src/liquidityAccountant");
+      const summary = getLiquiditySummary();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, summary }));
+    } catch (err: any) {
+      console.error(`   ❌ Error fetching liquidity summary:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // GET /api/liquidity-accountant/pool/:poolId - Get liquidity record for a specific pool
+  if (pathname.startsWith("/api/liquidity-accountant/pool/") && req.method === "GET") {
+    const poolId = pathname.split("/").pop();
+    console.log(`   💧 [${requestId}] GET /api/liquidity-accountant/pool/${poolId} - Fetching liquidity record`);
+    try {
+      const { getLiquidityRecord } = await import("./src/liquidityAccountant");
+      const record = getLiquidityRecord(poolId || "");
+      if (record) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, record }));
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Liquidity record not found" }));
+      }
+    } catch (err: any) {
+      console.error(`   ❌ Error fetching liquidity record:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // GET /api/liquidity-accountant/garden/:gardenId - Get liquidity records for a specific garden
+  if (pathname.startsWith("/api/liquidity-accountant/garden/") && req.method === "GET") {
+    const gardenId = pathname.split("/").pop();
+    console.log(`   💧 [${requestId}] GET /api/liquidity-accountant/garden/${gardenId} - Fetching liquidity records`);
+    try {
+      const { getLiquidityRecordsByGarden } = await import("./src/liquidityAccountant");
+      const records = getLiquidityRecordsByGarden(gardenId || "");
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, records }));
+    } catch (err: any) {
+      console.error(`   ❌ Error fetching garden liquidity records:`, err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -1818,18 +1874,20 @@ httpServer.on("request", async (req, res) => {
                   // Set queryResult in context (after normalization)
                   updatedContext.queryResult = queryResult;
                   
-                  // CRITICAL: Extract action and tokenAmount from queryResult.query.filters for DEX trades
+                  // CRITICAL: Extract action, tokenAmount, and baseAmount from queryResult.query.filters for DEX trades
                   // These need to be top-level context variables for the workflow outputs
                   if (queryResult.serviceType === 'dex' && queryResult.query.filters) {
                     const filters = queryResult.query.filters;
                     updatedContext.action = filters.action || 'BUY';
-                    updatedContext.tokenAmount = filters.tokenAmount || 1;
+                    updatedContext.tokenAmount = filters.tokenAmount;
+                    updatedContext.baseAmount = filters.baseAmount; // Support baseAmount (e.g., "Trade 2 SOL with TOKEN")
                     updatedContext.tokenSymbol = filters.tokenSymbol;
                     updatedContext.baseToken = filters.baseToken;
                     
                     console.log(`   🔍 [${requestId}] llm_extract_query: Extracted DEX trade parameters:`);
                     console.log(`      action: ${updatedContext.action}`);
-                    console.log(`      tokenAmount: ${updatedContext.tokenAmount}`);
+                    console.log(`      tokenAmount: ${updatedContext.tokenAmount || 'not specified'}`);
+                    console.log(`      baseAmount: ${updatedContext.baseAmount || 'not specified'}`);
                     console.log(`      tokenSymbol: ${updatedContext.tokenSymbol}`);
                     console.log(`      baseToken: ${updatedContext.baseToken}`);
                   }
@@ -3823,27 +3881,17 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
-        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
-        let detectedServiceType: string = "movie";
-        try {
-          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
-          if (ENABLE_OPENAI && !MOCKED_LLM) {
-            const { extractQueryWithOpenAI } = await import("./src/llm");
-            const qr = await extractQueryWithOpenAI(input.trim());
-            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
-          }
-        } catch (err: any) {
-          // safe fallback
-        }
-
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
+        // No need to detect serviceType manually - LLM handles it
         const workflowResult = await startWorkflowFromUserInput(
           input.trim(),
-          user,
-          detectedServiceType
+          user
+          // serviceType is now optional - LLM service mapper will determine it from user input
         );
         
-        // Broadcast workflow started event
+        // Broadcast workflow started event with LLM service selection
         broadcastEvent({
           type: "workflow_started",
           component: "workflow",
@@ -3853,7 +3901,8 @@ httpServer.on("request", async (req, res) => {
             executionId: workflowResult.executionId,
             currentStep: workflowResult.currentStep,
             instruction: workflowResult.instruction,
-            workflowProcessingGas: workflowResult.workflowProcessingGas
+            workflowProcessingGas: workflowResult.workflowProcessingGas,
+            serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
           }
         });
         
@@ -3949,80 +3998,83 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
-        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
-        let detectedServiceType: string = "movie";
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
         try {
-          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
-          if (ENABLE_OPENAI && !MOCKED_LLM) {
-            const { extractQueryWithOpenAI } = await import("./src/llm");
-            const qr = await extractQueryWithOpenAI(input.trim());
-            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
-          }
-        } catch (err: any) {
-          // safe fallback
-        }
-
-        const workflowResult = await startWorkflowFromUserInput(
-          input.trim(),
-          user,
-          detectedServiceType
-        );
-        
-        // Broadcast workflow started event
-        broadcastEvent({
-          type: "workflow_started",
-          component: "workflow",
-          message: `Workflow started: ${workflowResult.executionId}`,
-          timestamp: Date.now(),
-          data: {
-            executionId: workflowResult.executionId,
-            currentStep: workflowResult.currentStep,
-            instruction: workflowResult.instruction
-          }
-        });
-        
-        // Success response with workflow execution ID
-        if (!res.headersSent) {
-          sendResponse(200, { 
-            success: true, 
-            message: "Chat processed successfully",
-            executionId: workflowResult.executionId,
-            instruction: workflowResult.instruction
+          const workflowResult = await startWorkflowFromUserInput(
+            input.trim(),
+            user
+            // serviceType is now optional - LLM service mapper will determine it from user input
+          );
+          
+          // Broadcast workflow started event with LLM service selection
+          broadcastEvent({
+            type: "workflow_started",
+            component: "workflow",
+            message: `Workflow started: ${workflowResult.executionId}`,
+            timestamp: Date.now(),
+            data: {
+              executionId: workflowResult.executionId,
+              currentStep: workflowResult.currentStep,
+              instruction: workflowResult.instruction,
+              workflowProcessingGas: workflowResult.workflowProcessingGas,
+              serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+            }
           });
-          console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
-        } else {
-          console.warn(`⚠️  Response already sent, skipping success response`);
+          
+          // Success response with workflow execution ID
+          if (!res.headersSent) {
+            sendResponse(200, { 
+              success: true, 
+              message: "Chat processed successfully",
+              executionId: workflowResult.executionId,
+              instruction: workflowResult.instruction
+            });
+            console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
+          } else {
+            console.warn(`⚠️  Response already sent, skipping success response`);
+          }
+        } catch (error: any) {
+          // Log error for debugging
+          console.error(`❌ Error processing chat input:`, error);
+          console.error(`   Error stack:`, error.stack);
+          
+          // Send appropriate error response - ensure it's sent
+          if (!res.headersSent) {
+            const statusCode = error.message?.includes('Payment failed') ? 402 : 
+                              error.message?.includes('No listing') ? 404 : 
+                              error.message?.includes('timeout') ? 408 : 500;
+            sendResponse(statusCode, { 
+              success: false, 
+              error: error.message || "Internal server error",
+              timestamp: Date.now()
+            });
+          } else {
+            console.warn(`⚠️  Response already sent, cannot send error response`);
+          }
+        } finally {
+          // Ensure response is always sent
+          if (!res.headersSent) {
+            console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
+            sendResponse(500, { 
+              success: false, 
+              error: "Unexpected server error - no response was sent",
+              timestamp: Date.now()
+            });
+          } else {
+            console.log(`✅ Response sent for request from ${email}`);
+          }
         }
-      } catch (error: any) {
-        // Log error for debugging
-        console.error(`❌ Error processing chat input:`, error);
-        console.error(`   Error stack:`, error.stack);
-        
-        // Send appropriate error response - ensure it's sent
+      } catch (outerError: any) {
+        // Catch any errors from the outer try block (request parsing, validation, etc.)
+        console.error(`❌ Outer error processing request:`, outerError);
         if (!res.headersSent) {
-          const statusCode = error.message?.includes('Payment failed') ? 402 : 
-                            error.message?.includes('No listing') ? 404 : 
-                            error.message?.includes('timeout') ? 408 : 500;
-          sendResponse(statusCode, { 
-            success: false, 
-            error: error.message || "Internal server error",
-            timestamp: Date.now()
-          });
-        } else {
-          console.warn(`⚠️  Response already sent, cannot send error response`);
-        }
-      } finally {
-        // Ensure response is always sent
-        if (!res.headersSent) {
-          console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
           sendResponse(500, { 
             success: false, 
-            error: "Unexpected server error - no response was sent",
+            error: outerError.message || "Internal server error",
             timestamp: Date.now()
           });
-        } else {
-          console.log(`✅ Response sent for request from ${email}`);
         }
       }
     });
@@ -5090,6 +5142,78 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // POST /api/dex-liquidity/buy - Create Stripe Checkout session for DEX initial liquidity
+  if (pathname === "/api/dex-liquidity/buy" && req.method === "POST") {
+    console.log(`   💰 [${requestId}] POST /api/dex-liquidity/buy - Creating Stripe Checkout session for DEX liquidity`);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { email, amount, gardenName, tokenSymbol, baseToken } = JSON.parse(body);
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Valid email address required" }));
+          return;
+        }
+        
+        const MIN_LIQUIDITY_AMOUNT = 10000;
+        if (!amount || typeof amount !== 'number' || amount < MIN_LIQUIDITY_AMOUNT) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `Initial liquidity must be at least ${MIN_LIQUIDITY_AMOUNT} 🍎 APPLES` }));
+          return;
+        }
+        
+        // Create Stripe Checkout session for DEX liquidity
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: 'DEX Initial Liquidity',
+                  description: `Load ${amount} 🍎 APPLES initial liquidity for ${gardenName || 'DEX Garden'} (${tokenSymbol || 'TOKEN'}/${baseToken || 'SOL'})`,
+                },
+                unit_amount: Math.round(amount * 100), // Convert to cents
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${req.headers.origin || 'http://localhost:4200'}/dex-garden-wizard?dex_liquidity_success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${req.headers.origin || 'http://localhost:4200'}/dex-garden-wizard?dex_liquidity_canceled=true`,
+          customer_email: email,
+          metadata: {
+            user_email: email,
+            liquidity_amount: amount.toString(),
+            purchase_type: 'dex_initial_liquidity',
+            purpose: 'dex_initial_liquidity',
+            garden_name: gardenName || 'DEX Garden',
+            token_symbol: tokenSymbol || 'TOKEN',
+            base_token: baseToken || 'SOL',
+          },
+        });
+        
+        console.log(`   ✅ Stripe Checkout session created for DEX liquidity: ${session.id} for ${email} (${amount} 🍎 APPLES)`);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          sessionId: session.id,
+          url: session.url 
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ Error creating Stripe Checkout session for DEX liquidity:`, err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || "Failed to create Stripe checkout session" }));
+      }
+    });
+    return;
+  }
+
   // POST /api/garden/buy - Create Stripe Checkout session for garden purchase
   if (pathname === "/api/garden/buy" && req.method === "POST") {
     console.log(`   🎬 [${requestId}] POST /api/garden/buy - Creating Stripe Checkout session for garden purchase`);
@@ -5329,10 +5453,12 @@ httpServer.on("request", async (req, res) => {
           if (session.payment_status === 'paid') {
             const email = session.customer_email || session.metadata?.user_email;
             const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
+            const liquidityAmount = parseFloat(session.metadata?.liquidity_amount || '0');
             const paymentIntentId = session.payment_intent as string;
             const customerId = session.customer as string;
             const purchaseType = session.metadata?.purchase_type; // 'garden' or undefined (JSC purchase)
             const gardenType = session.metadata?.garden_type; // 'movie' or undefined
+            const purpose = session.metadata?.purpose; // 'dex_initial_liquidity' or undefined
             
             if (!email) {
               console.error(`   ❌ Missing email in Stripe session: ${session.id}`);
@@ -5450,14 +5576,42 @@ httpServer.on("request", async (req, res) => {
       if (session.payment_status === 'paid' && session.status === 'complete') {
         const email = session.customer_email || session.metadata?.user_email;
         const jscAmount = parseFloat(session.metadata?.jsc_amount || '0');
+        const liquidityAmount = parseFloat(session.metadata?.liquidity_amount || '0');
         const paymentIntentId = session.payment_intent as string;
         const customerId = session.customer as string;
         const purchaseType = session.metadata?.purchase_type;
         const gardenType = session.metadata?.garden_type;
+        const purpose = session.metadata?.purpose; // 'dex_initial_liquidity' or undefined
         
         if (!email) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: false, error: "Missing email in session" }));
+          return;
+        }
+        
+        // Handle DEX liquidity payment (different from JSC purchase)
+        if (purpose === 'dex_initial_liquidity') {
+          const MIN_LIQUIDITY_AMOUNT = 10000;
+          if (liquidityAmount < MIN_LIQUIDITY_AMOUNT) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: false, error: `Invalid liquidity amount: ${liquidityAmount} (minimum: ${MIN_LIQUIDITY_AMOUNT} 🍎 APPLES)` }));
+            return;
+          }
+          
+          console.log(`   ✅ DEX liquidity payment confirmed: ${liquidityAmount} 🍎 APPLES`);
+          console.log(`      Payment Intent ID: ${paymentIntentId}`);
+          console.log(`      Garden: ${session.metadata?.garden_name || 'N/A'}`);
+          console.log(`      Token Pair: ${session.metadata?.token_symbol || 'TOKEN'}/${session.metadata?.base_token || 'SOL'}`);
+          
+          // Return session info with payment intent ID for DEX garden creation
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: true, 
+            session: session,
+            paymentIntentId: paymentIntentId,
+            liquidityAmount: liquidityAmount,
+            paymentStatus: session.payment_status
+          }));
           return;
         }
         
@@ -7298,8 +7452,13 @@ httpServer.on("request", async (req, res) => {
       try {
         const requestData = JSON.parse(body);
         const gardenName = requestData.gardenName || requestData.indexerName;
-        const { serverIp, serverDomain, serverPort, networkType, email } = requestData;
+        const { serverIp, serverDomain, serverPort, networkType, email, tokenSymbol, baseToken, initialLiquidity, stripePaymentIntentId } = requestData;
         const serviceType = "dex";
+        
+        // Get token pair from request or use defaults
+        const finalTokenSymbol = tokenSymbol || 'TOKEN';
+        const finalBaseToken = baseToken || 'SOL';
+        console.log(`   💰 [DEX Garden] Token pair configuration: ${finalTokenSymbol}/${finalBaseToken}`);
 
         if (!gardenName) {
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -7311,6 +7470,70 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: false, error: "Valid email address required. Please sign in first." }));
           return;
+        }
+        
+        // CRITICAL: Validate initial liquidity requirement for DEX gardens
+        const MIN_LIQUIDITY_AMOUNT = 10000; // Minimum 10,000 🍎 APPLES to prevent spam
+        if (!initialLiquidity || initialLiquidity < MIN_LIQUIDITY_AMOUNT) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: `Initial liquidity must be at least ${MIN_LIQUIDITY_AMOUNT.toLocaleString()} 🍎 APPLES to prevent spam and ensure pool stability.` 
+          }));
+          return;
+        }
+        
+        // Stripe payment is optional - if provided, verify it; otherwise use user's balance
+        let liquidityCertified = false;
+        let stripePaymentRailBound = false;
+        let finalStripePaymentIntentId = stripePaymentIntentId || '';
+        
+        if (stripePaymentIntentId && typeof stripePaymentIntentId === 'string') {
+          // Verify Stripe payment intent exists and is paid
+          try {
+            const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
+            if (paymentIntent.status !== 'succeeded') {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({
+                success: false,
+                error: `Stripe payment not completed. Payment status: ${paymentIntent.status}. Please complete the payment first.`
+              }));
+              return;
+            }
+            
+            // Verify payment amount matches requested liquidity
+            const paidAmount = paymentIntent.amount / 100; // Convert from cents
+            if (paidAmount < initialLiquidity) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ 
+                success: false, 
+                error: `Payment amount (${paidAmount} 🍎 APPLES) is less than requested liquidity (${initialLiquidity} 🍎 APPLES).` 
+              }));
+              return;
+            }
+            
+            liquidityCertified = true;
+            stripePaymentRailBound = true;
+            console.log(`   ✅ [DEX Garden] Stripe Payment Rail verified: ${paidAmount} 🍎 APPLES paid via ${stripePaymentIntentId}`);
+          } catch (stripeErr: any) {
+            console.warn(`   ⚠️ [DEX Garden] Stripe payment verification failed: ${stripeErr.message}`);
+            // Continue without Stripe - use user's balance instead
+            finalStripePaymentIntentId = '';
+          }
+        }
+        
+        // If no Stripe payment, check if user has sufficient balance
+        if (!liquidityCertified) {
+          const userBalance = await getWalletBalance(email);
+          if (userBalance < initialLiquidity) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: false,
+              error: `Insufficient balance. You have ${userBalance.toLocaleString()} 🍎 APPLES but need ${initialLiquidity.toLocaleString()} 🍎 APPLES for initial liquidity.`
+            }));
+            return;
+          }
+          console.log(`   💰 [DEX Garden] Using user balance for initial liquidity: ${initialLiquidity} 🍎 APPLES (balance: ${userBalance.toLocaleString()} 🍎 APPLES)`);
         }
 
         // Keep priesthood rule consistent with SaaS gardens (can relax later)
@@ -7369,7 +7592,13 @@ httpServer.on("request", async (req, res) => {
           serverPort: finalPort,
           networkType: networkType || "http",
           serviceType,
-          tokenServiceType: 'dex'
+          tokenServiceType: 'dex',
+          // Stripe Payment Rail binding and liquidity certification
+          stripePaymentRailBound: stripePaymentRailBound,
+          liquidityCertified: liquidityCertified,
+          initialLiquidity: initialLiquidity,
+          stripePaymentIntentId: finalStripePaymentIntentId,
+          liquidityLoadedAt: Date.now()
         };
 
         console.log(`   📜 [DEX Gardens] Issuing certificate for ${gardenConfig.name} (${gardenConfig.id})...`);
@@ -7433,9 +7662,63 @@ httpServer.on("request", async (req, res) => {
         // This prevents the service registry persistence file from containing only HG infrastructure.
         try {
           const tokenGardenIndex = TOKEN_GARDENS.findIndex(tg => tg.id === gardenConfig.id);
-          const tokenSymbol = `TOKEN${String.fromCharCode(65 + Math.max(0, tokenGardenIndex))}`; // TOKENA, TOKENB...
-          const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
-          const providerId = `dex-pool-${tokenSymbol.toLowerCase()}`;
+          // Use token pair from request or defaults
+          const tokenSymbol = finalTokenSymbol;
+          const poolId = `pool-${finalBaseToken.toLowerCase()}-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
+          const providerId = `dex-pool-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
+          
+          // Create the pool if it doesn't exist
+          // Use initial liquidity from Stripe payment (minimum 10,000 🍎 APPLES)
+          if (!DEX_POOLS.has(poolId)) {
+            // Calculate pool reserves from initial liquidity
+            // For simplicity: baseReserve = initialLiquidity, tokenReserve = initialLiquidity / price
+            const baseReserve = initialLiquidity || 10000; // Use paid liquidity amount
+            const poolPrice = 0.001; // Default price: 1 TOKEN = 0.001 SOL
+            const tokenReserve = baseReserve / poolPrice; // Calculate token reserve from base
+            
+            const pool: TokenPool = {
+              poolId: poolId,
+              tokenSymbol: tokenSymbol,
+              tokenName: `${tokenSymbol} ${tokenGardenIndex + 1}`,
+              baseToken: finalBaseToken,
+              poolLiquidity: baseReserve, // Use actual paid liquidity
+              tokenReserve: tokenReserve,
+              baseReserve: baseReserve, // Use actual paid liquidity
+              price: poolPrice,
+              bond: 5000,
+              gardenId: gardenConfig.id,
+              createdAt: Date.now(),
+              totalVolume: 0,
+              totalTrades: 0,
+              // Stripe Payment Rail metadata
+              stripePaymentRailBound: stripePaymentRailBound,
+              liquidityCertified: liquidityCertified,
+              initialLiquidity: initialLiquidity,
+              stripePaymentIntentId: finalStripePaymentIntentId
+            };
+            DEX_POOLS.set(poolId, pool);
+            console.log(`   ✅ [DEX Gardens] Created DEX pool with ${liquidityCertified ? 'Stripe-certified' : 'balance-funded'} liquidity: ${tokenSymbol}/${finalBaseToken} (${poolId})`);
+            console.log(`      Initial liquidity: ${baseReserve} ${finalBaseToken}${finalStripePaymentIntentId ? ` (Stripe Payment Rail: ${finalStripePaymentIntentId})` : ' (from user balance)'}`);
+            console.log(`      Token reserve: ${tokenReserve} ${tokenSymbol}, Base reserve: ${baseReserve} ${finalBaseToken}`);
+            
+            // Register initial liquidity with liquidity accountant service
+            try {
+              const { registerInitialLiquidity } = await import("./src/liquidityAccountant");
+              registerInitialLiquidity(
+                poolId,
+                tokenSymbol,
+                finalBaseToken,
+                gardenConfig.id,
+                baseReserve,
+                baseReserve,
+                tokenReserve,
+                finalStripePaymentIntentId || undefined
+              );
+              console.log(`   💧 [LiquidityAccountant] Registered initial liquidity for ${tokenSymbol}/${finalBaseToken}`);
+            } catch (err: any) {
+              console.warn(`   ⚠️  [DEX Gardens] Failed to register liquidity with accountant: ${err.message}`);
+            }
+          }
 
           const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === gardenConfig.id);
           if (!existing) {
@@ -8236,10 +8519,10 @@ httpServer.on("request", async (req, res) => {
             console.warn(`   ⚠️  Skipping DEX pool and provider creation for ${gardenConfig.id}`);
           } else {
             // Create pool for this token garden (matching initializeDEXPools format)
-            // Token Garden T1 gets TOKENA, T2 gets TOKENB, etc.
-            const tokenSymbol = `TOKEN${String.fromCharCode(65 + tokenGardenIndex)}`; // TOKENA, TOKENB, TOKENC...
-            const tokenName = `Token ${String.fromCharCode(65 + tokenGardenIndex)}`;
-            const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
+            // Use token pair from request or defaults
+            const tokenSymbol = finalTokenSymbol;
+            const tokenName = `${tokenSymbol} ${tokenGardenIndex + 1}`;
+            const poolId = `pool-${finalBaseToken.toLowerCase()}-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
             
             // Check if pool already exists
             if (DEX_POOLS.has(poolId)) {
@@ -8250,7 +8533,7 @@ httpServer.on("request", async (req, res) => {
                 poolId: poolId,
                 tokenSymbol: tokenSymbol,
                 tokenName: tokenName,
-                baseToken: "SOL",
+                baseToken: finalBaseToken,
                 poolLiquidity: 100 - (tokenGardenIndex * 10), // Decreasing liquidity for variety: 100, 90, 80...
                 tokenReserve: 100000 - (tokenGardenIndex * 10000), // 100k, 90k, 80k...
                 baseReserve: 100 - (tokenGardenIndex * 10), // 100, 90, 80...
@@ -9856,6 +10139,32 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "internal://accountant",
     status: 'active'
+  },
+  {
+    id: "token-liquidity-accountant-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440108",
+    name: "Token Liquidity Accountant Service",
+    serviceType: "liquidity-accountant",
+    location: "ROOT CA",
+    bond: 75000, // High bond for liquidity tracking authority
+    reputation: 5.0,
+    gardenId: "HG", // Holy Ghost garden
+    apiEndpoint: "internal://liquidity-accountant",
+    status: 'active',
+    description: "Tracks initial and runtime liquidity for all DEX token pools (tokenA, tokenB, etc.) via Stripe Payment Rail"
+  },
+  {
+    id: "price-order-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440107",
+    name: "Price Order Service",
+    serviceType: "price-order",
+    location: "ROOT CA",
+    bond: 100000, // Very high bond for order matching and settlement authority
+    reputation: 5.0,
+    gardenId: "HG", // Holy Ghost garden
+    apiEndpoint: "internal://price-order",
+    status: 'active',
+    description: "Real-time DEX order matching, two-phase settlement, and price broadcasting service"
   },
   // Regular Service Providers
   // In ROOT mode: All service providers (including amc-001) are created dynamically via the wizard
@@ -12682,7 +12991,11 @@ async function processChatInput(input: string, email: string) {
     }
   }
   
-  if (isDEXTrade) {
+  // CRITICAL: DEX trades should go through workflows, not this direct path
+  // This direct path creates duplicate ledger entries. Disabled to prevent duplicates.
+  // DEX trades are now handled by the workflow system which creates ledger entries via add_ledger_entry action.
+  if (false && isDEXTrade) {
+    // DISABLED: Direct DEX trade path - use workflows instead
     // Handle DEX trade
     const tokenListing = selectedListing as TokenListing;
     console.log("🌊 DEX Trade Selected:", `${tokenListing.providerName} - ${tokenListing.tokenSymbol}/${tokenListing.baseToken} at ${tokenListing.price} ${tokenListing.baseToken}/${tokenListing.tokenSymbol}`);
@@ -12699,11 +13012,30 @@ async function processChatInput(input: string, email: string) {
     }
     const queryResult = await extractQueryFn(input);
     const action = queryResult.query.filters?.action || 'BUY';
-    const tokenAmount = queryResult.query.filters?.tokenAmount || 1;
+    
+    // CRITICAL: Handle both tokenAmount and baseAmount
+    // If user specifies baseAmount (e.g., "Trade 2 SOL with TOKEN"), convert to tokenAmount
+    let tokenAmount = queryResult.query.filters?.tokenAmount;
+    const baseAmount = queryResult.query.filters?.baseAmount;
+    
+    if (baseAmount && baseAmount > 0 && !tokenAmount) {
+      // User specified baseAmount (e.g., "Trade 2 SOL with TOKEN")
+      // Calculate tokenAmount from baseAmount using pool price
+      // For BUY: tokenAmount = baseAmount / price (approximately, will be recalculated in executeDEXTrade)
+      const poolPrice = tokenListing.price || 0.001; // Default price if missing
+      tokenAmount = baseAmount / poolPrice;
+      console.log(`   💰 Converting baseAmount to tokenAmount: ${baseAmount} ${tokenListing.baseToken} / ${poolPrice} = ${tokenAmount} ${tokenListing.tokenSymbol}`);
+    } else {
+      // Use tokenAmount if specified, otherwise default to 1
+      tokenAmount = tokenAmount || 1;
+    }
     
     console.log("💰 Executing DEX Trade...");
     console.log(`   Action: ${action}`);
     console.log(`   Token Amount: ${tokenAmount} ${tokenListing.tokenSymbol}`);
+    if (baseAmount) {
+      console.log(`   Base Amount (specified): ${baseAmount} ${tokenListing.baseToken}`);
+    }
     console.log(`   Pool: ${tokenListing.poolId}`);
     
     // IMPORTANT: Sync wallet balance BEFORE processing (Google user aware)
@@ -13437,12 +13769,20 @@ async function main() {
   // Initialize LLM module with dependencies
   initializeLLM(broadcastEvent);
   
+  // Initialize DEX Price Broadcaster (real-time price updates and trade events)
+  initializePriceBroadcaster(broadcastEvent);
+  console.log("✅ [DEX Price Broadcaster] Real-time price update service initialized");
+  
   // Initialize PriestHood Certification Service
   initializePriesthoodCertification();
   
   // Initialize Accountant Service (tracks fee payments and total iGas)
   const { initializeAccountant } = await import("./src/accountant");
   initializeAccountant();
+  
+  // Initialize Liquidity Accountant Service (tracks DEX token pool liquidity)
+  const { initializeLiquidityAccountant } = await import("./src/liquidityAccountant");
+  initializeLiquidityAccountant();
   console.log("✅ [PriestHood Certification] Service initialized");
   
   // NOTE: ServiceRegistry2 initialization is deferred until AFTER gardens are loaded from persistence

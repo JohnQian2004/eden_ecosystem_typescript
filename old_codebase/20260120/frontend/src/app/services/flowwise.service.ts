@@ -111,13 +111,20 @@ export class FlowWiseService {
     // Listen for WebSocket events to handle server-side workflow decisions
     this.wsService.events$.subscribe((event: any) => {
       if (event.type === 'user_decision_required') {
+        console.log(`🤔 [FlowWise] ========================================`);
         console.log(`🤔 [FlowWise] Server-side decision required:`, event);
+        console.log(`🤔 [FlowWise] Event data:`, JSON.stringify(event.data, null, 2));
+        console.log(`🤔 [FlowWise] Event data.videoUrl:`, event.data?.videoUrl);
+        console.log(`🤔 [FlowWise] Event data.movieTitle:`, event.data?.movieTitle);
+        console.log(`🤔 [FlowWise] stepId:`, event.data?.stepId);
+        console.log(`🤔 [FlowWise] prompt:`, event.data?.prompt);
+        console.log(`🤔 [FlowWise] options:`, event.data?.options);
 
         // Convert WebSocket event to decision request format
         // CRITICAL: Use workflowId (executionId) from event.data, not decisionId
         // decisionId is just an identifier for the decision type, not the workflow execution ID
         const executionId = event.data.workflowId || event.data.executionId || event.data.decisionId || 'server_decision';
-        console.log(`🔍 [FlowWise] Decision event - workflowId: ${event.data.workflowId}, executionId: ${event.data.executionId}, decisionId: ${event.data.decisionId}, using: ${executionId}`);
+        console.log(`🔍 [FlowWise] Decision event - workflowId: ${event.data.workflowId}, executionId: ${event.data.executionId}, decisionId: ${event.data.decisionId}, stepId: ${event.data?.stepId}, using executionId: ${executionId}`);
         
         // For decision events, use the options from event.data.options or default YES/NO
         let options = event.data.options;
@@ -144,6 +151,13 @@ export class FlowWiseService {
                           event.data?.selectedListing?.movieTitle ||
                           '';
         
+        console.log(`🎬 [FlowWise] Extracting video info from user_decision_required event:`);
+        console.log(`🎬 [FlowWise] event.data.videoUrl: ${event.data?.videoUrl}`);
+        console.log(`🎬 [FlowWise] event.data.movieTitle: ${event.data?.movieTitle}`);
+        console.log(`🎬 [FlowWise] event.data.selectedListing?.videoUrl: ${event.data?.selectedListing?.videoUrl}`);
+        console.log(`🎬 [FlowWise] Initial videoUrl: ${videoUrl}`);
+        console.log(`🎬 [FlowWise] Initial movieTitle: ${movieTitle}`);
+        
         // If videoUrl or movieTitle are missing, try to get from active execution context
         if (!videoUrl && executionId) {
           const execution = this.activeExecutions.get(executionId);
@@ -151,6 +165,7 @@ export class FlowWiseService {
             videoUrl = execution.context['selectedListing']?.['videoUrl'] || 
                       execution.context['videoUrl'] || 
                       '';
+            console.log(`🎬 [FlowWise] Retrieved videoUrl from execution context: ${videoUrl}`);
           }
         }
         if (!movieTitle && executionId) {
@@ -159,12 +174,16 @@ export class FlowWiseService {
             movieTitle = execution.context['selectedListing']?.['movieTitle'] || 
                         execution.context['movieTitle'] || 
                         '';
+            console.log(`🎬 [FlowWise] Retrieved movieTitle from execution context: ${movieTitle}`);
           }
         }
         
+        console.log(`🎬 [FlowWise] Final videoUrl: ${videoUrl || 'none'}`);
+        console.log(`🎬 [FlowWise] Final movieTitle: ${movieTitle || 'none'}`);
+        
         const decisionRequest: UserDecisionRequest = {
-          executionId: executionId,
-          stepId: event.data?.stepId || event.data?.decisionId || 'unknown',
+          executionId: String(executionId),
+          stepId: event.data?.stepId || 'unknown', // CRITICAL: Use stepId from event.data, not decisionId
           prompt: event.data?.prompt || event.message || 'Please make a decision',
           options: options,
           timeout: event.data?.timeout || 60000,
@@ -172,9 +191,17 @@ export class FlowWiseService {
           movieTitle: movieTitle || undefined
         };
 
-        console.log(`📋 [FlowWise] Emitting decision request:`, decisionRequest);
+        console.log(`📋 [FlowWise] ========================================`);
+        console.log(`📋 [FlowWise] Emitting decision request:`, JSON.stringify(decisionRequest, null, 2));
+        console.log(`📋 [FlowWise] Decision request stepId: ${decisionRequest.stepId}`);
+        console.log(`📋 [FlowWise] Decision request prompt: ${decisionRequest.prompt}`);
         console.log(`📋 [FlowWise] Decision request options count: ${decisionRequest.options.length}`);
+        console.log(`📋 [FlowWise] Decision request executionId: ${decisionRequest.executionId}`);
+        console.log(`🎬 [FlowWise] Decision request videoUrl: ${decisionRequest.videoUrl || 'MISSING!'}`);
+        console.log(`🎬 [FlowWise] Decision request movieTitle: ${decisionRequest.movieTitle || 'MISSING!'}`);
         this.decisionRequest$.next(decisionRequest);
+        console.log(`📋 [FlowWise] ✅ Decision request emitted successfully`);
+        console.log(`📋 [FlowWise] ========================================`);
       } else if (event.type === 'user_selection_required') {
         // Also handle selection events from WebSocket and emit through Subject
         console.log(`🎬 [FlowWise] ========================================`);

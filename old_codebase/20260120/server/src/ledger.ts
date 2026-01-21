@@ -71,22 +71,36 @@ export function addLedgerEntry(
     throw new Error("Ledger module not initialized. Call initializeLedger() first.");
   }
   
-  // CRITICAL: Ensure amount is set (use bookingDetails.price if snapshot.amount is missing/zero)
-  // Priority: snapshot.amount > bookingDetails.price > 0 (but 0 is invalid)
+  // CRITICAL: Ensure amount is set (use bookingDetails fields if snapshot.amount is missing/zero)
+  // Priority: snapshot.amount > bookingDetails fields (price, totalAmount, baseAmount) > 0 (but 0 is invalid)
+  // For DEX trades: bookingDetails has baseAmount/totalAmount, not price
+  // IMPORTANT: For DEX, we want to use totalAmount (includes fees) for entry.amount, but baseAmount for display
   let entryAmount = snapshot.amount && snapshot.amount > 0 
     ? snapshot.amount 
-    : (bookingDetails?.price && bookingDetails.price > 0 ? bookingDetails.price : 0);
+    : (bookingDetails?.totalAmount && bookingDetails.totalAmount > 0
+        ? bookingDetails.totalAmount  // For DEX: totalAmount includes fees, use this for entry.amount
+        : (bookingDetails?.price && bookingDetails.price > 0 
+            ? bookingDetails.price 
+            : (bookingDetails?.baseAmount && bookingDetails.baseAmount > 0
+                ? bookingDetails.baseAmount
+                : 0)));
   
   if (!entryAmount || entryAmount === 0) {
     console.error(`❌ [Ledger] CRITICAL ERROR: Ledger entry amount is ${entryAmount}!`);
     console.error(`❌ [Ledger] snapshot.amount: ${snapshot.amount}`);
     console.error(`❌ [Ledger] bookingDetails?.price: ${bookingDetails?.price}`);
+    console.error(`❌ [Ledger] bookingDetails?.baseAmount: ${bookingDetails?.baseAmount}`);
+    console.error(`❌ [Ledger] bookingDetails?.totalAmount: ${bookingDetails?.totalAmount}`);
+    console.error(`❌ [Ledger] serviceType: ${serviceType}`);
+    console.error(`❌ [Ledger] Full bookingDetails:`, JSON.stringify(bookingDetails, null, 2));
+    console.error(`❌ [Ledger] Full snapshot:`, JSON.stringify(snapshot, null, 2));
     console.error(`❌ [Ledger] This will cause payment to fail!`);
     // Don't create entry with invalid amount - throw error instead
-    throw new Error(`Cannot create ledger entry: amount is ${entryAmount}. Snapshot amount: ${snapshot.amount}, bookingDetails price: ${bookingDetails?.price}`);
+    throw new Error(`Cannot create ledger entry: amount is ${entryAmount}. Snapshot amount: ${snapshot.amount}, bookingDetails: ${JSON.stringify(bookingDetails)}`);
   }
   
-  console.log(`💰 [Ledger] Using amount: ${entryAmount} (from snapshot: ${snapshot.amount}, bookingDetails: ${bookingDetails?.price})`);
+  console.log(`💰 [Ledger] Using amount: ${entryAmount} (from snapshot: ${snapshot.amount}, bookingDetails totalAmount: ${bookingDetails?.totalAmount}, baseAmount: ${bookingDetails?.baseAmount}, price: ${bookingDetails?.price})`);
+  console.log(`💰 [Ledger] For DEX trades: entry.amount=${entryAmount} (totalAmount with fees), bookingDetails.baseAmount=${bookingDetails?.baseAmount} (for display)`);
 
   // CRITICAL: Ensure all required fields are present
   if (!snapshot.txId) {

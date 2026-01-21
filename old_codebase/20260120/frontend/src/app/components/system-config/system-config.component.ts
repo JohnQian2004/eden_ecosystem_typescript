@@ -1,4 +1,5 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
+import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { getApiBaseUrl } from '../../services/api-base';
 import { getCatalogEntry, SERVICE_TYPE_CATALOG } from '../../services/service-type-catalog.service';
@@ -20,6 +21,10 @@ interface GardenConfig {
   isSnake: boolean;
   selectedProviders?: string[]; // Selected movie theater providers
   videoUrl?: string; // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+  tokenSymbol?: string; // Token symbol for DEX gardens (e.g., 'TOKEN')
+  baseToken?: string; // Base token for DEX gardens (e.g., 'SOL')
+  initialLiquidity?: number; // Initial liquidity amount for DEX gardens (minimum 10,000 🍎 APPLES)
+  stripePaymentIntentId?: string; // Stripe payment intent ID for liquidity loading
 }
 
 interface CustomProvider {
@@ -122,7 +127,11 @@ LIMIT 30 OFFSET 0`;
     networkType: 'http',
     isSnake: false,
     selectedProviders: [],
-    videoUrl: '' // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+    videoUrl: '', // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+    tokenSymbol: 'TOKEN', // Default token symbol for DEX gardens
+    baseToken: 'SOL', // Default base token for DEX gardens
+    initialLiquidity: 10000, // Minimum initial liquidity for DEX gardens (10,000 🍎 APPLES)
+    stripePaymentIntentId: '' // Stripe payment intent ID for liquidity loading
   };
   
   // Available movie theater providers (predefined)
@@ -145,6 +154,10 @@ LIMIT 30 OFFSET 0`;
   isResetting: boolean = false;
   resetError: string | null = null;
   resetSuccess: boolean = false;
+  
+  // Stripe Payment Rail for DEX liquidity
+  isProcessingStripePayment: boolean = false;
+  stripePaymentError: string | null = null;
 
   // Workflow Designer state
   availableWorkflows: Array<{serviceType: string, filename: string, exists: boolean, stepCount?: number}> = [];
@@ -166,7 +179,7 @@ LIMIT 30 OFFSET 0`;
     return viewMode === 'god' && userEmail === adminEmail;
   }
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private router: Router) {
     // Listen for Google Sign-In changes
     window.addEventListener('storage', (e) => {
       if (e.key === 'userEmail' || e.key === 'googleCredential') {
@@ -191,6 +204,20 @@ LIMIT 30 OFFSET 0`;
   }
 
   ngOnInit() {
+    // Check for DEX liquidity payment intent ID from Stripe redirect
+    const savedPaymentIntentId = localStorage.getItem('dexLiquidityPaymentIntentId');
+    const savedLiquidityAmount = localStorage.getItem('dexLiquidityAmount');
+    if (savedPaymentIntentId) {
+      this.gardenConfig.stripePaymentIntentId = savedPaymentIntentId;
+      if (savedLiquidityAmount) {
+        this.gardenConfig.initialLiquidity = parseFloat(savedLiquidityAmount);
+      }
+      console.log(`✅ Restored DEX liquidity payment: ${savedPaymentIntentId}, Amount: ${savedLiquidityAmount} 🍎 APPLES`);
+      // Clear from localStorage after restoring
+      localStorage.removeItem('dexLiquidityPaymentIntentId');
+      localStorage.removeItem('dexLiquidityAmount');
+    }
+    
     // Get user email - check Google Sign-In first, then localStorage fallback
     const googleCredential = localStorage.getItem('googleCredential');
     if (googleCredential) {
@@ -442,6 +469,11 @@ LIMIT 30 OFFSET 0`;
       this.gardenConfig.videoUrl = '/api/movie/video/2025-12-09-144801890.mp4';
       console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
       console.log('🎬 Set default videoUrl:', this.gardenConfig.videoUrl);
+    } else if (serviceType.type === 'dex') {
+      // Redirect to DEX Garden Wizard
+      console.log('💰 Redirecting to DEX Garden Wizard');
+      this.router.navigate(['/dex-garden-wizard']);
+      return;
     } else {
       this.gardenConfig.selectedProviders = [];
       this.gardenConfig.videoUrl = '';
@@ -565,6 +597,13 @@ LIMIT 30 OFFSET 0`;
       email: this.userEmail,
       videoUrl: this.gardenConfig.videoUrl || '' // Video URL for movie gardens
     };
+
+    // Add token pair configuration for DEX gardens
+    if (isDexGarden) {
+      requestBody.tokenSymbol = this.gardenConfig.tokenSymbol || 'TOKEN';
+      requestBody.baseToken = this.gardenConfig.baseToken || 'SOL';
+      console.log(`💰 [DEX Garden] Token pair: ${requestBody.tokenSymbol}/${requestBody.baseToken}`);
+    }
 
     if (!isDexGarden) {
       requestBody.amount = requiredFee;
@@ -747,11 +786,59 @@ LIMIT 30 OFFSET 0`;
       serverPort: 3001,
       networkType: 'http',
       isSnake: false,
-      selectedProviders: []
+      selectedProviders: [],
+      tokenSymbol: 'TOKEN',
+      baseToken: 'SOL',
+      initialLiquidity: 10000,
+      stripePaymentIntentId: ''
     };
     this.customProviders = [];
     this.creationError = null;
     this.creationSuccess = false;
+    this.stripePaymentError = null;
+    this.isProcessingStripePayment = false;
+  }
+  
+  initiateStripeLiquidityPayment() {
+    if (!this.gardenConfig.initialLiquidity || this.gardenConfig.initialLiquidity < 10000) {
+      this.stripePaymentError = 'Initial liquidity must be at least 10,000 🍎 APPLES';
+      return;
+    }
+    
+    if (!this.userEmail || !this.userEmail.includes('@')) {
+      this.stripePaymentError = 'Valid email address required. Please sign in first.';
+      return;
+    }
+    
+    this.isProcessingStripePayment = true;
+    this.stripePaymentError = null;
+    
+    // Create Stripe Checkout session for DEX liquidity loading
+    this.http.post<{success: boolean, sessionId?: string, url?: string, error?: string}>(`${this.apiUrl}/api/dex-liquidity/buy`, {
+      email: this.userEmail,
+      amount: this.gardenConfig.initialLiquidity,
+      gardenName: this.gardenConfig.gardenName || 'DEX Garden',
+      tokenSymbol: this.gardenConfig.tokenSymbol || 'TOKEN',
+      baseToken: this.gardenConfig.baseToken || 'SOL'
+    }).subscribe({
+      next: (response) => {
+        this.isProcessingStripePayment = false;
+        if (response.success && response.url) {
+          // Store session ID for later verification
+          if (response.sessionId) {
+            this.gardenConfig.stripePaymentIntentId = response.sessionId;
+          }
+          // Redirect to Stripe Checkout
+          window.location.href = response.url;
+        } else {
+          this.stripePaymentError = response.error || 'Failed to create Stripe checkout session';
+        }
+      },
+      error: (err) => {
+        this.isProcessingStripePayment = false;
+        this.stripePaymentError = err.error?.error || 'Failed to initiate Stripe payment';
+      }
+    });
   }
   
   addCustomProvider() {

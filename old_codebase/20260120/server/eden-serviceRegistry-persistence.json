@@ -157,30 +157,6 @@
       "gardenId": "garden-5"
     },
     {
-      "id": "dex-pool-tokena",
-      "name": "TOKENA Pool (Garden-DEX)",
-      "serviceType": "dex",
-      "location": "Eden DEX",
-      "bond": 5000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "b6ba7ee6-09ab-4a26-8217-44435581d470",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokena",
-      "gardenId": "T1"
-    },
-    {
-      "id": "dex-pool-tokenb",
-      "name": "TOKENB Pool (Garden-DEX)",
-      "serviceType": "dex",
-      "location": "Eden DEX",
-      "bond": 5000,
-      "reputation": 5,
-      "status": "active",
-      "uuid": "8f52a776-cff5-4678-aaeb-7ae519d70944",
-      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenb",
-      "gardenId": "T2"
-    },
-    {
       "id": "gasstation-96aa8771",
       "name": "Garden-GASSTATION Provider",
       "serviceType": "gasstation",
@@ -275,7 +251,19 @@
       "uuid": "550e8400-e29b-41d4-a716-446655440001",
       "apiEndpoint": "https://api.amctheatres.com/v1/listings",
       "gardenId": "garden-13"
+    },
+    {
+      "id": "dex-pool-token-1",
+      "name": "TOKEN Pool (Garden-DEX)",
+      "serviceType": "dex",
+      "location": "Eden DEX",
+      "bond": 5000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "81132417-f923-4852-bd53-fc2a652f4138",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-sol-token-1",
+      "gardenId": "T1"
     }
   ],
-  "lastSaved": "2026-01-21T15:57:33.618Z"
+  "lastSaved": "2026-01-21T23:28:54.790Z"
 }

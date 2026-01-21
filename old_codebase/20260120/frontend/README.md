@@ -1,40 +1,25 @@
-## Eden Simulator Desktop (Windows App)
+# Eden Simulator Frontend
 
-This wraps the existing Eden Node server into a Windows desktop app (Electron) and provides a **searchable server console window**.
+Angular 16 frontend with Bootstrap for real-time simulator monitoring.
 
-**Important:** this desktop app **does NOT package the Angular frontend**. You must provide the Angular build externally.
+## Setup
 
-### Dev run
-
-From repo root:
-
-```powershell
-cd desktop
+```bash
 npm install
-npm run dev
+ng serve
 ```
 
-### What it does
-- Starts `server/dist/eden-sim-redis.js` as a child process
-- Forces:
-  - `HTTP_PORT` to an available local port (prefers `3000`)
-  - `FRONTEND_PATH` to `frontend/dist/eden-sim-frontend` (dev) or external path (packaged)
-- Opens:
-  - **Main app window** (Eden UI)
-  - **Logs window** (search/filter, clear)
+The frontend will be available at http://localhost:4200
 
-### Provide the Angular build (packaged app)
+## Features
 
-Either:
-- Set env var `EDEN_FRONTEND_PATH` to your Angular dist folder, **or**
-- Place the folder next to the installed app at `../frontend/dist/eden-sim-frontend`
+- Real-time WebSocket connection to simulator
+- Chat box showing all simulator interactions
+- Component status sidebar with activity indicators
+- iGas cost display
+- Bootstrap 5 styling
 
-### Build Windows installer
+## WebSocket
 
-```powershell
-cd desktop
-npm install
-npm run dist:win
-```
-
+Connects to `ws://localhost:8080` by default.
 

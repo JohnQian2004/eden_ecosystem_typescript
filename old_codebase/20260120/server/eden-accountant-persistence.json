@@ -1,10 +1,10 @@
 {
-  "totalIGas": 1.1881499999999983,
-  "totalITax": 3.0000800014000264e-8,
-  "totalRootCAFees": 79.42771900440121,
-  "totalIndexerFees": 0.0006897500000000005,
-  "totalProviderFees": 198.5624000109989,
-  "totalCashierFees": 25.900000000000098,
+  "totalIGas": 0.15650000000000003,
+  "totalITax": 3.050123004710205e-7,
+  "totalRootCAFees": 0.0010600264011040512,
+  "totalIndexerFees": 0.000115,
+  "totalProviderFees": 199.16420008500162,
+  "totalCashierFees": 30.100000000000158,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 48,
@@ -71,14 +71,14 @@
       "totalCashierFees": null
     },
     "dex": {
-      "count": 8,
+      "count": 63,
       "totalAmount": 0,
-      "totalIGas": 0.0356,
-      "totalITax": 3.0000800014000264e-8,
-      "totalRootCAFees": 0.00042700440008000144,
-      "totalIndexerFees": 0.00006675,
-      "totalProviderFees": 0.00030000800014000264,
-      "totalCashierFees": 0.4
+      "totalIGas": 0.2010000000000001,
+      "totalITax": 3.050123004710205e-7,
+      "totalRootCAFees": 0.001527031601192053,
+      "totalIndexerFees": 0.00018175000000000014,
+      "totalProviderFees": 0.0019000760029201287,
+      "totalCashierFees": 3.600000000000002
     },
     "priesthood": {
       "count": 4,
@@ -131,17 +131,27 @@
       "totalCashierFees": 0.2
     },
     "movie": {
-      "count": 172,
+      "count": 182,
       "totalAmount": 0,
-      "totalIGas": 0.765399999999998,
+      "totalIGas": 0.8098999999999975,
       "totalITax": 0,
-      "totalRootCAFees": 6.880000000000005,
+      "totalRootCAFees": 7.120080002400058,
       "totalIndexerFees": 0,
-      "totalProviderFees": 17.199999999999974,
-      "totalCashierFees": 17.199999999999974
+      "totalProviderFees": 17.80020000600011,
+      "totalCashierFees": 18.19999999999999
+    },
+    "undefined": {
+      "count": 3,
+      "totalAmount": 0,
+      "totalIGas": null,
+      "totalITax": 0,
+      "totalRootCAFees": null,
+      "totalIndexerFees": null,
+      "totalProviderFees": 0,
+      "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1769011053115,
+  "lastUpdated": 1769038116120,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-21T15:57:33.115Z"
+  "lastSaved": "2026-01-21T23:28:36.120Z"
 }

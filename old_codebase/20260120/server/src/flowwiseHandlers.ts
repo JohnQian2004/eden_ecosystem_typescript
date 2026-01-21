@@ -125,149 +125,87 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
   
   // DEX Actions
   handlers.set("execute_dex_trade", async (action, context) => {
-    // Robust poolId resolution:
-    // With decision steps, template replacement can yield null/undefined if selectedListing is missing fields.
-    // Derive poolId from context/tokenSymbol/providerId when possible.
-    let resolvedPoolId: string | undefined = action.poolId;
+    // NEW: Use Order Processor for real-time DEX trading
+    const { createDEXOrder, processOrder, createOrderIntentFromQuery } = await import("./dex/orderProcessor");
+    
     const ctxAny: any = context as any;
     const ctxSelected = ctxAny.selectedListing || ctxAny.llmResponse?.selectedListing || ctxAny.selectedListing2 || ctxAny.llmResponse?.selectedListing2;
-    if (!resolvedPoolId && ctxSelected?.poolId) {
-      resolvedPoolId = ctxSelected.poolId;
-    }
-    if (!resolvedPoolId && (action.tokenSymbol || ctxAny.tokenSymbol || ctxAny.trade?.tokenSymbol || ctxSelected?.tokenSymbol)) {
-      const sym = String(action.tokenSymbol || ctxAny.tokenSymbol || ctxAny.trade?.tokenSymbol || ctxSelected?.tokenSymbol).trim();
-      if (sym) {
-        resolvedPoolId = `pool-solana-${sym.toLowerCase()}`;
-      }
-    }
-    if (!resolvedPoolId && (action.providerId || ctxSelected?.providerId)) {
-      const pid = String(action.providerId || ctxSelected?.providerId);
-      // dex-pool-tokena -> pool-solana-tokena
-      if (pid.startsWith('dex-pool-')) {
-        resolvedPoolId = `pool-solana-${pid.replace('dex-pool-', '')}`;
-      }
-    }
-    if (!resolvedPoolId) {
-      try {
-        const { DEX_POOLS } = await import("./state");
-        const first = Array.from(DEX_POOLS.keys())[0];
-        if (first) {
-          resolvedPoolId = first;
-          console.warn(`⚠️ [flowwiseHandlers] execute_dex_trade: poolId missing; falling back to first available pool "${resolvedPoolId}"`);
-        }
-      } catch (e: any) {
-        // ignore
-      }
-    }
-    if (!resolvedPoolId) {
-      throw new Error(`DEX trade missing poolId. selectedListing.poolId=${ctxSelected?.poolId ?? 'MISSING'}, tokenSymbol=${ctxSelected?.tokenSymbol ?? ctxAny.tokenSymbol ?? 'MISSING'}`);
-    }
-
-    const trade = executeDEXTrade(resolvedPoolId, action.action, action.tokenAmount, action.userEmail);
     
-    // Update wallet balance based on trade action
-    const { getWalletBalance, debitWallet, creditWallet } = await import("./wallet");
+    // Create order intent from context
+    const orderIntent = createOrderIntentFromQuery(
+      context.queryResult,
+      ctxSelected,
+      context.userInput || ''
+    );
+    
+    // Override with action parameters if provided
+    if (action.action) orderIntent.side = action.action;
+    if (action.tokenAmount) orderIntent.amount = action.tokenAmount;
+    if (action.price) orderIntent.price = action.price;
+    if (action.matchingModel) orderIntent.matchingModel = action.matchingModel;
+    
+    // CRITICAL: If baseAmount is specified but tokenAmount is not, convert baseAmount to tokenAmount
+    // This handles cases like "Trade 2 SOL with TOKEN" where user specifies baseAmount
+    const baseAmount = context.baseAmount || context.queryResult?.query?.filters?.baseAmount;
+    if (baseAmount && baseAmount > 0 && (!orderIntent.amount || orderIntent.amount === 1)) {
+      // Calculate tokenAmount from baseAmount using pool price
+      const poolPrice = ctxSelected?.price || 0.001; // Default price if missing
+      orderIntent.amount = baseAmount / poolPrice;
+      console.log(`💰 [DEX Handler] Converting baseAmount to tokenAmount: ${baseAmount} ${ctxSelected?.baseToken || 'SOL'} / ${poolPrice} = ${orderIntent.amount} ${ctxSelected?.tokenSymbol || 'TOKEN'}`);
+    }
+    
+    // Determine pair from selected listing or context
+    if (ctxSelected?.tokenSymbol && ctxSelected?.baseToken) {
+      orderIntent.pair = `${ctxSelected.tokenSymbol}/${ctxSelected.baseToken}`;
+    }
+    
     const userEmail = action.userEmail || context.user?.email;
-    
     if (!userEmail) {
       throw new Error("User email required for DEX trade");
     }
     
-    // Get current balance
-    const currentBalance = await getWalletBalance(userEmail);
+    const userId = context.user?.id || `u_${userEmail.replace('@', '_').replace('.', '_')}`;
+    const gardenId = ctxSelected?.gardenId || ctxSelected?.providerId || "Garden-DEX-T1";
     
-    if (action.action === 'BUY') {
-      // User pays baseToken, receives tokens
-      // Debit baseAmount from wallet
-      const debitResult = await debitWallet(
-        userEmail,
-        trade.baseAmount,
-        trade.tradeId,
-        `DEX BUY: ${trade.tokenAmount} ${trade.tokenSymbol} for ${trade.baseAmount} ${trade.baseToken}`,
-        { tradeId: trade.tradeId, action: 'BUY' }
-      );
-      
-      if (!debitResult.success) {
-        throw new Error(`Failed to debit wallet for DEX trade: ${debitResult.error}`);
+    // Create order
+    console.log(`📝 [DEX] Creating order from intent:`, orderIntent);
+    const order = createDEXOrder(
+      orderIntent,
+      userId,
+      userEmail,
+      gardenId,
+      {
+        workflowExecutionId: context.workflowExecutionId,
+        selectedListing: ctxSelected
       }
-      
-      // Apply trader rebate (30% of iTax)
-      const traderRebate = trade.iTax * 0.3;
-      let rebateResult: any = null;
-      if (traderRebate > 0) {
-        rebateResult = await creditWallet(
-          userEmail,
-          traderRebate,
-          crypto.randomUUID(),
-          `DEX Trader Rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`,
-          { tradeId: trade.tradeId, rebateType: 'trader' }
-        );
-        
-        if (rebateResult.success) {
-          console.log(`🎁 [DEX] Applied trader rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`);
-        }
-      }
-      
-      // Get final balance after rebate
-      const finalBalance = rebateResult?.balance || debitResult.balance;
-      
-      // Update context with new balance
-      if (context.user) {
-        context.user.balance = finalBalance;
-      }
-      
-      return { 
-        trade, 
-        updatedBalance: finalBalance,
-        traderRebate 
-      };
-    } else {
-      // SELL: User pays tokens, receives baseToken
-      // Credit baseAmount to wallet
-      // Note: Token balance tracking is future implementation
-      const creditResult = await creditWallet(
-        userEmail,
-        trade.baseAmount,
-        trade.tradeId,
-        `DEX SELL: ${trade.tokenAmount} ${trade.tokenSymbol} for ${trade.baseAmount} ${trade.baseToken}`,
-        { tradeId: trade.tradeId, action: 'SELL' }
-      );
-      
-      if (!creditResult.success) {
-        throw new Error(`Failed to credit wallet for DEX trade: ${creditResult.error}`);
-      }
-      
-      // Apply trader rebate (30% of iTax)
-      const traderRebate = trade.iTax * 0.3;
-      let rebateResult: any = null;
-      if (traderRebate > 0) {
-        rebateResult = await creditWallet(
-          userEmail,
-          traderRebate,
-          crypto.randomUUID(),
-          `DEX Trader Rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`,
-          { tradeId: trade.tradeId, rebateType: 'trader' }
-        );
-        
-        if (rebateResult.success) {
-          console.log(`🎁 [DEX] Applied trader rebate: ${traderRebate.toFixed(6)} ${trade.baseToken}`);
-        }
-      }
-      
-      // Get final balance after rebate
-      const finalBalance = rebateResult?.balance || creditResult.balance;
-      
-      // Update context with new balance
-      if (context.user) {
-        context.user.balance = finalBalance;
-      }
-      
-      return { 
-        trade, 
-        updatedBalance: finalBalance,
-        traderRebate 
-      };
+    );
+    
+    // Process order (match, settle, broadcast)
+    console.log(`🔄 [DEX] Processing order: ${order.orderId}`);
+    const result = await processOrder(order);
+    
+    // Update context with order and trade
+    context.dexOrder = order;
+    if (result.trade) {
+      context.trade = result.trade;
+      context.totalCost = result.trade.baseAmount + (context.iGasCost || 0);
     }
+    
+    // Update wallet balance (settlement handles actual debit/credit, but we update context for immediate feedback)
+    const { getWalletBalance } = await import("./wallet");
+    const currentBalance = await getWalletBalance(userEmail);
+    if (context.user) {
+      context.user.balance = currentBalance;
+    }
+    
+    return {
+      order,
+      trade: result.trade,
+      updatedBalance: currentBalance,
+      settlement: result.settlement,
+      matchResult: result.matchResult,
+      ledgerEntry: result.ledgerEntry // Ledger entry created by settlement
+    };
   });
   
   // Review Actions

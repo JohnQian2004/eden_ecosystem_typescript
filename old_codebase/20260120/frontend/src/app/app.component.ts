@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@angular/core';
+import { Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { timeout, finalize } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService, UserDecisionRequest } from './services/flowwise.service';
@@ -70,6 +72,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // Service Types (Garden of Eden Main Street)
   // Populated dynamically from SERVICE_TYPE_CATALOG based on available providers
   serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
+  
+  // NEW: Configurable sample input (can be set via environment or config)
+  // This replaces pre-canned prompts - users can type naturally or use this as a starting point
+  configurableSampleInput: string = "I want two sci-fi movies tonight at best price in white marsh";
 
   // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
   // Now imported from shared service-type-catalog.service.ts
@@ -110,7 +116,20 @@ export class AppComponent implements OnInit, OnDestroy {
   selectedAppleGarden: {id: string, name: string} | null = null;
   isLoadingAppleGardens: boolean = false;
   // DEX main street is garden-driven (not service-type driven)
-  dexGardens: Array<{id: string, name: string, active: boolean, uuid?: string, ownerEmail?: string, type?: string}> = [];
+  dexGardens: Array<{
+    id: string;
+    name: string;
+    active: boolean;
+    uuid?: string;
+    ownerEmail?: string;
+    type?: string;
+    initialLiquidity?: number;
+    currentLiquidity?: number;
+    liquidityCertified?: boolean;
+    stripePaymentRailBound?: boolean;
+    baseToken?: string;
+    tokenSymbol?: string;
+  }> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
 
   // Data-driven counts from ServiceRegistry (group-by filter)
@@ -413,13 +432,30 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  isDexWizardRoute: boolean = false;
+
   constructor(
     public wsService: WebSocketService,
     private chatService: ChatService,
     private flowWiseService: FlowWiseService,
     private cdr: ChangeDetectorRef,
-    private http: HttpClient
-  ) {}
+    private http: HttpClient,
+    private router: Router
+  ) {
+    // Track route changes to hide main content when on DEX wizard
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe((event: any) => {
+      const url = event.urlAfterRedirects || event.url;
+      this.isDexWizardRoute = url === '/dex-garden-wizard' || url.startsWith('/dex-garden-wizard');
+      console.log('[AppComponent] Route changed:', url, 'isDexWizardRoute:', this.isDexWizardRoute);
+      this.cdr.detectChanges();
+    });
+    
+    // Check initial route
+    const currentUrl = this.router.url;
+    this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
+    console.log('[AppComponent] Initial route:', currentUrl, 'isDexWizardRoute:', this.isDexWizardRoute);}
 
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
@@ -598,6 +634,23 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Check initial route for DEX wizard - check multiple times to catch route initialization
+    const checkRoute = () => {
+      const routerUrl = this.router.url || '';
+      const locationUrl = typeof window !== 'undefined' ? window.location.pathname : '';
+      const currentUrl = routerUrl || locationUrl;
+      this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
+      console.log('[AppComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
+      this.cdr.detectChanges();
+    };
+    
+    // Check immediately
+    checkRoute();
+    // Check after router initializes (Angular router might not be ready immediately)
+    setTimeout(checkRoute, 0);
+    setTimeout(checkRoute, 100);
+    setTimeout(checkRoute, 500);
+    
     this.initTheme();
     // Debug toggle (keeps UI responsive by default)
     this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
@@ -872,6 +925,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const gardenSuccess = urlParams.get('indexer_success'); // Keep API param name for backward compatibility
     const gardenCanceled = urlParams.get('indexer_canceled'); // Keep API param name for backward compatibility
     
+    const dexLiquiditySuccess = urlParams.get('dex_liquidity_success');
+    const dexLiquidityCanceled = urlParams.get('dex_liquidity_canceled');
+    
     if ((jscSuccess === 'true' || gardenSuccess === 'true') && sessionId) {
       console.log(`✅ Stripe payment successful! Session ID: ${sessionId}`);
       // Clear URL parameters to prevent re-triggering
@@ -883,7 +939,13 @@ export class AppComponent implements OnInit, OnDestroy {
       
       // Check session status and process payment/garden registration (fallback for local dev)
       this.checkStripeSession(sessionId, gardenSuccess === 'true');
-    } else if (jscCanceled === 'true' || gardenCanceled === 'true') {
+    } else if (dexLiquiditySuccess === 'true' && sessionId) {
+      console.log(`✅ DEX liquidity payment successful! Session ID: ${sessionId}`);
+      // Clear URL parameters to prevent re-triggering
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Check session and extract payment intent ID for DEX garden creation
+      this.checkDexLiquiditySession(sessionId);
+    } else if (jscCanceled === 'true' || gardenCanceled === 'true' || dexLiquidityCanceled === 'true') {
       console.log(`❌ Stripe payment canceled`);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -1149,9 +1211,15 @@ export class AppComponent implements OnInit, OnDestroy {
             active: g.active !== false,
             uuid: g.uuid,
             ownerEmail: g.ownerEmail,
-            type: g.type || 'token'
+            type: g.type || 'token',
+            initialLiquidity: g.initialLiquidity || 0,
+            liquidityCertified: g.liquidityCertified || false,
+            stripePaymentRailBound: g.stripePaymentRailBound || false
           }));
           console.log(`💰 [DEX Main Street] Loaded ${this.dexGardens.length} DEX garden(s): ${this.dexGardens.map(g => g.id).join(', ')}`);
+          
+          // Load liquidity data for each garden
+          this.loadDexGardenLiquidity();
         } else {
           this.dexGardens = [];
         }
@@ -1163,6 +1231,31 @@ export class AppComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       }
     });
+  }
+  
+  loadDexGardenLiquidity() {
+    // Load liquidity records for all DEX gardens
+    for (const garden of this.dexGardens) {
+      this.http.get<{success: boolean, records?: any[]}>(`${this.apiUrl}/api/liquidity-accountant/garden/${garden.id}`)
+        .subscribe({
+          next: (response) => {
+            if (response.success && response.records && response.records.length > 0) {
+              // Find the record with the highest initial liquidity (primary pool)
+              const primaryRecord = response.records.reduce((prev, curr) => 
+                (curr.initialLiquidity || 0) > (prev.initialLiquidity || 0) ? curr : prev
+              );
+              garden.currentLiquidity = primaryRecord.currentLiquidity || primaryRecord.initialLiquidity || 0;
+              garden.initialLiquidity = primaryRecord.initialLiquidity || garden.initialLiquidity || 0;
+              garden.baseToken = primaryRecord.baseToken || 'SOL';
+              garden.tokenSymbol = primaryRecord.tokenSymbol || 'TOKEN';
+              this.cdr.detectChanges();
+            }
+          },
+          error: (err) => {
+            console.warn(`Failed to load liquidity for garden ${garden.id}:`, err);
+          }
+        });
+    }
   }
 
   loadAppleGardens() {
@@ -1241,15 +1334,22 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
+    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+    // The LLM service mapper will determine the actual service/garden from user input
     this.selectedAppleGarden = { id: garden.id, name: garden.name };
     this.selectedDexGarden = null;
 
+    // Keep serviceType for context, but LLM will determine actual selection from user input
     const inferred = this.inferServiceTypeFromGarden(garden as any);
-    const prompt = this.getServiceTypePrompt(inferred);
-    this.selectedServiceType = prompt.type;
-    this.userInput = prompt.sampleQuery;
-    this.inputPlaceholder = prompt.sampleQuery;
-    this.flowWiseService.loadWorkflowIfNeeded(prompt.type);
+    this.selectedServiceType = inferred;
+    
+    // Use service-specific sample query from catalog instead of hardcoded movie query
+    const servicePrompt = this.getServiceTypePrompt(inferred);
+    this.userInput = servicePrompt.sampleQuery;
+    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here...";
+    
+    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+    console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Using sample query: ${servicePrompt.sampleQuery}`);
 
     // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));
@@ -1266,16 +1366,21 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   selectDexGarden(garden: {id: string, name: string}) {
+    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+    // The LLM service mapper will determine the actual service/garden from user input
     this.selectedDexGarden = garden;
 
-    // DEX garden click should be fast: DO NOT call selectServiceType() because it triggers
-    // a service-scoped conversation switch + history load, then we switch again to garden scope.
-    // Instead, just set the input context and preload workflow, then switch conversation ONCE.
+    // Keep serviceType for context, but LLM will determine actual selection from user input
     const dexServiceType = this.getDexServiceType();
     this.selectedServiceType = dexServiceType.type;
-    this.userInput = dexServiceType.sampleQuery;
-    this.inputPlaceholder = dexServiceType.sampleQuery;
-    this.flowWiseService.loadWorkflowIfNeeded(dexServiceType.type);
+    
+    // Use DEX-specific sample query from catalog instead of hardcoded movie query
+    const servicePrompt = this.getServiceTypePrompt('dex');
+    this.userInput = servicePrompt.sampleQuery;
+    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here (e.g., Trade 2 SOL with TOKEN)";
+    
+    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+    console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Using DEX sample query: ${servicePrompt.sampleQuery}`);
 
     // Garden-scoped chat history for DEX gardens (single switch)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));
@@ -2272,6 +2377,40 @@ export class AppComponent implements OnInit, OnDestroy {
       });
   }
   
+  checkDexLiquiditySession(sessionId: string) {
+    console.log(`🔍 Checking DEX liquidity Stripe session: ${sessionId}`);
+    this.http.get<{success: boolean, session?: any, paymentIntentId?: string, error?: string}>(`${this.apiUrl}/api/jsc/check-session/${sessionId}`)
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.session) {
+            const session = response.session;
+            const paymentIntentId = response.paymentIntentId || session.payment_intent;
+            const liquidityAmount = parseFloat(session.metadata?.liquidity_amount || '0');
+            
+            console.log(`✅ DEX liquidity payment confirmed: ${liquidityAmount} 🍎 APPLES`);
+            console.log(`   Payment Intent ID: ${paymentIntentId}`);
+            
+            // Store payment intent ID in localStorage for system config component to use
+            if (paymentIntentId) {
+              localStorage.setItem('dexLiquidityPaymentIntentId', paymentIntentId);
+              localStorage.setItem('dexLiquidityAmount', liquidityAmount.toString());
+              console.log(`💾 Stored DEX liquidity payment intent ID: ${paymentIntentId}`);
+              
+              // Show success message
+              alert(`✅ DEX liquidity payment confirmed!\n\nAmount: ${liquidityAmount.toLocaleString()} 🍎 APPLES\nPayment Intent ID: ${paymentIntentId}\n\nYou can now create your DEX garden.`);
+            }
+          } else {
+            console.error(`❌ Failed to verify DEX liquidity session:`, response.error);
+            alert(`❌ Failed to verify DEX liquidity payment: ${response.error || 'Unknown error'}`);
+          }
+        },
+        error: (err) => {
+          console.error(`❌ Error checking DEX liquidity session:`, err);
+          alert(`❌ Error verifying DEX liquidity payment: ${err.error?.error || err.message}`);
+        }
+      });
+  }
+  
   checkStripeSession(sessionId: string, isGardenPurchase: boolean = false) {
     console.log(`🔍 Checking Stripe session status: ${sessionId} (garden purchase: ${isGardenPurchase})`);
     this.http.get<{success: boolean, minted?: boolean, alreadyMinted?: boolean, registered?: boolean, alreadyRegistered?: boolean, amount?: number, balance?: number, paymentStatus?: string, indexerId?: string, indexerName?: string, error?: string}>(
@@ -2556,18 +2695,27 @@ export class AppComponent implements OnInit, OnDestroy {
   detectServiceType(input: string): string | null {
     const lowerInput = input.toLowerCase();
     
-    // DEX indicators
-    if (lowerInput.includes('buy') || lowerInput.includes('sell') || 
-        lowerInput.includes('token') || lowerInput.includes('dex') ||
-        lowerInput.includes('solana') || lowerInput.includes('sol') ||
-        lowerInput.includes('pool') || lowerInput.includes('trade')) {
+    // CRITICAL: Check DEX indicators FIRST with higher priority
+    // DEX keywords (must check these before generic "buy"/"sell")
+    const dexKeywords = ['token', 'dex', 'solana', 'sol', 'pool', 'trade', 'swap', 'exchange'];
+    const hasDexKeyword = dexKeywords.some(keyword => lowerInput.includes(keyword));
+    
+    // If DEX keywords are present, it's DEX (even if "buy"/"sell" could match movies)
+    if (hasDexKeyword) {
       return 'dex';
     }
     
-    // Movie indicators
-    if (lowerInput.includes('movie') || lowerInput.includes('film') ||
-        lowerInput.includes('watch') || lowerInput.includes('cinema') ||
-        lowerInput.includes('theatre') || lowerInput.includes('ticket')) {
+    // Check for "buy"/"sell" with token context (more specific DEX patterns)
+    if ((lowerInput.includes('buy') || lowerInput.includes('sell')) && 
+        (lowerInput.includes('token') || lowerInput.includes('sol') || lowerInput.includes('solana'))) {
+      return 'dex';
+    }
+    
+    // Movie indicators (only if NO DEX keywords)
+    if (!hasDexKeyword && 
+        (lowerInput.includes('movie') || lowerInput.includes('film') ||
+         lowerInput.includes('watch') || lowerInput.includes('cinema') ||
+         lowerInput.includes('theatre') || lowerInput.includes('ticket'))) {
       return 'movie';
     }
     

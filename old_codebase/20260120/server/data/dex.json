@@ -352,10 +352,10 @@
       },
       {
         "id": "execute_dex_trade",
-        "name": "3️⃣ Execute DEX Trade",
+        "name": "3️⃣ Execute DEX Trade (Order System)",
         "type": "process",
         "component": "dex",
-        "description": "Execute DEX trade and check balance",
+        "description": "Create DEX order, match using Order Service, and execute with two-phase settlement",
         "actions": [
           {
             "type": "check_balance",
@@ -365,26 +365,50 @@
           },
           {
             "type": "execute_dex_trade",
-            "poolId": "{{selectedListing.poolId}}",
             "action": "{{action}}",
             "tokenAmount": "{{tokenAmount}}",
-            "userEmail": "{{user.email}}"
+            "userEmail": "{{user.email}}",
+            "matchingModel": "AMM",
+            "orderType": "MARKET"
           }
         ],
         "websocketEvents": [
           {
-            "type": "dex_trade_start",
+            "type": "dex_order_created",
             "component": "dex",
-            "message": "Executing DEX trade: {{action}} {{tokenAmount}} {{tokenSymbol}}",
+            "message": "DEX order created: {{dexOrder.orderId}}",
             "data": {
+              "order": "{{dexOrder}}",
               "action": "{{action}}",
               "tokenAmount": "{{tokenAmount}}",
               "tokenSymbol": "{{tokenSymbol}}"
             }
+          },
+          {
+            "type": "dex_trade_executed",
+            "component": "dex",
+            "message": "DEX trade executed: {{action}} {{tokenAmount}} {{tokenSymbol}} at {{trade.price}}",
+            "data": {
+              "trade": "{{trade}}",
+              "order": "{{dexOrder}}",
+              "settlement": "{{dexSettlement}}"
+            }
+          },
+          {
+            "type": "dex_price_update",
+            "component": "dex",
+            "message": "Price updated: {{trade.price}}",
+            "data": {
+              "pair": "{{tokenSymbol}}/{{baseToken}}",
+              "price": "{{trade.price}}"
+            }
           }
         ],
         "outputs": {
+          "order": "{{dexOrder}}",
           "trade": "{{trade}}",
+          "settlement": "{{dexSettlement}}",
+          "matchResult": "{{dexMatchResult}}",
           "updatedBalance": "{{user.balance}}"
         },
         "errorHandling": {
@@ -439,61 +463,6 @@
         },
         "timeout": 30000,
         "onTimeout": "error_handler"
-      },
-      {
-        "id": "ledger_create_entry",
-        "name": "4️⃣ Ledger: Create DEX Entry",
-        "type": "process",
-        "component": "ledger",
-        "description": "Create ledger entry for DEX trade",
-        "actions": [
-          {
-            "type": "create_snapshot",
-            "payer": "{{user.email}}",
-            "amount": "{{trade.baseAmount}}",
-            "providerId": "{{selectedListing.providerId}}"
-          },
-          {
-            "type": "add_ledger_entry",
-            "snapshot": "{{snapshot}}",
-            "serviceType": "dex",
-            "iGasCost": "{{iGasCost}}",
-            "payerId": "{{user.email}}",
-            "merchantName": "{{selectedListing.providerName}}",
-            "providerUuid": "{{providerUuid}}",
-            "bookingDetails": {
-              "tokenSymbol": "{{tokenSymbol}}",
-              "baseToken": "{{baseToken}}",
-              "action": "{{action}}",
-              "tokenAmount": "{{tokenAmount}}",
-              "baseAmount": "{{trade.baseAmount}}",
-              "price": "{{trade.price}}",
-              "iTax": "{{trade.iTax}}"
-            }
-          }
-        ],
-        "websocketEvents": [
-          {
-            "type": "ledger_entry_created",
-            "component": "ledger",
-            "message": "Ledger entry created for DEX trade: {{ledgerEntry.entryId}}",
-            "data": {
-              "entry": "{{ledgerEntry}}"
-            }
-          },
-          {
-            "type": "ledger_entry_added",
-            "component": "ledger",
-            "message": "Ledger entry created: {{ledgerEntry.entryId}}",
-            "data": {
-              "entry": "{{ledgerEntry}}"
-            }
-          }
-        ],
-        "outputs": {
-          "ledgerEntry": "{{ledgerEntry}}",
-          "snapshot": "{{snapshot}}"
-        }
       },
       {
         "id": "complete_trade",
@@ -642,18 +611,13 @@
       },
       {
         "from": "execute_dex_trade",
-        "to": "ledger_create_entry",
+        "to": "complete_trade",
         "condition": "{{trade}}"
       },
       {
         "from": "execute_dex_trade",
         "to": "error_handler",
         "condition": "!{{trade}}"
-      },
-      {
-        "from": "ledger_create_entry",
-        "to": "complete_trade",
-        "condition": "always"
       },
       {
         "from": "complete_trade",

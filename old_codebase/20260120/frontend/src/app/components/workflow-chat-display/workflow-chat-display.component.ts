@@ -13,6 +13,8 @@ interface ChatMessage {
   data?: any; // For structured data like listings or ledger entry
   showOptions?: boolean;
   options?: Array<{ value: string; label: string; data: any }>;
+  videoUrl?: string; // For movie video playback
+  movieTitle?: string; // For movie title display
 }
 
 interface ChatThread {
@@ -152,7 +154,19 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
 
     // Listen for decision requests from FlowWiseService
+    // CRITICAL: Only handle decisions if this component is in the active tab
+    // This prevents conflicts when both workflow-display and workflow-chat-display are active
     this.decisionSubscription = this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: any) => {
+      // Check if this component is visible (in active tab)
+      // workflow-chat-display is visible when activeTab === 'workflow-chat'
+      const isComponentVisible = this.isComponentInActiveTab();
+      
+      if (!isComponentVisible) {
+        console.log('💬 [WorkflowChat] Decision request received but component is not in active tab - ignoring');
+        console.log('💬 [WorkflowChat] This decision will be handled by workflow-display instead');
+        return; // Don't handle decision if component is not visible
+      }
+      
       console.log('💬 [WorkflowChat] Decision required:', decisionRequest);
       this.addDecisionMessage(decisionRequest);
     });
@@ -171,6 +185,32 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Load initial wallet balance (show in header, not chat)
     // Balance will be updated via WebSocket events (ledger_entry_added, cashier_payment_processed, etc.)
     this.loadWalletBalance(false);
+  }
+
+  /**
+   * Check if this component is in the active tab
+   * workflow-chat-display is visible when activeTab === 'workflow-chat'
+   */
+  private isComponentInActiveTab(): boolean {
+    // Check if the workflow-chat tab pane is visible
+    const workflowChatPane = document.getElementById('workflow-chat-pane');
+    if (!workflowChatPane) {
+      return false; // Tab pane doesn't exist
+    }
+    
+    // Check if the tab pane has 'show active' classes (Bootstrap tab active state)
+    const hasActiveClass = workflowChatPane.classList.contains('show') && workflowChatPane.classList.contains('active');
+    
+    // Also check if component is actually visible in DOM
+    const isVisible = workflowChatPane.offsetParent !== null;
+    
+    console.log('🔍 [WorkflowChat] Component visibility check:', {
+      hasActiveClass,
+      isVisible,
+      offsetParent: workflowChatPane.offsetParent !== null
+    });
+    
+    return hasActiveClass && isVisible;
   }
 
   ngOnDestroy() {
@@ -245,12 +285,42 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           ? this.chatMessages[userMessageIndex].timestamp + 100 // 100ms after user input
           : Date.now();
         
+        // Extract videoUrl and movieTitle from llmResponse or context
+        // Also check listings array for videoUrl
+        const listings = llmResponse.listings || context['listings'] || [];
+        const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
+        
+        const videoUrl = llmResponse.selectedListing?.videoUrl || 
+                        llmResponse.selectedListing2?.videoUrl ||
+                        context['selectedListing']?.['videoUrl'] ||
+                        context['selectedListing2']?.['videoUrl'] ||
+                        context['videoUrl'] ||
+                        firstListing?.videoUrl ||
+                        undefined;
+        const movieTitle = llmResponse.selectedListing?.movieTitle || 
+                          llmResponse.selectedListing2?.movieTitle ||
+                          context['selectedListing']?.['movieTitle'] ||
+                          context['selectedListing2']?.['movieTitle'] ||
+                          context['movieTitle'] ||
+                          firstListing?.movieTitle ||
+                          undefined;
+        
+        console.log('🎬 [WorkflowChat] Extracted video info from processExecutionMessages:', {
+          videoUrl: videoUrl,
+          movieTitle: movieTitle,
+          hasListings: listings.length > 0,
+          firstListingVideoUrl: firstListing?.videoUrl,
+          selectedListingVideoUrl: llmResponse.selectedListing?.videoUrl
+        });
+        
         const llmMessage: ChatMessage = {
           id: `llm-${Date.now()}`,
           type: 'assistant',
           content: llmResponse.message,
           timestamp: llmTimestamp,
-          data: llmResponse.listings ? { listings: llmResponse.listings } : undefined
+          data: listings.length > 0 ? { listings: listings } : undefined,
+          videoUrl: videoUrl,
+          movieTitle: movieTitle
         };
         
         // Insert after user message if it exists, otherwise add at end
@@ -308,9 +378,63 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       case 'llm_response':
         // Add LLM response as assistant message (filtered to show only user-facing content)
         // BUT ensure it comes AFTER user input
+        // CRITICAL: For view_movie step, the workflow sends both llm_response and user_decision_required.
+        // We should only show the user_decision_required (which includes the video player and decision prompt).
+        // Skip llm_response if it's for view_movie step to avoid duplicates.
         if (event.data?.response?.message || event.data?.message) {
           const llmMessage = event.data?.response?.message || event.data?.message;
-          // Only add if not already present
+          
+          // Check if this is for view_movie step - if so, skip it and let user_decision_required handle it
+          const stepId = event.data?.stepId || event.data?.response?.stepId;
+          if (stepId === 'view_movie') {
+            console.log('🎬 [WorkflowChat] Skipping llm_response for view_movie step - workflow will send user_decision_required with video player');
+            break; // Let the workflow drive it via user_decision_required event
+          }
+          
+          // Extract videoUrl and movieTitle from event data
+          // Check multiple sources: direct videoUrl, selectedListing, and listings array
+          const listings = event.data?.response?.listings || event.data?.listings || [];
+          const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
+          
+          const videoUrl = event.data?.response?.videoUrl || 
+                          event.data?.videoUrl || 
+                          event.data?.response?.selectedListing?.videoUrl ||
+                          event.data?.selectedListing?.videoUrl ||
+                          firstListing?.videoUrl ||
+                          undefined;
+          const movieTitle = event.data?.response?.movieTitle || 
+                            event.data?.movieTitle || 
+                            event.data?.response?.selectedListing?.movieTitle ||
+                            event.data?.selectedListing?.movieTitle ||
+                            firstListing?.movieTitle ||
+                            undefined;
+          
+          console.log('🎬 [WorkflowChat] Extracted video info from llm_response:', {
+            videoUrl: videoUrl,
+            movieTitle: movieTitle,
+            hasListings: listings.length > 0,
+            firstListingVideoUrl: firstListing?.videoUrl
+          });
+          
+          // CRITICAL: If videoUrl exists, check for duplicate video player
+          // If a message with the same videoUrl already exists, update it instead of creating a duplicate
+          if (videoUrl) {
+            const existingVideoMessage = this.chatMessages.find(m => 
+              m.videoUrl === videoUrl && m.type === 'assistant'
+            );
+            if (existingVideoMessage) {
+              console.log('🎬 [WorkflowChat] Found existing message with same videoUrl, updating instead of creating duplicate');
+              // Update existing message with new content and movieTitle if provided
+              existingVideoMessage.content = llmMessage;
+              if (movieTitle && !existingVideoMessage.movieTitle) {
+                existingVideoMessage.movieTitle = movieTitle;
+              }
+              this.cdr.detectChanges();
+              break; // Don't create a new message
+            }
+          }
+          
+          // Only add if not already present (by content)
           if (!this.chatMessages.find(m => m.type === 'assistant' && m.content === llmMessage)) {
             // Find the last user message to ensure LLM response comes after it
             const lastUserMessage = [...this.chatMessages].reverse().find(m => m.type === 'user');
@@ -323,7 +447,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               type: 'assistant',
               content: llmMessage,
               timestamp: llmTimestamp,
-              data: (event.data?.response?.listings || event.data?.listings) ? { listings: event.data?.response?.listings || event.data?.listings } : undefined
+              data: listings.length > 0 ? { listings: listings } : undefined,
+              videoUrl: videoUrl,
+              movieTitle: movieTitle
             };
             
             // Insert after last user message if it exists
@@ -361,16 +487,47 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       case 'user_decision_required':
         // Handle decision requests from WebSocket
         if (event.data) {
-          console.log('💬 [WorkflowChat] Received user_decision_required event:', event.data);
-          this.addDecisionMessage({
+          console.log('💬 [WorkflowChat] ========================================');
+          console.log('💬 [WorkflowChat] Received user_decision_required event');
+          console.log('💬 [WorkflowChat] Event data:', JSON.stringify(event.data, null, 2));
+          console.log('💬 [WorkflowChat] stepId:', event.data.stepId);
+          console.log('💬 [WorkflowChat] prompt:', event.data.prompt);
+          console.log('💬 [WorkflowChat] options:', event.data.options);
+          console.log('💬 [WorkflowChat] executionId:', event.data.executionId || event.data.workflowId);
+          console.log('💬 [WorkflowChat] videoUrl (direct):', event.data?.videoUrl);
+          console.log('💬 [WorkflowChat] movieTitle (direct):', event.data?.movieTitle);
+          console.log('💬 [WorkflowChat] selectedListing?.videoUrl:', event.data?.selectedListing?.videoUrl);
+          console.log('💬 [WorkflowChat] selectedListing?.movieTitle:', event.data?.selectedListing?.movieTitle);
+          console.log('💬 [WorkflowChat] ========================================');
+          
+          // CRITICAL: Extract videoUrl and movieTitle from multiple sources
+          // For view_movie step, videoUrl should be in event.data.videoUrl
+          // But also check selectedListing and other sources as fallback
+          let videoUrl = event.data?.videoUrl;
+          let movieTitle = event.data?.movieTitle;
+          
+          // If videoUrl is missing but stepId is view_movie, try to get from selectedListing
+          if (!videoUrl && event.data.stepId === 'view_movie') {
+            videoUrl = event.data?.selectedListing?.videoUrl;
+            movieTitle = event.data?.selectedListing?.movieTitle;
+            console.log('🎬 [WorkflowChat] view_movie step - extracted from selectedListing:', { videoUrl, movieTitle });
+          }
+          
+          const decisionRequest = {
             prompt: event.data.prompt || 'Please make a decision:',
             options: event.data.options || [],
             executionId: event.data.executionId || event.data.workflowId,
             stepId: event.data.stepId,
             timeout: event.data.timeout || 30000,
             data: event.data,
-            iGasCost: event.data.iGasCost || event.data.igas
-          });
+            iGasCost: event.data.iGasCost || event.data.igas,
+            videoUrl: videoUrl,
+            movieTitle: movieTitle
+          };
+          
+          console.log('💬 [WorkflowChat] Final decisionRequest:', JSON.stringify(decisionRequest, null, 2));
+          console.log('💬 [WorkflowChat] Calling addDecisionMessage with videoUrl:', decisionRequest.videoUrl);
+          this.addDecisionMessage(decisionRequest);
         }
         break;
 
@@ -414,12 +571,91 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           if (ledgerMessageIndex !== -1) {
             // Update the existing message
             const details = this.formatBookingDetails(completedEntry);
+            
+            // Extract fields from completed entry (handle nested structures)
+            // For DEX trades, ALWAYS prioritize bookingDetails.baseAmount (the actual SOL amount traded)
+            const isDexTradeCompleted = completedEntry.serviceType === 'dex' 
+              || completedEntry.entry?.serviceType === 'dex' 
+              || completedEntry.bookingDetails?.action
+              || completedEntry.bookingDetails?.tokenSymbol
+              || this.chatMessages[ledgerMessageIndex].data?.serviceType === 'dex';
+            
+            // Get bookingDetails from multiple possible locations
+            const completedBookingDetails = completedEntry.bookingDetails 
+              || completedEntry.entry?.bookingDetails 
+              || completedEntry.data?.bookingDetails
+              || this.chatMessages[ledgerMessageIndex].data?.entry?.bookingDetails;
+            
+            let amount = 0;
+            if (isDexTradeCompleted && completedBookingDetails) {
+              // For DEX: prioritize baseAmount from bookingDetails (this is the SOL amount)
+              // Check if baseAmount exists and is a valid number (even if it's a small decimal)
+              const baseAmount = completedBookingDetails.baseAmount;
+              const totalAmount = completedBookingDetails.totalAmount;
+              const bookingAmount = completedBookingDetails.amount;
+              
+              if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
+                amount = Number(baseAmount);
+              } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
+                amount = Number(totalAmount);
+              } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
+                amount = Number(bookingAmount);
+              }
+            }
+            
+            // If not DEX or bookingDetails didn't have amount, check standard fields
+            if (amount === 0 || amount === null || amount === undefined) {
+              amount = completedEntry.amount !== undefined && completedEntry.amount !== null && completedEntry.amount > 0
+                ? completedEntry.amount
+                : (completedEntry.entry?.amount !== undefined && completedEntry.entry?.amount !== null && completedEntry.entry.amount > 0
+                    ? completedEntry.entry.amount
+                    : (completedEntry.snapshot?.amount !== undefined && completedEntry.snapshot?.amount !== null && completedEntry.snapshot.amount > 0
+                        ? completedEntry.snapshot.amount
+                        : (this.chatMessages[ledgerMessageIndex].data?.amount || 0)));
+            }
+            
+            // Final fallback: try bookingDetails for non-DEX or if still 0
+            if ((amount === 0 || amount === null || amount === undefined) && completedEntry.bookingDetails) {
+              amount = completedEntry.bookingDetails.totalAmount 
+                || completedEntry.bookingDetails.baseAmount
+                || completedEntry.bookingDetails.price
+                || completedEntry.bookingDetails.amount
+                || 0;
+            }
+            
+            // Extract merchant - try multiple sources including bookingDetails
+            // Preserve existing merchant if new one is generic
+            const newMerchant = completedEntry.merchant 
+              || completedEntry.entry?.merchant 
+              || completedEntry.snapshot?.merchant 
+              || completedEntry.bookingDetails?.merchantName
+              || completedEntry.bookingDetails?.providerName;
+            
+            // If new merchant is generic like "Service Provider", keep the existing one
+            const existingMerchant = this.chatMessages[ledgerMessageIndex].data?.merchant;
+            const merchant = (newMerchant && newMerchant !== 'Service Provider' && newMerchant !== 'N/A')
+              ? newMerchant
+              : (existingMerchant && existingMerchant !== 'N/A' && existingMerchant !== 'Service Provider')
+                  ? existingMerchant
+                  : (newMerchant || existingMerchant || 'N/A');
+            
+            // Extract serviceType
+            const serviceType = completedEntry.serviceType 
+              || completedEntry.entry?.serviceType 
+              || completedEntry.snapshot?.serviceType 
+              || completedEntry.bookingDetails?.serviceType
+              || this.chatMessages[ledgerMessageIndex].data?.serviceType 
+              || 'N/A';
+            const status = completedEntry.status || completedEntry.entry?.status || 'completed';
+            
             // HARDCODED: Always show restaurant entries as completed
-            const displayStatus = completedEntry.serviceType === 'restaurant' ? 'completed' : completedEntry.status;
+            const displayStatus = serviceType === 'restaurant' ? 'completed' : status;
             const statusEmoji = '✅'; // completed status
             const iGasCost = completedEntry.iGasCost !== undefined && completedEntry.iGasCost !== null 
               ? completedEntry.iGasCost 
-              : (this.chatMessages[ledgerMessageIndex].data?.iGasCost || 0);
+              : (completedEntry.entry?.iGasCost !== undefined && completedEntry.entry?.iGasCost !== null
+                  ? completedEntry.entry.iGasCost
+                  : (this.chatMessages[ledgerMessageIndex].data?.iGasCost || 0));
             
             this.chatMessages[ledgerMessageIndex] = {
               ...this.chatMessages[ledgerMessageIndex],
@@ -428,9 +664,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
                 ...this.chatMessages[ledgerMessageIndex].data,
                 entry: { ...completedEntry, status: displayStatus },
                 details: details,
-                amount: completedEntry.amount,
-                merchant: completedEntry.merchant,
-                serviceType: completedEntry.serviceType,
+                amount: amount,
+                merchant: merchant,
+                serviceType: serviceType,
                 iGasCost: iGasCost
               }
             };
@@ -484,6 +720,16 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           setTimeout(() => {
             this.loadWalletBalance(true); // Pass true to show in chat
           }, 1000);
+        } else if (event.type === 'workflow_step_changed') {
+          // CRITICAL: When workflow transitions to view_movie step, the workflow will send
+          // user_decision_required event with videoUrl. We should wait for that event
+          // rather than creating our own message here. This ensures the chat is driven by the workflow.
+          const stepId = event.data?.stepId;
+          if (stepId === 'view_movie') {
+            console.log('🎬 [WorkflowChat] Workflow transitioned to view_movie step - waiting for user_decision_required event from workflow');
+            // The workflow will send user_decision_required event with videoUrl, which will be handled below
+            // We don't create a message here - let the workflow drive it
+          }
         }
         break;
 
@@ -511,7 +757,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       timestamp: message.timestamp || Date.now(),
       data: message.data,
       showOptions: message.showOptions || false,
-      options: message.options
+      options: message.options,
+      videoUrl: message.videoUrl,
+      movieTitle: message.movieTitle
     };
     
     // Prevent duplicate user confirmations
@@ -562,7 +810,50 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   private addDecisionMessage(decisionRequest: any) {
-    // Find if there's already a decision message
+    console.log('💬 [WorkflowChat] ========================================');
+    console.log('💬 [WorkflowChat] addDecisionMessage called with:', {
+      stepId: decisionRequest.stepId,
+      prompt: decisionRequest.prompt,
+      optionsCount: decisionRequest.options?.length || 0,
+      executionId: decisionRequest.executionId,
+      videoUrl: decisionRequest.videoUrl,
+      movieTitle: decisionRequest.movieTitle
+    });
+    console.log('💬 [WorkflowChat] Full decisionRequest:', JSON.stringify(decisionRequest, null, 2));
+    
+    // CRITICAL: If videoUrl exists, check for duplicate video player first
+    // If a message with the same videoUrl already exists, update it instead of creating a duplicate
+    if (decisionRequest.videoUrl) {
+      const existingVideoMessage = this.chatMessages.find(m => 
+        m.videoUrl === decisionRequest.videoUrl && m.type === 'assistant'
+      );
+      if (existingVideoMessage) {
+        console.log('🎬 [WorkflowChat] Found existing message with same videoUrl, updating instead of creating duplicate');
+        // Update existing message with decision prompt and options
+        existingVideoMessage.content = decisionRequest.prompt || existingVideoMessage.content;
+        existingVideoMessage.showOptions = true;
+        existingVideoMessage.options = (decisionRequest.options || []).map((opt: any) => ({
+          value: opt.value,
+          label: opt.label,
+          data: opt
+        }));
+        if (decisionRequest.movieTitle && !existingVideoMessage.movieTitle) {
+          existingVideoMessage.movieTitle = decisionRequest.movieTitle;
+        }
+        // Update data for decision
+        existingVideoMessage.data = {
+          ...existingVideoMessage.data,
+          executionId: decisionRequest.executionId,
+          stepId: decisionRequest.stepId,
+          isDecision: true,
+          iGasCost: decisionRequest.data?.iGasCost || decisionRequest.data?.igas || decisionRequest.iGasCost
+        };
+        this.cdr.detectChanges();
+        return;
+      }
+    }
+    
+    // Find if there's already a decision message (by showOptions)
     const existingDecision = this.chatMessages.find(m => m.showOptions && m.type === 'assistant');
     if (existingDecision && decisionRequest.options) {
       existingDecision.options = decisionRequest.options.map((opt: any) => ({
@@ -572,6 +863,21 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       }));
       existingDecision.content = decisionRequest.prompt || existingDecision.content;
       existingDecision.showOptions = true;
+      // Update video info if provided
+      if (decisionRequest.videoUrl) {
+        existingDecision.videoUrl = decisionRequest.videoUrl;
+      }
+      if (decisionRequest.movieTitle) {
+        existingDecision.movieTitle = decisionRequest.movieTitle;
+      }
+      // CRITICAL: Update stepId and executionId in message data
+      existingDecision.data = {
+        ...existingDecision.data,
+        executionId: decisionRequest.executionId || existingDecision.data?.executionId,
+        stepId: decisionRequest.stepId || existingDecision.data?.stepId,
+        isDecision: true,
+        iGasCost: decisionRequest.data?.iGasCost || decisionRequest.data?.igas || decisionRequest.iGasCost || existingDecision.data?.iGasCost
+      };
       this.cdr.detectChanges();
       return;
     }
@@ -595,8 +901,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     }
 
     // Create new decision message
-    this.addChatMessage({
-      type: 'assistant',
+    const chatMessage: Partial<ChatMessage> = {
+      type: 'assistant' as const,
       content: prompt,
       timestamp: Date.now(),
       showOptions: true,
@@ -610,8 +916,37 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         stepId: decisionRequest.stepId,
         isDecision: true,
         iGasCost: decisionRequest.data?.iGasCost || decisionRequest.data?.igas || decisionRequest.iGasCost
-      }
+      },
+      videoUrl: decisionRequest.videoUrl,
+      movieTitle: decisionRequest.movieTitle
+    };
+    
+    console.log('💬 [WorkflowChat] Creating new decision message:', {
+      stepId: chatMessage.data?.stepId,
+      hasVideoUrl: !!chatMessage.videoUrl,
+      videoUrl: chatMessage.videoUrl,
+      hasMovieTitle: !!chatMessage.movieTitle,
+      movieTitle: chatMessage.movieTitle,
+      optionsCount: chatMessage.options?.length || 0
     });
+    
+    this.addChatMessage(chatMessage);
+    console.log('💬 [WorkflowChat] ========================================');
+  }
+
+  getVideoUrl(videoUrl?: string): string {
+    if (!videoUrl) return '';
+    // Ensure the video URL is absolute (match workflow-display implementation)
+    if (videoUrl.startsWith('/')) {
+      return `${this.apiUrl}${videoUrl}`;
+    }
+    // If already absolute URL, return as-is
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      return videoUrl;
+    }
+    // Convert relative URL to absolute URL
+    const baseUrl = this.apiUrl.replace(/\/$/, ''); // Remove trailing slash
+    return `${baseUrl}/${videoUrl}`;
   }
 
   private addSelectionMessage(options: any[], serviceType: string) {
@@ -672,24 +1007,42 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   onOptionSelected(option: any, message?: ChatMessage) {
+    console.log(`💬 [WorkflowChat] ========================================`);
+    console.log(`💬 [WorkflowChat] onOptionSelected called`);
+    console.log(`💬 [WorkflowChat] option:`, option);
+    console.log(`💬 [WorkflowChat] message:`, message);
+    console.log(`💬 [WorkflowChat] message?.data:`, message?.data);
+    
     // Determine if this is a decision or selection
     const isDecision = message?.data?.isDecision || false;
     const executionId = message?.data?.executionId || this.activeExecution?.executionId;
     const stepId = message?.data?.stepId || this.activeExecution?.currentStep;
     
+    console.log(`💬 [WorkflowChat] isDecision: ${isDecision}, executionId: ${executionId}, stepId: ${stepId}`);
+    console.log(`💬 [WorkflowChat] activeExecution?.currentStep: ${this.activeExecution?.currentStep}`);
+    
     // CRITICAL: If we're at view_movie step, only accept "DONE_WATCHING" decisions
     // This prevents accidentally submitting a movie selection (like "AMC-001") when the workflow is waiting for "DONE_WATCHING"
+    const decisionValue = (option.value || option.label || 'selected').toUpperCase().trim();
+    console.log(`💬 [WorkflowChat] decisionValue: ${decisionValue}`);
+    
     if (stepId === 'view_movie') {
-      const decisionValue = (option.value || option.label || 'selected').toUpperCase().trim();
-      if (decisionValue !== 'DONE_WATCHING') {
+      // Check if this is a valid "DONE_WATCHING" decision
+      const isValidDoneWatching = decisionValue === 'DONE_WATCHING' || 
+                                   decisionValue === 'DONE WATCHING' ||
+                                   (option.label && option.label.toUpperCase().trim() === 'DONE WATCHING');
+      if (!isValidDoneWatching) {
         console.warn(`⚠️ [WorkflowChat] ========================================`);
         console.warn(`⚠️ [WorkflowChat] view_movie step received "${decisionValue}" instead of "DONE_WATCHING"`);
         console.warn(`⚠️ [WorkflowChat] isDecision: ${isDecision}, stepId: ${stepId}`);
+        console.warn(`⚠️ [WorkflowChat] option.value: ${option.value}, option.label: ${option.label}`);
         console.warn(`⚠️ [WorkflowChat] This might be a stale selection prompt from a previous step`);
         console.warn(`⚠️ [WorkflowChat] Ignoring this submission - waiting for "DONE_WATCHING" decision`);
         console.warn(`⚠️ [WorkflowChat] ========================================`);
         // Don't submit this - it's likely a stale selection prompt
         return;
+      } else {
+        console.log(`✅ [WorkflowChat] Valid DONE_WATCHING decision for view_movie step: ${decisionValue}`);
       }
     }
 
@@ -755,20 +1108,35 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       console.log(`💬 [WorkflowChat] ========================================`);
       
       // Use submitDecision for both decisions and selections
+      console.log('💬 [WorkflowChat] ========================================');
+      console.log('💬 [WorkflowChat] About to call flowWiseService.submitDecision');
+      console.log('💬 [WorkflowChat] executionId:', executionId);
+      console.log('💬 [WorkflowChat] decisionValue:', decisionValue);
+      console.log('💬 [WorkflowChat] finalStepId:', finalStepId);
+      console.log('💬 [WorkflowChat] isDecision:', isDecision);
+      console.log('💬 [WorkflowChat] ========================================');
+      
       this.flowWiseService.submitDecision(
         executionId, 
         decisionValue,
         finalStepId
-      ).then(() => {
-        console.log('💬 [WorkflowChat] Decision/selection submitted successfully');
+      ).then((result) => {
+        console.log('💬 [WorkflowChat] ========================================');
+        console.log('💬 [WorkflowChat] ✅ Decision/selection submitted successfully');
+        console.log('💬 [WorkflowChat] Result:', result);
+        console.log('💬 [WorkflowChat] ========================================');
         // NOTE: Do NOT add confirmation message here - wait for workflow_completed or ledger_booking_completed event
         // The confirmation will be added when the workflow actually completes payment processing
       }).catch((error) => {
-        console.error('💬 [WorkflowChat] Failed to submit decision/selection:', error);
+        console.error('💬 [WorkflowChat] ========================================');
+        console.error('💬 [WorkflowChat] ❌ Failed to submit decision/selection:', error);
+        console.error('💬 [WorkflowChat] Error message:', error.message);
+        console.error('💬 [WorkflowChat] Error stack:', error.stack);
+        console.error('💬 [WorkflowChat] ========================================');
         // Show error message
         this.addChatMessage({
           type: 'system',
-          content: '❌ Failed to process your choice. Please try again.',
+          content: `❌ Failed to process your choice: ${error.message || 'Unknown error'}. Please try again.`,
           timestamp: Date.now()
         });
       });
@@ -936,10 +1304,109 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Mark as displayed
     this.displayedLedgerEntryIds.add(entry.entryId);
 
+    // Extract fields from entry (handle nested structures)
+    // For DEX trades, ALWAYS prioritize bookingDetails.baseAmount (the actual SOL amount traded)
+    const isDexTrade = entry.serviceType === 'dex' 
+      || entry.entry?.serviceType === 'dex' 
+      || entry.bookingDetails?.action
+      || entry.bookingDetails?.tokenSymbol;
+    
+    // Get bookingDetails from multiple possible locations
+    const bookingDetails = entry.bookingDetails 
+      || entry.entry?.bookingDetails 
+      || entry.data?.bookingDetails;
+    
+    let amount = 0;
+    
+    // CRITICAL: For DEX trades, backend sets entry.amount correctly, so prioritize it
+    // Use bookingDetails.baseAmount only if entry.amount is missing/0 (shouldn't happen, but safety)
+    if (isDexTrade) {
+      // First, try entry.amount (backend sets this correctly)
+      if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
+        amount = entry.amount;
+        console.log('💬 [WorkflowChat] DEX trade: Using entry.amount from backend:', amount);
+      } else if (entry.entry?.amount !== undefined && entry.entry?.amount !== null && entry.entry.amount > 0) {
+        amount = entry.entry.amount;
+        console.log('💬 [WorkflowChat] DEX trade: Using entry.entry.amount:', amount);
+      } else if (bookingDetails) {
+        // Fallback to bookingDetails only if entry.amount is missing
+        const baseAmount = bookingDetails.baseAmount;
+        const totalAmount = bookingDetails.totalAmount;
+        const bookingAmount = bookingDetails.amount;
+        
+        console.log('💬 [WorkflowChat] DEX trade amount extraction (fallback):', {
+          entryId: entry.entryId,
+          entryAmount: entry.amount,
+          baseAmount,
+          totalAmount,
+          bookingAmount,
+          hasBookingDetails: !!bookingDetails
+        });
+        
+        if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
+          amount = Number(baseAmount);
+          console.log('💬 [WorkflowChat] Using baseAmount from bookingDetails (fallback):', amount);
+        } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
+          amount = Number(totalAmount);
+          console.log('💬 [WorkflowChat] Using totalAmount from bookingDetails (fallback):', amount);
+        } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
+          amount = Number(bookingAmount);
+          console.log('💬 [WorkflowChat] Using bookingAmount from bookingDetails (fallback):', amount);
+        }
+      }
+      
+      // Final safety check
+      if ((amount === 0 || amount === null || amount === undefined)) {
+        console.error('💬 [WorkflowChat] DEX trade: Could not extract amount!', {
+          entryId: entry.entryId,
+          entryAmount: entry.amount,
+          entryEntryAmount: entry.entry?.amount,
+          bookingDetails: bookingDetails ? JSON.stringify(bookingDetails) : 'missing'
+        });
+      }
+    } else {
+      // Non-DEX trades: check standard fields
+      amount = entry.amount !== undefined && entry.amount !== null && entry.amount > 0
+        ? entry.amount
+        : (entry.entry?.amount !== undefined && entry.entry?.amount !== null && entry.entry.amount > 0
+            ? entry.entry.amount
+            : (entry.snapshot?.amount !== undefined && entry.snapshot?.amount !== null && entry.snapshot.amount > 0
+                ? entry.snapshot.amount
+                : 0));
+    }
+    
+    // Final fallback: try bookingDetails for non-DEX or if still 0
+    if ((amount === 0 || amount === null || amount === undefined) && bookingDetails && !isDexTrade) {
+      const fallbackAmount = bookingDetails.totalAmount 
+        || bookingDetails.baseAmount
+        || bookingDetails.price
+        || bookingDetails.amount;
+      if (fallbackAmount !== undefined && fallbackAmount !== null && !isNaN(Number(fallbackAmount)) && Number(fallbackAmount) > 0) {
+        amount = Number(fallbackAmount);
+      }
+    }
+    
+    // Extract merchant - try multiple sources including bookingDetails
+    const merchant = entry.merchant 
+      || entry.entry?.merchant 
+      || entry.snapshot?.merchant 
+      || entry.bookingDetails?.merchantName
+      || entry.bookingDetails?.providerName
+      || 'N/A';
+    
+    // Extract serviceType
+    const serviceType = entry.serviceType 
+      || entry.entry?.serviceType 
+      || entry.snapshot?.serviceType 
+      || entry.bookingDetails?.serviceType
+      || 'N/A';
+    
+    const status = entry.status || entry.entry?.status || 'pending';
+    
     // Create a formatted ledger message
     const details = this.formatBookingDetails(entry);
     // HARDCODED: Always show restaurant entries as completed
-    const displayStatus = entry.serviceType === 'restaurant' ? 'completed' : entry.status;
+    const displayStatus = serviceType === 'restaurant' ? 'completed' : status;
     const statusEmoji = displayStatus === 'completed' ? '✅' : 
                         displayStatus === 'processed' ? '⏳' : 
                         displayStatus === 'pending' ? '⏱️' : '❌';
@@ -951,11 +1418,27 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           ? entry.entry.iGasCost 
           : 0);
 
-    console.log('💬 [WorkflowChat] Creating ledger message with iGasCost:', {
+    console.log('💬 [WorkflowChat] Creating ledger message:', {
       entryId: entry.entryId,
+      extractedAmount: amount,
+      merchant: merchant,
+      serviceType: serviceType,
       iGasCost: iGasCost,
-      entryIGasCost: entry.iGasCost,
-      entryEntryIGasCost: entry.entry?.iGasCost
+      status: status,
+      isDexTrade: isDexTrade,
+      bookingDetails: bookingDetails ? {
+        baseAmount: bookingDetails.baseAmount,
+        totalAmount: bookingDetails.totalAmount,
+        action: bookingDetails.action,
+        tokenSymbol: bookingDetails.tokenSymbol,
+        tokenAmount: bookingDetails.tokenAmount,
+        fullBookingDetails: JSON.stringify(bookingDetails)
+      } : null,
+      entryAmount: entry.amount,
+      entryEntryAmount: entry.entry?.amount,
+      snapshotAmount: entry.snapshot?.amount,
+      hasBookingDetails: !!bookingDetails,
+      entryFull: JSON.stringify(entry, null, 2).substring(0, 500) // First 500 chars for debugging
     });
 
     // Log the full entry to debug
@@ -964,13 +1447,13 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     this.addChatMessage({
       type: 'ledger',
       content: `${statusEmoji} **Transaction ${displayStatus}**`,
-      timestamp: entry.timestamp || Date.now(),
+      timestamp: entry.timestamp || entry.entry?.timestamp || Date.now(),
       data: {
         entry: { ...entry, status: displayStatus }, // Use displayStatus for UI
         details: details,
-        amount: entry.amount,
-        merchant: entry.merchant,
-        serviceType: entry.serviceType,
+        amount: amount,
+        merchant: merchant,
+        serviceType: serviceType,
         iGasCost: iGasCost
       }
     });
@@ -992,6 +1475,19 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     const num = typeof iGasCost === 'string' ? parseFloat(iGasCost) : iGasCost;
     if (isNaN(num)) return '0.000000';
     return num.toFixed(6);
+  }
+
+  formatAmount(amount: number | undefined | null): string {
+    if (amount === undefined || amount === null || isNaN(amount)) return '0.00';
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(num)) return '0.00';
+    
+    // For very small amounts (< 0.01), show more decimal places
+    if (Math.abs(num) < 0.01 && num !== 0) {
+      return num.toFixed(6);
+    }
+    // For regular amounts, show 2 decimal places
+    return num.toFixed(2);
   }
 
   formatBookingDetails(entry: any): string {

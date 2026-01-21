@@ -1504,6 +1504,235 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769019038285_fbe1b689e68c1",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "I want two sci-fi movies tonight at best price in white marsh",
+        "timestamp": 1769019038285,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769019132362_caabce24788198",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "I want two sci-fi movies tonight at best price in white marsh",
+        "timestamp": 1769019132362,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020008864_2d32cb91237f3",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "I want two sci-fi movies tonight at best price in white marsh",
+        "timestamp": 1769020008864,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020016138_c13de00e2a5718",
+        "conversationId": "conv:garden:T2:god",
+        "role": "ASSISTANT",
+        "content": "Explore the TOKEN Pool (Garden-DEX) featuring Token 1 with a base token of SOL. This listing offers a price of 0.001 and a liquidity of 100 units. It is an excellent choice for your needs.",
+        "timestamp": 1769020016138,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020352790_93c913ea7523b8",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "I want two sci-fi movies tonight at best price in white marsh",
+        "timestamp": 1769020352790,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020361725_c9060d0a18844",
+        "conversationId": "conv:garden:T2:god",
+        "role": "ASSISTANT",
+        "content": "Explore the TOKEN Pool on Garden-DEX with Token 1 available at a price of 0.001000020000400006 SOL. This pool offers a liquidity of 100.001 SOL and has a 24h trading volume of 0.001000020000200002 SOL. Perfect for your trading needs.",
+        "timestamp": 1769020361725,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020418706_00413bf30d2668",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "need to trade 2 SOL for TOKEN at best price",
+        "timestamp": 1769020418706,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020637736_8bdb8524ae8a58",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "need to trade TOKEN with SOL",
+        "timestamp": 1769020637736,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769020839941_bd3e7419c17f48",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "trade 2SOL for TOKEN",
+        "timestamp": 1769020839941,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769021577780_8ba1d50f9514f8",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "I want two sci-fi movies tonight at best price in white marsh",
+        "timestamp": 1769021577780,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769021604082_1acae04571c008",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "trade 2 SOL for token",
+        "timestamp": 1769021604082,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769022005591_7049d7ca1909",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "trade 3 SOL for TOKEN",
+        "timestamp": 1769022005591,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769022885344_392159cfea5d98",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769022885344,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031047315_35b9304cdd781",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKENA",
+        "timestamp": 1769031047315,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031187322_5bce51fa415718",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031187322,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031393382_1eba23e10fc9",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031393382,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031580995_73870f47c24738",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031580995,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031879205_127ccbf7b8767",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031879205,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769031966432_4240ea6447fc9",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769031966432,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769032120271_057d34d1b6507",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769032120271,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769032208340_d830a301ce0c68",
+        "conversationId": "conv:garden:T2:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769032208340,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
       }
     ],
     "conv:garden:garden-13:god": [
@@ -3929,6 +4158,247 @@
         "timestamp": 1769010834095,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769011407935_eabffe93f0864",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769011407935,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769011414369_0ca9008581c86",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "For an evening sci-fi movie experience, we recommend 'The Matrix' at AMC Theatres in Baltimore, Maryland. The movie has an excellent rating of 4.9 stars based on 150 reviews and is showing at 8:00 PM. Tickets are priced at $2.",
+        "timestamp": 1769011414369,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769011416269_98a814d9863d2",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "For an evening sci-fi movie experience, we recommend 'The Matrix' at AMC Theatres in Baltimore, Maryland. The movie has an excellent rating of 4.9 stars based on 150 reviews and is showing at 8:00 PM. Tickets are priced at $2.",
+        "timestamp": 1769011416269,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015387603_f9e5e3dd07c42",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769015387603,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015392881_a6b190c90deaf",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769015392881,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015400947_86057ee359fc58",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie experience in the evening, you can enjoy 'The Matrix' at AMC Theatres. The showtime is at 8:00 PM in Baltimore, Maryland. Tickets are priced at $2, with a high rating of 4.9 based on 150 reviews.",
+        "timestamp": 1769015400947,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015401455_eba03443cf0e8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie experience this evening, consider 'The Matrix' showing at 8:00 PM at AMC Theatres in Baltimore, Maryland. With a rating of 4.9 out of 5 from 150 reviews, it's a highly-rated choice. Tickets are priced at $2.",
+        "timestamp": 1769015401455,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:movie:god": [
+      {
+        "id": "c_1769015321275_3526427fb3d73",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "need sci-fi movie tonight at white marsh",
+        "timestamp": 1769015321275,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015327668_d11520c587e158",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "Looking for a sci-fi movie to watch in the evening? Check out 'The Matrix' at AMC Theatres in Baltimore, Maryland. Showtime is at 8:00 PM. With a rating of 4.9 from 150 reviews, it's a great pick for your evening entertainment. Tickets are priced at $2.",
+        "timestamp": 1769015327668,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015340260_6875aa85a28648",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769015340260,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015504451_5593602c460718",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769015504451,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769015511450_26022e63d2741",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie experience this evening, consider watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM, and it's highly rated with a 4.9 out of 5 from 150 reviews. Tickets are priced at $2.",
+        "timestamp": 1769015511450,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:dex:god": [
+      {
+        "id": "c_1769022260612_681790d2f311c8",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769022260612,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769022620336_373c9225dbbb88",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769022620336,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769023099670_9c52b81b9f8a88",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769023099670,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769023180050_d58d3f49d9243",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with Token",
+        "timestamp": 1769023180050,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769029740361_880c20d29eeeb8",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL for TOKEN",
+        "timestamp": 1769029740361,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769029781127_e61aa4554779d8",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769029781127,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030038993_d24561fce947a",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKEN",
+        "timestamp": 1769030038994,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030483300_d63aec3ef4969",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL for 1 TOKEN",
+        "timestamp": 1769030483300,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      },
+      {
+        "id": "c_1769030908527_274226f6ce1fe",
+        "conversationId": "conv:service:dex:god",
+        "role": "USER",
+        "content": "trade 2 SOL with TOKENA",
+        "timestamp": 1769030908527,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
+        "status": "active"
+      }
+    ],
+    "conv:garden:T1:god": [
+      {
+        "id": "c_1769038144998_23fe85180271c8",
+        "conversationId": "conv:garden:T1:god",
+        "role": "USER",
+        "content": "Trade 2 SOL with TOKEN",
+        "timestamp": 1769038144998,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "dex",
         "status": "active"
       }
     ]
