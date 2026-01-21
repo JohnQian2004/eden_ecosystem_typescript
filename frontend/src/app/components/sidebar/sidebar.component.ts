@@ -445,6 +445,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   updateComponentStatus(event: SimulatorEvent) {
+    // Handle null or undefined component
+    if (!event.component) {
+      console.warn(`⚠️ [Sidebar] Event has no component:`, event.type);
+      return;
+    }
     const componentName = event.component.toLowerCase();
     let status: ComponentStatus['status'] = 'active';
     

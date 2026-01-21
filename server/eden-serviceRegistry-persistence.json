@@ -121,17 +121,161 @@
       "gardenId": "garden-1"
     },
     {
-      "id": "dogpark-f0b81af9",
+      "id": "autoparts-1768940153934",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "7731f376-4485-4479-b9f9-af8fd6959401",
+      "apiEndpoint": "eden:plugin:mysql",
+      "gardenId": "garden-3"
+    },
+    {
+      "id": "autoparts-1768940174463",
+      "name": "Garden-AUTOPARTS-baycounter.com Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "e123476f-6e8e-42b5-b3d0-5c3d7f7c6c8e",
+      "apiEndpoint": "eden:plugin:mysql",
+      "gardenId": "garden-4"
+    },
+    {
+      "id": "dogpark-79cde190",
       "name": "Garden-DOGPARK Provider",
       "serviceType": "dogpark",
       "location": "Unknown",
       "bond": 1000,
       "reputation": 5,
       "status": "active",
-      "uuid": "0d74f8b8-145f-46c1-962b-4a73f9a48281",
+      "uuid": "0c674fc3-a83a-4823-90fa-23c01e10e350",
       "apiEndpoint": "https://api.dogpark.com/v1",
-      "gardenId": "garden-2"
+      "gardenId": "garden-5"
+    },
+    {
+      "id": "dex-pool-tokena",
+      "name": "TOKENA Pool (Garden-DEX)",
+      "serviceType": "dex",
+      "location": "Eden DEX",
+      "bond": 5000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "b6ba7ee6-09ab-4a26-8217-44435581d470",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokena",
+      "gardenId": "T1"
+    },
+    {
+      "id": "dex-pool-tokenb",
+      "name": "TOKENB Pool (Garden-DEX)",
+      "serviceType": "dex",
+      "location": "Eden DEX",
+      "bond": 5000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "8f52a776-cff5-4678-aaeb-7ae519d70944",
+      "apiEndpoint": "https://dex.eden.com/pools/pool-solana-tokenb",
+      "gardenId": "T2"
+    },
+    {
+      "id": "gasstation-96aa8771",
+      "name": "Garden-GASSTATION Provider",
+      "serviceType": "gasstation",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "a267afb2-bf42-4f0d-9e35-a100818893f6",
+      "apiEndpoint": "https://api.gasstation.com/v1",
+      "gardenId": "garden-6"
+    },
+    {
+      "id": "grocerystore-6711d06e",
+      "name": "Garden-GROCERYSTORE Provider",
+      "serviceType": "grocerystore",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "1c6e9152-6274-43be-bee0-76a6984c9459",
+      "apiEndpoint": "https://api.grocerystore.com/v1",
+      "gardenId": "garden-7"
+    },
+    {
+      "id": "hotel-754bcf7f",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "396020b1-39c0-4362-91a8-7da5b08d659e",
+      "apiEndpoint": "https://api.hotel.com/v1",
+      "gardenId": "garden-8"
+    },
+    {
+      "id": "pharmacy-2823c913",
+      "name": "Garden-PHARMACY Provider",
+      "serviceType": "pharmacy",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "eac0942e-ec95-4ba8-8281-d20b8dcaf6e2",
+      "apiEndpoint": "https://api.pharmacy.com/v1",
+      "gardenId": "garden-9"
+    },
+    {
+      "id": "restaurant-4dde043f",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "14c3c32c-2480-414b-986c-65ffa63a5ffe",
+      "apiEndpoint": "https://api.restaurant.com/v1",
+      "gardenId": "garden-10"
+    },
+    {
+      "id": "airline-dab6a830",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "f0003d3d-70a4-4928-957f-60820b4a37fb",
+      "apiEndpoint": "https://api.airline.com/v1",
+      "gardenId": "garden-11"
+    },
+    {
+      "id": "party-a0bc0a35",
+      "name": "Garden-PARTY Provider",
+      "serviceType": "party",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "uuid": "127ec2fd-ba7f-4a0a-9776-b92c5c2c7e1d",
+      "apiEndpoint": "https://api.party.com/v1",
+      "gardenId": "garden-12"
+    },
+    {
+      "id": "amc-001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "status": "active",
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings",
+      "gardenId": "garden-13"
     }
   ],
-  "lastSaved": "2026-01-20T20:14:28.030Z"
+  "lastSaved": "2026-01-21T03:21:34.023Z"
 }

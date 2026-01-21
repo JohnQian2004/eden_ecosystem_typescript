@@ -110,10 +110,10 @@
             <div class="chat-bubble chat-bubble-system" [ngClass]="{'chat-bubble-wallet': message.content.includes('Wallet Balance')}">
               <div class="chat-content" [innerHTML]="message.content.replace('**', '<strong>').replace('**', '</strong>')"></div>
               <div *ngIf="message.data?.balance !== undefined && message.data?.previousBalance !== undefined" class="mt-2 small">
-                <span *ngIf="message.data.previousBalance !== message.data.balance" class="text-muted">
-                  Previous: {{ message.data.previousBalance.toFixed(2) }} 🍎 APPLES → 
-                  <span [ngClass]="{'text-success': message.data.balance > message.data.previousBalance, 'text-danger': message.data.balance < message.data.previousBalance}">
-                    Current: {{ message.data.balance.toFixed(2) }} 🍎 APPLES
+                <span *ngIf="message.data?.previousBalance !== undefined && message.data?.previousBalance !== message.data?.balance" class="text-muted">
+                  Previous: {{ message.data?.previousBalance?.toFixed(2) }} 🍎 APPLES → 
+                  <span [ngClass]="{'text-success': message.data?.balance > message.data?.previousBalance, 'text-danger': message.data?.balance < message.data?.previousBalance}">
+                    Current: {{ message.data?.balance?.toFixed(2) }} 🍎 APPLES
                   </span>
                 </span>
               </div>

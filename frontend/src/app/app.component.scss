@@ -361,3 +361,25 @@
     }
   }
 }
+
+// Video player styles - ensure visibility
+video {
+  display: block !important;
+  visibility: visible !important;
+  min-height: 200px;
+  max-height: 400px;
+  width: 100%;
+  background-color: #000;
+  
+  &:not([src]) {
+    display: none;
+  }
+}
+
+// Ensure video container is visible
+.alert-info video,
+.card video {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}

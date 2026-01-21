@@ -3429,6 +3429,18 @@ httpServer.on("request", async (req, res) => {
         
         // Generate workflow using LLM
         console.log(`   🤖 [${requestId}] Generating workflow for service type: ${serviceType}`);
+        
+        // Check if OpenAI API key is configured before attempting generation
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+        if (!OPENAI_API_KEY && ENABLE_OPENAI) {
+          console.error(`   ❌ [${requestId}] OpenAI API key not configured`);
+          sendResponse(400, {
+            success: false,
+            error: "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable or disable OpenAI in config."
+          });
+          return;
+        }
+        
         const generatedWorkflow = await generateWorkflowFromTemplate(template, serviceType);
         
         // Save to file
@@ -3472,14 +3484,99 @@ httpServer.on("request", async (req, res) => {
         const parsedBody = JSON.parse(body);
         const { workflowId, decision, selectionData, stepId } = parsedBody;
 
-        if (!workflowId || !decision) {
-          sendResponse(400, { success: false, error: "workflowId and decision are required" });
+        console.log(`   🔍 [${requestId}] Request body parsed:`, {
+          hasWorkflowId: !!workflowId,
+          workflowId: workflowId,
+          hasDecision: !!decision,
+          decision: decision,
+          hasSelectionData: !!selectionData,
+          hasStepId: !!stepId,
+          stepId: stepId,
+          bodyKeys: Object.keys(parsedBody)
+        });
+
+        if (!workflowId) {
+          console.error(`   ❌ [${requestId}] Missing required field: workflowId`);
+          console.error(`   ❌ [${requestId}] Parsed body:`, JSON.stringify(parsedBody, null, 2));
+          sendResponse(400, { 
+            success: false, 
+            error: `Missing required field: workflowId`,
+            received: {
+              workflowId: workflowId || null,
+              decision: decision || null,
+              selectionData: selectionData || null,
+              stepId: stepId || null
+            }
+          });
+          return;
+        }
+
+        // CRITICAL: Check current workflow step before extracting decision from selectionData
+        // For view_movie step, we MUST have an explicit decision (DONE_WATCHING), not a selection
+        let currentStep: string | undefined;
+        try {
+          if (!(global as any).workflowExecutions) {
+            (global as any).workflowExecutions = new Map();
+          }
+          const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+          const execution = workflowExecutions.get(workflowId);
+          currentStep = execution?.currentStep;
+        } catch (e) {
+          // Execution might not exist yet, that's okay
+        }
+        
+        // CRITICAL: Handle selection-only requests (user_select_listing step)
+        // When selectionData is provided but decision is not, extract decision from selectionData
+        // EXCEPT for view_movie step, which requires an explicit decision
+        let finalDecision = decision;
+        if (!finalDecision && selectionData) {
+          // If we're at view_movie step, reject selectionData - require explicit decision
+          if (currentStep === 'view_movie') {
+            console.error(`   🎬 [${requestId}] ========================================`);
+            console.error(`   🎬 [${requestId}] ERROR: view_movie step received selectionData instead of explicit decision!`);
+            console.error(`   🎬 [${requestId}] view_movie requires an explicit decision: "DONE_WATCHING"`);
+            console.error(`   🎬 [${requestId}] SelectionData provided:`, selectionData);
+            console.error(`   🎬 [${requestId}] This is likely a stale selection from a previous step`);
+            console.error(`   🎬 [${requestId}] ========================================`);
+            sendResponse(400, { 
+              success: false, 
+              error: `Invalid request for view_movie step: received selectionData but expected explicit decision "DONE_WATCHING". This is likely a stale selection from a previous step.`,
+              code: 'INVALID_SELECTION_FOR_VIEW_MOVIE',
+              currentStep: 'view_movie',
+              requiredDecision: 'DONE_WATCHING'
+            });
+            return;
+          }
+          
+          // Extract decision from selectionData - use id, providerId, or movieId as the decision value
+          finalDecision = selectionData.id || 
+                         selectionData.providerId || 
+                         selectionData.movieId || 
+                         selectionData.poolId ||
+                         JSON.stringify(selectionData); // Fallback to full object as string
+          console.log(`   🔄 [${requestId}] No decision provided, extracted from selectionData: ${finalDecision}`);
+        }
+
+        // If still no decision, require it (for confirmation steps like user_confirm_listing)
+        if (!finalDecision) {
+          console.error(`   ❌ [${requestId}] Missing required field: decision (and no selectionData to extract from)`);
+          console.error(`   ❌ [${requestId}] Parsed body:`, JSON.stringify(parsedBody, null, 2));
+          sendResponse(400, { 
+            success: false, 
+            error: `Missing required field: decision (or selectionData to extract decision from)`,
+            received: {
+              workflowId: workflowId || null,
+              decision: decision || null,
+              selectionData: selectionData || null,
+              stepId: stepId || null
+            }
+          });
           return;
         }
 
         console.log(`   ✅ [${requestId}] ========================================`);
         console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
-        console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
+        console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${finalDecision} for workflow ${workflowId}`);
         console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
@@ -3488,14 +3585,15 @@ httpServer.on("request", async (req, res) => {
         
         console.log(`   🔐 [${requestId}] ========================================`);
         console.log(`   🔐 [${requestId}] Using FlowWiseService to process user decision`);
-        console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${decision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
+        console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${finalDecision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
         console.log(`   🔐 [${requestId}] About to call submitUserDecisionToFlowWise...`);
         console.log(`   🔐 [${requestId}] ========================================`);
 
         // Submit user decision to FlowWiseService
         // FlowWiseService will automatically execute the next step (including ROOT CA steps)
+        // Use finalDecision (which may have been extracted from selectionData)
         try {
-          const result = await submitUserDecisionToFlowWise(executionId, decision, selectionData);
+          const result = await submitUserDecisionToFlowWise(executionId, finalDecision, selectionData);
           
           // FlowWiseService handles all broadcasting internally
           // The result contains the instruction for the next step
@@ -3506,7 +3604,7 @@ httpServer.on("request", async (req, res) => {
           sendResponse(200, {
             success: true,
             message: `${selectionData ? 'Selection' : 'Decision'} submitted successfully`,
-            decision,
+            decision: finalDecision,
             selectionData,
             instruction: result.instruction
           });
@@ -3514,7 +3612,18 @@ httpServer.on("request", async (req, res) => {
           console.error(`   ❌ [${requestId}] Error processing decision with FlowWiseService:`, error.message);
           console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
           console.error(`   ❌ [${requestId}] Full error:`, error);
-          sendResponse(500, { success: false, error: error.message, stack: error.stack });
+          
+          // If it's a validation error for view_movie step, return 400 Bad Request
+          if (error.message && error.message.includes('Invalid decision for view_movie step')) {
+            sendResponse(400, { 
+              success: false, 
+              error: error.message,
+              message: 'Invalid decision submitted. The workflow is waiting for "DONE_WATCHING" decision, but received a movie selection instead. Please click "Done Watching" button.',
+              code: 'INVALID_DECISION_FOR_VIEW_MOVIE'
+            });
+          } else {
+            sendResponse(500, { success: false, error: error.message, stack: error.stack });
+          }
         }
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error parsing request:`, error.message);
@@ -7381,7 +7490,7 @@ httpServer.on("request", async (req, res) => {
         const requestData = JSON.parse(body);
         // Accept both gardenName and indexerName for backward compatibility
         const gardenName = requestData.gardenName || requestData.indexerName;
-        const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
+        const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders, videoUrl } = requestData;
 
         // DEX Gardens are a separate ecosystem (no 🍎 APPLES ledger). Route to DexGardensService.
         if ((serviceType || '').toLowerCase() === 'dex') {
@@ -7679,6 +7788,11 @@ httpServer.on("request", async (req, res) => {
         (gardenConfig as any).networkType = networkType || "http";
         (gardenConfig as any).serviceType = serviceType;
         (gardenConfig as any).isSnake = isSnake || false;
+        // Store videoUrl for movie gardens
+        if (videoUrl && (serviceType === 'movie' || serviceType === 'amc')) {
+          (gardenConfig as any).videoUrl = videoUrl;
+          console.log(`   🎬 [${requestId}] Video URL configured for movie garden: ${videoUrl}`);
+        }
         
         console.log(`   👤 [${requestId}] Garden ownership assigned to Priest user: ${email}`);
         
@@ -9110,7 +9224,78 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  // Serve video files from data directory
+  // Serve video files from /api/movie/video/ endpoint (garden-specific video serving)
+  if (pathname.startsWith("/api/movie/video/")) {
+    const videoFile = pathname.substring("/api/movie/video/".length); // Remove "/api/movie/video/" prefix
+    const videoPath = path.join(__dirname, "data", videoFile);
+    
+    // Security: Ensure the resolved path is within the data directory
+    const resolvedPath = path.resolve(videoPath);
+    const dataDir = path.resolve(path.join(__dirname, "data"));
+    if (!resolvedPath.startsWith(dataDir)) {
+      console.log(`   🚫 [${requestId}] Forbidden video access attempt: ${pathname}`);
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden");
+      return;
+    }
+    
+    fs.access(videoPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.log(`   ❌ [${requestId}] Video file not found: ${videoPath}`);
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Video not found");
+        return;
+      }
+      
+      // Check if it's actually a video file (not a placeholder text file)
+      const stat = fs.statSync(videoPath);
+      // Allow small files for development (they might be placeholders, but serve them anyway)
+      // In production, you should replace placeholders with actual video files
+      if (videoPath.endsWith('.txt')) {
+        console.log(`   ⚠️ [${requestId}] Video file is a .txt file (placeholder): ${videoFile} (${stat.size} bytes)`);
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Video file is a placeholder - please provide a real video file");
+        return;
+      }
+      
+      // Warn if file is very small (likely a placeholder) but still serve it for development
+      // This allows testing the video player UI even with placeholder files
+      if (stat.size < 1000) {
+        console.log(`   ⚠️ [${requestId}] Warning: Video file is very small (${stat.size} bytes) - may be a placeholder`);
+        console.log(`   ⚠️ [${requestId}] Serving anyway for development/testing purposes`);
+      }
+      
+      console.log(`   🎬 [${requestId}] Serving video file via /api/movie/video/: ${videoFile} (${stat.size} bytes)`);
+      
+      // Set appropriate headers for video streaming
+      const range = req.headers.range;
+      if (range) {
+        // Handle range requests for video seeking
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        const head = {
+          "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunksize,
+          "Content-Type": "video/mp4",
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        res.writeHead(200, {
+          "Content-Length": stat.size,
+          "Content-Type": "video/mp4",
+        });
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    });
+    return;
+  }
+
+  // Serve video files from data directory (legacy /videos/ endpoint)
   if (pathname.startsWith("/videos/")) {
     const videoFile = pathname.substring(8); // Remove "/videos/" prefix
     const videoPath = path.join(__dirname, "data", videoFile);
@@ -9197,7 +9382,10 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(404);
           res.end("Not Found");
         } else {
-          res.writeHead(200, { "Content-Type": "text/html" });
+          res.writeHead(200, { 
+            "Content-Type": "text/html",
+            "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; media-src 'self' http: https:; connect-src 'self' ws: wss: http: https: https://accounts.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com;"
+          });
           res.end(data);
         }
       });
@@ -9772,8 +9960,11 @@ INSTRUCTIONS:
 
 CRITICAL: Return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanations. Just the JSON object.`;
 
+  // Get ENABLE_OPENAI from config (same as used elsewhere in the file)
+  const ENABLE_OPENAI_FOR_WORKFLOW = ENABLE_OPENAI ?? true; // Default to true if not set
+  
   try {
-    const llmResponse = await callLLM(prompt, ENABLE_OPENAI);
+    const llmResponse = await callLLM(prompt, ENABLE_OPENAI_FOR_WORKFLOW);
     
     // Try to parse the response as JSON
     let generatedWorkflow: any;

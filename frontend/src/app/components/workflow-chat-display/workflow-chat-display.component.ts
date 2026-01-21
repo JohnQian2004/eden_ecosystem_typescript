@@ -676,6 +676,22 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     const isDecision = message?.data?.isDecision || false;
     const executionId = message?.data?.executionId || this.activeExecution?.executionId;
     const stepId = message?.data?.stepId || this.activeExecution?.currentStep;
+    
+    // CRITICAL: If we're at view_movie step, only accept "DONE_WATCHING" decisions
+    // This prevents accidentally submitting a movie selection (like "AMC-001") when the workflow is waiting for "DONE_WATCHING"
+    if (stepId === 'view_movie') {
+      const decisionValue = (option.value || option.label || 'selected').toUpperCase().trim();
+      if (decisionValue !== 'DONE_WATCHING') {
+        console.warn(`⚠️ [WorkflowChat] ========================================`);
+        console.warn(`⚠️ [WorkflowChat] view_movie step received "${decisionValue}" instead of "DONE_WATCHING"`);
+        console.warn(`⚠️ [WorkflowChat] isDecision: ${isDecision}, stepId: ${stepId}`);
+        console.warn(`⚠️ [WorkflowChat] This might be a stale selection prompt from a previous step`);
+        console.warn(`⚠️ [WorkflowChat] Ignoring this submission - waiting for "DONE_WATCHING" decision`);
+        console.warn(`⚠️ [WorkflowChat] ========================================`);
+        // Don't submit this - it's likely a stale selection prompt
+        return;
+      }
+    }
 
     // Format the confirmation message based on option type
     let choiceText: string;
@@ -726,11 +742,23 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
     // Submit decision/selection to workflow AFTER displaying confirmation
     if (executionId) {
+      // CRITICAL: Ensure stepId is passed - use activeExecution.currentStep as fallback
+      const finalStepId = stepId || this.activeExecution?.currentStep;
+      const decisionValue = option.value || option.label || 'selected';
+      
+      console.log(`💬 [WorkflowChat] ========================================`);
+      console.log(`💬 [WorkflowChat] SUBMITTING DECISION/SELECTION`);
+      console.log(`💬 [WorkflowChat] Execution ID: ${executionId}`);
+      console.log(`💬 [WorkflowChat] Step ID: ${finalStepId || 'unknown'}`);
+      console.log(`💬 [WorkflowChat] Decision value: ${decisionValue}`);
+      console.log(`💬 [WorkflowChat] isDecision: ${isDecision}`);
+      console.log(`💬 [WorkflowChat] ========================================`);
+      
       // Use submitDecision for both decisions and selections
       this.flowWiseService.submitDecision(
         executionId, 
-        option.value || option.label || 'selected',
-        stepId
+        decisionValue,
+        finalStepId
       ).then(() => {
         console.log('💬 [WorkflowChat] Decision/selection submitted successfully');
         // NOTE: Do NOT add confirmation message here - wait for workflow_completed or ledger_booking_completed event

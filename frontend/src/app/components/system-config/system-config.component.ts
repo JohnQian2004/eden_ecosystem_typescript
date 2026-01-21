@@ -19,6 +19,7 @@ interface GardenConfig {
   networkType: 'http' | 'https';
   isSnake: boolean;
   selectedProviders?: string[]; // Selected movie theater providers
+  videoUrl?: string; // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
 }
 
 interface CustomProvider {
@@ -120,7 +121,8 @@ LIMIT 30 OFFSET 0`;
     serverPort: 3001,
     networkType: 'http',
     isSnake: false,
-    selectedProviders: []
+    selectedProviders: [],
+    videoUrl: '' // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
   };
   
   // Available movie theater providers (predefined)
@@ -298,11 +300,12 @@ LIMIT 30 OFFSET 0`;
   loadServiceTypes() {
     // Service types are now derived from existing workflows instead of hardcoded API
     // This removes hardcoded dependencies and uses only workflows that actually exist
+    // CRITICAL: Always include "movie" as a default service type even if workflow doesn't exist
     this.isLoadingServiceTypes = true;
     
     // Convert existing workflows to service types
     const existingWorkflows = this.getExistingWorkflows();
-    this.serviceTypes = existingWorkflows.map(workflow => {
+    const workflowServiceTypes = existingWorkflows.map(workflow => {
       // Map workflow service type to ServiceType format
       const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
       
@@ -328,7 +331,8 @@ LIMIT 30 OFFSET 0`;
           'priest': '⛪',
           'school': '🏢',
           'university': '🏢',
-          'snake': '🐍'
+          'snake': '🐍',
+          'movie': '🎬'
         };
         icon = fallbackIconMap[workflow.serviceType] || '🏢';
       }
@@ -341,8 +345,24 @@ LIMIT 30 OFFSET 0`;
       };
     });
     
+    // CRITICAL: Always include "movie" as a default service type, even if workflow doesn't exist
+    // This ensures movie gardens can always be created via the wizard
+    const hasMovie = workflowServiceTypes.some(st => st.type === 'movie');
+    if (!hasMovie) {
+      const catalogEntry = getCatalogEntry('movie');
+      const movieIcon = catalogEntry?.icon || '🎬';
+      workflowServiceTypes.unshift({
+        type: 'movie',
+        icon: movieIcon,
+        name: 'Movie',
+        description: 'Movie theater service - Users can search for movies, select showtimes, and purchase tickets'
+      });
+      console.log('✅ Added "movie" as default service type (workflow may not exist yet)');
+    }
+    
+    this.serviceTypes = workflowServiceTypes;
     this.isLoadingServiceTypes = false;
-    console.log(`✅ Loaded ${this.serviceTypes.length} service types from existing workflows (removed hardcoded dependencies)`);
+    console.log(`✅ Loaded ${this.serviceTypes.length} service types (${existingWorkflows.length} from existing workflows + movie as default)`);
   }
 
   // Get service type options for dropdown (from catalog + fallback types)
@@ -418,9 +438,13 @@ LIMIT 30 OFFSET 0`;
     if (serviceType.type === 'movie') {
       // Start with empty selection - user must manually select providers
       this.gardenConfig.selectedProviders = [];
+      // Set default video URL for movie gardens
+      this.gardenConfig.videoUrl = '/api/movie/video/2025-12-09-144801890.mp4';
       console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
+      console.log('🎬 Set default videoUrl:', this.gardenConfig.videoUrl);
     } else {
       this.gardenConfig.selectedProviders = [];
+      this.gardenConfig.videoUrl = '';
     }
     
     // Refresh wallet balance when entering configuration step
@@ -538,7 +562,8 @@ LIMIT 30 OFFSET 0`;
       serverPort: this.gardenConfig.serverPort,
       networkType: this.gardenConfig.networkType,
       isSnake: this.gardenConfig.isSnake,
-      email: this.userEmail
+      email: this.userEmail,
+      videoUrl: this.gardenConfig.videoUrl || '' // Video URL for movie gardens
     };
 
     if (!isDexGarden) {
