@@ -417,6 +417,9 @@ export async function executeNextStep(executionId: string): Promise<{
     
     for (const event of step.websocketEvents) {
       const processedEvent = replaceTemplateVariables(event, contextWithIds);
+      // CRITICAL: Preserve options array from original event if it exists
+      // Template variable replacement might corrupt arrays, so we preserve the original
+      const originalOptions = event.data?.options || processedEvent.data?.options;
       if (step.id === 'view_movie') {
         console.log(`🎬 [FlowWiseService] Broadcasting event: ${event.type}`);
         console.log(`🎬 [FlowWiseService] Original event data:`, JSON.stringify(event.data, null, 2));
@@ -424,9 +427,6 @@ export async function executeNextStep(executionId: string): Promise<{
         console.log(`🎬 [FlowWiseService] Processed event data.videoUrl:`, processedEvent.data?.videoUrl);
         console.log(`🎬 [FlowWiseService] Processed event data.movieTitle:`, processedEvent.data?.movieTitle);
       }
-      // CRITICAL: Preserve options array from original event if it exists
-      // Template variable replacement might corrupt arrays, so we preserve the original
-      const originalOptions = event.data?.options || processedEvent.data?.options;
       
       const finalEventData = {
         ...processedEvent.data,
@@ -514,6 +514,18 @@ export async function executeNextStep(executionId: string): Promise<{
       console.log(`   🤔 [FlowWiseService] Clearing previous userDecision: ${previousUserDecision} (from previous step)`);
       context.userDecision = undefined;
       delete context.userDecision;
+    }
+    
+    // CRITICAL: For user_select_listing step, clear userSelection to ensure it waits for user input
+    // Even if selectedListing exists from LLM, userSelection should be empty until user makes a selection
+    if (step.id === 'user_select_listing') {
+      const previousUserSelection = context.userSelection;
+      if (previousUserSelection !== undefined && previousUserSelection !== null) {
+        console.log(`   🎬 [FlowWiseService] Clearing previous userSelection (from previous step) to ensure fresh selection`);
+        context.userSelection = undefined;
+        delete context.userSelection;
+      }
+      console.log(`   🎬 [FlowWiseService] user_select_listing step - userSelection cleared, selectedListing exists: ${!!context.selectedListing}`);
     }
     
     if (step.id === 'view_movie') {
@@ -634,6 +646,14 @@ export async function executeNextStep(executionId: string): Promise<{
   console.log(`🔄 [FlowWiseService] Found ${transitions.length} transitions from step: ${currentStep}`);
   let nextStepId: string | null = null;
 
+  if (currentStep === 'llm_resolution') {
+    console.log(`🔄 [FlowWiseService] ⚠️ LLM RESOLUTION STEP - Checking transitions`);
+    console.log(`🔄 [FlowWiseService] Current step: ${currentStep}`);
+    console.log(`🔄 [FlowWiseService] Context listings count: ${context.listings?.length || 0}`);
+    console.log(`🔄 [FlowWiseService] Context listings exists: ${!!context.listings}`);
+    console.log(`🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+  }
+
   if (currentStep === 'user_confirm_listing' || currentStep === 'user_select_listing') {
     console.log(`🔄 [FlowWiseService] ⚠️ USER CONFIRM/SELECT LISTING STEP - Checking transitions`);
     console.log(`🔄 [FlowWiseService] Current step: ${currentStep}`);
@@ -652,6 +672,14 @@ export async function executeNextStep(executionId: string): Promise<{
       console.log(`🔄 [FlowWiseService] Condition met: ${conditionMet}`);
     }
     
+    if (transition.to === 'user_select_listing') {
+      console.log(`🎬 [FlowWiseService] ⚠️⚠️⚠️ TRANSITION TO USER_SELECT_LISTING STEP DETECTED! ⚠️⚠️⚠️`);
+      console.log(`🎬 [FlowWiseService] Condition: ${transition.condition || 'always'}`);
+      console.log(`🎬 [FlowWiseService] Condition met: ${conditionMet}`);
+      console.log(`🎬 [FlowWiseService] Context listings count: ${context.listings?.length || 0}`);
+      console.log(`🎬 [FlowWiseService] Context listings exists: ${!!context.listings}`);
+    }
+    
     if (transition.to === 'view_movie') {
       console.log(`🎬 [FlowWiseService] ⚠️⚠️⚠️ TRANSITION TO VIEW_MOVIE STEP DETECTED! ⚠️⚠️⚠️`);
       console.log(`🎬 [FlowWiseService] Condition: ${transition.condition || 'always'}`);
@@ -668,6 +696,10 @@ export async function executeNextStep(executionId: string): Promise<{
       
       if (nextStepId === 'root_ca_ledger_and_payment') {
         console.log(`🔄 [FlowWiseService] 🎯🎯🎯 TRANSITIONING TO PAYMENT STEP! 🎯🎯🎯`);
+      }
+      
+      if (nextStepId === 'user_select_listing') {
+        console.log(`🎬 [FlowWiseService] 🎯🎯🎯 TRANSITIONING TO USER_SELECT_LISTING STEP! 🎯🎯🎯`);
       }
       
       if (nextStepId === 'view_movie') {
