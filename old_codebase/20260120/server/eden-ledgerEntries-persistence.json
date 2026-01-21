@@ -6022,7 +6022,844 @@
         "reviewCount": 150,
         "rating": 4.9
       }
+    },
+    {
+      "entryId": "e899975e-c8ee-43ae-969a-a5a286988bab",
+      "txId": "tx_1768972357412",
+      "timestamp": 1768972357412,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "f78febd3-4fc1-417e-9f06-d24d1f6c5e13",
+      "txId": "tx_1768972885908",
+      "timestamp": 1768972885908,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "ae84a4a8-bc02-483b-83e6-a8af8740f713",
+      "txId": "tx_1768973007289",
+      "timestamp": 1768973007289,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "965041d4-d1cb-4ec3-a4ad-a3f9e0b8f3e3",
+      "txId": "tx_1768973103528",
+      "timestamp": 1768973103528,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "5821c826-76a7-48da-b34a-91c4010e78ef",
+      "txId": "tx_1768973205843",
+      "timestamp": 1768973205843,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "a56837a1-f7d6-40a7-85cf-0a89023220d2",
+      "txId": "tx_1768995364791",
+      "timestamp": 1768995364791,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "83984cd1-7386-4352-9625-e331a2783aad",
+      "txId": "tx_1768995881722",
+      "timestamp": 1768995881722,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "a3b0a971-9c03-4807-b85d-4c3af1092ad3",
+      "txId": "tx_1768996062056",
+      "timestamp": 1768996062056,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "03b8f7b7-ecfa-4d70-a109-5b90eeb9fb43",
+      "txId": "tx_1768998167853",
+      "timestamp": 1768998167853,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "1c5aa3f5-9eaf-4484-b3cb-718e6eb81943",
+      "txId": "tx_1768998335746",
+      "timestamp": 1768998335746,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "74f42fb2-3a7d-40ab-afc9-5d233c06e4d9",
+      "txId": "tx_1768998507830",
+      "timestamp": 1768998507830,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "232d69c3-24c2-44b8-82bb-d2103a62ad76",
+      "txId": "tx_1768998652592",
+      "timestamp": 1768998652592,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "c7735d53-aea5-42f8-bfac-1db940a23d0c",
+      "txId": "tx_1768998869484",
+      "timestamp": 1768998869484,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "9aff823c-9451-4c69-ad9c-d8e9f54b3111",
+      "txId": "tx_1768999140004",
+      "timestamp": 1768999140004,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "761e0246-92df-47cd-b821-26e8791f9a7e",
+      "txId": "tx_1768999644160",
+      "timestamp": 1768999644160,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "cce49fc5-9fae-4eb0-b458-555d3eb07c9f",
+      "txId": "tx_1769000230022",
+      "timestamp": 1769000230022,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "5d6180ca-66a3-4808-ab32-32bdd7562662",
+      "txId": "tx_1769000884263",
+      "timestamp": 1769000884263,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "7dae2174-2c3b-4d60-97f5-016286367445",
+      "txId": "tx_1769001712706",
+      "timestamp": 1769001712706,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "2d16a9d7-4776-436f-bb61-ab2ff8eca4d3",
+      "txId": "tx_1769002263725",
+      "timestamp": 1769002263725,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "8c3d4b0a-938f-4134-9995-6278996f8663",
+      "txId": "tx_1769002714767",
+      "timestamp": 1769002714767,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "a414ea65-0c06-41fd-b2ef-ba738145445f",
+      "txId": "tx_1769003373406",
+      "timestamp": 1769003373406,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "0d88b6b5-3cf9-4ce2-9a77-8fe6746a07b1",
+      "txId": "tx_1769003831464",
+      "timestamp": 1769003831464,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "e90300f8-ada9-4fb9-ab07-0eb261dd7e71",
+      "txId": "tx_1769005616507",
+      "timestamp": 1769005616507,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "8ea80b32-3adc-40a4-adfc-c66c2c950a36",
+      "txId": "tx_1769006741809",
+      "timestamp": 1769006741809,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "eec49aa0-bef0-44d8-9e77-8dddd73df1c5",
+      "txId": "tx_1769006952990",
+      "timestamp": 1769006952990,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "ad5e1fc2-731b-465b-b423-573231a237f7",
+      "txId": "tx_1769008769134",
+      "timestamp": 1769008769134,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
+    },
+    {
+      "entryId": "dd6a69bb-a539-4d7a-a228-b310fc6613b9",
+      "txId": "tx_1769010836592",
+      "timestamp": 1769010836592,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.00445,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "The Matrix",
+        "showtime": "8:00 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "matrix-001",
+        "reviewCount": 150,
+        "rating": 4.9
+      }
     }
   ],
-  "lastSaved": "2026-01-21T04:46:47.057Z"
+  "lastSaved": "2026-01-21T15:53:56.827Z"
 }

@@ -500,20 +500,57 @@ export async function executeNextStep(executionId: string): Promise<{
 
   // CRITICAL: Check if this is a decision step BEFORE evaluating transitions
   // Decision steps must wait for user input and should NOT auto-transition
+  // This check MUST happen FIRST, before any transition evaluation
+  console.log(`🔍 [FlowWiseService] Checking step type: ${step.type}, requiresUserDecision: ${step.requiresUserDecision}, step.id: ${step.id}`);
   if (step.type === "decision" && step.requiresUserDecision) {
     console.log(`🤔 [FlowWiseService] ========================================`);
-    console.log(`🤔 [FlowWiseService] DECISION STEP DETECTED: ${step.id}`);
+    console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ DECISION STEP DETECTED: ${step.id} ⚠️⚠️⚠️`);
     console.log(`🤔 [FlowWiseService] Step name: ${step.name}`);
     console.log(`🤔 [FlowWiseService] Decision prompt: ${step.decisionPrompt}`);
     console.log(`🤔 [FlowWiseService] Decision options count: ${step.decisionOptions?.length || 0}`);
+    console.log(`🤔 [FlowWiseService] Current step in execution: ${execution.currentStep}`);
+    console.log(`🤔 [FlowWiseService] Context userDecision BEFORE clear: ${context.userDecision}`);
+    console.log(`🤔 [FlowWiseService] Execution context userDecision BEFORE clear: ${execution.context?.userDecision}`);
     
     // CRITICAL: Clear userDecision from previous steps when entering a new decision step
     // This ensures each decision step waits for a fresh user decision
     const previousUserDecision = context.userDecision;
     if (previousUserDecision !== undefined && previousUserDecision !== null) {
-      console.log(`   🤔 [FlowWiseService] Clearing previous userDecision: ${previousUserDecision} (from previous step)`);
+      console.log(`   🤔 [FlowWiseService] ⚠️⚠️⚠️ CLEARING PREVIOUS userDecision: ${previousUserDecision} (from previous step)`);
+      console.log(`   🤔 [FlowWiseService] This prevents auto-transition when entering decision step: ${step.id}`);
       context.userDecision = undefined;
       delete context.userDecision;
+      console.log(`   🤔 [FlowWiseService] ✅ userDecision cleared - workflow will wait for fresh user input`);
+    } else {
+      console.log(`   🤔 [FlowWiseService] ✅ No previous userDecision to clear - starting fresh`);
+    }
+    
+    // CRITICAL: For user_confirm_listing step, ensure userDecision is definitely cleared
+    // This prevents the workflow from auto-transitioning if userDecision was set from a previous step
+    if (step.id === 'user_confirm_listing') {
+      if (context.userDecision !== undefined && context.userDecision !== null) {
+        console.log(`   🤔 [FlowWiseService] ⚠️⚠️⚠️ WARNING: user_confirm_listing step has userDecision set: ${context.userDecision}`);
+        console.log(`   🤔 [FlowWiseService] ⚠️ This would cause auto-transition - clearing it now!`);
+        context.userDecision = undefined;
+        delete context.userDecision;
+        console.log(`   🤔 [FlowWiseService] ✅ userDecision cleared for user_confirm_listing step`);
+      }
+      console.log(`   🤔 [FlowWiseService] user_confirm_listing step - userDecision after clear: ${context.userDecision ? 'STILL EXISTS (ERROR!)' : 'cleared (correct)'}`);
+      
+      // CRITICAL: Double-check that userDecision is cleared before returning decision instruction
+      // If it's still set, something is wrong and we should block the workflow
+      if (context.userDecision !== undefined && context.userDecision !== null) {
+        console.error(`   ❌ [FlowWiseService] ERROR: userDecision is STILL set after clearing! Value: ${context.userDecision}`);
+        console.error(`   ❌ [FlowWiseService] This is a critical error - the workflow would auto-transition`);
+        console.error(`   ❌ [FlowWiseService] Forcing userDecision to undefined to prevent auto-transition`);
+        context.userDecision = undefined;
+        delete context.userDecision;
+        // Also delete from execution context to be safe
+        if (execution.context) {
+          execution.context.userDecision = undefined;
+          delete execution.context.userDecision;
+        }
+      }
     }
     
     // CRITICAL: For user_select_listing step, clear userSelection to ensure it waits for user input
@@ -525,12 +562,35 @@ export async function executeNextStep(executionId: string): Promise<{
         context.userSelection = undefined;
         delete context.userSelection;
       }
+      // CRITICAL: Also ensure selectedListing is NOT copied to userSelection
+      // The transition condition {{userSelection}} should be false until user actually selects
+      // Even if selectedListing exists from LLM, it should NOT be used as userSelection
+      if (context.selectedListing && context.userSelection) {
+        // Check if userSelection is the same object as selectedListing (reference equality)
+        const isSameObject = context.userSelection === context.selectedListing;
+        // Also check if they have the same content (deep equality for common fields)
+        const hasSameContent = context.userSelection.movieId === context.selectedListing.movieId &&
+          context.userSelection.providerId === context.selectedListing.providerId &&
+          context.userSelection.movieTitle === context.selectedListing.movieTitle;
+        
+        if (isSameObject || hasSameContent) {
+          console.log(`   🎬 [FlowWiseService] ⚠️⚠️⚠️ WARNING: userSelection was set from selectedListing!`);
+          console.log(`   🎬 [FlowWiseService] isSameObject: ${isSameObject}, hasSameContent: ${hasSameContent}`);
+          console.log(`   🎬 [FlowWiseService] Clearing userSelection to prevent auto-transition`);
+          context.userSelection = undefined;
+          delete context.userSelection;
+        }
+      }
       console.log(`   🎬 [FlowWiseService] user_select_listing step - userSelection cleared, selectedListing exists: ${!!context.selectedListing}`);
+      console.log(`   🎬 [FlowWiseService] userSelection after clear: ${context.userSelection ? 'STILL EXISTS (ERROR!)' : 'cleared (correct)'}`);
     }
     
     if (step.id === 'view_movie') {
+      console.log(`🎬 [FlowWiseService] ========================================`);
       console.log(`🎬 [FlowWiseService] VIEW_MOVIE STEP EXECUTING!`);
       console.log(`🎬 [FlowWiseService] Context selectedListing:`, context.selectedListing ? JSON.stringify(context.selectedListing, null, 2) : 'missing');
+      console.log(`🎬 [FlowWiseService] Context selectedListing?.videoUrl: ${context.selectedListing?.videoUrl || 'missing'}`);
+      console.log(`🎬 [FlowWiseService] Context selectedListing?.movieTitle: ${context.selectedListing?.movieTitle || 'missing'}`);
       console.log(`🎬 [FlowWiseService] Context videoUrl: ${context.videoUrl || 'missing'}`);
       console.log(`🎬 [FlowWiseService] Context movieTitle: ${context.movieTitle || 'missing'}`);
       console.log(`🎬 [FlowWiseService] Websocket events count: ${step.websocketEvents?.length || 0}`);
@@ -538,14 +598,29 @@ export async function executeNextStep(executionId: string): Promise<{
       
       // CRITICAL: Ensure videoUrl and movieTitle are in context for template variable replacement
       // If they're in selectedListing but not in context root, copy them
-      if (context.selectedListing?.videoUrl && !context.videoUrl) {
-        context.videoUrl = context.selectedListing.videoUrl;
-        console.log(`🎬 [FlowWiseService] Copied videoUrl from selectedListing to context: ${context.videoUrl}`);
+      if (context.selectedListing?.videoUrl) {
+        if (!context.videoUrl) {
+          context.videoUrl = context.selectedListing.videoUrl;
+          console.log(`🎬 [FlowWiseService] ✅ Copied videoUrl from selectedListing to context: ${context.videoUrl}`);
+        } else {
+          console.log(`🎬 [FlowWiseService] ⚠️ videoUrl already exists in context: ${context.videoUrl}`);
+        }
+      } else {
+        console.log(`🎬 [FlowWiseService] ⚠️ WARNING: selectedListing.videoUrl is missing!`);
       }
-      if (context.selectedListing?.movieTitle && !context.movieTitle) {
-        context.movieTitle = context.selectedListing.movieTitle;
-        console.log(`🎬 [FlowWiseService] Copied movieTitle from selectedListing to context: ${context.movieTitle}`);
+      if (context.selectedListing?.movieTitle) {
+        if (!context.movieTitle) {
+          context.movieTitle = context.selectedListing.movieTitle;
+          console.log(`🎬 [FlowWiseService] ✅ Copied movieTitle from selectedListing to context: ${context.movieTitle}`);
+        } else {
+          console.log(`🎬 [FlowWiseService] ⚠️ movieTitle already exists in context: ${context.movieTitle}`);
+        }
+      } else {
+        console.log(`🎬 [FlowWiseService] ⚠️ WARNING: selectedListing.movieTitle is missing!`);
       }
+      console.log(`🎬 [FlowWiseService] Final context.videoUrl: ${context.videoUrl || 'STILL MISSING!'}`);
+      console.log(`🎬 [FlowWiseService] Final context.movieTitle: ${context.movieTitle || 'STILL MISSING!'}`);
+      console.log(`🎬 [FlowWiseService] ========================================`);
     }
     console.log(`🤔 [FlowWiseService] ========================================`);
     execution.currentStep = currentStep; // Stay on decision step until user responds
@@ -619,27 +694,107 @@ export async function executeNextStep(executionId: string): Promise<{
     
     console.log(`   🤔 [FlowWiseService] Validated ${validatedOptions.length} decision options:`, validatedOptions.map((o: any) => ({ value: o.value, label: o.label })));
     
+    // CRITICAL: For view_movie step, explicitly include videoUrl and movieTitle in the decision data
+    const decisionData: any = {
+      stepId: step.id,
+      options: validatedOptions,
+      timeout: step.timeout || 60000,
+      listings: context.listings, // Include listings for frontend
+      iGasCost: context.iGasCost, // Include iGas cost in data
+      isDecision: true // Flag to indicate this is a decision step
+    };
+    
+    // For view_movie step, ensure videoUrl and movieTitle are in the decision data
+    if (step.id === 'view_movie') {
+      console.log(`🎬 [FlowWiseService] Adding videoUrl and movieTitle to decision data for view_movie step`);
+      if (context.selectedListing?.videoUrl) {
+        decisionData.videoUrl = context.selectedListing.videoUrl;
+        console.log(`🎬 [FlowWiseService] Added videoUrl from selectedListing: ${decisionData.videoUrl}`);
+      } else if (context.videoUrl) {
+        decisionData.videoUrl = context.videoUrl;
+        console.log(`🎬 [FlowWiseService] Added videoUrl from context: ${decisionData.videoUrl}`);
+      }
+      if (context.selectedListing?.movieTitle) {
+        decisionData.movieTitle = context.selectedListing.movieTitle;
+        console.log(`🎬 [FlowWiseService] Added movieTitle from selectedListing: ${decisionData.movieTitle}`);
+      } else if (context.movieTitle) {
+        decisionData.movieTitle = context.movieTitle;
+        console.log(`🎬 [FlowWiseService] Added movieTitle from context: ${decisionData.movieTitle}`);
+      }
+      console.log(`🎬 [FlowWiseService] Decision data for view_movie:`, {
+        stepId: decisionData.stepId,
+        videoUrl: decisionData.videoUrl,
+        movieTitle: decisionData.movieTitle,
+        optionsCount: decisionData.options?.length
+      });
+    }
+    
+    // CRITICAL: Before returning, ensure userDecision is definitely cleared
+    // This prevents any possibility of auto-transition
+    if (context.userDecision !== undefined && context.userDecision !== null) {
+      console.error(`   ❌ [FlowWiseService] CRITICAL ERROR: userDecision is STILL set when returning decision instruction!`);
+      console.error(`   ❌ [FlowWiseService] Value: ${context.userDecision}`);
+      console.error(`   ❌ [FlowWiseService] This would cause auto-transition - clearing it now!`);
+      context.userDecision = undefined;
+      delete context.userDecision;
+      // Also clear from execution context
+      if (execution.context) {
+        execution.context.userDecision = undefined;
+        delete execution.context.userDecision;
+      }
+    }
+    
+    // CRITICAL: Ensure execution.currentStep is set to the decision step
+    // This ensures the workflow stays at this step until user submits a decision
+    execution.currentStep = currentStep;
+    console.log(`   🤔 [FlowWiseService] ✅ Decision step ${step.id} - returning decision instruction and pausing workflow`);
+    console.log(`   🤔 [FlowWiseService] ✅ Execution.currentStep set to: ${execution.currentStep}`);
+    console.log(`   🤔 [FlowWiseService] ✅ userDecision after clear: ${context.userDecision ? 'STILL EXISTS (ERROR!)' : 'cleared (correct)'}`);
+    
+    // CRITICAL: Final check - ensure userDecision is cleared one more time before returning
+    // This is a last-ditch effort to prevent auto-transition
+    if (context.userDecision !== undefined && context.userDecision !== null) {
+      console.error(`   ❌ [FlowWiseService] FINAL CHECK: userDecision is STILL set! Clearing one more time...`);
+      context.userDecision = undefined;
+      delete context.userDecision;
+      if (execution.context) {
+        execution.context.userDecision = undefined;
+        delete execution.context.userDecision;
+      }
+    }
+    
+    console.log(`   🤔 [FlowWiseService] ========================================`);
+    console.log(`   🤔 [FlowWiseService] ✅✅✅ RETURNING DECISION INSTRUCTION FOR STEP: ${step.id} ✅✅✅`);
+    console.log(`   🤔 [FlowWiseService] ✅ Workflow will PAUSE and wait for user input`);
+    console.log(`   🤔 [FlowWiseService] ✅ userDecision is: ${context.userDecision ? 'STILL SET (ERROR!)' : 'cleared (correct)'}`);
+    console.log(`   🤔 [FlowWiseService] ========================================`);
+    
     return {
       type: "decision",
       message: decisionPrompt,
-      data: {
-        stepId: step.id,
-        options: validatedOptions,
-        timeout: step.timeout || 60000,
-        listings: context.listings, // Include listings for frontend
-        iGasCost: context.iGasCost, // Include iGas cost in data
-        isDecision: true // Flag to indicate this is a decision step
-      }
+      data: decisionData
     };
   }
 
   // Determine next step (only for non-decision steps)
   // CRITICAL: This code should NEVER be reached for decision steps (they return early above)
   // If we reach here for a decision step, something is wrong
+  console.log(`🔍 [FlowWiseService] After decision step check - step.type: ${step.type}, step.requiresUserDecision: ${step.requiresUserDecision}, step.id: ${step.id}`);
   if (step.type === "decision" && step.requiresUserDecision) {
-    console.error(`   ❌ [FlowWiseService] ERROR: Decision step ${step.id} reached transition evaluation code!`);
+    console.error(`   ❌ [FlowWiseService] ========================================`);
+    console.error(`   ❌ [FlowWiseService] CRITICAL ERROR: Decision step ${step.id} reached transition evaluation code!`);
     console.error(`   ❌ [FlowWiseService] This should never happen - decision steps should return early`);
-    throw new Error(`Decision step ${step.id} incorrectly reached transition evaluation`);
+    console.error(`   ❌ [FlowWiseService] Current step: ${currentStep}`);
+    console.error(`   ❌ [FlowWiseService] Step type: ${step.type}`);
+    console.error(`   ❌ [FlowWiseService] Step requiresUserDecision: ${step.requiresUserDecision}`);
+    console.error(`   ❌ [FlowWiseService] Step ID: ${step.id}`);
+    console.error(`   ❌ [FlowWiseService] ========================================`);
+    // Instead of throwing, return a wait instruction to prevent auto-transition
+    return {
+      type: "wait",
+      message: `Decision step ${step.id} incorrectly reached transition evaluation - pausing workflow`,
+      data: { currentStep, error: "Decision step reached transition evaluation" }
+    };
   }
   
   const transitions = workflow.transitions.filter((t: any) => t.from === currentStep);
@@ -659,12 +814,104 @@ export async function executeNextStep(executionId: string): Promise<{
     console.log(`🔄 [FlowWiseService] Current step: ${currentStep}`);
     console.log(`🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
     console.log(`🔄 [FlowWiseService] Context userSelection: ${context.userSelection ? 'exists' : 'missing'}`);
+    console.log(`🔄 [FlowWiseService] Context userSelection type: ${typeof context.userSelection}`);
+    console.log(`🔄 [FlowWiseService] Context userSelection value:`, context.userSelection);
+    console.log(`🔄 [FlowWiseService] Context selectedListing: ${context.selectedListing ? 'exists' : 'missing'}`);
+    console.log(`🔄 [FlowWiseService] Context selectedListing === userSelection: ${context.selectedListing === context.userSelection}`);
     console.log(`🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
   }
   
   for (const transition of transitions) {
+    // CRITICAL: If we're at user_confirm_listing and the transition condition is {{userDecision}} === 'YES',
+    // we need to ensure userDecision is NOT set (it should only be set when user actually clicks "Yes, proceed")
+    // If userDecision is already set, it means the workflow is auto-continuing without waiting for user input
+    if (currentStep === 'user_confirm_listing' && transition.condition && transition.condition.includes('userDecision')) {
+      console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ CHECKING USER_CONFIRM_LISTING TRANSITION CONDITION ⚠️⚠️⚠️`);
+      console.log(`🤔 [FlowWiseService] Condition: ${transition.condition}`);
+      console.log(`🤔 [FlowWiseService] userDecision value: ${context.userDecision}`);
+      console.log(`🤔 [FlowWiseService] userDecision type: ${typeof context.userDecision}`);
+      console.log(`🤔 [FlowWiseService] userDecision truthy: ${!!context.userDecision}`);
+      
+      // CRITICAL: If userDecision is already set, this means the workflow is trying to auto-transition
+      // This should NOT happen - userDecision should only be set when user actually submits a decision
+      // Block the transition and return a wait instruction
+      if (context.userDecision !== undefined && context.userDecision !== null) {
+        console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ BLOCKING TRANSITION: userDecision is already set to "${context.userDecision}"!`);
+        console.log(`🤔 [FlowWiseService] ⚠️ This means the workflow is trying to auto-continue without waiting for user input`);
+        console.log(`🤔 [FlowWiseService] ⚠️ Clearing userDecision and blocking transition - workflow should wait for user to click "Yes, proceed"`);
+        context.userDecision = undefined;
+        delete context.userDecision;
+        // Return wait instruction to pause the workflow
+        return {
+          type: "wait",
+          message: `Waiting for user decision on step: ${currentStep}`,
+          data: { currentStep, nextStep: transition.to }
+        };
+      } else {
+        console.log(`🤔 [FlowWiseService] ✅ userDecision is empty/undefined - transition blocked (correct - waiting for user input)`);
+        // If userDecision is empty, the condition should be false, so block the transition
+        return {
+          type: "wait",
+          message: `Waiting for user decision on step: ${currentStep}`,
+          data: { currentStep, nextStep: transition.to }
+        };
+      }
+    }
+    
     const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
     console.log(`🔄 [FlowWiseService] Transition: ${currentStep} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
+    
+    // CRITICAL: If we're at user_select_listing and the transition condition is {{userSelection}},
+    // we need to ensure userSelection is actually cleared and not set from selectedListing
+    if (currentStep === 'user_select_listing' && transition.condition === '{{userSelection}}') {
+      console.log(`🎬 [FlowWiseService] ⚠️⚠️⚠️ CHECKING USER_SELECT_LISTING TRANSITION CONDITION ⚠️⚠️⚠️`);
+      console.log(`🎬 [FlowWiseService] Condition: ${transition.condition}`);
+      console.log(`🎬 [FlowWiseService] userSelection value:`, context.userSelection);
+      console.log(`🎬 [FlowWiseService] userSelection type: ${typeof context.userSelection}`);
+      console.log(`🎬 [FlowWiseService] userSelection truthy: ${!!context.userSelection}`);
+      console.log(`🎬 [FlowWiseService] selectedListing value:`, context.selectedListing);
+      console.log(`🎬 [FlowWiseService] selectedListing === userSelection: ${context.selectedListing === context.userSelection}`);
+      console.log(`🎬 [FlowWiseService] Condition met BEFORE fix: ${conditionMet}`);
+      
+      // CRITICAL: If userSelection exists and is truthy, check if it's from selectedListing
+      // The transition condition {{userSelection}} should only be true when user actually selects
+      // If userSelection is set to selectedListing (from LLM), we must block the transition
+      if (context.userSelection) {
+        // Check if userSelection is the same object as selectedListing (reference equality)
+        const isSameObject = context.userSelection === context.selectedListing;
+        // Also check if they have the same content (deep equality for common fields)
+        const hasSameContent = context.selectedListing && 
+          context.userSelection.movieId === context.selectedListing.movieId &&
+          context.userSelection.providerId === context.selectedListing.providerId &&
+          context.userSelection.movieTitle === context.selectedListing.movieTitle;
+        
+        if (isSameObject || hasSameContent) {
+          console.log(`🎬 [FlowWiseService] ⚠️⚠️⚠️ BLOCKING TRANSITION: userSelection is set from selectedListing!`);
+          console.log(`🎬 [FlowWiseService] isSameObject: ${isSameObject}, hasSameContent: ${hasSameContent}`);
+          console.log(`🎬 [FlowWiseService] Clearing userSelection to prevent auto-transition`);
+          context.userSelection = undefined;
+          delete context.userSelection;
+          // Re-evaluate condition after clearing
+          const conditionMetAfterClear = !transition.condition || evaluateCondition(transition.condition, context);
+          console.log(`🎬 [FlowWiseService] Condition met AFTER clear: ${conditionMetAfterClear}`);
+          if (!conditionMetAfterClear) {
+            console.log(`🎬 [FlowWiseService] ✅ Condition is now false - transition blocked`);
+            continue; // Skip this transition
+          } else {
+            console.log(`🎬 [FlowWiseService] ⚠️ WARNING: Condition is still true after clear - this shouldn't happen!`);
+          }
+        } else {
+          console.log(`🎬 [FlowWiseService] ✅ userSelection is different from selectedListing - transition allowed`);
+        }
+      } else {
+        console.log(`🎬 [FlowWiseService] ✅ userSelection is empty/undefined - transition blocked (correct)`);
+        // If userSelection is empty, the condition should be false
+        if (conditionMet) {
+          console.log(`🎬 [FlowWiseService] ⚠️ WARNING: Condition is true but userSelection is empty - blocking transition`);
+          continue; // Skip this transition
+        }
+      }
+    }
     
     if (transition.to === 'root_ca_ledger_and_payment') {
       console.log(`🔄 [FlowWiseService] ⚠️⚠️⚠️ TRANSITION TO PAYMENT STEP DETECTED! ⚠️⚠️⚠️`);
@@ -734,24 +981,42 @@ export async function executeNextStep(executionId: string): Promise<{
     nextStep.id === "root_ca_cashier_oversight"
   );
   
-  // CRITICAL: If next step is a decision step, execute it first to get the decision instruction
-  // This ensures decision steps are properly handled and wait for user input
+  // CRITICAL: If next step is a decision step, DO NOT execute it immediately if we're currently at a decision step
+  // This prevents multiple decision prompts from appearing at once
+  // Only execute the next decision step if we're NOT currently at a decision step
   if (nextStep && nextStep.type === "decision" && nextStep.requiresUserDecision) {
-    console.log(`🤔 [FlowWiseService] Next step is a decision step: ${nextStepId} - executing to get decision instruction`);
-    if (nextStepId === 'view_movie') {
-      console.log(`🎬 [FlowWiseService] 🎯🎯🎯 EXECUTING VIEW_MOVIE DECISION STEP! 🎯🎯🎯`);
-      console.log(`🎬 [FlowWiseService] Context before execution:`, {
-        movieWatched: context.movieWatched,
-        videoUrl: context.videoUrl,
-        movieTitle: context.movieTitle,
-        selectedListing: context.selectedListing ? {
-          movieTitle: context.selectedListing.movieTitle,
-          videoUrl: context.selectedListing.videoUrl
-        } : 'missing'
-      });
+    const currentStepDef = workflow.steps.find((s: WorkflowStep) => s.id === currentStep);
+    const isCurrentlyAtDecisionStep = currentStepDef && currentStepDef.type === "decision" && currentStepDef.requiresUserDecision;
+    
+    if (isCurrentlyAtDecisionStep) {
+      console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ BLOCKING: Currently at decision step ${currentStep}, next step is also decision step ${nextStepId}`);
+      console.log(`🤔 [FlowWiseService] ⚠️ NOT executing next decision step - waiting for current decision to be submitted first`);
+      console.log(`🤔 [FlowWiseService] The workflow will pause here and wait for user decision on: ${currentStep}`);
+      // DO NOT execute the next decision step - return wait instruction
+      // The workflow will progress to the next decision step only after user submits the current decision
+      return {
+        type: "wait",
+        message: `Waiting for user decision on step: ${currentStep}`,
+        data: { currentStep, nextStep: nextStepId }
+      };
+    } else {
+      // We're not at a decision step, so it's safe to execute the next decision step
+      console.log(`🤔 [FlowWiseService] Next step is a decision step: ${nextStepId} - executing to get decision instruction`);
+      if (nextStepId === 'view_movie') {
+        console.log(`🎬 [FlowWiseService] 🎯🎯🎯 EXECUTING VIEW_MOVIE DECISION STEP! 🎯🎯🎯`);
+        console.log(`🎬 [FlowWiseService] Context before execution:`, {
+          movieWatched: context.movieWatched,
+          videoUrl: context.videoUrl,
+          movieTitle: context.movieTitle,
+          selectedListing: context.selectedListing ? {
+            movieTitle: context.selectedListing.movieTitle,
+            videoUrl: context.selectedListing.videoUrl
+          } : 'missing'
+        });
+      }
+      execution.currentStep = nextStepId!;
+      return await executeNextStep(executionId); // Execute the decision step (will return decision instruction)
     }
-    execution.currentStep = nextStepId!;
-    return await executeNextStep(executionId); // Execute the decision step (will return decision instruction)
   }
   
   // Auto-continue only for non-ROOT CA system steps (not requiring user input)
@@ -774,6 +1039,45 @@ export async function executeNextStep(executionId: string): Promise<{
     const rootCAInstruction = await executeNextStep(executionId);
     console.log(`🔐 [FlowWiseService] ROOT CA step completed: ${nextStepId}`);
     console.log(`🔐 [FlowWiseService] ROOT CA instruction type: ${rootCAInstruction.type}`);
+    
+    // CRITICAL: After ROOT CA step completes, check if the next step is a decision step
+    // If it is, DO NOT execute it immediately - return wait instruction
+    // This prevents multiple decision prompts from appearing at once
+    const currentStepAfterROOTCA = execution.currentStep;
+    const workflowAfterROOTCA = execution.workflow;
+    const nextStepAfterROOTCA = workflowAfterROOTCA.steps.find((s: WorkflowStep) => s.id === currentStepAfterROOTCA);
+    
+    // Find transitions from the current step after ROOT CA
+    const transitionsAfterROOTCA = workflowAfterROOTCA.transitions.filter((t: any) => t.from === currentStepAfterROOTCA);
+    let nextStepIdAfterROOTCA: string | null = null;
+    for (const transition of transitionsAfterROOTCA) {
+      try {
+        const conditionMet = !transition.condition || evaluateCondition(transition.condition, execution.context);
+        if (conditionMet) {
+          nextStepIdAfterROOTCA = transition.to;
+          break;
+        }
+      } catch (evalError: any) {
+        console.error(`   ❌ [FlowWiseService] Error evaluating transition condition:`, evalError.message);
+      }
+    }
+    
+    if (nextStepIdAfterROOTCA) {
+      const nextStepAfterROOTCADef = workflowAfterROOTCA.steps.find((s: WorkflowStep) => s.id === nextStepIdAfterROOTCA);
+      if (nextStepAfterROOTCADef && nextStepAfterROOTCADef.type === "decision" && nextStepAfterROOTCADef.requiresUserDecision) {
+        console.log(`🤔 [FlowWiseService] ⚠️ Next step after ROOT CA is a decision step: ${nextStepIdAfterROOTCA}`);
+        console.log(`🤔 [FlowWiseService] ⚠️ NOT executing it immediately - waiting for current decision to be submitted`);
+        console.log(`🤔 [FlowWiseService] ⚠️ The workflow will pause here and wait for user decision`);
+        // DO NOT execute the next decision step - return wait instruction
+        // The workflow will progress to the next decision step only after user submits the current decision
+        return {
+          type: "wait",
+          message: `ROOT CA step completed. Waiting for user decision on step: ${currentStepAfterROOTCA}`,
+          data: { currentStep: currentStepAfterROOTCA, nextStep: nextStepIdAfterROOTCA }
+        };
+      }
+    }
+    
     // Return the instruction but do NOT auto-continue - workflow progression is explicit
     return rootCAInstruction;
   }
@@ -2253,8 +2557,19 @@ export async function submitUserDecision(
     throw new Error(`Invalid decision for view_movie step: received "${normalizedDecision}" but expected "DONE_WATCHING". This is likely a stale selection from a previous step.`);
   }
   
-  execution.context.userDecision = normalizedDecision;
-  console.log(`   🔄 [FlowWiseService] Set userDecision in context: ${normalizedDecision} (original: ${decision})`);
+  // CRITICAL: Only set userDecision if we're actually at a decision step
+  // This prevents userDecision from being set prematurely
+  // Note: currentStepDef is already declared above at line 2468, so we reuse it
+  if (currentStepDef && currentStepDef.type === "decision" && currentStepDef.requiresUserDecision) {
+    execution.context.userDecision = normalizedDecision;
+    console.log(`   🔄 [FlowWiseService] ✅ Set userDecision in context: ${normalizedDecision} (original: ${decision})`);
+    console.log(`   🔄 [FlowWiseService] ✅ Current step is a decision step: ${execution.currentStep}`);
+  } else {
+    console.warn(`   ⚠️ [FlowWiseService] WARNING: Attempting to set userDecision but current step is NOT a decision step!`);
+    console.warn(`   ⚠️ [FlowWiseService] Current step: ${execution.currentStep}, type: ${currentStepDef?.type}, requiresUserDecision: ${currentStepDef?.requiresUserDecision}`);
+    // Still set it, but log a warning
+    execution.context.userDecision = normalizedDecision;
+  }
   
   // CRITICAL: If we're submitting a decision for view_movie, ensure it's "DONE_WATCHING"
   // If it's not, this is likely a mistake (user clicked wrong button or old decision value)
