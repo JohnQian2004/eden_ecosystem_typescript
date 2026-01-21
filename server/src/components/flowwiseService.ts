@@ -247,7 +247,7 @@ function calculateWorkflowProcessingGas(
 export async function startWorkflowFromUserInput(
   userInput: string,
   user: User,
-  serviceType: string = "movie"
+  serviceType?: string // Optional: if not provided, LLM will determine it
 ): Promise<{
   executionId: string;
   currentStep: string;
@@ -257,6 +257,7 @@ export async function startWorkflowFromUserInput(
     data?: any;
   };
   workflowProcessingGas?: number;
+  serviceSelection?: any; // LLM-selected services
 }> {
   // SECURITY: Validate FlowWiseService certificate before executing workflow
   if (!(await validateFlowWiseServiceCertificate())) {
@@ -265,10 +266,33 @@ export async function startWorkflowFromUserInput(
   
   const executionId = `workflow-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
+  // NEW: Use LLM service mapper to select service/garden from user input
+  // This eliminates the need for pre-canned prompts and garden selection
+  let selectedServiceType = serviceType;
+  let serviceSelection: any = null;
+  
+  if (!selectedServiceType) {
+    console.log(`🤖 [FlowWiseService] No serviceType provided - using LLM service mapper to determine from user input`);
+    try {
+      const { mapUserInputToServices } = await import("../llmServiceMapper");
+      serviceSelection = await mapUserInputToServices(userInput);
+      selectedServiceType = serviceSelection.serviceType;
+      console.log(`🤖 [FlowWiseService] LLM selected serviceType: ${selectedServiceType}`);
+      console.log(`🤖 [FlowWiseService] LLM selected ${serviceSelection.selectedProviders.length} provider(s)`);
+    } catch (error: any) {
+      console.error(`❌ [FlowWiseService] LLM service mapper failed: ${error.message}`);
+      // Fallback to default serviceType
+      selectedServiceType = "movie";
+      console.warn(`⚠️  [FlowWiseService] Falling back to default serviceType: ${selectedServiceType}`);
+    }
+  } else {
+    console.log(`📋 [FlowWiseService] Using provided serviceType: ${selectedServiceType}`);
+  }
+  
   // Load workflow definition
-  const workflow = loadWorkflowDefinition(serviceType);
+  const workflow = loadWorkflowDefinition(selectedServiceType);
   if (!workflow) {
-    throw new Error(`Workflow not found for service type: ${serviceType}`);
+    throw new Error(`Workflow not found for service type: ${selectedServiceType}`);
   }
 
   // Calculate workflow processing gas
@@ -279,14 +303,22 @@ export async function startWorkflowFromUserInput(
     1 // Default complexity
   );
 
-  // Initialize context with user input
+  // Initialize context with user input and LLM service selection
   const context: WorkflowContext = {
     userInput,
     user,
-    serviceType,
+    serviceType: selectedServiceType,
     timestamp: Date.now(),
     workflowProcessingGas, // Include workflow processing gas in context
-    flowwiseServiceUUID: FLOWWISE_SERVICE_UUID // Include certificate UUID for audit
+    flowwiseServiceUUID: FLOWWISE_SERVICE_UUID, // Include certificate UUID for audit
+    // NEW: Include LLM service selection in context for workflow steps to use
+    serviceSelection: serviceSelection ? {
+      serviceType: serviceSelection.serviceType,
+      selectedProviders: serviceSelection.selectedProviders,
+      selectedGardenId: serviceSelection.selectedGardenId,
+      filters: serviceSelection.filters,
+      confidence: serviceSelection.confidence
+    } : undefined
   };
 
   // Store execution
@@ -311,7 +343,14 @@ export async function startWorkflowFromUserInput(
     executionId,
     currentStep: workflow.initialStep,
     instruction,
-    workflowProcessingGas
+    workflowProcessingGas,
+    serviceSelection: serviceSelection ? {
+      serviceType: serviceSelection.serviceType,
+      selectedProviders: serviceSelection.selectedProviders,
+      selectedGardenId: serviceSelection.selectedGardenId,
+      filters: serviceSelection.filters,
+      confidence: serviceSelection.confidence
+    } : undefined
   };
 }
 
@@ -1231,16 +1270,37 @@ async function executeStepActions(
 
         case "query_service_registry":
           // Query service registry (FULLY AUTOMATED)
-          if (!context.queryResult) {
-            throw new Error("Query result required for service registry query");
+          // NEW: Use LLM-selected services if available, otherwise fall back to query-based lookup
+          if (context.serviceSelection && context.serviceSelection.selectedProviders) {
+            // Use LLM-selected providers directly
+            console.log(`🤖 [FlowWiseService] Using LLM-selected providers: ${context.serviceSelection.selectedProviders.length} provider(s)`);
+            const selectedProviderIds = context.serviceSelection.selectedProviders.map((p: any) => p.providerId);
+            const { ROOT_CA_SERVICE_REGISTRY } = await import("../state");
+            const selectedProviders = Array.from(ROOT_CA_SERVICE_REGISTRY).filter(p => 
+              selectedProviderIds.includes(p.id) && p.status === 'active'
+            );
+            console.log(`🤖 [FlowWiseService] Found ${selectedProviders.length} active provider(s) from LLM selection`);
+            
+            // Query the selected providers' APIs
+            const { queryServiceProviders } = await import("../serviceProvider");
+            const listings = await queryServiceProviders(selectedProviders, context.serviceSelection.filters || {});
+            context.listings = listings;
+            console.log(`🤖 [FlowWiseService] LLM-selected providers returned ${listings.length} listings`);
+          } else if (context.queryResult) {
+            // Fallback: Use query-based lookup (legacy behavior)
+            console.log(`🔍 [FlowWiseService] No LLM service selection - using query-based lookup`);
+            console.log(`🔍 [FlowWiseService] Querying service registry with query:`, JSON.stringify(context.queryResult.query, null, 2));
+            const providers = queryROOTCAServiceRegistry(context.queryResult.query);
+            const { queryServiceProviders } = await import("../serviceProvider");
+            const listings = await queryServiceProviders(providers, context.queryResult.query.filters || {});
+            console.log(`🔍 [FlowWiseService] Service registry returned ${listings.length} listings`);
+            if (listings.length > 0) {
+              console.log(`🔍 [FlowWiseService] First listing:`, JSON.stringify(listings[0], null, 2).substring(0, 200));
+            }
+            context.listings = listings;
+          } else {
+            throw new Error("Neither serviceSelection nor queryResult available for service registry query");
           }
-          console.log(`🔍 [FlowWiseService] Querying service registry with query:`, JSON.stringify(context.queryResult.query, null, 2));
-          const listings = await queryROOTCAServiceRegistry(context.queryResult.query);
-          console.log(`🔍 [FlowWiseService] Service registry returned ${listings.length} listings`);
-          if (listings.length > 0) {
-            console.log(`🔍 [FlowWiseService] First listing:`, JSON.stringify(listings[0], null, 2).substring(0, 200));
-          }
-          context.listings = listings;
           break;
 
         case "query_dex_pools":

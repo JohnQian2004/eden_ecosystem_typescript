@@ -70,6 +70,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // Service Types (Garden of Eden Main Street)
   // Populated dynamically from SERVICE_TYPE_CATALOG based on available providers
   serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
+  
+  // NEW: Configurable sample input (can be set via environment or config)
+  // This replaces pre-canned prompts - users can type naturally or use this as a starting point
+  configurableSampleInput: string = "I want two sci-fi movies tonight at best price in white marsh";
 
   // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
   // Now imported from shared service-type-catalog.service.ts
@@ -1241,15 +1245,21 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
+    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+    // The LLM service mapper will determine the actual service/garden from user input
     this.selectedAppleGarden = { id: garden.id, name: garden.name };
     this.selectedDexGarden = null;
 
+    // Keep serviceType for context, but LLM will determine actual selection from user input
     const inferred = this.inferServiceTypeFromGarden(garden as any);
-    const prompt = this.getServiceTypePrompt(inferred);
-    this.selectedServiceType = prompt.type;
-    this.userInput = prompt.sampleQuery;
-    this.inputPlaceholder = prompt.sampleQuery;
-    this.flowWiseService.loadWorkflowIfNeeded(prompt.type);
+    this.selectedServiceType = inferred;
+    
+    // Use configurable sample input instead of service-specific prompt
+    this.userInput = this.configurableSampleInput;
+    this.inputPlaceholder = this.configurableSampleInput || "Type your request here (e.g., I want two sci-fi movies tonight at best price in white marsh)";
+    
+    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+    console.log(`🔄 [App] Garden clicked: ${garden.name} - LLM will determine actual service from user input`);
 
     // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));
@@ -1266,16 +1276,20 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   selectDexGarden(garden: {id: string, name: string}) {
+    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+    // The LLM service mapper will determine the actual service/garden from user input
     this.selectedDexGarden = garden;
 
-    // DEX garden click should be fast: DO NOT call selectServiceType() because it triggers
-    // a service-scoped conversation switch + history load, then we switch again to garden scope.
-    // Instead, just set the input context and preload workflow, then switch conversation ONCE.
+    // Keep serviceType for context, but LLM will determine actual selection from user input
     const dexServiceType = this.getDexServiceType();
     this.selectedServiceType = dexServiceType.type;
-    this.userInput = dexServiceType.sampleQuery;
-    this.inputPlaceholder = dexServiceType.sampleQuery;
-    this.flowWiseService.loadWorkflowIfNeeded(dexServiceType.type);
+    
+    // Use configurable sample input instead of service-specific prompt
+    this.userInput = this.configurableSampleInput;
+    this.inputPlaceholder = this.configurableSampleInput || "Type your request here (e.g., I want to BUY 2 SOLANA token A at best price)";
+    
+    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+    console.log(`🔄 [App] DEX garden clicked: ${garden.name} - LLM will determine actual service from user input`);
 
     // Garden-scoped chat history for DEX gardens (single switch)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));

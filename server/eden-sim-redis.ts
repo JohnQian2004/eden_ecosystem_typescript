@@ -3823,27 +3823,17 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
-        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
-        let detectedServiceType: string = "movie";
-        try {
-          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
-          if (ENABLE_OPENAI && !MOCKED_LLM) {
-            const { extractQueryWithOpenAI } = await import("./src/llm");
-            const qr = await extractQueryWithOpenAI(input.trim());
-            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
-          }
-        } catch (err: any) {
-          // safe fallback
-        }
-
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
+        // No need to detect serviceType manually - LLM handles it
         const workflowResult = await startWorkflowFromUserInput(
           input.trim(),
-          user,
-          detectedServiceType
+          user
+          // serviceType is now optional - LLM service mapper will determine it from user input
         );
         
-        // Broadcast workflow started event
+        // Broadcast workflow started event with LLM service selection
         broadcastEvent({
           type: "workflow_started",
           component: "workflow",
@@ -3853,7 +3843,8 @@ httpServer.on("request", async (req, res) => {
             executionId: workflowResult.executionId,
             currentStep: workflowResult.currentStep,
             instruction: workflowResult.instruction,
-            workflowProcessingGas: workflowResult.workflowProcessingGas
+            workflowProcessingGas: workflowResult.workflowProcessingGas,
+            serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
           }
         });
         
@@ -3949,80 +3940,83 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // Determine serviceType first (DEX vs Apple/SaaS) then start the correct workflow.
-        // This prevents starting the movie workflow and later discovering serviceType=dex mid-flight.
-        let detectedServiceType: string = "movie";
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
         try {
-          const { ENABLE_OPENAI, MOCKED_LLM } = await import("./src/config");
-          if (ENABLE_OPENAI && !MOCKED_LLM) {
-            const { extractQueryWithOpenAI } = await import("./src/llm");
-            const qr = await extractQueryWithOpenAI(input.trim());
-            detectedServiceType = (qr as any)?.serviceType || (qr as any)?.query?.serviceType || "movie";
-          }
-        } catch (err: any) {
-          // safe fallback
-        }
-
-        const workflowResult = await startWorkflowFromUserInput(
-          input.trim(),
-          user,
-          detectedServiceType
-        );
-        
-        // Broadcast workflow started event
-        broadcastEvent({
-          type: "workflow_started",
-          component: "workflow",
-          message: `Workflow started: ${workflowResult.executionId}`,
-          timestamp: Date.now(),
-          data: {
-            executionId: workflowResult.executionId,
-            currentStep: workflowResult.currentStep,
-            instruction: workflowResult.instruction
-          }
-        });
-        
-        // Success response with workflow execution ID
-        if (!res.headersSent) {
-          sendResponse(200, { 
-            success: true, 
-            message: "Chat processed successfully",
-            executionId: workflowResult.executionId,
-            instruction: workflowResult.instruction
+          const workflowResult = await startWorkflowFromUserInput(
+            input.trim(),
+            user
+            // serviceType is now optional - LLM service mapper will determine it from user input
+          );
+          
+          // Broadcast workflow started event with LLM service selection
+          broadcastEvent({
+            type: "workflow_started",
+            component: "workflow",
+            message: `Workflow started: ${workflowResult.executionId}`,
+            timestamp: Date.now(),
+            data: {
+              executionId: workflowResult.executionId,
+              currentStep: workflowResult.currentStep,
+              instruction: workflowResult.instruction,
+              workflowProcessingGas: workflowResult.workflowProcessingGas,
+              serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+            }
           });
-          console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
-        } else {
-          console.warn(`⚠️  Response already sent, skipping success response`);
+          
+          // Success response with workflow execution ID
+          if (!res.headersSent) {
+            sendResponse(200, { 
+              success: true, 
+              message: "Chat processed successfully",
+              executionId: workflowResult.executionId,
+              instruction: workflowResult.instruction
+            });
+            console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
+          } else {
+            console.warn(`⚠️  Response already sent, skipping success response`);
+          }
+        } catch (error: any) {
+          // Log error for debugging
+          console.error(`❌ Error processing chat input:`, error);
+          console.error(`   Error stack:`, error.stack);
+          
+          // Send appropriate error response - ensure it's sent
+          if (!res.headersSent) {
+            const statusCode = error.message?.includes('Payment failed') ? 402 : 
+                              error.message?.includes('No listing') ? 404 : 
+                              error.message?.includes('timeout') ? 408 : 500;
+            sendResponse(statusCode, { 
+              success: false, 
+              error: error.message || "Internal server error",
+              timestamp: Date.now()
+            });
+          } else {
+            console.warn(`⚠️  Response already sent, cannot send error response`);
+          }
+        } finally {
+          // Ensure response is always sent
+          if (!res.headersSent) {
+            console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
+            sendResponse(500, { 
+              success: false, 
+              error: "Unexpected server error - no response was sent",
+              timestamp: Date.now()
+            });
+          } else {
+            console.log(`✅ Response sent for request from ${email}`);
+          }
         }
-      } catch (error: any) {
-        // Log error for debugging
-        console.error(`❌ Error processing chat input:`, error);
-        console.error(`   Error stack:`, error.stack);
-        
-        // Send appropriate error response - ensure it's sent
+      } catch (outerError: any) {
+        // Catch any errors from the outer try block (request parsing, validation, etc.)
+        console.error(`❌ Outer error processing request:`, outerError);
         if (!res.headersSent) {
-          const statusCode = error.message?.includes('Payment failed') ? 402 : 
-                            error.message?.includes('No listing') ? 404 : 
-                            error.message?.includes('timeout') ? 408 : 500;
-          sendResponse(statusCode, { 
-            success: false, 
-            error: error.message || "Internal server error",
-            timestamp: Date.now()
-          });
-        } else {
-          console.warn(`⚠️  Response already sent, cannot send error response`);
-        }
-      } finally {
-        // Ensure response is always sent
-        if (!res.headersSent) {
-          console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
           sendResponse(500, { 
             success: false, 
-            error: "Unexpected server error - no response was sent",
+            error: outerError.message || "Internal server error",
             timestamp: Date.now()
           });
-        } else {
-          console.log(`✅ Response sent for request from ${email}`);
         }
       }
     });
