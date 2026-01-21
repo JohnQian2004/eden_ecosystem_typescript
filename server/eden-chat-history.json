@@ -3909,6 +3909,27 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769010826578_f9bac32dd9bfe",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769010826578,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769010834095_e0972e661a93b",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Enjoy a thrilling sci-fi experience with 'The Matrix' at AMC Theatres in Baltimore, Maryland. The movie starts at 8:00 PM, and you can grab your ticket for just $2. With a high rating of 4.9 from 150 reviews, it's a great choice for your evening entertainment.",
+        "timestamp": 1769010834095,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ]
   }

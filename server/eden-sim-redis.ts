@@ -35,7 +35,11 @@ import {
   STRIPE_SECRET_KEY,
   STRIPE_PUBLISHABLE_KEY,
   STRIPE_WEBHOOK_SECRET,
-  EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS
+  EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS,
+  ENABLE_HTTPS,
+  SERVER_KEY_PATH,
+  SERVER_CERT_PATH,
+  CA_CERT_PATH
 } from "./src/config";
 import type { GardenConfig, TokenGardenConfig, LLMQueryResult } from "./src/types";
 import {
@@ -157,8 +161,38 @@ const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16", // Use compatible API version
 });
 
-// HTTP Server for serving Angular and API
-const httpServer = http.createServer();
+// HTTP/HTTPS Server for serving Angular and API
+let httpServer: http.Server | https.Server;
+
+if (ENABLE_HTTPS) {
+  // Check if certificates exist
+  if (!fs.existsSync(SERVER_KEY_PATH) || !fs.existsSync(SERVER_CERT_PATH)) {
+    console.error("❌ HTTPS enabled but certificates not found!");
+    console.error(`   Server key: ${SERVER_KEY_PATH}`);
+    console.error(`   Server cert: ${SERVER_CERT_PATH}`);
+    console.error("\n📝 Please run: node server/scripts/generate-pki-certs.js");
+    process.exit(1);
+  }
+
+  // Load SSL certificates
+  const serverKey = fs.readFileSync(SERVER_KEY_PATH, "utf8");
+  const serverCert = fs.readFileSync(SERVER_CERT_PATH, "utf8");
+  const caCert = fs.existsSync(CA_CERT_PATH) ? fs.readFileSync(CA_CERT_PATH, "utf8") : undefined;
+
+  const httpsOptions: https.ServerOptions = {
+    key: serverKey,
+    cert: serverCert,
+    ca: caCert ? [caCert] : undefined,
+    requestCert: false, // Don't require client certificates for now
+    rejectUnauthorized: false, // Allow self-signed certificates
+  };
+
+  httpServer = https.createServer(httpsOptions);
+  console.log("🔐 HTTPS enabled - using SSL/TLS certificates");
+} else {
+  httpServer = http.createServer();
+  console.log("🌐 HTTP mode (HTTPS disabled)");
+}
 
 // WebSocket Server for Frontend (upgrade from HTTP server)
 const wss = new WebSocketServer({ 
@@ -9368,19 +9402,57 @@ httpServer.on("request", async (req, res) => {
   const resolvedPath = path.resolve(fullPath);
   const resolvedFrontend = path.resolve(FRONTEND_PATH);
   if (!resolvedPath.startsWith(resolvedFrontend)) {
+    console.log(`   ⚠️ [${requestId}] Security: Path traversal attempt blocked`);
     res.writeHead(403);
     res.end("Forbidden");
     return;
+  }
+
+  // Debug logging for frontend path
+  if (pathname === "/" || pathname === "/index.html") {
+    console.log(`   📁 [${requestId}] Frontend path: ${FRONTEND_PATH}`);
+    console.log(`   📁 [${requestId}] Full path: ${fullPath}`);
+    console.log(`   📁 [${requestId}] Resolved path: ${resolvedPath}`);
+    console.log(`   📁 [${requestId}] Path exists: ${fs.existsSync(fullPath)}`);
   }
 
   fs.access(fullPath, fs.constants.F_OK, (err) => {
     if (err) {
       // If file not found, serve index.html for Angular routing
       const indexPath = path.join(FRONTEND_PATH, "index.html");
+      console.log(`   📁 [${requestId}] File not found: ${fullPath}, trying index.html: ${indexPath}`);
+      console.log(`   📁 [${requestId}] Index.html exists: ${fs.existsSync(indexPath)}`);
       fs.readFile(indexPath, (err, data) => {
         if (err) {
-          res.writeHead(404);
-          res.end("Not Found");
+          console.error(`   ❌ [${requestId}] Failed to read index.html: ${err.message}`);
+          console.error(`   ❌ [${requestId}] FRONTEND_PATH: ${FRONTEND_PATH}`);
+          console.error(`   ❌ [${requestId}] indexPath: ${indexPath}`);
+          console.error(`   ❌ [${requestId}] Directory exists: ${fs.existsSync(FRONTEND_PATH)}`);
+          if (fs.existsSync(FRONTEND_PATH)) {
+            const files = fs.readdirSync(FRONTEND_PATH);
+            console.error(`   ❌ [${requestId}] Files in directory: ${files.join(', ')}`);
+          }
+          res.writeHead(404, { "Content-Type": "text/html" });
+          res.end(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Frontend Not Found</title>
+              <style>
+                body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+                h1 { color: #d32f2f; }
+                code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; }
+              </style>
+            </head>
+            <body>
+              <h1>404 - Frontend Not Found</h1>
+              <p>The Angular frontend has not been built yet.</p>
+              <p>Please run: <code>cd frontend && ng build</code></p>
+              <p>Or use the Angular dev server: <code>cd frontend && ng serve</code></p>
+              <p><small>FRONTEND_PATH: ${FRONTEND_PATH}</small></p>
+            </body>
+            </html>
+          `);
         } else {
           res.writeHead(200, { 
             "Content-Type": "text/html",
@@ -14255,11 +14327,29 @@ async function main() {
     }
   }
   
+  // Check if frontend is built
+  if (!fs.existsSync(FRONTEND_PATH)) {
+    console.warn(`\n⚠️  WARNING: Frontend directory not found: ${FRONTEND_PATH}`);
+    console.warn(`   The Angular frontend has not been built yet.`);
+    console.warn(`   To build it, run: cd frontend && ng build`);
+    console.warn(`   Or use the Angular dev server: cd frontend && ng serve`);
+    console.warn(`   The server will still start, but frontend routes will return 404.\n`);
+  } else if (!fs.existsSync(path.join(FRONTEND_PATH, "index.html"))) {
+    console.warn(`\n⚠️  WARNING: index.html not found in: ${FRONTEND_PATH}`);
+    console.warn(`   The Angular build may be incomplete.`);
+    console.warn(`   Try rebuilding: cd frontend && ng build\n`);
+  } else {
+    console.log(`\n✅ Frontend found at: ${FRONTEND_PATH}`);
+  }
+
   // Start the server
   const PORT = process.env.PORT || 3000;
+  const protocol = ENABLE_HTTPS ? "https" : "http";
+  const wsProtocol = ENABLE_HTTPS ? "wss" : "ws";
+  
   httpServer.listen(PORT, () => {
-    console.log(`\n🚀 Eden Ecosystem Server running on port ${PORT}`);
-    console.log(`📡 WebSocket server ready for connections`);
+    console.log(`\n🚀 Eden Ecosystem Server running on ${protocol}://localhost:${PORT}`);
+    console.log(`📡 WebSocket server ready for connections (${wsProtocol}://localhost:${PORT}/ws)`);
     if (DEPLOYED_AS_ROOT) {
       console.log(`🌳 ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
     } else {
