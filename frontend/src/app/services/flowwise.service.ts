@@ -110,19 +110,6 @@ export class FlowWiseService {
 
     // Listen for WebSocket events to handle server-side workflow decisions
     this.wsService.events$.subscribe((event: any) => {
-      // Log all events for debugging (especially user_decision_required)
-      if (event.type === 'user_decision_required') {
-        console.log(`🎯 [FlowWise] ========================================`);
-        console.log(`🎯 [FlowWise] USER_DECISION_REQUIRED EVENT RECEIVED!`);
-        console.log(`🎯 [FlowWise] Full event:`, JSON.stringify(event, null, 2));
-        console.log(`🎯 [FlowWise] Event type:`, event.type);
-        console.log(`🎯 [FlowWise] Event data:`, event.data);
-        console.log(`🎯 [FlowWise] Event data.videoUrl:`, event.data?.videoUrl);
-        console.log(`🎯 [FlowWise] Event data.movieTitle:`, event.data?.movieTitle);
-        console.log(`🎯 [FlowWise] Event data.options:`, event.data?.options);
-        console.log(`🎯 [FlowWise] ========================================`);
-      }
-      
       if (event.type === 'user_decision_required') {
         console.log(`🤔 [FlowWise] Server-side decision required:`, event);
 
@@ -148,47 +135,32 @@ export class FlowWiseService {
         console.log(`📋 [FlowWise] Options data:`, options);
         
         // Extract videoUrl and movieTitle from event data (for movie viewing decisions)
-        // Check multiple possible locations for videoUrl and movieTitle
-        // CRITICAL: Also check if videoUrl/movieTitle are template strings that weren't replaced
         let videoUrl = event.data?.videoUrl || 
                         event.data?.response?.videoUrl || 
-                        (event.data?.data && event.data.data.videoUrl) ||
                         event.data?.selectedListing?.videoUrl ||
                         '';
         let movieTitle = event.data?.movieTitle || 
                           event.data?.response?.movieTitle || 
-                          (event.data?.data && event.data.data.movieTitle) ||
                           event.data?.selectedListing?.movieTitle ||
                           '';
         
-        // If videoUrl or movieTitle are template strings (not replaced), try to get from active execution context
-        if (!videoUrl || videoUrl.includes('{{') || videoUrl.includes('selectedListing')) {
-          console.log(`🎬 [FlowWise] videoUrl appears to be a template string or empty, checking active execution context`);
+        // If videoUrl or movieTitle are missing, try to get from active execution context
+        if (!videoUrl && executionId) {
           const execution = this.activeExecutions.get(executionId);
           if (execution?.context) {
             videoUrl = execution.context['selectedListing']?.['videoUrl'] || 
                       execution.context['videoUrl'] || 
-                      videoUrl;
-            console.log(`🎬 [FlowWise] Retrieved videoUrl from execution context: ${videoUrl}`);
+                      '';
           }
         }
-        if (!movieTitle || movieTitle.includes('{{') || movieTitle.includes('selectedListing')) {
-          console.log(`🎬 [FlowWise] movieTitle appears to be a template string or empty, checking active execution context`);
+        if (!movieTitle && executionId) {
           const execution = this.activeExecutions.get(executionId);
           if (execution?.context) {
             movieTitle = execution.context['selectedListing']?.['movieTitle'] || 
                         execution.context['movieTitle'] || 
-                        movieTitle;
-            console.log(`🎬 [FlowWise] Retrieved movieTitle from execution context: ${movieTitle}`);
+                        '';
           }
         }
-        
-        console.log(`🎬 [FlowWise] Extracting videoUrl and movieTitle:`);
-        console.log(`🎬 [FlowWise] event.data:`, event.data);
-        console.log(`🎬 [FlowWise] event.data.videoUrl:`, event.data?.videoUrl);
-        console.log(`🎬 [FlowWise] event.data.movieTitle:`, event.data?.movieTitle);
-        console.log(`🎬 [FlowWise] Final extracted videoUrl:`, videoUrl);
-        console.log(`🎬 [FlowWise] Final extracted movieTitle:`, movieTitle);
         
         const decisionRequest: UserDecisionRequest = {
           executionId: executionId,
@@ -196,20 +168,13 @@ export class FlowWiseService {
           prompt: event.data?.prompt || event.message || 'Please make a decision',
           options: options,
           timeout: event.data?.timeout || 60000,
-          videoUrl: videoUrl || undefined, // Use undefined instead of empty string
-          movieTitle: movieTitle || undefined // Use undefined instead of empty string
+          videoUrl: videoUrl || undefined,
+          movieTitle: movieTitle || undefined
         };
 
-        console.log(`📋 [FlowWise] ========================================`);
-        console.log(`📋 [FlowWise] EMITTING DECISION REQUEST`);
-        console.log(`📋 [FlowWise] Decision request:`, JSON.stringify(decisionRequest, null, 2));
+        console.log(`📋 [FlowWise] Emitting decision request:`, decisionRequest);
         console.log(`📋 [FlowWise] Decision request options count: ${decisionRequest.options.length}`);
-        console.log(`🎬 [FlowWise] Decision request videoUrl: ${videoUrl || 'none'}`);
-        console.log(`🎬 [FlowWise] Decision request movieTitle: ${movieTitle || 'none'}`);
-        console.log(`📋 [FlowWise] Calling decisionRequest$.next()...`);
         this.decisionRequest$.next(decisionRequest);
-        console.log(`📋 [FlowWise] ✅ Decision request emitted successfully`);
-        console.log(`📋 [FlowWise] ========================================`);
       } else if (event.type === 'user_selection_required') {
         // Also handle selection events from WebSocket and emit through Subject
         console.log(`🎬 [FlowWise] ========================================`);

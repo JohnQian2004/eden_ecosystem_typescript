@@ -1,6 +1,7 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { getApiBaseUrl } from '../../services/api-base';
+import { getCatalogEntry, SERVICE_TYPE_CATALOG } from '../../services/service-type-catalog.service';
 
 interface ServiceType {
   type: string;
@@ -18,6 +19,7 @@ interface GardenConfig {
   networkType: 'http' | 'https';
   isSnake: boolean;
   selectedProviders?: string[]; // Selected movie theater providers
+  videoUrl?: string; // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
 }
 
 interface CustomProvider {
@@ -58,6 +60,59 @@ export class SystemConfigComponent implements OnInit {
   isGeneratingNotificationCode: boolean = false;
   generationError: string | null = null;
   chatHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: number}> = [];
+
+  // Data provider selection (LLM vs getData/MySQL)
+  dataProviderType: 'llm' | 'getdata' = 'llm'; // Default to LLM for all gardens except autoparts
+  
+  // Provider plugin (MySQL/MariaDB) + webhook testing (garden wizard)
+  enableMySqlPlugin: boolean = false; // Only enabled when dataProviderType === 'getdata'
+  mySqlHost: string = '127.0.0.1';
+  mySqlPort: number = 3306;
+  mySqlUser: string = 'root';
+  mySqlPassword: string = 'test'; // Hardcoded for testing
+  mySqlDatabase: string = 'testdbjwt'; // Hardcoded database name for testing
+  mySqlSql: string = `SELECT DISTINCT a.id, 
+  i.id AS image_id,
+  i.autopart_id,
+  a.year,
+  a.make,
+  a.model,
+  a.title,
+  a.sale_price,
+  u.id AS user_id,
+  u.email AS user_email,
+  u.first_name AS user_first_name,
+  u.last_name AS user_last_name,
+  u.phone AS user_phone
+FROM autoparts a 
+LEFT JOIN images i ON a.id = i.autopart_id 
+LEFT JOIN users u ON a.user_id = u.id 
+WHERE a.year = 2006 
+  AND a.make = 'honda' 
+  AND a.model = 'civic' 
+  AND a.title LIKE CONCAT('%', 'bumper', '%') 
+  AND a.status = 2
+  AND a.archived = false 
+  AND a.published = true 
+ORDER BY a.id DESC
+LIMIT 30 OFFSET 0`;
+  mySqlParamOrder: string = ''; // comma-separated filter keys (e.g. "destination,date")
+  mySqlFieldMapJson: string = ''; // JSON object mapping canonical fields -> column names
+  mySqlReturnFields: string = 'year, make, model, title, sale_price, user_first_name, user_last_name, user_email, user_phone'; // comma-separated fields to include in final return
+  isTestingMySql: boolean = false;
+  mySqlTestResult: any = null;
+  mySqlTestError: string | null = null;
+
+  enableProviderWebhook: boolean = true;
+  isTestingProviderWebhook: boolean = false;
+  providerWebhookTestResult: any = null;
+  providerWebhookTestError: string | null = null;
+
+  // getData wrapper testing (pre-flight validation)
+  getDataTestQuery: string = 'I need a front bumper for 2020 Honda Civic at best price';
+  isTestingGetData: boolean = false;
+  getDataTestResult: any = null;
+  getDataTestError: string | null = null;
   gardenConfig: GardenConfig = {
     serviceType: '',
     gardenName: '',
@@ -66,7 +121,8 @@ export class SystemConfigComponent implements OnInit {
     serverPort: 3001,
     networkType: 'http',
     isSnake: false,
-    selectedProviders: []
+    selectedProviders: [],
+    videoUrl: '' // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
   };
   
   // Available movie theater providers (predefined)
@@ -244,47 +300,42 @@ export class SystemConfigComponent implements OnInit {
   loadServiceTypes() {
     // Service types are now derived from existing workflows instead of hardcoded API
     // This removes hardcoded dependencies and uses only workflows that actually exist
+    // CRITICAL: Always include "movie" as a default service type even if workflow doesn't exist
     this.isLoadingServiceTypes = true;
     
     // Convert existing workflows to service types
     const existingWorkflows = this.getExistingWorkflows();
-    this.serviceTypes = existingWorkflows.map(workflow => {
+    const workflowServiceTypes = existingWorkflows.map(workflow => {
       // Map workflow service type to ServiceType format
       const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
       
-      // Get icon based on service type
-      const iconMap: Record<string, string> = {
-        'movie': '🎬',
-        'amc': '🎬',
-        'autobodyshop': '🔧',
-        'autorepairshop': '🔧',
-        'bank': '🏦',
-        'church': '⛪',
-        'court': '⚖️',
-        'dex': '💰',
-        'dogpark': '🐕',
-        'gasstation': '⛽',
-        'grocerystore': '🏢',
-        'gym': '🏢',
-        'hospital': '🏢',
-        'hotel': '🏨',
-        'jail': '🔒',
-        'laborcamp': '🏢',
-        'library': '📚',
-        'pharmacy': '🏢',
-        'party': '🎉',
-        'policestation': '🚔',
-        'postoffice': '📮',
-        'priest': '⛪',
-        'restaurant': '🍽️',
-        'school': '🏢',
-        'university': '🏢',
-        'airline': '✈️',
-        'autoparts': '🔧',
-        'snake': '🐍'
-      };
+      // Get icon from shared catalog, fallback to hardcoded map for service types not in catalog
+      const catalogEntry = getCatalogEntry(workflow.serviceType);
+      let icon = catalogEntry?.icon;
       
-      const icon = iconMap[workflow.serviceType] || '🏢';
+      if (!icon) {
+        // Fallback icon map for service types not in the main catalog
+        const fallbackIconMap: Record<string, string> = {
+          'amc': '🎬',
+          'autobodyshop': '🔧',
+          'autorepairshop': '🔧',
+          'church': '⛪',
+          'court': '⚖️',
+          'gym': '🏢',
+          'hospital': '🏢',
+          'jail': '🔒',
+          'laborcamp': '🏢',
+          'library': '📚',
+          'policestation': '🚔',
+          'postoffice': '📮',
+          'priest': '⛪',
+          'school': '🏢',
+          'university': '🏢',
+          'snake': '🐍',
+          'movie': '🎬'
+        };
+        icon = fallbackIconMap[workflow.serviceType] || '🏢';
+      }
       
       return {
         type: workflow.serviceType,
@@ -294,14 +345,85 @@ export class SystemConfigComponent implements OnInit {
       };
     });
     
+    // CRITICAL: Always include "movie" as a default service type, even if workflow doesn't exist
+    // This ensures movie gardens can always be created via the wizard
+    const hasMovie = workflowServiceTypes.some(st => st.type === 'movie');
+    if (!hasMovie) {
+      const catalogEntry = getCatalogEntry('movie');
+      const movieIcon = catalogEntry?.icon || '🎬';
+      workflowServiceTypes.unshift({
+        type: 'movie',
+        icon: movieIcon,
+        name: 'Movie',
+        description: 'Movie theater service - Users can search for movies, select showtimes, and purchase tickets'
+      });
+      console.log('✅ Added "movie" as default service type (workflow may not exist yet)');
+    }
+    
+    this.serviceTypes = workflowServiceTypes;
     this.isLoadingServiceTypes = false;
-    console.log(`✅ Loaded ${this.serviceTypes.length} service types from existing workflows (removed hardcoded dependencies)`);
+    console.log(`✅ Loaded ${this.serviceTypes.length} service types (${existingWorkflows.length} from existing workflows + movie as default)`);
+  }
+
+  // Get service type options for dropdown (from catalog + fallback types)
+  getServiceTypeOptions(): Array<{value: string, label: string}> {
+    const options: Array<{value: string, label: string}> = [];
+    
+    // Add catalog entries
+    for (const entry of SERVICE_TYPE_CATALOG) {
+      options.push({
+        value: entry.type,
+        label: `${entry.icon} ${entry.adText} - ${entry.adText.toLowerCase()} service`
+      });
+    }
+    
+    // Add fallback service types not in catalog
+    const fallbackTypes: Record<string, {icon: string, description: string}> = {
+      'amc': { icon: '🎬', description: 'AMC movie theater service' },
+      'autobodyshop': { icon: '🔧', description: 'Auto body repair service' },
+      'autorepairshop': { icon: '🔧', description: 'Auto repair service' },
+      'church': { icon: '⛪', description: 'Church services' },
+      'court': { icon: '⚖️', description: 'Court services' },
+      'gym': { icon: '🏢', description: 'Gym and fitness services' },
+      'hospital': { icon: '🏢', description: 'Hospital services' },
+      'jail': { icon: '🔒', description: 'Jail services' },
+      'laborcamp': { icon: '🏢', description: 'Labor camp services' },
+      'library': { icon: '📚', description: 'Library services' },
+      'policestation': { icon: '🚔', description: 'Police station services' },
+      'postoffice': { icon: '📮', description: 'Post office services' },
+      'priest': { icon: '⛪', description: 'Priest services' },
+      'school': { icon: '🏢', description: 'School services' },
+      'university': { icon: '🏢', description: 'University services' },
+      'snake': { icon: '🐍', description: 'Advertising service provider' }
+    };
+    
+    for (const [type, info] of Object.entries(fallbackTypes)) {
+      // Only add if not already in catalog
+      if (!SERVICE_TYPE_CATALOG.find(e => e.type === type)) {
+        const name = type.charAt(0).toUpperCase() + type.slice(1).replace(/([A-Z])/g, ' $1');
+        options.push({
+          value: type,
+          label: `${info.icon} ${name} - ${info.description}`
+        });
+      }
+    }
+    
+    return options.sort((a, b) => a.label.localeCompare(b.label));
   }
 
   selectServiceType(serviceType: ServiceType) {
     this.selectedServiceType = serviceType;
     this.gardenConfig.serviceType = serviceType.type;
     this.gardenConfig.isSnake = serviceType.type === 'snake';
+    
+    // Set default data provider: getData for autoparts, LLM for everything else
+    if (serviceType.type === 'autoparts') {
+      this.dataProviderType = 'getdata';
+      this.enableMySqlPlugin = true;
+    } else {
+      this.dataProviderType = 'llm';
+      this.enableMySqlPlugin = false;
+    }
     
     // Auto-generate garden name
     const baseName = serviceType.type === 'snake' ? 'Snake' : 
@@ -316,9 +438,13 @@ export class SystemConfigComponent implements OnInit {
     if (serviceType.type === 'movie') {
       // Start with empty selection - user must manually select providers
       this.gardenConfig.selectedProviders = [];
+      // Set default video URL for movie gardens
+      this.gardenConfig.videoUrl = '/api/movie/video/2025-12-09-144801890.mp4';
       console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
+      console.log('🎬 Set default videoUrl:', this.gardenConfig.videoUrl);
     } else {
       this.gardenConfig.selectedProviders = [];
+      this.gardenConfig.videoUrl = '';
     }
     
     // Refresh wallet balance when entering configuration step
@@ -328,42 +454,41 @@ export class SystemConfigComponent implements OnInit {
     this.wizardStep = 2;
   }
 
+  onDataProviderTypeChange() {
+    // When user changes data provider type, update enableMySqlPlugin accordingly
+    this.enableMySqlPlugin = this.dataProviderType === 'getdata';
+  }
+
   selectWorkflowAsServiceType(workflow: {serviceType: string, filename: string, exists: boolean, stepCount?: number}) {
     // Convert workflow to ServiceType format and select it
     const serviceTypeName = workflow.serviceType.charAt(0).toUpperCase() + workflow.serviceType.slice(1).replace(/([A-Z])/g, ' $1');
     
-    // Get icon based on service type
-    const iconMap: Record<string, string> = {
-      'movie': '🎬',
-      'amc': '🎬',
-      'autobodyshop': '🔧',
-      'autorepairshop': '🔧',
-      'bank': '🏦',
-      'church': '⛪',
-      'court': '⚖️',
-      'dex': '💰',
-      'dogpark': '🐕',
-      'gasstation': '⛽',
-      'grocerystore': '🏢',
-      'gym': '🏢',
-      'hospital': '🏢',
-      'hotel': '🏨',
-      'jail': '🔒',
-      'laborcamp': '🏢',
-      'library': '📚',
-      'pharmacy': '🏢',
-      'policestation': '🚔',
-      'postoffice': '📮',
-      'priest': '⛪',
-      'restaurant': '🍽️',
-      'school': '🏢',
-      'university': '🏢',
-      'airline': '✈️',
-      'autoparts': '🔧',
-      'snake': '🐍'
-    };
+    // Get icon from shared catalog, fallback to hardcoded map for service types not in catalog
+    const catalogEntry = getCatalogEntry(workflow.serviceType);
+    let icon = catalogEntry?.icon;
     
-    const icon = iconMap[workflow.serviceType] || '🏢';
+    if (!icon) {
+      // Fallback icon map for service types not in the main catalog
+      const fallbackIconMap: Record<string, string> = {
+        'amc': '🎬',
+        'autobodyshop': '🔧',
+        'autorepairshop': '🔧',
+        'church': '⛪',
+        'court': '⚖️',
+        'gym': '🏢',
+        'hospital': '🏢',
+        'jail': '🔒',
+        'laborcamp': '🏢',
+        'library': '📚',
+        'policestation': '🚔',
+        'postoffice': '📮',
+        'priest': '⛪',
+        'school': '🏢',
+        'university': '🏢',
+        'snake': '🐍'
+      };
+      icon = fallbackIconMap[workflow.serviceType] || '🏢';
+    }
     
     const serviceType: ServiceType = {
       type: workflow.serviceType,
@@ -437,7 +562,8 @@ export class SystemConfigComponent implements OnInit {
       serverPort: this.gardenConfig.serverPort,
       networkType: this.gardenConfig.networkType,
       isSnake: this.gardenConfig.isSnake,
-      email: this.userEmail
+      email: this.userEmail,
+      videoUrl: this.gardenConfig.videoUrl || '' // Video URL for movie gardens
     };
 
     if (!isDexGarden) {
@@ -480,6 +606,87 @@ export class SystemConfigComponent implements OnInit {
     // Include providers array if any providers are specified
     if (providers.length > 0) {
       requestBody.providers = providers;
+    }
+
+    // Provider Plugin: MySQL/MariaDB (attach config to a deterministic providerId)
+    if (this.dataProviderType === 'getdata' && !isDexGarden) {
+      const providerId = this.getWizardProviderId();
+
+      // Ensure a deterministic provider exists for plugin mode
+      if (!requestBody.providers) requestBody.providers = [];
+      const already = (requestBody.providers as any[]).some(p => p?.id === providerId);
+      if (!already) {
+        (requestBody.providers as any[]).push({
+          id: providerId,
+          name: `${this.gardenConfig.gardenName} Provider`,
+          location: 'Unknown',
+          bond: 1000,
+          reputation: 5.0,
+          apiEndpoint: 'eden:plugin:mysql'
+        });
+      }
+
+      let fieldMap: any = undefined;
+      if (this.mySqlFieldMapJson.trim()) {
+        try { fieldMap = JSON.parse(this.mySqlFieldMapJson); } catch {}
+      }
+      const paramOrder = this.mySqlParamOrder
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      // Validate MySQL plugin fields before including in request
+      if (!this.mySqlHost || !this.mySqlHost.trim()) {
+        this.creationError = 'MySQL Host is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlUser || !this.mySqlUser.trim()) {
+        this.creationError = 'MySQL User is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+        this.creationError = 'MySQL Password is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+        this.creationError = 'MySQL Database is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+      if (!this.mySqlSql || !this.mySqlSql.trim()) {
+        this.creationError = 'MySQL SQL query is required when plugin is enabled';
+        this.isCreating = false;
+        return;
+      }
+
+      requestBody.providerPlugins = {
+        mysql: [{
+          providerId,
+          serviceType: this.gardenConfig.serviceType,
+          connection: {
+            host: this.mySqlHost.trim(),
+            port: this.mySqlPort || 3306,
+            user: this.mySqlUser.trim(),
+            password: this.mySqlPassword.trim(),
+            database: this.mySqlDatabase.trim()
+          },
+          sql: this.mySqlSql.trim(),
+          paramOrder,
+          fieldMap,
+          maxRows: 50
+        }]
+      };
+    }
+
+    // Provider webhook registration (optional)
+    if (this.enableProviderWebhook) {
+      const providerId = this.getWizardProviderId();
+      requestBody.providerWebhooks = {
+        [providerId]: this.getWizardProviderWebhookUrl()
+      };
     }
     
     // Backward compatibility: Also include selectedProviders for movie (if no custom providers)
@@ -663,7 +870,9 @@ export class SystemConfigComponent implements OnInit {
     this.isGeneratingNotificationCode = true;
     this.generationError = null;
 
-    const providerId = `${this.newServiceTypeName}-001`;
+    // Use timestamp-based unique ID instead of hardcoded -001
+    const timestamp = Date.now();
+    const providerId = `${this.newServiceTypeName}-${timestamp}`;
     const providerName = this.newServiceTypeName.charAt(0).toUpperCase() + this.newServiceTypeName.slice(1);
 
     this.http.post<{success: boolean, code?: any, redisKey?: string, error?: string}>(
@@ -674,7 +883,7 @@ export class SystemConfigComponent implements OnInit {
         language: 'typescript',
         framework: 'express',
         indexerEndpoint: `${this.apiUrl}`,
-        webhookUrl: `${this.apiUrl}/mock/webhook/${providerId}`,
+        webhookUrl: `${this.apiUrl}/api/provider-plugin/webhook/${providerId}`,
         serviceType: this.newServiceTypeName.trim(),
         notificationMethods: ['webhook', 'pull', 'rpc']
       }
@@ -696,6 +905,201 @@ export class SystemConfigComponent implements OnInit {
         console.error('Failed to generate notification code:', err);
         this.generationError = err.error?.error || err.message || 'Failed to generate notification code';
         this.isGeneratingNotificationCode = false;
+      }
+    });
+  }
+
+  getWizardProviderId(): string {
+    const st = String(this.gardenConfig?.serviceType || '').trim();
+    // Use timestamp-based unique ID instead of hardcoded -001
+    const timestamp = Date.now();
+    return st ? `${st}-${timestamp}` : `provider-${timestamp}`;
+  }
+
+  getWizardProviderWebhookUrl(): string {
+    return `${this.apiUrl}/api/provider-plugin/webhook/${this.getWizardProviderId()}`;
+  }
+
+  testMySqlQuery(): void {
+    // Validate required fields before sending
+    if (!this.mySqlHost || !this.mySqlHost.trim()) {
+      this.mySqlTestError = 'Host is required';
+      return;
+    }
+    if (!this.mySqlUser || !this.mySqlUser.trim()) {
+      this.mySqlTestError = 'User is required';
+      return;
+    }
+    if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+      this.mySqlTestError = 'Password is required';
+      return;
+    }
+    if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+      this.mySqlTestError = 'Database is required';
+      return;
+    }
+    if (!this.mySqlSql || !this.mySqlSql.trim()) {
+      this.mySqlTestError = 'SQL query is required';
+      return;
+    }
+
+    this.isTestingMySql = true;
+    this.mySqlTestError = null;
+    this.mySqlTestResult = null;
+
+    // Auto-detect LIMIT ? and OFFSET ? placeholders and provide default values
+    const sql = this.mySqlSql.trim();
+    const params: any[] = [];
+    
+    // Count all ? placeholders in the SQL
+    const allPlaceholders = sql.match(/\?/g) || [];
+    const placeholderCount = allPlaceholders.length;
+    
+    // Check for LIMIT ? and OFFSET ? patterns (case-insensitive)
+    const sqlUpper = sql.toUpperCase();
+    const hasLimitPlaceholder = /LIMIT\s+\?/i.test(sql);
+    const hasOffsetPlaceholder = /OFFSET\s+\?/i.test(sql);
+    
+    // Find positions of LIMIT ? and OFFSET ?
+    let limitIndex = -1;
+    let offsetIndex = -1;
+    if (hasLimitPlaceholder) {
+      const limitMatch = sqlUpper.match(/LIMIT\s+\?/);
+      if (limitMatch && limitMatch.index !== undefined) {
+        // Count ? before LIMIT
+        const beforeLimit = sql.substring(0, limitMatch.index);
+        limitIndex = (beforeLimit.match(/\?/g) || []).length;
+      }
+    }
+    if (hasOffsetPlaceholder) {
+      const offsetMatch = sqlUpper.match(/OFFSET\s+\?/);
+      if (offsetMatch && offsetMatch.index !== undefined) {
+        // Count ? before OFFSET
+        const beforeOffset = sql.substring(0, offsetMatch.index);
+        offsetIndex = (beforeOffset.match(/\?/g) || []).length;
+      }
+    }
+    
+    // Fill params array: null for non-LIMIT/OFFSET placeholders, values for LIMIT/OFFSET
+    for (let i = 0; i < placeholderCount; i++) {
+      if (i === limitIndex) {
+        params.push(30); // LIMIT value
+      } else if (i === offsetIndex) {
+        params.push(0);  // OFFSET value
+      } else {
+        params.push(null); // Other placeholders (will be filled by parameterization or ignored)
+      }
+    }
+
+    const requestBody = {
+      connection: {
+        host: this.mySqlHost.trim(),
+        port: this.mySqlPort || 3306,
+        user: this.mySqlUser.trim(),
+        password: this.mySqlPassword.trim(),
+        database: this.mySqlDatabase.trim()
+      },
+      sql: sql,
+      params: params,
+      maxRows: 20
+    };
+
+    // Debug: log the request body to verify database is included
+    console.log('🔍 [MySQL Test] Sending request:', { ...requestBody, connection: { ...requestBody.connection, password: '***' } });
+
+    this.http.post<any>(`${this.apiUrl}/api/provider-plugin/mysql/test-query`, requestBody).subscribe({
+      next: (res) => {
+        this.mySqlTestResult = res;
+        this.isTestingMySql = false;
+      },
+      error: (err) => {
+        this.mySqlTestError = err?.error?.error || err?.message || 'MySQL test failed';
+        this.isTestingMySql = false;
+      }
+    });
+  }
+
+  testGetDataWrapper(): void {
+    // Validate required fields before sending
+    if (!this.mySqlHost || !this.mySqlHost.trim()) {
+      this.getDataTestError = 'Host is required';
+      return;
+    }
+    if (!this.mySqlUser || !this.mySqlUser.trim()) {
+      this.getDataTestError = 'User is required';
+      return;
+    }
+    if (!this.mySqlPassword || !this.mySqlPassword.trim()) {
+      this.getDataTestError = 'Password is required';
+      return;
+    }
+    if (!this.mySqlDatabase || !this.mySqlDatabase.trim()) {
+      this.getDataTestError = 'Database is required';
+      return;
+    }
+    if (!this.mySqlSql || !this.mySqlSql.trim()) {
+      this.getDataTestError = 'SQL query is required';
+      return;
+    }
+    if (!this.getDataTestQuery || !this.getDataTestQuery.trim()) {
+      this.getDataTestError = 'Test query is required';
+      return;
+    }
+
+    this.isTestingGetData = true;
+    this.getDataTestError = null;
+    this.getDataTestResult = null;
+
+    const requestBody = {
+      connection: {
+        host: this.mySqlHost.trim(),
+        port: this.mySqlPort || 3306,
+        user: this.mySqlUser.trim(),
+        password: this.mySqlPassword.trim(),
+        database: this.mySqlDatabase.trim()
+      },
+      sql: this.mySqlSql.trim(),
+      userQuery: this.getDataTestQuery.trim(),
+      serviceType: this.selectedServiceType?.type || 'autoparts',
+      returnFields: this.mySqlReturnFields.trim() // comma-separated list of fields to include in final return
+    };
+
+    console.log('🔍 [getData Wrapper Test] Sending request:', { ...requestBody, connection: { ...requestBody.connection, password: '***' } });
+
+    this.http.post<any>(`${this.apiUrl}/api/provider-plugin/mysql/test-getdata`, requestBody).subscribe({
+      next: (res) => {
+        this.getDataTestResult = res;
+        this.isTestingGetData = false;
+        console.log('✅ [getData Wrapper Test] Success:', res);
+      },
+      error: (err) => {
+        this.getDataTestError = err.error?.error || err.message || 'Failed to test getData wrapper';
+        this.isTestingGetData = false;
+        console.error('❌ [getData Wrapper Test] Error:', err);
+      }
+    });
+  }
+
+  testProviderWebhook(): void {
+    this.isTestingProviderWebhook = true;
+    this.providerWebhookTestError = null;
+    this.providerWebhookTestResult = null;
+
+    const providerId = this.getWizardProviderId();
+    const url = this.getWizardProviderWebhookUrl();
+    this.http.post<any>(url, {
+      event: 'wizard-test',
+      providerId,
+      timestamp: Date.now(),
+      message: 'Hello from Garden Wizard'
+    }).subscribe({
+      next: (res) => {
+        this.providerWebhookTestResult = res;
+        this.isTestingProviderWebhook = false;
+      },
+      error: (err) => {
+        this.providerWebhookTestError = err?.error?.error || err?.message || 'Webhook test failed';
+        this.isTestingProviderWebhook = false;
       }
     });
   }

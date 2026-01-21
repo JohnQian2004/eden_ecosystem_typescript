@@ -452,82 +452,6 @@
         "onTimeout": "error_handler"
       },
       {
-        "id": "watch_movie",
-        "name": "🎭 Watch Movie: Theater Experience",
-        "type": "process",
-        "component": "movie_theater",
-        "description": "Simulate watching the movie with progress tracking and scene transitions",
-        "actions": [
-          {
-            "type": "start_movie_watching",
-            "movieTitle": "{{selectedListing.movieTitle}}",
-            "duration": 10,
-            "sceneTransitions": [
-              {"percent": 30, "scene": "cross", "message": "Transitioning to the Cross scene"},
-              {"percent": 60, "scene": "utah_action", "message": "Initiating Utah Action Consensus"},
-              {"percent": 90, "scene": "garden_return", "message": "Fading to white for the Garden return"}
-            ]
-          }
-        ],
-        "websocketEvents": [
-          {
-            "type": "workflow_step_changed",
-            "component": "flowwise",
-            "message": "Workflow progressed to: 🎭 Watch Movie",
-            "data": {
-              "stepId": "watch_movie",
-              "stepName": "🎭 Watch Movie: Theater Experience",
-              "component": "movie_theater"
-            }
-          },
-          {
-            "type": "movie_started",
-            "component": "movie_theater",
-            "message": "Now playing: {{selectedListing.movieTitle}}",
-            "data": {
-              "movieTitle": "{{selectedListing.movieTitle}}",
-              "duration": 10,
-              "currentScene": "garden"
-            }
-          },
-          {
-            "type": "movie_progress",
-            "component": "movie_theater",
-            "message": "Movie progress: {{movieProgress}}%",
-            "data": {
-              "progress": "{{movieProgress}}",
-              "currentScene": "{{currentScene}}"
-            }
-          },
-          {
-            "type": "scene_transition",
-            "component": "movie_theater",
-            "message": "{{sceneMessage}}",
-            "data": {
-              "scene": "{{currentScene}}",
-              "progress": "{{movieProgress}}"
-            }
-          },
-          {
-            "type": "movie_finished",
-            "component": "movie_theater",
-            "message": "Movie finished. Returning to Garden Genesis state.",
-            "data": {
-              "completed": true,
-              "finalScene": "genesis_garden"
-            }
-          }
-        ],
-        "outputs": {
-          "movieWatched": true,
-          "movieDuration": 10,
-          "finalScene": "genesis_garden"
-        },
-        "errorHandling": {
-          "onError": "error_handler"
-        }
-      },
-      {
         "id": "root_ca_ledger_and_payment",
         "name": "3️⃣ ROOT CA: Ledger, Payment & Settlement (Atomic)",
         "type": "process",
@@ -942,6 +866,135 @@
         }
       },
       {
+        "id": "watch_movie",
+        "name": "🎭 Watch Movie: Theater Experience (Auto-Complete)",
+        "type": "process",
+        "component": "movie_theater",
+        "description": "Auto-complete movie watching - immediately mark as watched and send video to chat console",
+        "actions": [
+          {
+            "type": "start_movie_watching",
+            "movieTitle": "{{selectedListing.movieTitle}}",
+            "duration": 0,
+            "autoComplete": true
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🎭 Watch Movie (Auto-Complete)",
+            "data": {
+              "stepId": "watch_movie",
+              "stepName": "🎭 Watch Movie: Theater Experience (Auto-Complete)",
+              "component": "movie_theater"
+            }
+          },
+          {
+            "type": "movie_started",
+            "component": "movie_theater",
+            "message": "🎬 Now playing: {{selectedListing.movieTitle}}",
+            "data": {
+              "movieTitle": "{{selectedListing.movieTitle}}",
+              "videoUrl": "{{selectedListing.videoUrl}}",
+              "duration": 0,
+              "currentScene": "garden",
+              "autoComplete": true
+            }
+          },
+          {
+            "type": "movie_finished",
+            "component": "movie_theater",
+            "message": "✅ Movie completed: {{selectedListing.movieTitle}}. Video is ready to play in the chat console.",
+            "data": {
+              "completed": true,
+              "finalScene": "genesis_garden",
+              "movieTitle": "{{selectedListing.movieTitle}}",
+              "videoUrl": "{{selectedListing.videoUrl}}",
+              "autoComplete": true
+            }
+          }
+        ],
+        "outputs": {
+          "movieWatched": true,
+          "movieDuration": 0,
+          "finalScene": "genesis_garden",
+          "movieTitle": "{{selectedListing.movieTitle}}",
+          "videoUrl": "{{selectedListing.videoUrl}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
+        "id": "view_movie",
+        "name": "🎬 View Movie: Play Video in Chat Console",
+        "type": "decision",
+        "component": "movie_theater",
+        "description": "Display movie video player in chat console and wait for user to finish watching",
+        "requiresUserDecision": true,
+        "decisionPrompt": "🎬 Movie \"{{selectedListing.movieTitle}}\" is ready to watch! The video will play in the chat console. Click 'Done Watching' when you're finished.",
+        "decisionOptions": [
+          {
+            "value": "DONE_WATCHING",
+            "label": "Done Watching",
+            "action": "continue"
+          }
+        ],
+        "actions": [],
+        "websocketEvents": [
+          {
+            "type": "workflow_step_changed",
+            "component": "flowwise",
+            "message": "Workflow progressed to: 🎬 View Movie",
+            "data": {
+              "stepId": "view_movie",
+              "stepName": "🎬 View Movie: Play Video in Chat Console",
+              "component": "movie_theater"
+            }
+          },
+          {
+            "type": "user_decision_required",
+            "component": "movie_theater",
+            "message": "🎬 Movie \"{{selectedListing.movieTitle}}\" is ready to watch! The video will play in the chat console.",
+            "data": {
+              "decisionId": "view_movie",
+              "prompt": "🎬 Movie \"{{selectedListing.movieTitle}}\" is ready to watch! The video will play in the chat console. Click 'Done Watching' when you're finished.",
+              "options": [
+                {"value": "DONE_WATCHING", "label": "Done Watching"}
+              ],
+              "videoUrl": "{{selectedListing.videoUrl}}",
+              "movieTitle": "{{selectedListing.movieTitle}}",
+              "timeout": 300000
+            }
+          },
+          {
+            "type": "llm_response",
+            "component": "eden_chat",
+            "message": "🎬 Movie \"{{selectedListing.movieTitle}}\" is ready to watch! The video will play in the chat console.",
+            "data": {
+              "response": {
+                "message": "🎬 Movie \"{{selectedListing.movieTitle}}\" is ready to watch! The video will play in the chat console.",
+                "movieTitle": "{{selectedListing.movieTitle}}",
+                "videoUrl": "{{selectedListing.videoUrl}}",
+                "completed": false
+              }
+            }
+          }
+        ],
+        "outputs": {
+          "movieViewingStarted": true,
+          "videoUrl": "{{selectedListing.videoUrl}}",
+          "movieTitle": "{{selectedListing.movieTitle}}",
+          "userWatchedMovie": "{{userDecision}} === 'DONE_WATCHING'"
+        },
+        "timeout": 300000,
+        "onTimeout": "error_handler",
+        "errorHandling": {
+          "onError": "error_handler"
+        }
+      },
+      {
         "id": "snapshot_persist",
         "name": "7️⃣ Snapshot + Persist",
         "type": "process",
@@ -1122,7 +1175,10 @@
             "component": "{{error.component}}",
             "message": "{{error.message}}",
             "data": {
-              "error": "{{error}}"
+              "error": "{{error}}",
+              "executionId": "{{executionId}}",
+              "workflowId": "{{workflowId}}",
+              "stepId": "error_handler"
             }
           }
         ]
@@ -1166,13 +1222,23 @@
         },
         {
           "from": "root_ca_ledger_and_payment",
-          "to": "root_ca_cashier_oversight",
+          "to": "root_ca_ledger_settlement",
           "condition": "{{paymentSuccess}} && {{settlementStatus}} === 'settled'"
         },
         {
           "from": "root_ca_ledger_and_payment",
           "to": "error_handler",
           "condition": "!{{paymentSuccess}} || {{settlementStatus}} !== 'settled'"
+        },
+        {
+          "from": "root_ca_ledger_settlement",
+          "to": "root_ca_cashier_oversight",
+          "condition": "{{settlementStatus}} === 'settled'"
+        },
+        {
+          "from": "root_ca_ledger_settlement",
+          "to": "error_handler",
+          "condition": "{{settlementStatus}} !== 'settled'"
         },
       {
         "from": "root_ca_cashier_oversight",
@@ -1186,13 +1252,23 @@
       },
       {
         "from": "watch_movie",
-        "to": "snapshot_persist",
+        "to": "view_movie",
         "condition": "{{movieWatched}}"
       },
       {
         "from": "watch_movie",
         "to": "error_handler",
         "condition": "!{{movieWatched}}"
+      },
+      {
+        "from": "view_movie",
+        "to": "snapshot_persist",
+        "condition": "{{userDecision}} === 'DONE_WATCHING'"
+      },
+      {
+        "from": "view_movie",
+        "to": "error_handler",
+        "condition": "{{userDecision}} !== 'DONE_WATCHING'"
       },
       {
         "from": "snapshot_persist",

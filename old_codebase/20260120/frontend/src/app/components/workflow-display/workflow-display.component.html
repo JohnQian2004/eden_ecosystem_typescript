@@ -154,12 +154,57 @@
       <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-4" role="alert">
         <h6 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h6>
         <hr>
-        <div class="d-flex gap-2">
+        <!-- Debug Info -->
+        <div class="small text-muted mb-2" *ngIf="pendingDecision" style="background: #fff3cd; padding: 10px; border-radius: 4px;">
+          🔍 DEBUG: videoUrl = "{{ pendingDecision.videoUrl || 'undefined' }}", movieTitle = "{{ pendingDecision.movieTitle || 'undefined' }}"
+          <br>
+          🔍 DEBUG: showDecisionPrompt = {{ showDecisionPrompt }}, pendingDecision exists = {{ !!pendingDecision }}
+          <br>
+          🔍 DEBUG: videoUrl truthy = {{ !!pendingDecision.videoUrl }}, videoUrl length = {{ pendingDecision.videoUrl ? pendingDecision.videoUrl.length : 0 }}
+          <br>
+          🔍 DEBUG: pendingDecision.options exists = {{ !!pendingDecision.options }}
+          <br>
+          🔍 DEBUG: pendingDecision.options length = {{ pendingDecision.options ? pendingDecision.options.length : 0 }}
+          <br>
+          🔍 DEBUG: pendingDecision.options = {{ pendingDecision.options ? (pendingDecision.options | json) : 'null' }}
+          <br>
+          🔍 DEBUG: stepId = {{ pendingDecision.stepId }}, executionId = {{ pendingDecision.executionId }}
+        </div>
+        <!-- Video Player for Movie Viewing Decision -->
+        <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
+          <div class="card" style="display: block !important; visibility: visible !important;">
+            <div class="card-body" style="display: block !important; visibility: visible !important;">
+              <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
+              <video 
+                controls 
+                autoplay
+                class="w-100" 
+                style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                [src]="getVideoUrl(pendingDecision?.videoUrl)"
+                preload="auto">
+                Your browser does not support the video tag.
+              </video>
+              <div class="small text-muted mt-1">
+                Video Source: {{ getVideoUrl(pendingDecision?.videoUrl) }}
+              </div>
+              <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
+            </div>
+          </div>
+        </div>
+        <!-- Debug: Options rendering -->
+        <div class="small text-danger mb-2" *ngIf="!pendingDecision.options || pendingDecision.options.length === 0" style="background: #f8d7da; padding: 10px; border-radius: 4px;">
+          ⚠️ WARNING: No options available! pendingDecision.options = {{ pendingDecision.options | json }}
+        </div>
+        <div class="d-flex gap-2" *ngIf="pendingDecision.options && pendingDecision.options.length > 0">
           <button
-            *ngFor="let option of pendingDecision.options"
+            *ngFor="let option of pendingDecision.options; let i = index"
             class="btn btn-primary"
-            (click)="submitDecision(option.value)">
-            {{ option.label }}
+            (click)="submitDecision(option.value)"
+            [attr.data-option-index]="i"
+            [attr.data-option-value]="option.value"
+            [attr.data-option-label]="option.label"
+            style="min-width: 120px;">
+            {{ option.label || option.value || 'Option ' + (i + 1) }}
           </button>
         </div>
         <small class="text-muted mt-2 d-block">
@@ -177,7 +222,8 @@
       </div>
 
       <!-- Movie Selection Prompt -->
-      <div *ngIf="showSelectionPrompt && pendingSelection && pendingSelection.options && pendingSelection.options.length > 0" class="alert alert-success mb-4" role="alert">
+      <!-- CRITICAL: Hide selection prompt when workflow is at view_movie step -->
+      <div *ngIf="showSelectionPrompt && pendingSelection && pendingSelection.options && pendingSelection.options.length > 0 && activeExecution?.currentStep !== 'view_movie' && currentStep?.id !== 'view_movie'" class="alert alert-success mb-4" role="alert">
         <h6 class="alert-heading">✈️ {{ pendingSelection.prompt }}</h6>
         <hr>
         <div class="row g-3">

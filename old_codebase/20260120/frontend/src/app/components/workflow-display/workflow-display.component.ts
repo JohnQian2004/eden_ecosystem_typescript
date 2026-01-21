@@ -151,12 +151,37 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       console.log('🤔 [WorkflowDisplay] Decision request options:', decisionRequest.options);
       console.log('🤔 [WorkflowDisplay] Options count:', decisionRequest.options?.length || 0);
       
+      // CRITICAL: If videoUrl is missing but stepId is view_movie, try to get it from active execution
+      if (decisionRequest.stepId === 'view_movie' && !decisionRequest.videoUrl && this.activeExecution) {
+        const context = this.activeExecution.context || {};
+        const videoUrl = context['selectedListing']?.['videoUrl'] || 
+                        context['selectedListing2']?.['videoUrl'] ||
+                        context['videoUrl'] || '';
+        const movieTitle = context['selectedListing']?.['movieTitle'] || 
+                          context['selectedListing2']?.['movieTitle'] ||
+                          context['movieTitle'] || '';
+        
+        if (videoUrl) {
+          decisionRequest.videoUrl = videoUrl;
+          decisionRequest.movieTitle = movieTitle || decisionRequest.movieTitle;
+        }
+      }
+      
+      // CRITICAL: Clear any pending selection when a decision is required
+      if (this.showSelectionPrompt || this.pendingSelection) {
+        this.showSelectionPrompt = false;
+        this.pendingSelection = null;
+      }
+      
       this.pendingDecision = decisionRequest;
       this.showDecisionPrompt = true;
       
       console.log('🤔 [WorkflowDisplay] Set pendingDecision and showDecisionPrompt=true');
       console.log('🤔 [WorkflowDisplay] pendingDecision:', this.pendingDecision);
       console.log('🤔 [WorkflowDisplay] showDecisionPrompt:', this.showDecisionPrompt);
+      
+      // Force change detection to update UI immediately
+      this.cdr.detectChanges();
     });
 
     // Listen for selection requests (from HTTP responses AND WebSocket)
@@ -554,23 +579,46 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log(`✅ [WorkflowDisplay] Submitting decision: ${decision}`);
+    console.log(`✅ [WorkflowDisplay] ========================================`);
+    console.log(`✅ [WorkflowDisplay] SUBMITTING DECISION`);
+    console.log(`✅ [WorkflowDisplay] Decision value: ${decision}`);
+    console.log(`✅ [WorkflowDisplay] Execution ID: ${this.pendingDecision.executionId}`);
+    console.log(`✅ [WorkflowDisplay] Step ID: ${this.pendingDecision.stepId}`);
+    console.log(`✅ [WorkflowDisplay] Prompt: ${this.pendingDecision.prompt}`);
+    console.log(`✅ [WorkflowDisplay] Available options:`, this.pendingDecision.options);
+    console.log(`✅ [WorkflowDisplay] Current workflow step: ${this.activeExecution?.currentStep}`);
+    console.log(`✅ [WorkflowDisplay] ========================================`);
 
     try {
       const submitted = await this.flowWiseService.submitDecision(this.pendingDecision.executionId, decision, this.pendingDecision.stepId);
 
       if (submitted) {
+        console.log(`✅ [WorkflowDisplay] Decision submitted successfully, clearing prompt`);
         this.showDecisionPrompt = false;
         this.pendingDecision = null;
-        this.updateCurrentStep();
+        // Wait a bit before updating step to allow backend to process
+        setTimeout(() => {
+          this.updateCurrentStep();
+        }, 500);
       } else {
-        console.error('❌ [WorkflowDisplay] Failed to submit decision');
+        console.error('❌ [WorkflowDisplay] Failed to submit decision - service returned false');
         alert('Failed to submit decision. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [WorkflowDisplay] Error submitting decision:', error);
-      alert('Failed to submit decision. Please try again.');
+      console.error('❌ [WorkflowDisplay] Error message:', error.message);
+      console.error('❌ [WorkflowDisplay] Error stack:', error.stack);
+      alert(`Failed to submit decision: ${error.message || 'Unknown error'}. Please try again.`);
     }
+  }
+
+  getVideoUrl(videoUrl: string | undefined): string {
+    if (!videoUrl) return '';
+    // Ensure the video URL is absolute
+    if (videoUrl.startsWith('/')) {
+      return `${this.apiUrl}${videoUrl}`;
+    }
+    return videoUrl;
   }
 
   getCurrentWorkflow(): FlowWiseWorkflow | null {
@@ -1008,6 +1056,29 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // CRITICAL: Check if the workflow is at view_movie step
+    // If so, reject this selection - view_movie requires an explicit decision, not a selection
+    const currentStep = this.activeExecution?.currentStep || this.currentStep?.id || this.pendingSelection?.stepId;
+    console.log(`🔍 [WorkflowDisplay] submitMovieSelection - currentStep: ${currentStep}`);
+    console.log(`🔍 [WorkflowDisplay] activeExecution.currentStep: ${this.activeExecution?.currentStep}`);
+    console.log(`🔍 [WorkflowDisplay] this.currentStep.id: ${this.currentStep?.id}`);
+    console.log(`🔍 [WorkflowDisplay] pendingSelection.stepId: ${this.pendingSelection?.stepId}`);
+    
+    if (currentStep === 'view_movie') {
+      console.error(`❌ [WorkflowDisplay] ========================================`);
+      console.error(`❌ [WorkflowDisplay] ERROR: Cannot submit movie selection when workflow is at view_movie step!`);
+      console.error(`❌ [WorkflowDisplay] view_movie step requires an explicit decision: "DONE_WATCHING"`);
+      console.error(`❌ [WorkflowDisplay] This selection will be ignored - please click "Done Watching" button instead`);
+      console.error(`❌ [WorkflowDisplay] ========================================`);
+      alert('Cannot submit movie selection at this step. The workflow is waiting for you to click "Done Watching".');
+      // Hide the selection prompt since it shouldn't be shown at view_movie step
+      this.showSelectionPrompt = false;
+      this.pendingSelection = null;
+      // Force change detection to update the UI
+      this.cdr.detectChanges();
+      return;
+    }
+
     console.log(`✅ [WorkflowDisplay] Submitting movie selection:`, selectedOption);
 
     // Send the selection to the server
@@ -1035,6 +1106,9 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('❌ [WorkflowDisplay] Failed to submit movie selection:', error);
+        if (error.status === 400 && error.error?.code === 'INVALID_SELECTION_FOR_VIEW_MOVIE') {
+          alert('Cannot submit movie selection at this step. The workflow is waiting for you to click "Done Watching".');
+        }
       }
     });
   }
@@ -1099,7 +1173,17 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         break;
 
       case 'user_decision_required':
+        console.log('🤔 [WorkflowDisplay] ========================================');
+        console.log('🤔 [WorkflowDisplay] ⚠️⚠️⚠️ user_decision_required EVENT RECEIVED IN handleWebSocketEvent ⚠️⚠️⚠️');
+        console.log('🤔 [WorkflowDisplay] This should be handled by FlowWise service subscription');
+        console.log('🤔 [WorkflowDisplay] Event:', JSON.stringify(event, null, 2));
+        console.log('🤔 [WorkflowDisplay] Event data:', event.data);
+        console.log('🤔 [WorkflowDisplay] Event data.options:', event.data?.options);
+        console.log('🤔 [WorkflowDisplay] Event data.options count:', event.data?.options?.length || 0);
+        console.log('🤔 [WorkflowDisplay] Checking if FlowWise service will handle this...');
+        console.log('🤔 [WorkflowDisplay] ========================================');
         // This is handled by the FlowWise service subscription above
+        // But we log it here to verify the event is being received
         break;
 
       case 'user_selection_required':
@@ -1108,6 +1192,16 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         console.log('🎬 [WorkflowDisplay] Full event:', JSON.stringify(event, null, 2));
         console.log('🎬 [WorkflowDisplay] Event data:', event.data);
         console.log('🎬 [WorkflowDisplay] Event data.options:', event.data?.options);
+        
+        // CRITICAL: If workflow is at view_movie step, ignore selection events
+        // view_movie requires a decision, not a selection
+        const currentStepForSelection = this.activeExecution?.currentStep || this.currentStep?.id || event.data?.stepId;
+        if (currentStepForSelection === 'view_movie') {
+          console.warn(`⚠️ [WorkflowDisplay] Ignoring user_selection_required event - workflow is at view_movie step`);
+          console.warn(`⚠️ [WorkflowDisplay] view_movie requires a decision (DONE_WATCHING), not a selection`);
+          // Don't show selection prompt for view_movie step
+          break;
+        }
         console.log('🎬 [WorkflowDisplay] Event data.options type:', typeof event.data?.options);
         console.log('🎬 [WorkflowDisplay] Event data.options is array:', Array.isArray(event.data?.options));
         console.log('🎬 [WorkflowDisplay] Event data.options length:', event.data?.options?.length || 0);
@@ -1166,10 +1260,19 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           // Update active execution current step if available
           if (this.activeExecution && event.data?.stepId) {
             const previousStep = this.activeExecution.currentStep;
-            this.activeExecution.currentStep = event.data.stepId;
+            const newStep = event.data.stepId;
+            this.activeExecution.currentStep = newStep;
+            
+            // CRITICAL: If transitioning to view_movie, clear any pending selection prompts
+            // view_movie requires a decision, not a selection
+            if (newStep === 'view_movie') {
+              console.log(`🎬 [WorkflowDisplay] Workflow transitioned to view_movie - clearing selection prompt`);
+              this.showSelectionPrompt = false;
+              this.pendingSelection = null;
+            }
             
             // Mark previous step as completed
-            if (previousStep && previousStep !== event.data.stepId) {
+            if (previousStep && previousStep !== newStep) {
               if (!this.completedSteps.includes(previousStep)) {
                 this.completedSteps.push(previousStep);
                 console.log(`✅ [WorkflowDisplay] Marked step ${previousStep} as completed`);

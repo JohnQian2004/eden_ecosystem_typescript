@@ -8,6 +8,7 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { getApiBaseUrl } from './services/api-base';
+import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
 
 export interface ServiceProvider {
   id: string;
@@ -67,65 +68,15 @@ export class AppComponent implements OnInit, OnDestroy {
   inputPlaceholder: string = 'Select a service type above or type your query...';
   
   // Service Types (Garden of Eden Main Street)
-  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [
-    {
-      type: 'movie',
-      icon: '🎬',
-      adText: 'Movie Tickets',
-      sampleQuery: 'I want a sci-fi movie to watch tonight at the best price'
-    },
-    {
-      type: 'dex',
-      icon: '💰',
-      adText: 'DEX Tokens',
-      sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
-    },
-    {
-      type: 'airline',
-      icon: '✈️',
-      adText: 'Airline Tickets',
-      sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price'
-    },
-    {
-      type: 'autoparts',
-      icon: '🔧',
-      adText: 'Auto Parts',
-      sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price'
-    },
-    {
-      type: 'hotel',
-      icon: '🏨',
-      adText: 'Hotel Booking',
-      sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price'
-    },
-    {
-      type: 'restaurant',
-      icon: '🍽️',
-      adText: 'Restaurant Reservations',
-      sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
-    }
-  ];
+  // Populated dynamically from SERVICE_TYPE_CATALOG based on available providers
+  serviceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string, providerCount?: number, ownerEmails?: string[]}> = [];
 
   // Full catalog (NOT filtered by live ServiceRegistry). Used for icons/prompts even if a garden has 0 providers.
-  private readonly SERVICE_TYPE_CATALOG: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
-    { type: 'movie', icon: '🎬', adText: 'Movie Tickets', sampleQuery: 'I want a sci-fi movie to watch tonight at the best price' },
-    { type: 'dex', icon: '💰', adText: 'DEX Tokens', sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price' },
-    { type: 'airline', icon: '✈️', adText: 'Airline Tickets', sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price' },
-    { type: 'autoparts', icon: '🔧', adText: 'Auto Parts', sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price' },
-    { type: 'hotel', icon: '🏨', adText: 'Hotel Booking', sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price' },
-    { type: 'restaurant', icon: '🍽️', adText: 'Restaurant Reservations', sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant' },
-    { type: 'grocerystore', icon: '🛒', adText: 'Grocery Store', sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices' },
-    { type: 'pharmacy', icon: '💊', adText: 'Pharmacy', sampleQuery: 'I need to find a pharmacy that has my prescription medication available' },
-    { type: 'dogpark', icon: '🐕', adText: 'Dog Park', sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains' },
-    { type: 'gasstation', icon: '⛽', adText: 'Gas Station', sampleQuery: 'I need to find a gas station with premium fuel at the best price' },
-    { type: 'party', icon: '🎉', adText: 'Party & Events', sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets' },
-    { type: 'bank', icon: '🏦', adText: 'Banking Services', sampleQuery: 'I need to find a bank near me with ATM access and business banking services' }
-  ];
+  // Now imported from shared service-type-catalog.service.ts
+  private readonly SERVICE_TYPE_CATALOG_REF = SERVICE_TYPE_CATALOG;
 
   private getCatalogEntry(serviceType?: string): {type: string, icon: string, adText: string, sampleQuery: string} | undefined {
-    const st = String(serviceType || '').toLowerCase().trim();
-    if (!st) return undefined;
-    return this.SERVICE_TYPE_CATALOG.find(s => s.type === st);
+    return getCatalogEntryFromService(serviceType);
   }
 
   getGardenCardStyle(serviceType?: string): { [k: string]: string } {
@@ -173,10 +124,7 @@ export class AppComponent implements OnInit, OnDestroy {
   providerOwnersByGardenId: Record<string, string[]> = {};
 
   getServiceTypeIcon(serviceType?: string): string {
-    const st = String(serviceType || '').toLowerCase().trim();
-    if (!st) return '🌿';
-    // Use the full catalog so Apple gardens with 0 providers still render the right icon.
-    return this.getCatalogEntry(st)?.icon || '🌿';
+    return getServiceTypeIconFromService(serviceType);
   }
 
   formatOwnerEmails(emails: string[] | undefined): string {
@@ -485,7 +433,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // Garden/Service Chat History
   // -----------------------------
   activeConversationId: string | null = null;
-  chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string }> = [];
+  chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string; videoUrl?: string; movieTitle?: string }> = [];
   isLoadingChatHistory: boolean = false;
   private chatHistoryLoadSeq: number = 0;
   private lastAppendBySig: Map<string, number> = new Map();
@@ -608,7 +556,25 @@ export class AppComponent implements OnInit, OnDestroy {
     // IMPORTANT: generate a client id and send it to the server so the WebSocket echo can be deduped.
     const clientId = `c_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const clientTs = Date.now();
-    const local = { id: clientId, role, content: trimmed, timestamp: clientTs, userEmail: this.userEmail };
+    const local = { 
+      id: clientId, 
+      role, 
+      content: trimmed, 
+      timestamp: clientTs, 
+      userEmail: this.userEmail,
+      videoUrl: extra?.videoUrl,
+      movieTitle: extra?.movieTitle
+    };
+    
+    if (extra?.videoUrl) {
+      console.log('🎬 [App] appendChatHistory - Adding message with videoUrl:', {
+        videoUrl: extra.videoUrl,
+        movieTitle: extra.movieTitle,
+        content: trimmed.substring(0, 100),
+        role: role
+      });
+    }
+    
     if (this.activeConversationId === targetConversationId) {
       const next = [...this.chatHistoryMessages, local];
       this.chatHistoryMessages =
@@ -637,15 +603,69 @@ export class AppComponent implements OnInit, OnDestroy {
     this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
 
     // Subscribe to FlowWise decision requests
-    this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
-      console.log('🤔 [FlowWise] Decision required:', decisionRequest);
+    console.log('🔌 [App] ========================================');
+    console.log('🔌 [App] Subscribing to FlowWise decision requests');
+    console.log('🔌 [App] flowWiseService:', this.flowWiseService);
+    console.log('🔌 [App] getDecisionRequests():', this.flowWiseService.getDecisionRequests());
+    const subscription = this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
+      console.log('🔌 [App] Subscription callback triggered!');
+      console.log('🤔 [App] ========================================');
+      console.log('🤔 [App] ⚠️⚠️⚠️ DECISION REQUEST RECEIVED ⚠️⚠️⚠️');
+      console.log('🤔 [App] Decision required:', JSON.stringify(decisionRequest, null, 2));
+      console.log('🤔 [App] Decision request videoUrl:', decisionRequest.videoUrl || 'none');
+      console.log('🤔 [App] Decision request movieTitle:', decisionRequest.movieTitle || 'none');
+      console.log('🤔 [App] Decision request options count:', decisionRequest.options?.length || 0);
+      console.log('🤔 [App] Decision request stepId:', decisionRequest.stepId);
+      console.log('🤔 [App] Decision request executionId:', decisionRequest.executionId);
+      
       this.pendingDecision = decisionRequest;
       this.showDecisionPrompt = true;
+      
+      console.log('🤔 [App] Set pendingDecision and showDecisionPrompt = true');
+      console.log('🤔 [App] pendingDecision after assignment:', this.pendingDecision ? {
+        executionId: this.pendingDecision.executionId,
+        stepId: this.pendingDecision.stepId,
+        hasVideoUrl: !!this.pendingDecision.videoUrl,
+        videoUrl: this.pendingDecision.videoUrl,
+        hasMovieTitle: !!this.pendingDecision.movieTitle,
+        movieTitle: this.pendingDecision.movieTitle,
+        optionsCount: this.pendingDecision.options?.length || 0
+      } : 'null');
+      console.log('🤔 [App] showDecisionPrompt:', this.showDecisionPrompt);
+      
       this.cdr.detectChanges();
+      console.log('🤔 [App] ✅ Change detection triggered');
+      console.log('🤔 [App] ========================================');
     });
+    console.log('🔌 [App] Subscription created successfully');
+    console.log('🔌 [App] ========================================');
 
     // Subscribe to WebSocket events for workflow updates
+    console.log('🔌 [App] Setting up WebSocket subscription in app.component.ts');
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      // CRITICAL DEBUG: Log ALL llm_response events immediately when received
+      if (event.type === 'llm_response') {
+        console.log('🎬 [App] ========================================');
+        console.log('🎬 [App] ⚠️⚠️⚠️ llm_response event received in app.component.ts WebSocket subscription ⚠️⚠️⚠️');
+        console.log('🎬 [App] Event type:', event.type);
+        console.log('🎬 [App] Event data:', (event as any).data);
+        console.log('🎬 [App] Event data.stepId:', (event as any).data?.stepId);
+        console.log('🎬 [App] Event data.response.videoUrl:', (event as any).data?.response?.videoUrl);
+        console.log('🎬 [App] Event data.response.movieTitle:', (event as any).data?.response?.movieTitle);
+        console.log('🎬 [App] ========================================');
+      }
+      
+      // Always log user_decision_required events for debugging
+      if (event.type === 'user_decision_required') {
+        console.log(`📨 [App] ========================================`);
+        console.log(`📨 [App] USER_DECISION_REQUIRED EVENT RECEIVED IN APP.COMPONENT!`);
+        console.log(`📨 [App] Event type:`, event.type);
+        console.log(`📨 [App] Event data:`, event.data);
+        console.log(`📨 [App] Event data.videoUrl:`, (event as any).data?.videoUrl);
+        console.log(`📨 [App] Event data.movieTitle:`, (event as any).data?.movieTitle);
+        console.log(`📨 [App] ========================================`);
+      }
+      
       // Logging every event (with full payload) can freeze the UI when events are frequent.
       if (this.debugWebsocketEvents) {
         console.log(`📨 [App] Received event: ${event.type}`, event);
@@ -682,10 +702,124 @@ export class AppComponent implements OnInit, OnDestroy {
           (event as any).data?.response?.message ||
           (event as any).data?.message ||
           (event as any).message;
-        const evExecId = (event as any).data?.executionId;
+        const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
+        const stepId = (event as any).data?.stepId;
         const conv = evExecId ? this.conversationIdByExecutionId.get(String(evExecId)) : null;
+        // Extract videoUrl from response data
+        const videoUrl = (event as any).data?.response?.videoUrl || 
+                        (event as any).data?.response?.selectedListing?.videoUrl ||
+                        (event as any).data?.videoUrl;
+        const movieTitle = (event as any).data?.response?.movieTitle ||
+                          (event as any).data?.response?.selectedListing?.movieTitle ||
+                          (event as any).data?.movieTitle;
+        
+        console.log('🎬 [App] ========================================');
+        console.log('🎬 [App] llm_response event received');
+        console.log('🎬 [App] hasMessage:', !!llmMsg);
+        console.log('🎬 [App] message:', llmMsg?.substring(0, 100));
+        console.log('🎬 [App] hasVideoUrl:', !!videoUrl);
+        console.log('🎬 [App] videoUrl:', videoUrl);
+        console.log('🎬 [App] hasMovieTitle:', !!movieTitle);
+        console.log('🎬 [App] movieTitle:', movieTitle);
+        console.log('🎬 [App] stepId:', stepId);
+        console.log('🎬 [App] executionId:', evExecId);
+        console.log('🎬 [App] Full event.data:', JSON.stringify((event as any).data, null, 2));
+        console.log('🎬 [App] ========================================');
+        
+        // CRITICAL: If we have videoUrl and movieTitle, create/update a decision request
+        // This ensures the video player appears even if user_decision_required event wasn't received
+        // Check for view_movie step OR if videoUrl is present (which indicates movie viewing)
+        const isViewMovieStep = stepId === 'view_movie' || (videoUrl && movieTitle);
+        if (isViewMovieStep && videoUrl && evExecId) {
+          console.log('🎬 [App] ========================================');
+          console.log('🎬 [App] view_movie step detected with videoUrl - creating decision request');
+          console.log('🎬 [App] stepId:', stepId);
+          console.log('🎬 [App] videoUrl:', videoUrl);
+          console.log('🎬 [App] movieTitle:', movieTitle);
+          console.log('🎬 [App] evExecId:', evExecId);
+          console.log('🎬 [App] Current pendingDecision:', this.pendingDecision ? {
+            executionId: this.pendingDecision.executionId,
+            stepId: this.pendingDecision.stepId,
+            hasVideoUrl: !!this.pendingDecision.videoUrl,
+            videoUrl: this.pendingDecision.videoUrl
+          } : 'null');
+          
+          // Check if we already have a pending decision for this execution
+          if (!this.pendingDecision || this.pendingDecision.executionId !== evExecId) {
+            // Create a decision request from the llm_response event
+            const decisionRequest: UserDecisionRequest = {
+              executionId: String(evExecId),
+              stepId: 'view_movie',
+              prompt: movieTitle 
+                ? `🎬 Movie "${movieTitle}" is ready to watch! The video will play in the chat console. Click 'Done Watching' when you're finished.`
+                : '🎬 Movie is ready to watch! The video will play in the chat console. Click \'Done Watching\' when you\'re finished.',
+              options: [
+                { value: 'DONE_WATCHING', label: 'Done Watching' }
+              ],
+              timeout: 300000,
+              videoUrl: videoUrl,
+              movieTitle: movieTitle
+            };
+            
+            console.log('🎬 [App] Created decision request from llm_response:', JSON.stringify(decisionRequest, null, 2));
+            console.log('🎬 [App] Decision request videoUrl:', decisionRequest.videoUrl);
+            console.log('🎬 [App] Decision request movieTitle:', decisionRequest.movieTitle);
+            this.pendingDecision = decisionRequest;
+            this.showDecisionPrompt = true;
+            console.log('🎬 [App] Set showDecisionPrompt = true');
+            console.log('🎬 [App] pendingDecision after assignment:', this.pendingDecision ? {
+              executionId: this.pendingDecision.executionId,
+              stepId: this.pendingDecision.stepId,
+              hasVideoUrl: !!this.pendingDecision.videoUrl,
+              videoUrl: this.pendingDecision.videoUrl,
+              videoUrlLength: this.pendingDecision.videoUrl?.length || 0
+            } : 'null');
+            this.cdr.detectChanges();
+            console.log('🎬 [App] ✅ Decision prompt shown with video player');
+            console.log('🎬 [App] showDecisionPrompt:', this.showDecisionPrompt);
+            console.log('🎬 [App] pendingDecision?.videoUrl:', this.pendingDecision?.videoUrl);
+            console.log('🎬 [App] ========================================');
+          } else {
+            // Update existing decision request with videoUrl and movieTitle if missing
+            if (!this.pendingDecision.videoUrl && videoUrl) {
+              console.log('🎬 [App] Updating existing decision request with videoUrl:', videoUrl);
+              this.pendingDecision.videoUrl = videoUrl;
+              this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
+              console.log('🎬 [App] Updated pendingDecision.videoUrl:', this.pendingDecision.videoUrl);
+              this.cdr.detectChanges();
+            }
+          }
+        } else {
+          // Log why decision request wasn't created
+          console.log('🎬 [App] ========================================');
+          console.log('🎬 [App] Decision request NOT created - checking conditions:');
+          console.log('🎬 [App] isViewMovieStep:', isViewMovieStep);
+          console.log('🎬 [App] stepId:', stepId);
+          console.log('🎬 [App] videoUrl:', videoUrl);
+          console.log('🎬 [App] movieTitle:', movieTitle);
+          console.log('🎬 [App] evExecId:', evExecId);
+          if (stepId !== 'view_movie' && !(videoUrl && movieTitle)) {
+            console.log('🎬 [App] Condition failed: stepId is not view_movie AND (videoUrl && movieTitle) is false');
+          }
+          if (!videoUrl) {
+            console.log('🎬 [App] Condition failed: videoUrl is missing');
+          }
+          if (!evExecId) {
+            console.log('🎬 [App] Condition failed: evExecId is missing');
+          }
+          console.log('🎬 [App] ========================================');
+        }
+        
         if (llmMsg && typeof llmMsg === 'string') {
-          this.appendChatHistory('ASSISTANT', llmMsg, { executionId: evExecId }, conv || undefined);
+          this.appendChatHistory('ASSISTANT', llmMsg, { 
+            executionId: evExecId,
+            videoUrl: videoUrl,
+            movieTitle: movieTitle
+          }, conv || undefined);
+          
+          if (videoUrl) {
+            console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', videoUrl);
+          }
         }
       }
 
@@ -700,7 +834,9 @@ export class AppComponent implements OnInit, OnDestroy {
               role: m.role,
               content: m.content,
               timestamp: m.timestamp || Date.now(),
-              userEmail: m.userEmail
+              userEmail: m.userEmail,
+              videoUrl: m.videoUrl,
+              movieTitle: m.movieTitle
             }];
             this.chatHistoryMessages =
               next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
@@ -975,7 +1111,21 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private getDexServiceType(): {type: string, icon: string, adText: string, sampleQuery: string} {
-    return this.serviceTypes.find(st => st.type === 'dex') || {
+    // First try to find in loaded serviceTypes (has provider counts)
+    const fromServiceTypes = this.serviceTypes.find(st => st.type === 'dex');
+    if (fromServiceTypes) return fromServiceTypes;
+    
+    // Fallback to catalog entry (always available since 'dex' is in catalog)
+    const dexEntry = getCatalogEntryFromService('dex');
+    if (dexEntry) return dexEntry;
+    
+    // Last resort: get from catalog directly (should never be needed, but safety fallback)
+    const catalogEntry = SERVICE_TYPE_CATALOG.find(e => e.type === 'dex');
+    if (catalogEntry) return catalogEntry;
+    
+    // Absolute last resort (should never execute - 'dex' is guaranteed in catalog)
+    console.error('⚠️ [getDexServiceType] DEX not found in catalog - this should never happen!');
+    return {
       type: 'dex',
       icon: '💰',
       adText: 'DEX Tokens',
@@ -1930,7 +2080,7 @@ export class AppComponent implements OnInit, OnDestroy {
                   // CRITICAL: Filter out infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
                   // These belong to Holy Ghost (HG) and should NOT appear in Main Street
                   // Main Street should only show service types that have providers belonging to NON-ROOT gardens
-                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant']);
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm']);
                   
                   // CRITICAL: Only include providers whose gardenId exists in the loaded gardens
                   // This ensures we don't show providers assigned to non-existent gardens
@@ -1982,82 +2132,10 @@ export class AppComponent implements OnInit, OnDestroy {
                     Object.entries(ownersByGardenIdSets).map(([k, set]) => [k, Array.from(set).sort()])
                   );
             
-                  // CRITICAL: Reset serviceTypes to the full hardcoded list before filtering
+                  // CRITICAL: Reset serviceTypes to the full catalog before filtering
                   // This ensures we don't lose service types that were filtered out previously
-                  const allServiceTypes: Array<{type: string, icon: string, adText: string, sampleQuery: string}> = [
-              {
-                type: 'movie',
-                icon: '🎬',
-                adText: 'Movie Tickets',
-                sampleQuery: 'I want a sci-fi movie to watch tonight at the best price'
-              },
-              {
-                type: 'dex',
-                icon: '💰',
-                adText: 'DEX Tokens',
-                sampleQuery: 'I want to BUY 2 SOLANA token A at 1 Token/SOL or with best price'
-              },
-              {
-                type: 'airline',
-                icon: '✈️',
-                adText: 'Airline Tickets',
-                sampleQuery: 'I want to book a flight from New York to Los Angeles next week at the best price'
-              },
-              {
-                type: 'autoparts',
-                icon: '🔧',
-                adText: 'Auto Parts',
-                sampleQuery: 'I need brake pads for a 2006 Nissan Altima front bumper bracket at the best price'
-              },
-              {
-                type: 'hotel',
-                icon: '🏨',
-                adText: 'Hotel Booking',
-                sampleQuery: 'I want to book a hotel in San Francisco for 3 nights at the best price'
-              },
-              {
-                type: 'restaurant',
-                icon: '🍽️',
-                adText: 'Restaurant Reservations',
-                sampleQuery: 'I want to make a dinner reservation for 2 people tonight at the best restaurant'
-              },
-              {
-                type: 'grocerystore',
-                icon: '🏢',
-                adText: 'Grocery Store',
-                sampleQuery: 'I want to find a grocery store near me with fresh Orange produce at the best prices'
-              },
-              {
-                type: 'pharmacy',
-                icon: '🏢',
-                adText: 'Pharmacy',
-                sampleQuery: 'I need to find a pharmacy that has my prescription medication available'
-              },
-              {
-                type: 'dogpark',
-                icon: '🐕',
-                adText: 'Dog Park',
-                sampleQuery: 'I want to find a dog park near me with off-leash areas and water fountains'
-              },
-              {
-                type: 'gasstation',
-                icon: '⛽',
-                adText: 'Gas Station',
-                sampleQuery: 'I need to find a gas station with premium fuel at the best price'
-              },
-              {
-                type: 'party',
-                icon: '🎉',
-                adText: 'Party & Events',
-                sampleQuery: 'I want to find a party or event happening this weekend and purchase tickets'
-              },
-              {
-                type: 'bank',
-                icon: '🏦',
-                adText: 'Banking Services',
-                sampleQuery: 'I need to find a bank near me with ATM access and business banking services'
-              }
-                  ];
+                  // Use shared catalog from service-type-catalog.service.ts
+                  const allServiceTypes = SERVICE_TYPE_CATALOG;
                   
                   // Only show service types that are actually available in the ServiceRegistry
                   const filteredServiceTypes = allServiceTypes.filter(st => 
@@ -2120,7 +2198,7 @@ export class AppComponent implements OnInit, OnDestroy {
               next: (response) => {
                 // Fallback: use original logic without gardenId validation
                 if (response.success && response.providers) {
-                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant']);
+                  const infrastructureServiceTypes = new Set(['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm']);
                   const nonInfrastructureProviders = response.providers.filter(p => 
                     p.status === 'active' && 
                     !infrastructureServiceTypes.has(p.serviceType) &&
@@ -3066,7 +3144,19 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log(`✅ [AMC Workflow] Submitting decision: ${decision} for execution ${this.pendingDecision.executionId}`);
+    console.log(`✅ [AMC Workflow] ========================================`);
+    console.log(`✅ [AMC Workflow] SUBMITTING DECISION`);
+    console.log(`✅ [AMC Workflow] Decision value: ${decision}`);
+    console.log(`✅ [AMC Workflow] Execution ID: ${this.pendingDecision.executionId}`);
+    console.log(`✅ [AMC Workflow] Step ID: ${this.pendingDecision.stepId}`);
+    console.log(`✅ [AMC Workflow] Prompt: ${this.pendingDecision.prompt}`);
+    console.log(`✅ [AMC Workflow] Available options:`, this.pendingDecision.options);
+    console.log(`✅ [AMC Workflow] Expected decision for view_movie: DONE_WATCHING`);
+    if (this.pendingDecision.stepId === 'view_movie' && decision !== 'DONE_WATCHING') {
+      console.error(`❌ [AMC Workflow] ERROR: view_movie step received "${decision}" instead of "DONE_WATCHING"!`);
+      console.error(`❌ [AMC Workflow] This might be a selection from a previous step`);
+    }
+    console.log(`✅ [AMC Workflow] ========================================`);
 
     // Add decision to workflow messages
     if (this.amcWorkflowActive) {
@@ -3103,6 +3193,15 @@ export class AppComponent implements OnInit, OnDestroy {
     this.showDecisionPrompt = false;
     this.pendingDecision = null;
     this.cdr.detectChanges();
+  }
+
+  getVideoUrl(videoUrl: string | undefined): string {
+    if (!videoUrl) return '';
+    // Ensure the video URL is absolute
+    if (videoUrl.startsWith('/')) {
+      return `${getApiBaseUrl()}${videoUrl}`;
+    }
+    return videoUrl;
   }
 
 }

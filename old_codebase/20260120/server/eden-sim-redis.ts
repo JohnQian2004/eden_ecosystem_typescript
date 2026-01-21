@@ -34,7 +34,8 @@ import {
   FRONTEND_PATH,
   STRIPE_SECRET_KEY,
   STRIPE_PUBLISHABLE_KEY,
-  STRIPE_WEBHOOK_SECRET
+  STRIPE_WEBHOOK_SECRET,
+  EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS
 } from "./src/config";
 import type { GardenConfig, TokenGardenConfig, LLMQueryResult } from "./src/types";
 import {
@@ -77,6 +78,8 @@ import {
   createServiceProvidersForGarden
 } from "./src/serviceProvider";
 import { initializeServiceRegistry2, getServiceRegistry2 } from "./src/serviceRegistry2";
+import { loadProviderPluginPersistence, saveProviderPluginPersistence, setMySQLProviderPluginConfig } from "./src/plugins/providerPluginRegistry";
+import { testMySQLQuery } from "./src/plugins/mysql";
 import {
   initializeGarden,
   issueGardenCertificate,
@@ -101,7 +104,7 @@ import {
   deliverWebhook,
   getCashierStatus
 } from "./src/ledger";
-import { callLLM } from "./src/llm";
+import { callLLM, extractGetDataParamsWithOpenAI, parameterizeSQLWithOpenAI, type GetDataParamsResult, type SQLParameterizationResult } from "./src/llm";
 import {
   initializeFlowWise,
   loadWorkflow,
@@ -267,6 +270,19 @@ export function broadcastEvent(event: any) {
   
   console.log(`📡 [Broadcast] Result: ${successCount} sent, ${failCount} failed`);
   console.log(`📡 [Broadcast] ========================================`);
+}
+
+// BigInt JSON replacer function for serialization
+function bigIntReplacer(key: string, value: any): any {
+  if (typeof value === 'bigint') {
+    // Convert BigInt to Number if within safe integer range, otherwise to String
+    if (value <= Number.MAX_SAFE_INTEGER && value >= Number.MIN_SAFE_INTEGER) {
+      return Number(value);
+    } else {
+      return value.toString();
+    }
+  }
+  return value;
 }
 
 // HTTP Server Routes
@@ -718,8 +734,39 @@ httpServer.on("request", async (req, res) => {
         }
         console.log(`   ⚙️ [${requestId}] ========================================`);
 
-        // Initialize updatedContext from the provided context
+        // Initialize updatedContext from the provided context (like old codebase)
+        // The request context should already have all data from previous steps
         const updatedContext = { ...context };
+        
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] CONTEXT INITIALIZATION FOR STEP: ${stepId}`);
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] Request context keys:`, Object.keys(context || {}));
+        console.log(`   🔍 [${requestId}] Request context has listings: ${!!context?.listings} (${context?.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}] Request context listings type: ${typeof context?.listings}`);
+        console.log(`   🔍 [${requestId}] Request context listings is array: ${Array.isArray(context?.listings)}`);
+        if (context?.listings && Array.isArray(context.listings) && context.listings.length > 0) {
+          console.log(`   🔍 [${requestId}] First listing keys:`, Object.keys(context.listings[0]));
+          console.log(`   🔍 [${requestId}] First listing:`, JSON.stringify(context.listings[0], null, 2).substring(0, 500));
+        }
+        console.log(`   🔍 [${requestId}] Request context has llmResponse: ${!!context?.llmResponse}`);
+        console.log(`   🔍 [${requestId}] Request context llmResponse keys:`, context?.llmResponse ? Object.keys(context.llmResponse) : 'N/A');
+        console.log(`   🔍 [${requestId}] Request context llmResponse has listings: ${!!context?.llmResponse?.listings} (${context?.llmResponse?.listings?.length || 0})`);
+        if (context?.llmResponse?.listings && Array.isArray(context.llmResponse.listings) && context.llmResponse.listings.length > 0) {
+          console.log(`   🔍 [${requestId}] llmResponse first listing keys:`, Object.keys(context.llmResponse.listings[0]));
+        }
+        console.log(`   🔍 [${requestId}] Final updatedContext has listings: ${!!updatedContext.listings} (${updatedContext.listings?.length || 0})`);
+        console.log(`   🔍 [${requestId}] ========================================`);
+        
+        // CRITICAL: If listings are missing but llmResponse.listings exists, use that
+        // This handles cases where listings are in llmResponse but not in context.listings
+        if ((!updatedContext.listings || updatedContext.listings.length === 0) && updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+          updatedContext.listings = updatedContext.llmResponse.listings;
+          console.log(`   🔄 [${requestId}] ✅ Using listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+        } else if (!updatedContext.listings || updatedContext.listings.length === 0) {
+          console.warn(`   ⚠️ [${requestId}] ⚠️ NO LISTINGS FOUND in context or llmResponse!`);
+          console.warn(`   ⚠️ [${requestId}] This will cause empty options array for user_select_listing step`);
+        }
         
         // CRITICAL: If executing error_handler step, ensure error object is in context
         // The error might have been set in a previous step execution
@@ -830,6 +877,20 @@ httpServer.on("request", async (req, res) => {
           console.log(`   🤔 [${requestId}] ========================================`);
 
           // For decision steps, we don't execute actions yet - we broadcast the decision request
+          // CRITICAL: Ensure listings are in updatedContext before processing events
+          // This is needed for user_select_listing step which uses "{{listings}}" template
+          if (step.id === "user_select_listing" && (!updatedContext.listings || updatedContext.listings.length === 0)) {
+            // Try to get listings from llmResponse if available
+            if (updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+              updatedContext.listings = updatedContext.llmResponse.listings;
+              console.log(`   🔄 [${requestId}] Populated updatedContext.listings from llmResponse (${updatedContext.llmResponse.listings.length} listings)`);
+            } else {
+              console.warn(`   ⚠️ [${requestId}] No listings found in updatedContext or llmResponse for user_select_listing step`);
+              console.warn(`   ⚠️ [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+              console.warn(`   ⚠️ [${requestId}] updatedContext.llmResponse:`, updatedContext.llmResponse ? Object.keys(updatedContext.llmResponse) : 'N/A');
+            }
+          }
+          
           // Process WebSocket events for decision request
           if (step.websocketEvents) {
             for (const event of step.websocketEvents) {
@@ -844,27 +905,176 @@ httpServer.on("request", async (req, res) => {
               };
 
               // Special handling for user_select_listing - build options from listings
-              console.log(`   🔍 [${requestId}] Checking for user_select_listing step:`);
+              console.log(`   🔍 [${requestId}] ========================================`);
+              console.log(`   🔍 [${requestId}] BUILDING OPTIONS FOR user_select_listing`);
+              console.log(`   🔍 [${requestId}] ========================================`);
               console.log(`   🔍 [${requestId}] Step ID: ${step.id}`);
               console.log(`   🔍 [${requestId}] Step ID matches "user_select_listing": ${step.id === "user_select_listing"}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings exists: ${!!updatedContext.listings}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings type: ${typeof updatedContext.listings}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
-              console.log(`   🔍 [${requestId}] updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options BEFORE special handling:`, processedEvent.data?.options);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options type:`, typeof processedEvent.data?.options);
-              console.log(`   🔍 [${requestId}] processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              
+              // DEBUG: Full context dump
+              console.log(`   🔍 [${requestId}] FULL updatedContext DUMP:`);
+              console.log(`   🔍 [${requestId}]   - updatedContext keys:`, Object.keys(updatedContext));
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings:`, updatedContext.listings);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings exists: ${!!updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings type: ${typeof updatedContext.listings}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings is array: ${Array.isArray(updatedContext.listings)}`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings length: ${updatedContext.listings?.length || 0}`);
+              if (updatedContext.listings && Array.isArray(updatedContext.listings) && updatedContext.listings.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First listing:`, JSON.stringify(updatedContext.listings[0], null, 2));
+              }
+              
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse:`, updatedContext.llmResponse ? 'EXISTS' : 'MISSING');
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings:`, updatedContext.llmResponse?.listings);
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings length: ${updatedContext.llmResponse?.listings?.length || 0}`);
+              if (updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First llmResponse listing:`, JSON.stringify(updatedContext.llmResponse.listings[0], null, 2));
+              }
+              
+              // DEBUG: What did template replacement return?
+              console.log(`   🔍 [${requestId}] TEMPLATE REPLACEMENT RESULT:`);
+              console.log(`   🔍 [${requestId}]   - Original event.data.options:`, event.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options type:`, typeof processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options is array:`, Array.isArray(processedEvent.data?.options));
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options length: ${Array.isArray(processedEvent.data?.options) ? processedEvent.data.options.length : 'N/A'}`);
+              if (processedEvent.data?.options && Array.isArray(processedEvent.data.options) && processedEvent.data.options.length > 0) {
+                console.log(`   🔍 [${requestId}]   - First option from template:`, JSON.stringify(processedEvent.data.options[0], null, 2));
+              }
+              console.log(`   🔍 [${requestId}] ========================================`);
               
               // ALWAYS build options for user_select_listing if listings exist, even if template replacement already set it
-              // Check both updatedContext.listings and processedEvent.data.options (in case template replacement already set it)
-              const listingsSource = updatedContext.listings || (Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null);
+              // Check multiple sources: updatedContext.listings, llmResponse.listings, and processedEvent.data.options
+              // CRITICAL: llmResponse.listings might have the listings even if context.listings is empty
+              const listingsFromContext = updatedContext.listings;
+              const listingsFromLlmResponse = updatedContext.llmResponse?.listings;
+              const listingsFromEvent = Array.isArray(processedEvent.data?.options) ? processedEvent.data.options : null;
+              
+              // CRITICAL: Check if selectedListing2 contains listings or if we need to reconstruct from selectedListing2
+              // Sometimes listings might be stored differently or we need to use selectedListing2 to build options
+              let listingsFromSelectedListing2: any[] | null = null;
+              if (updatedContext.selectedListing2 && Array.isArray(updatedContext.selectedListing2)) {
+                // If selectedListing2 is an array, use it as listings
+                listingsFromSelectedListing2 = updatedContext.selectedListing2;
+                console.log(`   🔍 [${requestId}] selectedListing2 is an array with ${listingsFromSelectedListing2.length} items`);
+              } else if (updatedContext.llmResponse?.selectedListing2 && Array.isArray(updatedContext.llmResponse.selectedListing2)) {
+                listingsFromSelectedListing2 = updatedContext.llmResponse.selectedListing2;
+                console.log(`   🔍 [${requestId}] llmResponse.selectedListing2 is an array with ${listingsFromSelectedListing2.length} items`);
+              } else if (updatedContext.selectedListing2 || updatedContext.llmResponse?.selectedListing2) {
+                // If selectedListing2 is a single listing, create array with it
+                const singleListing = updatedContext.selectedListing2 || updatedContext.llmResponse?.selectedListing2;
+                listingsFromSelectedListing2 = [singleListing];
+                console.log(`   🔍 [${requestId}] selectedListing2 is a single listing, creating array with 1 item`);
+              }
+              
+              // CRITICAL: If processedEvent.data.options is null (from template replacement), try to get from context
+              // This happens when "{{listings}}" template variable is not found
+              // IMPORTANT: Check array length, not just truthiness (empty arrays are truthy!)
+              let listingsSource: any[] | null = null;
+              
+              // Priority order: selectedListing2 first (if it's an array or can be converted), then context listings, then llmResponse listings, then event options
+              if (listingsFromSelectedListing2 && listingsFromSelectedListing2.length > 0) {
+                listingsSource = listingsFromSelectedListing2;
+                console.log(`   ✅ [${requestId}] Using listingsFromSelectedListing2 (${listingsSource.length} items)`);
+              } else if (listingsFromContext && listingsFromContext.length > 0) {
+                listingsSource = listingsFromContext;
+                console.log(`   ✅ [${requestId}] Using listingsFromContext (${listingsSource.length} items)`);
+              } else if (listingsFromLlmResponse && listingsFromLlmResponse.length > 0) {
+                listingsSource = listingsFromLlmResponse;
+                console.log(`   ✅ [${requestId}] Using listingsFromLlmResponse (${listingsSource.length} items)`);
+              } else if (listingsFromEvent && listingsFromEvent.length > 0) {
+                listingsSource = listingsFromEvent;
+                console.log(`   ✅ [${requestId}] Using listingsFromEvent (${listingsSource.length} items)`);
+              }
+              
+              // If still no listings, check if processedEvent.data.options was set to null by replaceTemplateVariables
+              // This means the template "{{listings}}" was not found in context
+              if (!listingsSource && processedEvent.data?.options === null) {
+                console.log(`   ⚠️ [${requestId}] Template replacement returned null for "{{listings}}", checking context directly`);
+                // Try to get listings from any available source (checking length)
+                if (listingsFromSelectedListing2 && listingsFromSelectedListing2.length > 0) {
+                  listingsSource = listingsFromSelectedListing2;
+                  console.log(`   ✅ [${requestId}] Fallback: Using listingsFromSelectedListing2 (${listingsSource.length} items)`);
+                } else if (updatedContext.listings && updatedContext.listings.length > 0) {
+                  listingsSource = updatedContext.listings;
+                  console.log(`   ✅ [${requestId}] Fallback: Using updatedContext.listings (${listingsSource.length} items)`);
+                } else if (updatedContext.llmResponse?.listings && updatedContext.llmResponse.listings.length > 0) {
+                  listingsSource = updatedContext.llmResponse.listings;
+                  console.log(`   ✅ [${requestId}] Fallback: Using updatedContext.llmResponse.listings (${listingsSource.length} items)`);
+                }
+              }
+              
+              console.log(`   🔍 [${requestId}] Listing sources check:`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.listings: ${listingsFromContext?.length || 0} (${listingsFromContext ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse?.listings: ${listingsFromLlmResponse?.length || 0} (${listingsFromLlmResponse ? 'EXISTS' : 'MISSING'})`);
+              // ========================================
+              // ========================================
+              // CRITICAL DEBUG: selectedListing2 IN user_select_listing
+              // ========================================
+              // ========================================
+              console.log(`\n\n\n`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              console.log(`║         🔍🔍🔍 selectedListing2 IN user_select_listing DEBUG 🔍🔍🔍              ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`[${requestId}] ========================================`);
+              console.log(`[${requestId}] selectedListing2 IN user_select_listing STEP:`);
+              console.log(`[${requestId}]   - updatedContext.selectedListing2:`, updatedContext.selectedListing2 ? (Array.isArray(updatedContext.selectedListing2) ? `ARRAY[${updatedContext.selectedListing2.length}]` : 'OBJECT') : 'MISSING');
+              if (updatedContext.selectedListing2) {
+                console.log(`[${requestId}]   - updatedContext.selectedListing2 (FULL):`, JSON.stringify(updatedContext.selectedListing2, null, 2));
+              }
+              console.log(`[${requestId}]   - updatedContext.llmResponse?.selectedListing2:`, updatedContext.llmResponse?.selectedListing2 ? (Array.isArray(updatedContext.llmResponse.selectedListing2) ? `ARRAY[${updatedContext.llmResponse.selectedListing2.length}]` : 'OBJECT') : 'MISSING');
+              if (updatedContext.llmResponse?.selectedListing2) {
+                console.log(`[${requestId}]   - updatedContext.llmResponse.selectedListing2 (FULL):`, JSON.stringify(updatedContext.llmResponse.selectedListing2, null, 2));
+              }
+              console.log(`[${requestId}] ========================================`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              console.log(`║         🔍🔍🔍 END selectedListing2 IN user_select_listing DEBUG 🔍🔍🔍        ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`\n\n\n`);
+              console.log(`   🔍 [${requestId}]   - listingsFromSelectedListing2: ${listingsFromSelectedListing2?.length || 0} (${listingsFromSelectedListing2 ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options: ${listingsFromEvent?.length || 0} (${listingsFromEvent ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - processedEvent.data.options value:`, processedEvent.data?.options);
+              console.log(`   🔍 [${requestId}]   - Final listingsSource: ${listingsSource?.length || 0} (${listingsSource ? 'EXISTS' : 'MISSING'})`);
+              console.log(`   🔍 [${requestId}]   - updatedContext keys:`, Object.keys(updatedContext));
+              console.log(`   🔍 [${requestId}]   - updatedContext.llmResponse keys:`, updatedContext.llmResponse ? Object.keys(updatedContext.llmResponse) : 'N/A');
+              
+              // ========================================
+              // ========================================
+              // CRITICAL DEBUG: Which source was selected?
+              // ========================================
+              // ========================================
+              console.log(`\n\n\n`);
+              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+              if (listingsSource === listingsFromSelectedListing2) {
+                console.log(`║     ✅✅✅ USING selectedListing2 AS LISTINGS SOURCE! ✅✅✅                    ║`);
+                console.log(`║     listingsSource === listingsFromSelectedListing2                             ║`);
+                console.log(`║     listingsFromSelectedListing2 length: ${listingsFromSelectedListing2?.length || 0} ║`);
+              } else if (listingsSource === listingsFromContext) {
+                console.log(`║     ⚠️ Using listingsFromContext (NOT selectedListing2)                          ║`);
+                console.log(`║     listingsFromContext length: ${listingsFromContext?.length || 0}              ║`);
+              } else if (listingsSource === listingsFromLlmResponse) {
+                console.log(`║     ⚠️ Using listingsFromLlmResponse (NOT selectedListing2)                     ║`);
+                console.log(`║     listingsFromLlmResponse length: ${listingsFromLlmResponse?.length || 0}        ║`);
+              } else if (listingsSource === listingsFromEvent) {
+                console.log(`║     ⚠️ Using listingsFromEvent (NOT selectedListing2)                         ║`);
+                console.log(`║     listingsFromEvent length: ${listingsFromEvent?.length || 0}                  ║`);
+              } else {
+                console.log(`║     ❌ NO LISTINGS SOURCE SELECTED! listingsSource is null/undefined            ║`);
+              }
+              console.log(`║     Final listingsSource length: ${listingsSource?.length || 0}                  ║`);
+              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+              console.log(`\n\n\n`);
               
               if (step.id === "user_select_listing" && listingsSource && Array.isArray(listingsSource) && listingsSource.length > 0) {
                 const selectServiceType = updatedContext.serviceType || serviceType || 'movie';
                 const selectFields = getServiceTypeFields(selectServiceType);
                 
                 console.log(`   📋 [${requestId}] ✅ Building ${selectServiceType} selection options from ${listingsSource.length} listings`);
-                console.log(`   📋 [${requestId}] Using listings from: ${updatedContext.listings ? 'updatedContext.listings' : 'processedEvent.data.options'}`);
+                let sourceName = 'unknown';
+                if (listingsSource === listingsFromContext) sourceName = 'updatedContext.listings';
+                else if (listingsSource === listingsFromLlmResponse) sourceName = 'updatedContext.llmResponse.listings';
+                else if (listingsSource === listingsFromSelectedListing2) sourceName = 'selectedListing2 (array or single)';
+                else if (listingsSource === listingsFromEvent) sourceName = 'processedEvent.data.options';
+                console.log(`   📋 [${requestId}] ✅ Using listings from: ${sourceName}`);
                 processedEvent.data.options = listingsSource.map((listing: any) => {
                   // Build label dynamically based on service type
                   let label = '';
@@ -1050,6 +1260,28 @@ httpServer.on("request", async (req, res) => {
                               content = JSON.parse(contentStr);
                               console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
                               console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
+                              console.log(`🔧 [LLM] content.selectedListing2 exists: ${!!content.selectedListing2}, type: ${typeof content.selectedListing2}`);
+                              
+                              // ========================================
+                              // ========================================
+                              // CRITICAL DEBUG: Check if LLM returned selectedListing2
+                              // ========================================
+                              // ========================================
+                              console.log(`\n\n\n`);
+                              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                              console.log(`║        🔍🔍🔍 LLM RESPONSE selectedListing2 CHECK 🔍🔍🔍                        ║`);
+                              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                              if (content.selectedListing2) {
+                                console.log(`✅✅✅ [LLM] LLM RETURNED selectedListing2! ✅✅✅`);
+                                console.log(`[LLM] selectedListing2 (FULL):`, JSON.stringify(content.selectedListing2, null, 2));
+                              } else {
+                                console.log(`⚠️⚠️⚠️ [LLM] LLM did NOT return selectedListing2! ⚠️⚠️⚠️`);
+                                console.log(`[LLM] Will set it to selectedListing later.`);
+                              }
+                              console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                              console.log(`║        🔍🔍🔍 END LLM RESPONSE selectedListing2 CHECK 🔍🔍🔍                   ║`);
+                              console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                              console.log(`\n\n\n`);
                               
                               // CRITICAL: Block "Demo Service" fallback - force use of actual listings
                               if (content.selectedListing) {
@@ -1109,38 +1341,76 @@ httpServer.on("request", async (req, res) => {
                               }
                             }
                             
-                            // DEX query detection and hardcoded mock
-                            const isDEXQuery = listings.length > 0 && ('poolId' in listings[0] || 'tokenSymbol' in listings[0]);
-                            const filters = queryFilters || {};
-                            const isDEXFromFilters = filters?.tokenSymbol || filters?.baseToken;
-                            
+                            // CRITICAL: Use selectedListing2 from LLM response if available
                             let selectedListing2: TokenListing | MovieListing | null = null;
-                            
-                            if (isDEXQuery || isDEXFromFilters) {
-                              console.log(`🔧 [LLM] DEX QUERY DETECTED - USING FIRST LISTING`);
-                              if (listings.length > 0 && 'poolId' in listings[0]) {
-                                selectedListing = listings[0] as TokenListing;
-                                selectedListing2 = listings[0] as TokenListing;
-                                console.log(`🔧 [LLM] Using first actual DEX pool listing`);
-                              } else {
-                                const mockDEXPool: TokenListing = {
-                                  poolId: 'pool-solana-tokena',
-                                  providerId: 'dex-pool-tokena',
-                                  providerName: 'DEX Pool Provider',
-                                  tokenSymbol: filters?.tokenSymbol || 'TOKENA',
-                                  tokenName: 'Token A',
-                                  baseToken: filters?.baseToken || 'SOL',
-                                  price: 1.5,
-                                  liquidity: 10000,
-                                  volume24h: 5000,
-                                  indexerId: 'T1'
-                                };
-                                selectedListing = mockDEXPool;
-                                selectedListing2 = mockDEXPool;
-                                console.log(`🔧 [LLM] No listings available, using hardcoded mock DEX pool`);
+                            if (content.selectedListing2) {
+                              // LLM returned selectedListing2 - use it
+                              selectedListing2 = content.selectedListing2 as TokenListing | MovieListing;
+                              console.log(`✅ [LLM] Using selectedListing2 from LLM response`);
+                              
+                              // Validate and match selectedListing2 similar to selectedListing
+                              if (selectedListing2) {
+                                const isTokenListing2 = 'poolId' in selectedListing2 || 'tokenSymbol' in selectedListing2;
+                                
+                                if (isTokenListing2) {
+                                  const tokenListing2 = selectedListing2 as any;
+                                  if (!tokenListing2.poolId || !tokenListing2.providerId) {
+                                    const matchedListing2 = listings.find((l: any) => 
+                                      ('poolId' in l && l.poolId === tokenListing2.poolId) ||
+                                      ('tokenSymbol' in l && l.tokenSymbol === tokenListing2.tokenSymbol && l.baseToken === tokenListing2.baseToken)
+                                    ) as TokenListing | undefined;
+                                    if (matchedListing2) {
+                                      selectedListing2 = { ...matchedListing2, ...tokenListing2 };
+                                      console.log(`✅ [LLM] Matched selectedListing2 DEX pool listing by poolId/tokenSymbol`);
+                                    }
+                                  }
+                                } else {
+                                  if (!selectedListing2.providerId) {
+                                    const matchedListing2 = listings.find((l: any) => 
+                                      l.movieTitle === selectedListing2.movieTitle && 
+                                      l.providerName === selectedListing2.providerName
+                                    );
+                                    if (matchedListing2) {
+                                      selectedListing2 = { ...selectedListing2, providerId: matchedListing2.providerId };
+                                    }
+                                  }
+                                }
                               }
                             } else {
-                              selectedListing2 = selectedListing;
+                              // LLM did not return selectedListing2 - use selectedListing as fallback
+                              console.warn(`⚠️ [LLM] LLM did not return selectedListing2, using selectedListing as selectedListing2`);
+                              
+                              // DEX query detection and hardcoded mock
+                              const isDEXQuery = listings.length > 0 && ('poolId' in listings[0] || 'tokenSymbol' in listings[0]);
+                              const filters = queryFilters || {};
+                              const isDEXFromFilters = filters?.tokenSymbol || filters?.baseToken;
+                              
+                              if (isDEXQuery || isDEXFromFilters) {
+                                console.log(`🔧 [LLM] DEX QUERY DETECTED - USING FIRST LISTING`);
+                                if (listings.length > 0 && 'poolId' in listings[0]) {
+                                  selectedListing = listings[0] as TokenListing;
+                                  selectedListing2 = listings[0] as TokenListing;
+                                  console.log(`🔧 [LLM] Using first actual DEX pool listing`);
+                                } else {
+                                  const mockDEXPool: TokenListing = {
+                                    poolId: 'pool-solana-tokena',
+                                    providerId: 'dex-pool-tokena',
+                                    providerName: 'DEX Pool Provider',
+                                    tokenSymbol: filters?.tokenSymbol || 'TOKENA',
+                                    tokenName: 'Token A',
+                                    baseToken: filters?.baseToken || 'SOL',
+                                    price: 1.5,
+                                    liquidity: 10000,
+                                    volume24h: 5000,
+                                    indexerId: 'T1'
+                                  };
+                                  selectedListing = mockDEXPool;
+                                  selectedListing2 = mockDEXPool;
+                                  console.log(`🔧 [LLM] No listings available, using hardcoded mock DEX pool`);
+                                }
+                              } else {
+                                selectedListing2 = selectedListing;
+                              }
                             }
                             
                             const result = {
@@ -1157,6 +1427,31 @@ httpServer.on("request", async (req, res) => {
                               result.selectedListing2 = listings[0];
                               console.warn(`⚠️ [LLM] FINAL SAFETY: Setting selectedListing to first listing`);
                             }
+                            
+                            // CRITICAL: Ensure selectedListing2 is always set
+                            if (!result.selectedListing2 && result.selectedListing) {
+                              result.selectedListing2 = result.selectedListing;
+                              console.log(`✅ [LLM] Set selectedListing2 to selectedListing as final fallback`);
+                            }
+                            
+                            // ========================================
+                            // ========================================
+                            // CRITICAL DEBUG: selectedListing2 IN RESULT
+                            // ========================================
+                            // ========================================
+                            console.log(`\n\n\n`);
+                            console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                            console.log(`║              🔍🔍🔍 FINAL RESULT selectedListing2 DEBUG 🔍🔍🔍                 ║`);
+                            console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                            console.log(`[LLM] ========================================`);
+                            console.log(`[LLM] FINAL RESULT selectedListing2:`);
+                            console.log(`[LLM]   - result.selectedListing2 exists: ${!!result.selectedListing2}`);
+                            console.log(`[LLM]   - result.selectedListing2 (FULL):`, JSON.stringify(result.selectedListing2, null, 2));
+                            console.log(`[LLM] ========================================`);
+                            console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                            console.log(`║              🔍🔍🔍 END FINAL RESULT selectedListing2 DEBUG 🔍🔍🔍             ║`);
+                            console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                            console.log(`\n\n\n`);
                             
                             resolve(result);
                           } else {
@@ -1570,9 +1865,31 @@ httpServer.on("request", async (req, res) => {
                   
                   console.log(`   📋 [${requestId}] Found ${providers.length} providers for serviceType: ${queryServiceType}`);
                   
-                  // Generate mock listings based on service type (in real implementation, this would query provider APIs)
-                  const queryFields = getServiceTypeFields(queryServiceType);
-                  const mockListings = providers.map((provider, index) => {
+                  // CRITICAL: Query actual provider APIs (including MySQL plugin providers)
+                  // This will use queryServiceProviders -> queryProviderAPI -> MySQL plugin if apiEndpoint is "eden:plugin:mysql"
+                  const filters = processedAction.filters || updatedContext.queryResult?.query?.filters || {};
+                  
+                  // If there's a raw user query, pass it through for ROOT CA LLM extraction
+                  if (updatedContext.input || updatedContext.userInput) {
+                    (filters as any).rawQuery = updatedContext.input || updatedContext.userInput;
+                  }
+                  
+                  let listings: any[] = [];
+                  if (providers.length > 0) {
+                    console.log(`   🔍 [${requestId}] Querying ${providers.length} provider(s) with filters:`, filters);
+                    try {
+                      listings = await queryServiceProviders(providers, filters) as any[];
+                      console.log(`   ✅ [${requestId}] Retrieved ${listings.length} listing(s) from provider APIs (including plugin providers)`);
+                    } catch (queryErr: any) {
+                      console.error(`   ❌ [${requestId}] Failed to query providers:`, queryErr.message);
+                      listings = []; // Fallback to empty array
+                    }
+                  } else {
+                    console.log(`   ⚠️  [${requestId}] No providers found for serviceType: ${queryServiceType}, generating fallback mock listings`);
+                    // Fallback to mock listings if no providers exist
+                    const queryFields = getServiceTypeFields(queryServiceType);
+                    const mockListings = Array.from({ length: 3 }, (_, index) => {
+                      const provider = { id: `mock-${index}`, name: `Mock Provider ${index + 1}`, serviceType: queryServiceType, location: 'Unknown' };
                     const baseListing: any = {
                       id: provider.id,
                       name: provider.name,
@@ -1653,30 +1970,36 @@ httpServer.on("request", async (req, res) => {
                     baseListing.location = ['Downtown', 'Financial District', 'Shopping Center', 'Suburban', 'City Center'][index % 5];
                     baseListing.hours = ['9 AM - 5 PM', '8 AM - 6 PM', '10 AM - 4 PM', '9 AM - 4 PM', '8 AM - 5 PM'][index % 5];
                     baseListing.atmAvailable = [true, true, false, true, true][index % 5];
-                  } else {
-                    // Generic fallback for other service types
-                    baseListing.name = `${provider.name} Service`;
-                    baseListing.date = new Date().toISOString().split('T')[0];
+                      } else {
+                        // Generic fallback for other service types
+                        baseListing.name = `Mock ${queryServiceType} Service ${index + 1}`;
+                        baseListing.date = new Date().toISOString().split('T')[0];
+                      }
+                      
+                      return baseListing;
+                    });
+                    listings = mockListings;
                   }
                   
-                  return baseListing;
-                });
-                
-                actionResult = {
-                  listings: mockListings,
-                  providers: providers.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    serviceType: p.serviceType,
-                    location: p.location
-                  }))
-                };
-                
-                // Store serviceType in context for later use
-                updatedContext.serviceType = queryServiceType;
-                
-                console.log(`   📋 [${requestId}] Set ${mockListings.length} ${queryServiceType} listings in context`);
-                break;
+                  actionResult = {
+                    listings: listings,
+                    providers: providers.map(p => ({
+                      id: p.id,
+                      name: p.name,
+                      serviceType: p.serviceType,
+                      location: p.location
+                    }))
+                  };
+                  
+                  // Store serviceType in context for later use
+                  updatedContext.serviceType = queryServiceType;
+                  updatedContext.listings = listings;
+                  
+                  // CRITICAL: Also set in actionResult to ensure it's preserved when merged
+                  actionResult = { listings: listings };
+                  
+                  console.log(`   📋 [${requestId}] Set ${listings.length} ${queryServiceType} listings in context and actionResult`);
+                  break;
                 }
 
                 case 'add_ledger_entry': {
@@ -2594,6 +2917,39 @@ httpServer.on("request", async (req, res) => {
                     console.log(JSON.stringify(llmResponse, null, 2));
                     console.log(`🔍 [${requestId}] ========================================`);
                     
+                    // ========================================
+                    // ========================================
+                    // CRITICAL DEBUG: selectedListing2 INSPECTION
+                    // ========================================
+                    // ========================================
+                    console.log(`\n\n\n`);
+                    console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                    console.log(`║                    🔍🔍🔍 selectedListing2 DEBUG 🔍🔍🔍                        ║`);
+                    console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                    console.log(`[${requestId}] ========================================`);
+                    console.log(`[${requestId}] SELECTEDLISTING2 DETAILED INSPECTION:`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 exists: ${!!llmResponse.selectedListing2}`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 type: ${typeof llmResponse.selectedListing2}`);
+                    console.log(`[${requestId}]   - llmResponse.selectedListing2 is array: ${Array.isArray(llmResponse.selectedListing2)}`);
+                    if (llmResponse.selectedListing2) {
+                      console.log(`[${requestId}]   - llmResponse.selectedListing2 (FULL):`, JSON.stringify(llmResponse.selectedListing2, null, 2));
+                      if (Array.isArray(llmResponse.selectedListing2)) {
+                        console.log(`[${requestId}]   - selectedListing2 array length: ${llmResponse.selectedListing2.length}`);
+                        if (llmResponse.selectedListing2.length > 0) {
+                          console.log(`[${requestId}]   - First item in selectedListing2 array:`, JSON.stringify(llmResponse.selectedListing2[0], null, 2));
+                        }
+                      } else {
+                        console.log(`[${requestId}]   - selectedListing2 keys:`, Object.keys(llmResponse.selectedListing2));
+                      }
+                    } else {
+                      console.log(`[${requestId}]   - ⚠️⚠️⚠️ WARNING: llmResponse.selectedListing2 is NULL/UNDEFINED! ⚠️⚠️⚠️`);
+                    }
+                    console.log(`[${requestId}] ========================================`);
+                    console.log(`╔════════════════════════════════════════════════════════════════════════════════╗`);
+                    console.log(`║                    🔍🔍🔍 END selectedListing2 DEBUG 🔍🔍🔍                    ║`);
+                    console.log(`╚════════════════════════════════════════════════════════════════════════════════╝`);
+                    console.log(`\n\n\n`);
+                    
                     // Store llmResponse in context (preserve original object)
                     updatedContext.llmResponse = llmResponse;
                     updatedContext.iGasCost = llmResponse.iGasCost;
@@ -2629,15 +2985,27 @@ httpServer.on("request", async (req, res) => {
                       throw new Error("No listings available and LLM didn't return selectedListing");
                     }
                     
+                    // CRITICAL: Use listings from llmResponse if available, otherwise use availableListings
+                    // This ensures we preserve any filtering/formatting done by LLM
+                    const finalListings = (llmResponse.listings && Array.isArray(llmResponse.listings) && llmResponse.listings.length > 0) 
+                      ? llmResponse.listings 
+                      : availableListings;
+                    
+                    // Update updatedContext.listings to ensure it's available for next steps
+                    updatedContext.listings = finalListings;
+                    
                     actionResult = {
                       llmResponse: llmResponse,
-                      listings: availableListings,
+                      listings: finalListings, // Use final listings (from LLM or original)
                       iGasCost: llmResponse.iGasCost,
                       currentIGas: llmResponse.iGasCost,
                       // CRITICAL: Also include selectedListing directly in actionResult so it's merged into context
                       selectedListing: updatedContext.selectedListing,
                       selectedListing2: updatedContext.selectedListing2
                     };
+                    
+                    console.log(`✅ [${requestId}] Set listings in actionResult: ${finalListings.length} listings`);
+                    console.log(`✅ [${requestId}] Updated updatedContext.listings: ${updatedContext.listings?.length || 0} listings`);
                     
                     console.log(`✅ [${requestId}] ========================================`);
                     console.log(`✅ [${requestId}] FINAL VERIFICATION:`);
@@ -2659,6 +3027,17 @@ httpServer.on("request", async (req, res) => {
 
               // Merge action result into context
               Object.assign(updatedContext, actionResult);
+              
+              // CRITICAL: Ensure listings are preserved after action execution
+              // If actionResult has listings, use them; otherwise keep existing listings
+              if (actionResult.listings && Array.isArray(actionResult.listings) && actionResult.listings.length > 0) {
+                updatedContext.listings = actionResult.listings;
+                console.log(`   ✅ [${requestId}] Preserved ${actionResult.listings.length} listings from actionResult`);
+              } else if (actionResult.llmResponse?.listings && Array.isArray(actionResult.llmResponse.listings) && actionResult.llmResponse.listings.length > 0) {
+                updatedContext.listings = actionResult.llmResponse.listings;
+                console.log(`   ✅ [${requestId}] Preserved ${actionResult.llmResponse.listings.length} listings from actionResult.llmResponse`);
+              }
+              
               console.log(`   📋 [${requestId}] After ${action.type}: listings=${updatedContext.listings?.length || 0}, llmResponse=${!!updatedContext.llmResponse}, selectedListing=${!!updatedContext.selectedListing}`);
 
               executedActions.push({
@@ -2721,10 +3100,16 @@ httpServer.on("request", async (req, res) => {
         let nextStepId: string | null = null;
         const transitions = workflow.transitions.filter((t: any) => t.from === stepId);
 
+        console.log(`   🔍 [${requestId}] ========================================`);
+        console.log(`   🔍 [${requestId}] EVALUATING TRANSITIONS FROM STEP: ${stepId}`);
+        console.log(`   🔍 [${requestId}] ========================================`);
         console.log(`   🔍 [${requestId}] Context keys:`, Object.keys(updatedContext));
-        console.log(`   🔍 [${requestId}] llmResponse exists:`, !!updatedContext.llmResponse);
+        console.log(`   🔍 [${requestId}] updatedContext.listings: ${updatedContext.listings?.length || 0} (${updatedContext.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   🔍 [${requestId}] updatedContext.llmResponse: ${!!updatedContext.llmResponse}`);
+        console.log(`   🔍 [${requestId}] updatedContext.llmResponse.listings: ${updatedContext.llmResponse?.listings?.length || 0} (${updatedContext.llmResponse?.listings ? 'EXISTS' : 'MISSING'})`);
         console.log(`   🔍 [${requestId}] llmResponse.selectedListing:`, updatedContext.llmResponse?.selectedListing);
         console.log(`   🔍 [${requestId}] llmResponse.selectedListing2:`, updatedContext.llmResponse?.selectedListing2);
+        console.log(`   🔍 [${requestId}] Found ${transitions.length} transitions from ${stepId}`);
 
         for (const transition of transitions) {
           // Evaluate condition
@@ -2734,6 +3119,15 @@ httpServer.on("request", async (req, res) => {
           } else if (transition.condition) {
             // Replace template variables in condition
             const processedCondition = replaceTemplateVariables(transition.condition, updatedContext);
+            
+            console.log(`   🔍 [${requestId}] Evaluating transition: ${stepId} -> ${transition.to}`);
+            console.log(`   🔍 [${requestId}]   - Original condition: ${transition.condition}`);
+            console.log(`   🔍 [${requestId}]   - Processed condition: ${processedCondition}`);
+            if (transition.condition.includes('listings')) {
+              console.log(`   🔍 [${requestId}]   - Condition references listings, checking context:`);
+              console.log(`   🔍 [${requestId}]     - updatedContext.listings: ${updatedContext.listings?.length || 0}`);
+              console.log(`   🔍 [${requestId}]     - updatedContext.llmResponse?.listings: ${updatedContext.llmResponse?.listings?.length || 0}`);
+            }
 
             // Check if the processed condition is different from the original
             // If it still contains {{ }}, the variable doesn't exist
@@ -2775,19 +3169,20 @@ httpServer.on("request", async (req, res) => {
         if (!(global as any).workflowExecutions) {
           (global as any).workflowExecutions = new Map();
         }
-        const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
-        const existingExecution = workflowExecutions.get(executionId);
+        // Get workflowExecutions from global (ensure it's accessible in this scope)
+        const workflowExecutionsForUpdate = (global as any).workflowExecutions as Map<string, any>;
+        const existingExecution = workflowExecutionsForUpdate.get(executionId);
         
         if (existingExecution && existingExecution.workflow) {
           // Preserve full execution structure - just update context
           existingExecution.context = updatedContext;
           existingExecution.currentStep = nextStepId || existingExecution.currentStep;
-          workflowExecutions.set(executionId, existingExecution);
+          workflowExecutionsForUpdate.set(executionId, existingExecution);
         } else {
           // Fallback: if no existing execution, create minimal structure
           // This shouldn't happen if FlowWiseService is used, but handle gracefully
           console.warn(`⚠️ [${requestId}] No existing execution found for ${executionId}, creating minimal structure`);
-          workflowExecutions.set(executionId, {
+          workflowExecutionsForUpdate.set(executionId, {
             executionId,
             workflow,
             context: updatedContext,
@@ -2796,6 +3191,29 @@ httpServer.on("request", async (req, res) => {
           });
         }
 
+        // CRITICAL: Final check - ensure listings are in updatedContext before returning
+        // This is especially important for decision steps where listings come from previous step
+        if ((!updatedContext.listings || updatedContext.listings.length === 0) && updatedContext.llmResponse?.listings && Array.isArray(updatedContext.llmResponse.listings) && updatedContext.llmResponse.listings.length > 0) {
+          updatedContext.listings = updatedContext.llmResponse.listings;
+          console.log(`   🔄 [${requestId}] Final check: Populated updatedContext.listings from llmResponse (${updatedContext.llmResponse.listings.length} listings) before returning response`);
+        }
+        
+        console.log(`   📤 [${requestId}] ========================================`);
+        console.log(`   📤 [${requestId}] RETURNING RESPONSE FOR STEP: ${stepId}`);
+        console.log(`   📤 [${requestId}] ========================================`);
+        console.log(`   📤 [${requestId}] updatedContext.listings: ${updatedContext.listings?.length || 0} (${updatedContext.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   📤 [${requestId}] updatedContext.llmResponse?.listings: ${updatedContext.llmResponse?.listings?.length || 0} (${updatedContext.llmResponse?.listings ? 'EXISTS' : 'MISSING'})`);
+        console.log(`   📤 [${requestId}] updatedContext keys:`, Object.keys(updatedContext));
+        if (updatedContext.listings && Array.isArray(updatedContext.listings) && updatedContext.listings.length > 0) {
+          console.log(`   📤 [${requestId}] First listing in response:`, JSON.stringify(updatedContext.listings[0], null, 2).substring(0, 500));
+        }
+        console.log(`   📤 [${requestId}] nextStepId: ${nextStepId}`);
+        console.log(`   📤 [${requestId}] events count: ${events.length}`);
+        if (events.length > 0 && events[0].data?.options) {
+          console.log(`   📤 [${requestId}] First event options count: ${Array.isArray(events[0].data.options) ? events[0].data.options.length : 'N/A'}`);
+        }
+        console.log(`   📤 [${requestId}] ========================================`);
+        
         sendResponse(200, {
           success: true,
           message: `Step ${stepId} executed atomically`,
@@ -3011,6 +3429,18 @@ httpServer.on("request", async (req, res) => {
         
         // Generate workflow using LLM
         console.log(`   🤖 [${requestId}] Generating workflow for service type: ${serviceType}`);
+        
+        // Check if OpenAI API key is configured before attempting generation
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+        if (!OPENAI_API_KEY && ENABLE_OPENAI) {
+          console.error(`   ❌ [${requestId}] OpenAI API key not configured`);
+          sendResponse(400, {
+            success: false,
+            error: "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable or disable OpenAI in config."
+          });
+          return;
+        }
+        
         const generatedWorkflow = await generateWorkflowFromTemplate(template, serviceType);
         
         // Save to file
@@ -3054,14 +3484,99 @@ httpServer.on("request", async (req, res) => {
         const parsedBody = JSON.parse(body);
         const { workflowId, decision, selectionData, stepId } = parsedBody;
 
-        if (!workflowId || !decision) {
-          sendResponse(400, { success: false, error: "workflowId and decision are required" });
+        console.log(`   🔍 [${requestId}] Request body parsed:`, {
+          hasWorkflowId: !!workflowId,
+          workflowId: workflowId,
+          hasDecision: !!decision,
+          decision: decision,
+          hasSelectionData: !!selectionData,
+          hasStepId: !!stepId,
+          stepId: stepId,
+          bodyKeys: Object.keys(parsedBody)
+        });
+
+        if (!workflowId) {
+          console.error(`   ❌ [${requestId}] Missing required field: workflowId`);
+          console.error(`   ❌ [${requestId}] Parsed body:`, JSON.stringify(parsedBody, null, 2));
+          sendResponse(400, { 
+            success: false, 
+            error: `Missing required field: workflowId`,
+            received: {
+              workflowId: workflowId || null,
+              decision: decision || null,
+              selectionData: selectionData || null,
+              stepId: stepId || null
+            }
+          });
+          return;
+        }
+
+        // CRITICAL: Check current workflow step before extracting decision from selectionData
+        // For view_movie step, we MUST have an explicit decision (DONE_WATCHING), not a selection
+        let currentStep: string | undefined;
+        try {
+          if (!(global as any).workflowExecutions) {
+            (global as any).workflowExecutions = new Map();
+          }
+          const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+          const execution = workflowExecutions.get(workflowId);
+          currentStep = execution?.currentStep;
+        } catch (e) {
+          // Execution might not exist yet, that's okay
+        }
+        
+        // CRITICAL: Handle selection-only requests (user_select_listing step)
+        // When selectionData is provided but decision is not, extract decision from selectionData
+        // EXCEPT for view_movie step, which requires an explicit decision
+        let finalDecision = decision;
+        if (!finalDecision && selectionData) {
+          // If we're at view_movie step, reject selectionData - require explicit decision
+          if (currentStep === 'view_movie') {
+            console.error(`   🎬 [${requestId}] ========================================`);
+            console.error(`   🎬 [${requestId}] ERROR: view_movie step received selectionData instead of explicit decision!`);
+            console.error(`   🎬 [${requestId}] view_movie requires an explicit decision: "DONE_WATCHING"`);
+            console.error(`   🎬 [${requestId}] SelectionData provided:`, selectionData);
+            console.error(`   🎬 [${requestId}] This is likely a stale selection from a previous step`);
+            console.error(`   🎬 [${requestId}] ========================================`);
+            sendResponse(400, { 
+              success: false, 
+              error: `Invalid request for view_movie step: received selectionData but expected explicit decision "DONE_WATCHING". This is likely a stale selection from a previous step.`,
+              code: 'INVALID_SELECTION_FOR_VIEW_MOVIE',
+              currentStep: 'view_movie',
+              requiredDecision: 'DONE_WATCHING'
+            });
+            return;
+          }
+          
+          // Extract decision from selectionData - use id, providerId, or movieId as the decision value
+          finalDecision = selectionData.id || 
+                         selectionData.providerId || 
+                         selectionData.movieId || 
+                         selectionData.poolId ||
+                         JSON.stringify(selectionData); // Fallback to full object as string
+          console.log(`   🔄 [${requestId}] No decision provided, extracted from selectionData: ${finalDecision}`);
+        }
+
+        // If still no decision, require it (for confirmation steps like user_confirm_listing)
+        if (!finalDecision) {
+          console.error(`   ❌ [${requestId}] Missing required field: decision (and no selectionData to extract from)`);
+          console.error(`   ❌ [${requestId}] Parsed body:`, JSON.stringify(parsedBody, null, 2));
+          sendResponse(400, { 
+            success: false, 
+            error: `Missing required field: decision (or selectionData to extract decision from)`,
+            received: {
+              workflowId: workflowId || null,
+              decision: decision || null,
+              selectionData: selectionData || null,
+              stepId: stepId || null
+            }
+          });
           return;
         }
 
         console.log(`   ✅ [${requestId}] ========================================`);
         console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
-        console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${decision} for workflow ${workflowId}`);
+        console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${finalDecision} for workflow ${workflowId}`);
         console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
@@ -3070,14 +3585,15 @@ httpServer.on("request", async (req, res) => {
         
         console.log(`   🔐 [${requestId}] ========================================`);
         console.log(`   🔐 [${requestId}] Using FlowWiseService to process user decision`);
-        console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${decision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
+        console.log(`   🔐 [${requestId}] ExecutionId: ${executionId}, Decision: ${finalDecision}, SelectionData: ${selectionData ? 'provided' : 'none'}`);
         console.log(`   🔐 [${requestId}] About to call submitUserDecisionToFlowWise...`);
         console.log(`   🔐 [${requestId}] ========================================`);
 
         // Submit user decision to FlowWiseService
         // FlowWiseService will automatically execute the next step (including ROOT CA steps)
+        // Use finalDecision (which may have been extracted from selectionData)
         try {
-          const result = await submitUserDecisionToFlowWise(executionId, decision, selectionData);
+          const result = await submitUserDecisionToFlowWise(executionId, finalDecision, selectionData);
           
           // FlowWiseService handles all broadcasting internally
           // The result contains the instruction for the next step
@@ -3088,7 +3604,7 @@ httpServer.on("request", async (req, res) => {
           sendResponse(200, {
             success: true,
             message: `${selectionData ? 'Selection' : 'Decision'} submitted successfully`,
-            decision,
+            decision: finalDecision,
             selectionData,
             instruction: result.instruction
           });
@@ -3096,7 +3612,18 @@ httpServer.on("request", async (req, res) => {
           console.error(`   ❌ [${requestId}] Error processing decision with FlowWiseService:`, error.message);
           console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
           console.error(`   ❌ [${requestId}] Full error:`, error);
-          sendResponse(500, { success: false, error: error.message, stack: error.stack });
+          
+          // If it's a validation error for view_movie step, return 400 Bad Request
+          if (error.message && error.message.includes('Invalid decision for view_movie step')) {
+            sendResponse(400, { 
+              success: false, 
+              error: error.message,
+              message: 'Invalid decision submitted. The workflow is waiting for "DONE_WATCHING" decision, but received a movie selection instead. Please click "Done Watching" button.',
+              code: 'INVALID_DECISION_FOR_VIEW_MOVIE'
+            });
+          } else {
+            sendResponse(500, { success: false, error: error.message, stack: error.stack });
+          }
         }
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error parsing request:`, error.message);
@@ -5877,7 +6404,7 @@ httpServer.on("request", async (req, res) => {
           language,
           framework,
           indexerEndpoint: indexerEndpoint || `http://localhost:${HTTP_PORT}`,
-          webhookUrl: webhookUrl || `http://localhost:${HTTP_PORT}/mock/webhook/${providerId}`,
+          webhookUrl: webhookUrl || `http://localhost:${HTTP_PORT}/api/provider-plugin/webhook/${providerId}`,
           serviceType: serviceType || "movie",
           notificationMethods: notificationMethods || ["webhook", "pull", "rpc"]
         });
@@ -5916,6 +6443,792 @@ httpServer.on("request", async (req, res) => {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: err.message }));
     }
+    return;
+  }
+
+  // ============================================
+  // PROVIDER PLUGIN: MYSQL/MARIADB (Wizard + Deployable Providers)
+  // ============================================
+  if (pathname === "/api/provider-plugin/mysql/test-query" && req.method === "POST") {
+    console.log(`   🧩 [${requestId}] POST /api/provider-plugin/mysql/test-query`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const connection = parsed.connection;
+        const sql = parsed.sql;
+        const params = Array.isArray(parsed.params) ? parsed.params : [];
+        const maxRows = parsed.maxRows;
+
+        // Debug: log received connection data (without password)
+        console.log(`   🔍 [${requestId}] Received connection:`, {
+          host: connection?.host,
+          port: connection?.port,
+          user: connection?.user,
+          database: connection?.database,
+          hasPassword: !!connection?.password
+        });
+
+        if (!connection?.host || !connection?.user || !connection?.password || !connection?.database) {
+          const missing = [];
+          if (!connection?.host) missing.push('host');
+          if (!connection?.user) missing.push('user');
+          if (!connection?.password) missing.push('password');
+          if (!connection?.database) missing.push('database');
+          console.log(`   ❌ [${requestId}] Missing fields: ${missing.join(', ')}`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: `connection.${missing.join('/')} required` }));
+          return;
+        }
+        if (!sql || typeof sql !== "string") {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql required" }));
+          return;
+        }
+
+        // Log SQL query for debugging
+        console.log(`   📝 [${requestId}] SQL Query:`, sql);
+        console.log(`   📝 [${requestId}] SQL Params:`, params);
+        console.log(`   📝 [${requestId}] Max Rows:`, maxRows);
+
+        const result = await testMySQLQuery({
+          connection: {
+            host: String(connection.host),
+            port: connection.port ? Number(connection.port) : 3306,
+            user: String(connection.user),
+            password: String(connection.password),
+            database: String(connection.database),
+          },
+          sql,
+          params,
+          maxRows,
+        });
+
+        // Console out SQL query results
+        console.log(`   📊 [${requestId}] SQL Query Results:`);
+        console.log(`   📊 [${requestId}] - Row Count: ${result.rowCount}`);
+        console.log(`   📊 [${requestId}] - Columns: ${result.columns.join(', ')}`);
+        console.log(`   📊 [${requestId}] - Elapsed: ${result.elapsedMs}ms`);
+        if (result.rows.length > 0) {
+          console.log(`   📊 [${requestId}] - First Row:`, JSON.stringify(result.rows[0], bigIntReplacer, 2));
+          if (result.rows.length > 1) {
+            console.log(`   📊 [${requestId}] - All Rows (${result.rows.length}):`, JSON.stringify(result.rows, bigIntReplacer, 2));
+          }
+        } else {
+          console.log(`   📊 [${requestId}] - No rows returned`);
+        }
+
+        // Apply grouping for autoparts with images (same logic as test-getdata)
+        let groupedResults = result.rows;
+        const rows = result.rows || [];
+        const serviceType = parsed.serviceType || "autoparts";
+        
+        // Check if this is an autoparts query with images
+        const hasImageColumns = rows.length > 0 && (
+          'autopart_id' in rows[0] || 
+          'image_id' in rows[0] || 
+          'image_url' in rows[0] ||
+          'i.id' in rows[0] ||
+          Object.keys(rows[0]).some(k => k.startsWith('image_') || k.startsWith('i.') || k.toLowerCase().includes('image'))
+        );
+        const hasAutopartId = rows.length > 0 && (
+          'id' in rows[0] || 
+          'a.id' in rows[0] ||
+          'autopart_id' in rows[0]
+        );
+        const hasAutopartsColumns = rows.length > 0 && (
+          'make' in rows[0] || 
+          'model' in rows[0] || 
+          'year' in rows[0] ||
+          'title' in rows[0] ||
+          'part_name' in rows[0] ||
+          'sale_price' in rows[0] ||
+          'stock_number' in rows[0]
+        );
+
+        const effectiveServiceType = (serviceType || "").toLowerCase().trim();
+        const shouldGroup = (effectiveServiceType === "autoparts" || hasAutopartsColumns) && hasImageColumns && hasAutopartId;
+
+        if (shouldGroup) {
+          console.log(`   🔄 [${requestId}] Grouping autoparts with images (${rows.length} rows)`);
+          
+          const autopartsMap = new Map<number | string, any>();
+          
+          for (const row of rows) {
+            const autopartId = row.id || row['a.id'] || row.autopart_id;
+            if (!autopartId) continue;
+
+            if (!autopartsMap.has(autopartId)) {
+              const autopart: any = { imageModals: [] as any[] };
+              
+              for (const [k, v] of Object.entries(row || {})) {
+                if (k.startsWith('image_') || k.startsWith('i.') || (k.toLowerCase().includes('image') && k !== 'imageModals') || k === 'autopart_id') {
+                  continue;
+                }
+                if (k.startsWith('a.')) {
+                  autopart[k.substring(2)] = v;
+                } else {
+                  autopart[k] = v;
+                }
+              }
+
+              if (autopart.price === undefined || autopart.price === null) {
+                const maybePrice = autopart.Price ?? autopart.price_usd ?? autopart.amount ?? autopart.cost ?? autopart.sale_price;
+                autopart.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+              }
+
+              if (!autopart.partName && autopart.part_name) autopart.partName = autopart.part_name;
+              if (!autopart.partName && autopart.title) autopart.partName = autopart.title;
+
+              autopartsMap.set(autopartId, autopart);
+            }
+
+            const autopart = autopartsMap.get(autopartId)!;
+            const imageData: any = {};
+            let hasImageData = false;
+
+            for (const [k, v] of Object.entries(row || {})) {
+              if (k.startsWith('image_')) {
+                const cleanKey = k.substring(6);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                }
+              } else if (k === 'autopart_id' && v !== null && v !== undefined) {
+                imageData[k] = v;
+              } else if (k.startsWith('i.')) {
+                const cleanKey = k.substring(2);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                }
+              }
+            }
+
+            if (hasImageData && Object.keys(imageData).length > 0) {
+              const imageId = imageData.id || imageData.image_id;
+              if (imageId && !autopart.imageModals.find((img: any) => (img.id || img.image_id) === imageId)) {
+                autopart.imageModals.push(imageData);
+              } else if (!imageId) {
+                const imageUrl = imageData.url || imageData.image_url;
+                if (imageUrl && !autopart.imageModals.find((img: any) => (img.url || img.image_url) === imageUrl)) {
+                  autopart.imageModals.push(imageData);
+                } else if (!imageUrl) {
+                  autopart.imageModals.push(imageData);
+                }
+              }
+            }
+          }
+
+          // No hardcoded filtering - return all fields from grouped autoparts
+          groupedResults = Array.from(autopartsMap.values());
+          console.log(`   ✅ [${requestId}] Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+          console.log(`   📋 [${requestId}] Returning all fields (no hardcoded filtering)`);
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          result: {
+            ...result,
+            rows: groupedResults,
+            rowCount: groupedResults.length
+          }, 
+          timestamp: Date.now() 
+        }, bigIntReplacer));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // PROVIDER PLUGIN: getData Wrapper Test (pre-flight validation)
+  // This endpoint tests the full getData flow: natural language -> LLM params -> SQL parameterization -> SQL execution
+  if (pathname === "/api/provider-plugin/mysql/test-getdata" && req.method === "POST") {
+    console.log(`\n\n`);
+    console.log(`   ============================================================`);
+    console.log(`   🧪 [${requestId}] POST /api/provider-plugin/mysql/test-getdata`);
+    console.log(`   🧪 [${requestId}] getData wrapper pre-flight test STARTING`);
+    console.log(`   ============================================================`);
+    console.log(`\n`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const connection = parsed.connection;
+        const sql = String(parsed.sql || "").trim();
+        const userQuery = String(parsed.userQuery || "").trim();
+        const serviceType = String(parsed.serviceType || "autoparts").trim();
+        const returnFields = parsed.returnFields ? String(parsed.returnFields).trim() : "";
+
+        if (!connection || !connection.host || !connection.user || !connection.password || !connection.database) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "connection.host/user/password/database required" }));
+          return;
+        }
+        if (!sql) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql required" }));
+          return;
+        }
+        if (!userQuery) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userQuery required" }));
+          return;
+        }
+
+        console.log(`   🧪 [${requestId}] getData Wrapper Test:`);
+        console.log(`   📝 [${requestId}] - User Query: "${userQuery}"`);
+        console.log(`   📝 [${requestId}] - Service Type: ${serviceType}`);
+        console.log(`   📝 [${requestId}] - Original SQL:`, sql);
+
+        // Step 1: Extract getData params from natural language query
+        console.log(`   👑 [${requestId}] Step 1: Extracting getData() params from user query...`);
+        const getDataParams = await extractGetDataParamsWithOpenAI(userQuery);
+        console.log(`   ✅ [${requestId}] Step 1 Complete:`, {
+          serviceType: getDataParams.serviceType,
+          params: getDataParams.params,
+          maxCount: getDataParams.maxCount,
+          sortBy: getDataParams.sortBy,
+          order: getDataParams.order
+        });
+
+        // Step 2: Parameterize SQL query
+        console.log(`   👑 [${requestId}] Step 2: Parameterizing SQL query...`);
+        const sqlParamResult = await parameterizeSQLWithOpenAI(sql);
+        console.log(`   ✅ [${requestId}] Step 2 Complete:`, {
+          parameterizedSql: sqlParamResult.parameterizedSql,
+          paramOrder: sqlParamResult.paramOrder,
+          extractedParams: sqlParamResult.params
+        });
+
+        // Step 3: Map getData params to SQL params based on paramOrder
+        console.log(`   🔄 [${requestId}] Step 3: Mapping getData params to SQL params...`);
+        const sqlParams: any[] = [];
+        const paramOrder = sqlParamResult.paramOrder || [];
+        const getDataParamsArray = getDataParams.params || [];
+        const parameterizedSql = sqlParamResult.parameterizedSql;
+
+        // Check for LIMIT ? and OFFSET ? placeholders in parameterized SQL
+        const hasLimitPlaceholder = /LIMIT\s+\?/i.test(parameterizedSql);
+        const hasOffsetPlaceholder = /OFFSET\s+\?/i.test(parameterizedSql);
+        
+        // Count placeholders before LIMIT/OFFSET
+        let placeholdersBeforeLimit = 0;
+        if (hasLimitPlaceholder) {
+          const beforeLimit = parameterizedSql.substring(0, parameterizedSql.toUpperCase().indexOf('LIMIT'));
+          placeholdersBeforeLimit = (beforeLimit.match(/\?/g) || []).length;
+        }
+
+        // Simple mapping: use getData params in order if paramOrder matches
+        // For now, use the extracted SQL params if available, otherwise use getData params
+        if (sqlParamResult.params.length > 0) {
+          // Use the params extracted from SQL parameterization (excluding LIMIT/OFFSET if they were in original)
+          const paramsToUse = sqlParamResult.params.slice(0, placeholdersBeforeLimit);
+          sqlParams.push(...paramsToUse);
+        } else if (getDataParamsArray.length > 0) {
+          // Fallback: use getData params
+          sqlParams.push(...getDataParamsArray.slice(0, Math.min(paramOrder.length, placeholdersBeforeLimit)));
+        }
+
+        // Add LIMIT and OFFSET values if placeholders exist
+        if (hasLimitPlaceholder && hasOffsetPlaceholder) {
+          sqlParams.push(getDataParams.maxCount || 30); // LIMIT
+          sqlParams.push(0); // OFFSET
+        } else if (hasLimitPlaceholder) {
+          sqlParams.push(getDataParams.maxCount || 30); // LIMIT only
+        }
+
+        console.log(`   ✅ [${requestId}] Step 3 Complete: SQL params:`, sqlParams);
+
+        // Step 4: Execute parameterized SQL query
+        console.log(`   🗄️  [${requestId}] Step 4: Executing parameterized SQL query...`);
+        const maxRows = Math.min(getDataParams.maxCount || 30, 50);
+        const sqlResult = await testMySQLQuery({
+          connection: {
+            host: String(connection.host),
+            port: connection.port ? Number(connection.port) : 3306,
+            user: String(connection.user),
+            password: String(connection.password),
+            database: String(connection.database),
+          },
+          sql: sqlParamResult.parameterizedSql,
+          params: sqlParams,
+          maxRows,
+        });
+
+        console.log(`   ✅ [${requestId}] Step 4 Complete: ${sqlResult.rowCount} row(s) returned`);
+        
+        // Step 5: Group autoparts with images (if applicable)
+        console.log(`   🔍 [${requestId}] ========== STEP 5: GROUPING CHECK START ==========`);
+        console.log(`   🔍 [${requestId}] Raw SQL result: ${sqlResult.rowCount} rows`);
+        // Log all autopart IDs from raw rows to see if they're different
+        if (sqlResult.rows && sqlResult.rows.length > 0) {
+          const autopartIds = sqlResult.rows.map((r: any) => r.id || r['a.id'] || r.autopart_id).filter((id: any) => id !== undefined);
+          console.log(`   🔍 [${requestId}] Autopart IDs in raw rows: ${autopartIds.join(', ')}`);
+          console.log(`   🔍 [${requestId}] Unique autopart IDs: ${[...new Set(autopartIds)].join(', ')} (${[...new Set(autopartIds)].length} unique)`);
+        }
+        let groupedResults = sqlResult.rows;
+        const rows = sqlResult.rows || [];
+        
+        console.log(`   🔍 [${requestId}] Raw input values:`);
+        console.log(`   🔍 [${requestId}]   - getDataParams.serviceType: "${getDataParams.serviceType}"`);
+        console.log(`   🔍 [${requestId}]   - parsed serviceType: "${serviceType}"`);
+        console.log(`   🔍 [${requestId}]   - rows.length: ${rows.length}`);
+        
+        // Use serviceType from getDataParams (more reliable) or fallback to parsed serviceType
+        const effectiveServiceType = (getDataParams.serviceType || serviceType || "").toLowerCase().trim();
+        console.log(`   🔍 [${requestId}]   - effectiveServiceType (after lower/trim): "${effectiveServiceType}"`);
+        
+        // Check if this is an autoparts query with images
+        // Look for autoparts-specific columns: image_id, autopart_id, or columns from autoparts table
+        const hasImageColumns = rows.length > 0 && (
+          'autopart_id' in rows[0] || 
+          'image_id' in rows[0] || 
+          'image_url' in rows[0] ||
+          'i.id' in rows[0] ||
+          Object.keys(rows[0]).some(k => k.startsWith('image_') || k.startsWith('i.') || k.toLowerCase().includes('image'))
+        );
+        const hasAutopartId = rows.length > 0 && (
+          'id' in rows[0] || 
+          'a.id' in rows[0] ||
+          'autopart_id' in rows[0]
+        );
+        
+        // Also check if rows have autoparts-specific columns (make, model, year, title, etc.)
+        const hasAutopartsColumns = rows.length > 0 && (
+          'make' in rows[0] || 
+          'model' in rows[0] || 
+          'year' in rows[0] ||
+          'title' in rows[0] ||
+          'part_name' in rows[0] ||
+          'sale_price' in rows[0] ||
+          'stock_number' in rows[0]
+        );
+
+        console.log(`   🔍 [${requestId}] Step 5: Checking grouping conditions:`);
+        console.log(`   🔍 [${requestId}]   - effectiveServiceType: "${effectiveServiceType}"`);
+        console.log(`   🔍 [${requestId}]   - hasImageColumns: ${hasImageColumns}`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartId: ${hasAutopartId}`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+        if (rows.length > 0) {
+          console.log(`   🔍 [${requestId}]   - First row keys:`, Object.keys(rows[0]).join(', '));
+          console.log(`   🔍 [${requestId}]   - First row has 'image_id':`, 'image_id' in rows[0]);
+          console.log(`   🔍 [${requestId}]   - First row has 'autopart_id':`, 'autopart_id' in rows[0]);
+          console.log(`   🔍 [${requestId}]   - First row has 'id':`, 'id' in rows[0]);
+        }
+
+        // Group if: (serviceType is autoparts OR has autoparts columns) AND has images AND has autopart ID
+        // This makes grouping more robust - it will group even if serviceType doesn't match exactly
+        const serviceTypeMatch = effectiveServiceType === "autoparts";
+        const condition1 = serviceTypeMatch || hasAutopartsColumns;
+        const condition2 = hasImageColumns;
+        const condition3 = hasAutopartId;
+        const shouldGroup = condition1 && condition2 && condition3;
+        
+        console.log(`   🔍 [${requestId}] ========== GROUPING CONDITION EVALUATION ==========`);
+        console.log(`   🔍 [${requestId}] Condition 1 (serviceType OR autoparts columns): ${condition1}`);
+        console.log(`   🔍 [${requestId}]   - serviceType === "autoparts": ${serviceTypeMatch} (effectiveServiceType="${effectiveServiceType}")`);
+        console.log(`   🔍 [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+        console.log(`   🔍 [${requestId}] Condition 2 (hasImageColumns): ${condition2}`);
+        console.log(`   🔍 [${requestId}] Condition 3 (hasAutopartId): ${condition3}`);
+        console.log(`   🔍 [${requestId}] FINAL DECISION: shouldGroup = ${shouldGroup} (${condition1} && ${condition2} && ${condition3})`);
+        console.log(`   🔍 [${requestId}] ==================================================`);
+        
+        if (shouldGroup) {
+          console.log(`   🔄 [${requestId}] ========== ENTERING GROUPING BLOCK ==========`);
+          console.log(`   🔄 [${requestId}] Step 5: Grouping autoparts with images (${rows.length} rows)`);
+          
+          const autopartsMap = new Map<number | string, any>();
+          let rowIndex = 0;
+          
+          for (const row of rows) {
+            rowIndex++;
+            console.log(`   📦 [${requestId}] Processing row ${rowIndex}/${rows.length}:`);
+            console.log(`   📦 [${requestId}]   - Row keys: ${Object.keys(row).join(', ')}`);
+            console.log(`   📦 [${requestId}]   - Row id: ${row.id}, row['a.id']: ${row['a.id']}, row.autopart_id: ${row.autopart_id}`);
+            
+            // Determine autopart ID (could be 'id', 'a.id', or 'autopart_id')
+            // Note: Since SQL uses a.*, the id column will be directly available as 'id', not 'a.id'
+            const autopartId = row.id || row['a.id'] || row.autopart_id;
+            console.log(`   📦 [${requestId}]   - Autopart ID: ${autopartId} (from: ${row.id ? 'id' : row['a.id'] ? 'a.id' : 'autopart_id'})`);
+            
+            if (!autopartId) {
+              console.log(`   ⚠️  [${requestId}]   - Skipping row ${rowIndex}: No autopart ID found`);
+              console.log(`   ⚠️  [${requestId}]   - Full row data: ${JSON.stringify(row, null, 2)}`);
+              continue;
+            }
+
+            // Get or create autopart entry
+            const isNewAutopart = !autopartsMap.has(autopartId);
+            console.log(`   📦 [${requestId}]   - Is new autopart: ${isNewAutopart}`);
+            
+            if (isNewAutopart) {
+              console.log(`   🆕 [${requestId}]   - Creating new autopart entry for ID: ${autopartId}`);
+              const autopart: any = {
+                imageModals: [] as any[]
+              };
+
+              // Copy autopart columns (skip image columns)
+              let copiedColumns = 0;
+              let skippedColumns = 0;
+              for (const [k, v] of Object.entries(row || {})) {
+                // Skip image columns (they'll be in imageModals)
+                if (k.startsWith('image_') || k.startsWith('i.') || (k.toLowerCase().includes('image') && k !== 'imageModals') || k === 'autopart_id') {
+                  skippedColumns++;
+                  continue;
+                }
+                // Copy autopart columns
+                if (k.startsWith('a.')) {
+                  const cleanKey = k.substring(2); // Remove 'a.' prefix
+                  autopart[cleanKey] = v;
+                  copiedColumns++;
+                } else {
+                  autopart[k] = v;
+                  copiedColumns++;
+                }
+              }
+              console.log(`   📋 [${requestId}]   - Copied ${copiedColumns} autopart columns, skipped ${skippedColumns} image columns`);
+
+              // Ensure price exists
+              if (autopart.price === undefined || autopart.price === null) {
+                const maybePrice = autopart.Price ?? autopart.price_usd ?? autopart.amount ?? autopart.cost ?? autopart.sale_price;
+                autopart.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+                console.log(`   💰 [${requestId}]   - Set price: ${autopart.price} (from: ${maybePrice !== undefined ? 'sale_price/Price/etc' : 'default 0'})`);
+              }
+
+              // Autoparts workflow expects partName
+              if (!autopart.partName && autopart.part_name) {
+                autopart.partName = autopart.part_name;
+                console.log(`   📝 [${requestId}]   - Set partName from part_name: ${autopart.partName}`);
+              }
+              if (!autopart.partName && autopart.title) {
+                autopart.partName = autopart.title;
+                console.log(`   📝 [${requestId}]   - Set partName from title: ${autopart.partName}`);
+              }
+
+              autopartsMap.set(autopartId, autopart);
+              console.log(`   ✅ [${requestId}]   - Autopart entry created with ${Object.keys(autopart).length} properties`);
+              console.log(`   📋 [${requestId}]   - Autopart fields: ${Object.keys(autopart).join(', ')}`);
+            } else {
+              console.log(`   🔄 [${requestId}]   - Using existing autopart entry for ID: ${autopartId}`);
+            }
+
+            // Add image to imageModals if image data exists
+            const autopart = autopartsMap.get(autopartId)!;
+            const imageData: any = {};
+            let hasImageData = false;
+
+            console.log(`   🖼️  [${requestId}]   - Extracting image data from row ${rowIndex}:`);
+            
+            // Extract image columns
+            for (const [k, v] of Object.entries(row || {})) {
+              // Handle aliased image columns (image_id, image_url, etc.)
+              if (k.startsWith('image_')) {
+                const cleanKey = k.substring(6); // Remove 'image_' prefix
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                  console.log(`   🖼️  [${requestId}]     - Found image column '${k}' -> '${cleanKey}': ${v}`);
+                }
+              } else if (k === 'autopart_id' && v !== null && v !== undefined) {
+                // Keep autopart_id for reference
+                imageData[k] = v;
+                console.log(`   🖼️  [${requestId}]     - Found autopart_id: ${v}`);
+              } else if (k.startsWith('i.')) {
+                // Handle 'i.' prefixed columns (fallback)
+                const cleanKey = k.substring(2);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = v;
+                  hasImageData = true;
+                  console.log(`   🖼️  [${requestId}]     - Found image column '${k}' -> '${cleanKey}': ${v}`);
+                }
+              }
+            }
+
+            console.log(`   🖼️  [${requestId}]   - Image data extracted: hasImageData=${hasImageData}, keys: ${Object.keys(imageData).join(', ')}`);
+
+            // Only add image if it has data (not null/undefined)
+            if (hasImageData && Object.keys(imageData).length > 0) {
+              // Avoid duplicates (check if image with same ID already exists)
+              const imageId = imageData.id || imageData.image_id;
+              const existingImageCount = autopart.imageModals.length;
+              
+              if (imageId) {
+                const isDuplicate = autopart.imageModals.find((img: any) => (img.id || img.image_id) === imageId);
+                if (!isDuplicate) {
+                  autopart.imageModals.push(imageData);
+                  console.log(`   ✅ [${requestId}]   - Added image with ID ${imageId} (total images: ${autopart.imageModals.length})`);
+                } else {
+                  console.log(`   ⏭️  [${requestId}]   - Skipped duplicate image with ID ${imageId}`);
+                }
+              } else {
+                // If no ID, check by URL or other unique field to avoid duplicates
+                const imageUrl = imageData.url || imageData.image_url;
+                if (imageUrl) {
+                  const isDuplicate = autopart.imageModals.find((img: any) => (img.url || img.image_url) === imageUrl);
+                  if (!isDuplicate) {
+                    autopart.imageModals.push(imageData);
+                    console.log(`   ✅ [${requestId}]   - Added image with URL ${imageUrl} (total images: ${autopart.imageModals.length})`);
+                  } else {
+                    console.log(`   ⏭️  [${requestId}]   - Skipped duplicate image with URL ${imageUrl}`);
+                  }
+                } else {
+                  // If no unique identifier, just add it
+                  autopart.imageModals.push(imageData);
+                  console.log(`   ✅ [${requestId}]   - Added image without ID/URL (total images: ${autopart.imageModals.length})`);
+                }
+              }
+            } else {
+              console.log(`   ⚠️  [${requestId}]   - No image data to add (hasImageData=${hasImageData}, keys.length=${Object.keys(imageData).length})`);
+            }
+          }
+
+          // Filter to only include specified return fields + imageModals (if returnFields provided)
+          if (returnFields && returnFields.length > 0) {
+            const returnFieldsList = returnFields.split(',').map(f => f.trim()).filter(f => f.length > 0);
+            // Always include imageModals
+            const fieldsToInclude = [...returnFieldsList, 'imageModals'];
+            groupedResults = Array.from(autopartsMap.values()).map((ap: any) => {
+              const filtered: any = {};
+              for (const field of fieldsToInclude) {
+                if (field === 'imageModals') {
+                  filtered[field] = ap[field] || [];
+                } else if (ap[field] !== undefined) {
+                  filtered[field] = ap[field];
+                }
+              }
+              return filtered;
+            });
+            console.log(`   ✅ [${requestId}] Step 5 Complete: Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+            console.log(`   📋 [${requestId}] Filtered to return fields: ${returnFieldsList.join(', ')}, + imageModals`);
+            // Log all autopart IDs that were grouped
+            console.log(`   📋 [${requestId}] Autopart IDs in map: ${Array.from(autopartsMap.keys()).join(', ')}`);
+            // Log available fields before filtering for debugging
+            const firstAutopartBeforeFilter = Array.from(autopartsMap.values())[0];
+            if (firstAutopartBeforeFilter) {
+              console.log(`   📋 [${requestId}] Available fields in first autopart (before filtering): ${Object.keys(firstAutopartBeforeFilter).join(', ')}`);
+            }
+            for (let i = 0; i < groupedResults.length; i++) {
+              const ap = groupedResults[i];
+              const fieldValues = returnFieldsList.map(f => `${f}=${ap[f] !== undefined ? JSON.stringify(ap[f]) : 'N/A'}`).join(', ');
+              console.log(`   📊 [${requestId}]   - Autopart ${i + 1}: ${fieldValues}, images=${ap.imageModals?.length || 0}`);
+              console.log(`   📊 [${requestId}]   - Autopart ${i + 1} all fields after filtering: ${Object.keys(ap).join(', ')}`);
+            }
+          } else {
+            // No returnFields specified - return all fields (no filtering)
+            groupedResults = Array.from(autopartsMap.values());
+            console.log(`   ✅ [${requestId}] Step 5 Complete: Grouped ${rows.length} rows into ${groupedResults.length} autopart(s) with images`);
+            console.log(`   📋 [${requestId}] Returning all fields (no returnFields specified, no filtering)`);
+          }
+          
+          // Update columns to reflect grouped structure (exclude image columns, include imageModals)
+          const groupedColumns = groupedResults.length > 0 ? Object.keys(groupedResults[0]).filter(k => k !== 'imageModals') : sqlResult.columns;
+          console.log(`   📋 [${requestId}] Grouped columns:`, groupedColumns.join(', '), '+ imageModals array');
+        } else {
+          console.log(`   ⏭️  [${requestId}] ========== SKIPPING GROUPING ==========`);
+          console.log(`   ⏭️  [${requestId}] Reason: Grouping condition not met`);
+          console.log(`   ⏭️  [${requestId}]   - effectiveServiceType: "${effectiveServiceType}"`);
+          console.log(`   ⏭️  [${requestId}]   - serviceType === "autoparts": ${serviceTypeMatch}`);
+          console.log(`   ⏭️  [${requestId}]   - hasAutopartsColumns: ${hasAutopartsColumns}`);
+          console.log(`   ⏭️  [${requestId}]   - hasImageColumns: ${hasImageColumns}`);
+          console.log(`   ⏭️  [${requestId}]   - hasAutopartId: ${hasAutopartId}`);
+          console.log(`   ⏭️  [${requestId}] ==========================================`);
+        }
+
+        console.log(`   📊 [${requestId}] getData Wrapper Test Results:`);
+        console.log(`   📊 [${requestId}] - Raw Row Count: ${sqlResult.rowCount}`);
+        console.log(`   📊 [${requestId}] - Grouped Result Count: ${groupedResults.length}`);
+        console.log(`   📊 [${requestId}] - Columns: ${sqlResult.columns.join(', ')}`);
+        console.log(`   📊 [${requestId}] - Elapsed: ${sqlResult.elapsedMs}ms`);
+        if (groupedResults.length > 0) {
+          console.log(`   📊 [${requestId}] - First Result:`, JSON.stringify(groupedResults[0], bigIntReplacer, 2));
+          if (groupedResults.length > 1) {
+            console.log(`   📊 [${requestId}] - All Results (${groupedResults.length}):`, JSON.stringify(groupedResults, bigIntReplacer, 2));
+          }
+        } else {
+          console.log(`   📊 [${requestId}] - No results returned`);
+        }
+
+        // Determine which columns to use for display
+        const wasGrouped = groupedResults.length !== sqlResult.rowCount || (groupedResults.length > 0 && groupedResults[0].imageModals !== undefined);
+        const displayColumns = wasGrouped && groupedResults.length > 0
+          ? Object.keys(groupedResults[0]).filter(k => k !== 'imageModals')
+          : sqlResult.columns;
+
+        console.log(`   📤 [${requestId}] Final Response:`);
+        console.log(`   📤 [${requestId}]   - Was grouped: ${wasGrouped}`);
+        console.log(`   📤 [${requestId}]   - Returning ${groupedResults.length} result(s) (was ${sqlResult.rowCount} raw rows)`);
+        console.log(`   📤 [${requestId}]   - Display columns: ${displayColumns.length} columns`);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        const responseData = {
+          success: true,
+          result: {
+            getDataParams,
+            sqlParameterization: sqlParamResult,
+            sqlExecution: {
+              ...sqlResult,
+              rows: groupedResults, // Return grouped results instead of raw rows
+              rowCount: groupedResults.length, // Update row count to reflect grouped results
+              columns: displayColumns // Update columns to match grouped structure
+            },
+            summary: {
+              userQuery,
+              serviceType: getDataParams.serviceType,
+              sqlParamsUsed: sqlParams,
+              rawRowsReturned: sqlResult.rowCount,
+              groupedResultsReturned: groupedResults.length,
+              wasGrouped: wasGrouped,
+              elapsedMs: sqlResult.elapsedMs
+            }
+          },
+          timestamp: Date.now()
+        };
+        
+        console.log(`   📤 [${requestId}] Response JSON size: ${JSON.stringify(responseData, bigIntReplacer).length} bytes`);
+        res.end(JSON.stringify(responseData, bigIntReplacer));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] getData Wrapper Test failed:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // ROOT CA LLM Service: SQL Parameterization (GOD-controlled SQL security)
+  // This endpoint converts SQL queries with hardcoded values to parameterized queries
+  // to prevent SQL injection. GOD (ROOT CA) has control over all SQL security patterns.
+  if (pathname === "/api/root-ca/llm/parameterize-sql" && req.method === "POST") {
+    console.log(`   👑 [${requestId}] POST /api/root-ca/llm/parameterize-sql - ROOT CA LLM SQL parameterization`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const sql = String(parsed.sql || "").trim();
+
+        if (!sql) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "sql is required" }));
+          return;
+        }
+
+        const result = await parameterizeSQLWithOpenAI(sql);
+
+        broadcastEvent({
+          type: "root_ca_llm_sql_parameterization_complete",
+          component: "root-ca-llm",
+          message: `SQL parameterized: ${result.paramOrder.length} parameters extracted`,
+          timestamp: Date.now(),
+          data: { result }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, result, timestamp: Date.now() }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Error parameterizing SQL: ${err.message}`);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // ROOT CA LLM Service: getData() Parameter Extraction (GOD-controlled data access)
+  // This endpoint translates natural language queries into structured getData() parameters
+  // for provider data layers. GOD (ROOT CA) has control over all data access patterns.
+  if (pathname === "/api/root-ca/llm/get-data-params" && req.method === "POST") {
+    console.log(`   👑 [${requestId}] POST /api/root-ca/llm/get-data-params - ROOT CA LLM getData() parameter extraction`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const userInput = String(parsed.userInput || parsed.query || "").trim();
+        const serviceType = parsed.serviceType; // Optional: hint for service type
+
+        if (!userInput) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userInput or query is required" }));
+          return;
+        }
+
+        console.log(`   👑 [${requestId}] ROOT CA LLM: Translating user query to getData() params`);
+        console.log(`   📝 [${requestId}] User input: "${userInput}"`);
+
+        const result = await extractGetDataParamsWithOpenAI(userInput);
+
+        // If serviceType hint provided and LLM didn't detect it, use the hint
+        if (serviceType && result.serviceType !== serviceType) {
+          console.log(`   🔄 [${requestId}] Overriding serviceType from "${result.serviceType}" to "${serviceType}" (hint provided)`);
+          result.serviceType = serviceType;
+        }
+
+        console.log(`   ✅ [${requestId}] ROOT CA LLM extracted getData() params:`, {
+          serviceType: result.serviceType,
+          params: result.params,
+          maxCount: result.maxCount,
+          sortBy: result.sortBy,
+          order: result.order,
+          confidence: result.confidence
+        });
+
+        // Broadcast ROOT CA LLM event
+        broadcastEvent({
+          type: "root_ca_llm_getdata_extracted",
+          component: "root-ca",
+          message: `ROOT CA LLM extracted getData() parameters for ${result.serviceType}`,
+          timestamp: Date.now(),
+          data: {
+            userInput,
+            result,
+            provider: "openai"
+          }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, result, timestamp: Date.now() }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] ROOT CA LLM getData() extraction failed:`, err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
+    return;
+  }
+
+  // Backend-hosted provider webhook receiver (deployable plugin endpoint)
+  if (pathname.startsWith("/api/provider-plugin/webhook/") && req.method === "POST") {
+    const providerId = pathname.split("/api/provider-plugin/webhook/")[1] || "";
+    console.log(`   🧩 [${requestId}] POST /api/provider-plugin/webhook/${providerId}`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+      try {
+        let payload: any = null;
+        try { payload = body ? JSON.parse(body) : null; } catch { payload = body; }
+
+        broadcastEvent({
+          type: "provider_plugin_webhook_received",
+          component: "provider-plugin",
+          message: `Webhook received for ${providerId}`,
+          timestamp: Date.now(),
+          data: { providerId, payload, requestId }
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, providerId, received: true, timestamp: Date.now() }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+      }
+    });
     return;
   }
 
@@ -6177,7 +7490,7 @@ httpServer.on("request", async (req, res) => {
         const requestData = JSON.parse(body);
         // Accept both gardenName and indexerName for backward compatibility
         const gardenName = requestData.gardenName || requestData.indexerName;
-        const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders } = requestData;
+        const { serviceType, serverIp, serverDomain, serverPort, networkType, isSnake, email, amount, selectedProviders, videoUrl } = requestData;
 
         // DEX Gardens are a separate ecosystem (no 🍎 APPLES ledger). Route to DexGardensService.
         if ((serviceType || '').toLowerCase() === 'dex') {
@@ -6475,6 +7788,11 @@ httpServer.on("request", async (req, res) => {
         (gardenConfig as any).networkType = networkType || "http";
         (gardenConfig as any).serviceType = serviceType;
         (gardenConfig as any).isSnake = isSnake || false;
+        // Store videoUrl for movie gardens
+        if (videoUrl && (serviceType === 'movie' || serviceType === 'amc')) {
+          (gardenConfig as any).videoUrl = videoUrl;
+          console.log(`   🎬 [${requestId}] Video URL configured for movie garden: ${videoUrl}`);
+        }
         
         console.log(`   👤 [${requestId}] Garden ownership assigned to Priest user: ${email}`);
         
@@ -6566,6 +7884,90 @@ httpServer.on("request", async (req, res) => {
           });
         }
         
+        // Provider Plugin configs (MySQL/MariaDB) - attach to providerId(s) and persist
+        // Expected shape (wizard):
+        //   providerPlugins: { mysql: [ { providerId, serviceType, connection, sql, paramOrder?, fieldMap?, maxRows? } ] }
+        try {
+          const pluginRoot = (requestData as any).providerPlugins;
+          const mysqlConfigs = pluginRoot?.mysql;
+          const list = Array.isArray(mysqlConfigs) ? mysqlConfigs : (mysqlConfigs ? [mysqlConfigs] : []);
+          if (list.length > 0) {
+            for (const cfg of list) {
+              if (!cfg?.providerId || !cfg?.connection || !cfg?.sql || !cfg?.serviceType) continue;
+              setMySQLProviderPluginConfig({
+                providerId: String(cfg.providerId),
+                serviceType: String(cfg.serviceType),
+                connection: {
+                  host: String(cfg.connection.host),
+                  port: cfg.connection.port ? Number(cfg.connection.port) : 3306,
+                  user: String(cfg.connection.user),
+                  password: String(cfg.connection.password),
+                  database: String(cfg.connection.database),
+                },
+                sql: String(cfg.sql),
+                paramOrder: Array.isArray(cfg.paramOrder) ? cfg.paramOrder.map((x: any) => String(x)) : undefined,
+                fieldMap: cfg.fieldMap && typeof cfg.fieldMap === "object" ? cfg.fieldMap : undefined,
+                maxRows: cfg.maxRows ? Number(cfg.maxRows) : undefined,
+              });
+            }
+            saveProviderPluginPersistence();
+            console.log(`   🧩 [${requestId}] Saved MySQL provider plugin config(s): ${list.map((c: any) => c?.providerId).filter(Boolean).join(", ")}`);
+            
+            // CRITICAL: Update providers to use the MySQL plugin endpoint
+            // This ensures queryProviderAPI will route to the plugin
+            const serviceRegistry2 = getServiceRegistry2();
+            for (const cfg of list) {
+              if (!cfg?.providerId) continue;
+              const provider = serviceRegistry2.getProvider(String(cfg.providerId));
+              if (provider) {
+                // Update provider to use MySQL plugin endpoint
+                if (provider.apiEndpoint !== "eden:plugin:mysql") {
+                  provider.apiEndpoint = "eden:plugin:mysql";
+                  serviceRegistry2.updateProvider(provider);
+                  console.log(`   🔌 [${requestId}] Updated provider ${provider.id} (${provider.name}) to use MySQL plugin endpoint`);
+                }
+              } else {
+                console.warn(`   ⚠️  [${requestId}] Provider ${cfg.providerId} not found in registry - plugin config saved but provider not updated`);
+              }
+            }
+            // Save service registry after updating providers
+            try {
+              serviceRegistry2.savePersistence();
+              console.log(`   💾 [${requestId}] Service registry saved after plugin deployment`);
+            } catch (saveErr: any) {
+              console.error(`   ❌ [${requestId}] Failed to save service registry after plugin deployment:`, saveErr.message);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`   ⚠️  [${requestId}] Failed to save provider plugin configs: ${err.message}`);
+        }
+
+        // Provider webhooks requested by wizard (optional)
+        // Shape: providerWebhooks: { [providerId]: webhookUrl }
+        try {
+          const providerWebhooks = (requestData as any).providerWebhooks;
+          if (providerWebhooks && typeof providerWebhooks === "object") {
+            for (const [providerId, webhookUrl] of Object.entries(providerWebhooks)) {
+              if (!providerId || !webhookUrl) continue;
+              try {
+                new URL(String(webhookUrl));
+              } catch {
+                console.warn(`   ⚠️  [${requestId}] Skipping invalid webhook URL for ${providerId}: ${webhookUrl}`);
+                continue;
+              }
+              PROVIDER_WEBHOOKS.set(String(providerId), {
+                providerId: String(providerId),
+                webhookUrl: String(webhookUrl),
+                registeredAt: Date.now(),
+                failureCount: 0,
+              });
+              console.log(`   ✅ [${requestId}] Registered provider webhook: ${providerId} → ${webhookUrl}`);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`   ⚠️  [${requestId}] Failed to register provider webhooks: ${err.message}`);
+        }
+
         // Create service providers for gardens using generic provider creation
         let providersCreated = 0;
         let providerResults: Array<{ providerId: string; providerName: string; created: boolean; assigned: boolean }> = [];
@@ -7822,7 +9224,78 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  // Serve video files from data directory
+  // Serve video files from /api/movie/video/ endpoint (garden-specific video serving)
+  if (pathname.startsWith("/api/movie/video/")) {
+    const videoFile = pathname.substring("/api/movie/video/".length); // Remove "/api/movie/video/" prefix
+    const videoPath = path.join(__dirname, "data", videoFile);
+    
+    // Security: Ensure the resolved path is within the data directory
+    const resolvedPath = path.resolve(videoPath);
+    const dataDir = path.resolve(path.join(__dirname, "data"));
+    if (!resolvedPath.startsWith(dataDir)) {
+      console.log(`   🚫 [${requestId}] Forbidden video access attempt: ${pathname}`);
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden");
+      return;
+    }
+    
+    fs.access(videoPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        console.log(`   ❌ [${requestId}] Video file not found: ${videoPath}`);
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Video not found");
+        return;
+      }
+      
+      // Check if it's actually a video file (not a placeholder text file)
+      const stat = fs.statSync(videoPath);
+      // Allow small files for development (they might be placeholders, but serve them anyway)
+      // In production, you should replace placeholders with actual video files
+      if (videoPath.endsWith('.txt')) {
+        console.log(`   ⚠️ [${requestId}] Video file is a .txt file (placeholder): ${videoFile} (${stat.size} bytes)`);
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Video file is a placeholder - please provide a real video file");
+        return;
+      }
+      
+      // Warn if file is very small (likely a placeholder) but still serve it for development
+      // This allows testing the video player UI even with placeholder files
+      if (stat.size < 1000) {
+        console.log(`   ⚠️ [${requestId}] Warning: Video file is very small (${stat.size} bytes) - may be a placeholder`);
+        console.log(`   ⚠️ [${requestId}] Serving anyway for development/testing purposes`);
+      }
+      
+      console.log(`   🎬 [${requestId}] Serving video file via /api/movie/video/: ${videoFile} (${stat.size} bytes)`);
+      
+      // Set appropriate headers for video streaming
+      const range = req.headers.range;
+      if (range) {
+        // Handle range requests for video seeking
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        const head = {
+          "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunksize,
+          "Content-Type": "video/mp4",
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        res.writeHead(200, {
+          "Content-Length": stat.size,
+          "Content-Type": "video/mp4",
+        });
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    });
+    return;
+  }
+
+  // Serve video files from data directory (legacy /videos/ endpoint)
   if (pathname.startsWith("/videos/")) {
     const videoFile = pathname.substring(8); // Remove "/videos/" prefix
     const videoPath = path.join(__dirname, "data", videoFile);
@@ -7909,7 +9382,10 @@ httpServer.on("request", async (req, res) => {
           res.writeHead(404);
           res.end("Not Found");
         } else {
-          res.writeHead(200, { "Content-Type": "text/html" });
+          res.writeHead(200, { 
+            "Content-Type": "text/html",
+            "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; media-src 'self' http: https:; connect-src 'self' ws: wss: http: https: https://accounts.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com;"
+          });
           res.end(data);
         }
       });
@@ -8484,8 +9960,11 @@ INSTRUCTIONS:
 
 CRITICAL: Return ONLY valid JSON. Do not include any markdown formatting, code blocks, or explanations. Just the JSON object.`;
 
+  // Get ENABLE_OPENAI from config (same as used elsewhere in the file)
+  const ENABLE_OPENAI_FOR_WORKFLOW = ENABLE_OPENAI ?? true; // Default to true if not set
+  
   try {
-    const llmResponse = await callLLM(prompt, ENABLE_OPENAI);
+    const llmResponse = await callLLM(prompt, ENABLE_OPENAI_FOR_WORKFLOW);
     
     // Try to parse the response as JSON
     let generatedWorkflow: any;
@@ -11803,6 +13282,9 @@ async function main() {
   
   // Initialize garden module (needed for issueGardenCertificate to use broadcastEvent)
   initializeGarden(broadcastEvent, redis);
+
+  // Load provider plugin persistence (MySQL/MariaDB configs per providerId)
+  loadProviderPluginPersistence();
   
   // Issue certificate to Holy Ghost (ROOT CA Indexer)
   console.log("\n✨ Issuing certificate to Holy Ghost (ROOT CA Indexer)...");
@@ -12153,34 +13635,37 @@ async function main() {
   // SERVICE PROVIDER NOTIFICATION SETUP
   // ============================================
   // Register webhooks for service providers (Optional Push mechanism)
-  console.log("\n📡 Registering Service Provider Webhooks (Optional Push)...");
-  for (const provider of ROOT_CA_SERVICE_REGISTRY) {
-    // Simulate providers registering webhooks (in production, providers would call /rpc/webhook/register)
-    // For demo purposes, we'll register localhost webhook URLs that point to our mock endpoint
-    const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
-    PROVIDER_WEBHOOKS.set(provider.id, {
-      providerId: provider.id,
-      webhookUrl: mockWebhookUrl,
-      registeredAt: Date.now(),
-      failureCount: 0,
-    });
-    console.log(`   ✅ Registered webhook for ${provider.name} (${provider.id}): ${mockWebhookUrl}`);
-    
-    // Broadcast webhook registration during startup
-    broadcastEvent({
-      type: "provider_webhook_registered",
-      component: "service_provider",
-      message: `Webhook Registered: ${provider.name} (${provider.id})`,
-      timestamp: Date.now(),
-      data: {
+  if (EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS) {
+    console.log("\n📡 Registering Service Provider Webhooks (MOCK, Optional Push)... (EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS=true)");
+    for (const provider of ROOT_CA_SERVICE_REGISTRY) {
+      // Demo only: register localhost webhook URLs that point to our mock endpoint
+      const mockWebhookUrl = `http://localhost:${HTTP_PORT}/mock/webhook/${provider.id}`;
+      PROVIDER_WEBHOOKS.set(provider.id, {
         providerId: provider.id,
-        providerName: provider.name,
         webhookUrl: mockWebhookUrl,
-        startup: true
-      }
-    });
+        registeredAt: Date.now(),
+        failureCount: 0,
+      });
+      console.log(`   ✅ Registered webhook for ${provider.name} (${provider.id}): ${mockWebhookUrl}`);
+      
+      broadcastEvent({
+        type: "provider_webhook_registered",
+        component: "service_provider",
+        message: `Webhook Registered: ${provider.name} (${provider.id})`,
+        timestamp: Date.now(),
+        data: {
+          providerId: provider.id,
+          providerName: provider.name,
+          webhookUrl: mockWebhookUrl,
+          startup: true
+        }
+      });
+    }
+    console.log(`\n✅ Webhook registration complete. ${PROVIDER_WEBHOOKS.size} webhook(s) registered\n`);
+  } else {
+    console.log("\n📡 Provider Webhooks: NOT auto-registered (deployable provider plugins should register explicitly).");
+    console.log("   Set EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS=true to enable demo auto-registration to /mock/webhook/*\n");
   }
-  console.log(`\n✅ Webhook registration complete. ${PROVIDER_WEBHOOKS.size} webhook(s) registered\n`);
 
   // Display Service Provider Notification Architecture
   console.log("=".repeat(70));

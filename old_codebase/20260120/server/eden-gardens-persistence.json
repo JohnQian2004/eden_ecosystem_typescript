@@ -2,72 +2,10 @@
   "gardens": [
     {
       "id": "garden-1",
-      "name": "Garden-GASSTATION",
+      "name": "Garden-BANK",
       "stream": "eden:garden:garden-1",
       "active": true,
-      "uuid": "eden:garden:bfac62a2-413b-4a0d-8d64-1a21b458a8e2",
-      "ownerEmail": "bill.draper.auto@gmail.com",
-      "priestEmail": "bill.draper.auto@gmail.com",
-      "serverIp": "localhost",
-      "serverDomain": "garden-gasstation.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "gasstation",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:bfac62a2-413b-4a0d-8d64-1a21b458a8e2",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-1",
-          "gardenName": "Garden-GASSTATION",
-          "stream": "eden:garden:garden-1"
-        },
-        "issuedAt": 1768807592441,
-        "expiresAt": 1800343592441,
-        "signature": "uk4LYbSjjrkW3euzViaxPAlLSIwMSKVvET6+an7VUu97+tbzaoO64LQbMhh+JJisnOxbbqA3H1gFeBiHT1KmDQ=="
-      }
-    },
-    {
-      "id": "garden-3",
-      "name": "Garden-PHARMACY",
-      "stream": "eden:garden:garden-3",
-      "active": true,
-      "uuid": "eden:garden:ad925942-c479-4c2c-b687-f1ff9bf02967",
-      "ownerEmail": "bill.draper.auto@gmail.com",
-      "priestEmail": "bill.draper.auto@gmail.com",
-      "serverIp": "localhost",
-      "serverDomain": "garden-pharmacy.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "pharmacy",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:ad925942-c479-4c2c-b687-f1ff9bf02967",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-3",
-          "gardenName": "Garden-PHARMACY",
-          "stream": "eden:garden:garden-3"
-        },
-        "issuedAt": 1768807620038,
-        "expiresAt": 1800343620038,
-        "signature": "+HHJzVbS6h1Vu4Mae5plwgPl/UJeakmjDpbhl1LWnf2z4EE2YnkJYmEF8Nmm/MUc1YAnm31gEA9OiAn7j18pBA=="
-      }
-    },
-    {
-      "id": "garden-5",
-      "name": "Garden-BANK",
-      "stream": "eden:garden:garden-5",
-      "active": true,
-      "uuid": "eden:garden:66464ab1-f7ee-47fe-a54f-7b69ef925225",
+      "uuid": "eden:garden:c987871f-0d66-4676-82c4-be129e742e08",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -77,28 +15,90 @@
       "serviceType": "bank",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:66464ab1-f7ee-47fe-a54f-7b69ef925225",
+        "subject": "eden:garden:c987871f-0d66-4676-82c4-be129e742e08",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
           "ISSUE_CERT"
         ],
         "constraints": {
-          "gardenId": "garden-5",
+          "gardenId": "garden-1",
           "gardenName": "Garden-BANK",
-          "stream": "eden:garden:garden-5"
+          "stream": "eden:garden:garden-1"
         },
-        "issuedAt": 1768826765157,
-        "expiresAt": 1800362765157,
-        "signature": "iPT4a5Mj45th9J5XXx8g8wLstXv6KlcoMOJiRpvprdSM96al2eh2y348Bsf9hrsA08dICH8kO+GP0INAk+6sCA=="
+        "issuedAt": 1768928610900,
+        "expiresAt": 1800464610900,
+        "signature": "6GBQLjbHmvET8nG6OAcGfcnlok23PxZDsBbdVaqzRUL+EE/Yih8BaxVo5fTDOPLhLhlRhVa9BRyf+rDtn/mMDw=="
       }
     },
     {
-      "id": "garden-6",
-      "name": "Garden-DOGPARK",
-      "stream": "eden:garden:garden-6",
+      "id": "garden-3",
+      "name": "Garden-AUTOPARTS",
+      "stream": "eden:garden:garden-3",
       "active": true,
-      "uuid": "eden:garden:7c92daba-aea8-4e00-afc7-38308d003bb3",
+      "uuid": "eden:garden:40f14eaf-353d-4267-bb31-956bc4928254",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-autoparts.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "autoparts",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:40f14eaf-353d-4267-bb31-956bc4928254",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-3",
+          "gardenName": "Garden-AUTOPARTS",
+          "stream": "eden:garden:garden-3"
+        },
+        "issuedAt": 1768940153986,
+        "expiresAt": 1800476153986,
+        "signature": "cKijPDWypcC1P5Cwabztby8uF0TwkvaL2ZeS+RvcU5Peyq2K5+2zWorcJOspti6uoW7/vxrx8aQQBhQO3dUdCA=="
+      }
+    },
+    {
+      "id": "garden-4",
+      "name": "Garden-AUTOPARTS-baycounter.com",
+      "stream": "eden:garden:garden-4",
+      "active": true,
+      "uuid": "eden:garden:2dd944d0-a520-4e86-b0b9-547cbd25b0d8",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-autoparts.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "autoparts",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:2dd944d0-a520-4e86-b0b9-547cbd25b0d8",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-4",
+          "gardenName": "Garden-AUTOPARTS-baycounter.com",
+          "stream": "eden:garden:garden-4"
+        },
+        "issuedAt": 1768940174506,
+        "expiresAt": 1800476174506,
+        "signature": "oVWnCMIh+NTAFxSJsq2NYmv61kLOYrJCTdom/l1Kn3tDVs1huMFObFLAKJo6ThdYOg1E4sWjwE31XHhOvSkHAg=="
+      }
+    },
+    {
+      "id": "garden-5",
+      "name": "Garden-DOGPARK",
+      "stream": "eden:garden:garden-5",
+      "active": true,
+      "uuid": "eden:garden:2ae9cf3b-ed86-4ba7-91d4-e27eec624db3",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -108,7 +108,38 @@
       "serviceType": "dogpark",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:7c92daba-aea8-4e00-afc7-38308d003bb3",
+        "subject": "eden:garden:2ae9cf3b-ed86-4ba7-91d4-e27eec624db3",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-5",
+          "gardenName": "Garden-DOGPARK",
+          "stream": "eden:garden:garden-5"
+        },
+        "issuedAt": 1768940258036,
+        "expiresAt": 1800476258036,
+        "signature": "67HNPJMO1gPpAXBb4sSxlv2UVGVeZYkABGNMyvjllOAyozOrO/+7NTgVMD7/ZqaLkw3wEbOcIZwDApkwlnXtAA=="
+      }
+    },
+    {
+      "id": "garden-6",
+      "name": "Garden-GASSTATION",
+      "stream": "eden:garden:garden-6",
+      "active": true,
+      "uuid": "eden:garden:21c0f975-2e64-4fc6-9e7f-d73160ddaae0",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-gasstation.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "gasstation",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:21c0f975-2e64-4fc6-9e7f-d73160ddaae0",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -116,12 +147,12 @@
         ],
         "constraints": {
           "gardenId": "garden-6",
-          "gardenName": "Garden-DOGPARK",
+          "gardenName": "Garden-GASSTATION",
           "stream": "eden:garden:garden-6"
         },
-        "issuedAt": 1768826777716,
-        "expiresAt": 1800362777716,
-        "signature": "mqNEXxDE10y35O/XYVqRhavQ4Z54dE9RZOLthFCRxuAMHCtFp9sD741H0PMtcLwZx9DpiYiQ3364/sIHhO7hCA=="
+        "issuedAt": 1768940305280,
+        "expiresAt": 1800476305280,
+        "signature": "AMsSo+T0gqWVBSIx7wqP9uToPOFkLH5REqseimtdqkgiHxnEf0faX/gDjlp+v2Y+Tc/ruxa7F+UPfHKEa0qGAw=="
       }
     },
     {
@@ -129,7 +160,7 @@
       "name": "Garden-GROCERYSTORE",
       "stream": "eden:garden:garden-7",
       "active": true,
-      "uuid": "eden:garden:774070b8-05ce-4bd0-a6ea-a2ce0d1cd6af",
+      "uuid": "eden:garden:93fbfccf-a6a6-43b4-9501-8d96872b2cb8",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -139,7 +170,7 @@
       "serviceType": "grocerystore",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:774070b8-05ce-4bd0-a6ea-a2ce0d1cd6af",
+        "subject": "eden:garden:93fbfccf-a6a6-43b4-9501-8d96872b2cb8",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -150,9 +181,9 @@
           "gardenName": "Garden-GROCERYSTORE",
           "stream": "eden:garden:garden-7"
         },
-        "issuedAt": 1768826788273,
-        "expiresAt": 1800362788273,
-        "signature": "wm2l5Bk1+HgSlubXUQ+8y0Bhr3Vy1ukjBqRuhDunreV7spdUW0NUzmcD0Kx6OZXOqXoLnjnwJh1q9unWyifpBg=="
+        "issuedAt": 1768940325264,
+        "expiresAt": 1800476325264,
+        "signature": "Lc1niQG/DvyerHXaE3rcJQlMZBZX6mw89ACliq2XGan2ODWZOGnQduGCRBCCMXq8rEoUJ3Z7KloB97RhmSHJAQ=="
       }
     },
     {
@@ -160,7 +191,7 @@
       "name": "Garden-HOTEL",
       "stream": "eden:garden:garden-8",
       "active": true,
-      "uuid": "eden:garden:53d6460b-c277-4daa-a78e-b4ce81460d12",
+      "uuid": "eden:garden:5d8d8cbd-5e4f-4675-927a-a054324bb998",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -170,7 +201,7 @@
       "serviceType": "hotel",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:53d6460b-c277-4daa-a78e-b4ce81460d12",
+        "subject": "eden:garden:5d8d8cbd-5e4f-4675-927a-a054324bb998",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -181,17 +212,48 @@
           "gardenName": "Garden-HOTEL",
           "stream": "eden:garden:garden-8"
         },
-        "issuedAt": 1768826802256,
-        "expiresAt": 1800362802256,
-        "signature": "BYima1I18ya0KN5m0YjdJeSk2ndTzVSqMW3yDfM8UMk7hsRR7fdNhPke+OO19Pl2wRpLKWWOm9Aa6smhfbMWCA=="
+        "issuedAt": 1768940343062,
+        "expiresAt": 1800476343062,
+        "signature": "I8UsW+sGREzacgNSG3FuIqpbTibfxyt9eJgBD6bslyUdp1M2cECb/u7BKozbHYTUnq3mmjkYazQxIWmxVaoJBQ=="
       }
     },
     {
       "id": "garden-9",
-      "name": "Garden-RESTAURANT",
+      "name": "Garden-PHARMACY",
       "stream": "eden:garden:garden-9",
       "active": true,
-      "uuid": "eden:garden:62d7a742-3e2b-4fe3-85c1-39f20b7fe5fb",
+      "uuid": "eden:garden:74f11e92-003e-449a-a7e0-2bd526502dc3",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-pharmacy.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "pharmacy",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:74f11e92-003e-449a-a7e0-2bd526502dc3",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "garden-9",
+          "gardenName": "Garden-PHARMACY",
+          "stream": "eden:garden:garden-9"
+        },
+        "issuedAt": 1768940350777,
+        "expiresAt": 1800476350777,
+        "signature": "nUrqXrloAN4bCfzHPQwDlAS6H+FrNGi0ZGYfczYGidtThdb7hfzmuQ2ksERC+SnlCJzxptOwrUxsbltMvzUABg=="
+      }
+    },
+    {
+      "id": "garden-10",
+      "name": "Garden-RESTAURANT",
+      "stream": "eden:garden:garden-10",
+      "active": true,
+      "uuid": "eden:garden:c64c5d93-793e-43bd-b9a8-f168f713d59c",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -201,28 +263,28 @@
       "serviceType": "restaurant",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:62d7a742-3e2b-4fe3-85c1-39f20b7fe5fb",
+        "subject": "eden:garden:c64c5d93-793e-43bd-b9a8-f168f713d59c",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
           "ISSUE_CERT"
         ],
         "constraints": {
-          "gardenId": "garden-9",
+          "gardenId": "garden-10",
           "gardenName": "Garden-RESTAURANT",
-          "stream": "eden:garden:garden-9"
+          "stream": "eden:garden:garden-10"
         },
-        "issuedAt": 1768826816238,
-        "expiresAt": 1800362816238,
-        "signature": "YZLIwHQ9vUX0LsOzzz9CxB0LppFlyrIkmuOyAqA1qsXJmm5CVqC01g+rxHm5ZlKzCeOVxxugb5a4pSgrfts7BQ=="
+        "issuedAt": 1768940363749,
+        "expiresAt": 1800476363749,
+        "signature": "xS/vI1IZOvsiKROTf6/3hRZWcElEmxnegX31RURXarfu35FnrvFdMgb/Cp72w2EOJMC11Ka5FFiBQthqY5viDQ=="
       }
     },
     {
-      "id": "garden-10",
+      "id": "garden-11",
       "name": "Garden-AIRLINE",
-      "stream": "eden:garden:garden-10",
+      "stream": "eden:garden:garden-11",
       "active": true,
-      "uuid": "eden:garden:c958fac2-1fc7-46ed-a6d1-6961464694dd",
+      "uuid": "eden:garden:d9636fa1-c2ab-4030-ac0a-5db19dba5c21",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -232,38 +294,7 @@
       "serviceType": "airline",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:c958fac2-1fc7-46ed-a6d1-6961464694dd",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-10",
-          "gardenName": "Garden-AIRLINE",
-          "stream": "eden:garden:garden-10"
-        },
-        "issuedAt": 1768826827071,
-        "expiresAt": 1800362827071,
-        "signature": "uSreZpsrP0LRwywGUu8f1U2SwtTvWTYqyRDmtOMpJEhwRQ+auwWl0vh8vvw3WIC4HqyGkDw41gXsym0o6pEICw=="
-      }
-    },
-    {
-      "id": "garden-11",
-      "name": "Garden-AUTOPARTS",
-      "stream": "eden:garden:garden-11",
-      "active": true,
-      "uuid": "eden:garden:7560cf06-9810-482d-92dc-222723001b3c",
-      "ownerEmail": "bill.draper.auto@gmail.com",
-      "priestEmail": "bill.draper.auto@gmail.com",
-      "serverIp": "localhost",
-      "serverDomain": "garden-autoparts.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "autoparts",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:7560cf06-9810-482d-92dc-222723001b3c",
+        "subject": "eden:garden:d9636fa1-c2ab-4030-ac0a-5db19dba5c21",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -271,12 +302,12 @@
         ],
         "constraints": {
           "gardenId": "garden-11",
-          "gardenName": "Garden-AUTOPARTS",
+          "gardenName": "Garden-AIRLINE",
           "stream": "eden:garden:garden-11"
         },
-        "issuedAt": 1768826837417,
-        "expiresAt": 1800362837417,
-        "signature": "kopgkwg1VzrEtuMkp1bgff4NHAw4roXztgb6D9eN+z50tCEXK/U+La6Rt36EHwqmjjDxvujUi74L8/3N4kcVAg=="
+        "issuedAt": 1768940372518,
+        "expiresAt": 1800476372518,
+        "signature": "r7pSV//3/6d6bStlCckL/m4AlDly7wImgpTbBvB0D3WW2MHe+OVHm4jSPtmo2s9YZNCgMTPV1l59IarkO/zpAA=="
       }
     },
     {
@@ -284,7 +315,7 @@
       "name": "Garden-PARTY",
       "stream": "eden:garden:garden-12",
       "active": true,
-      "uuid": "eden:garden:195c9f33-c974-4ab7-806c-fa26c5b9815f",
+      "uuid": "eden:garden:0049bbcd-3da3-44dd-b350-e4955dceeb4a",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -294,7 +325,7 @@
       "serviceType": "party",
       "isSnake": false,
       "certificate": {
-        "subject": "eden:garden:195c9f33-c974-4ab7-806c-fa26c5b9815f",
+        "subject": "eden:garden:0049bbcd-3da3-44dd-b350-e4955dceeb4a",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -305,27 +336,28 @@
           "gardenName": "Garden-PARTY",
           "stream": "eden:garden:garden-12"
         },
-        "issuedAt": 1768826850115,
-        "expiresAt": 1800362850115,
-        "signature": "mZF/sc4f/I3hqidpAy40isD2dpvoGOYEblVhHjYO7gj5m5wK/Nv38KAJBHdI4EmZR7tze7IZzGB76ww5IGlIDA=="
+        "issuedAt": 1768940384573,
+        "expiresAt": 1800476384573,
+        "signature": "Ww8j2TE55cNEF7wXpdhaQhauKgPxnFZko9z3hR6du6K6/o96StW48j84fXvtkrtx+Ne73EqsHPsH1HSFHkP4DQ=="
       }
     },
     {
       "id": "garden-13",
-      "name": "Garden-BANK",
+      "name": "Garden-MOVIE",
       "stream": "eden:garden:garden-13",
       "active": true,
-      "uuid": "eden:garden:caab786f-92c2-4ac3-b00f-8759e9c83c8d",
-      "ownerEmail": "billdraper25@gmail.com",
-      "priestEmail": "billdraper25@gmail.com",
+      "uuid": "eden:garden:eca2c5c6-44d6-489a-b0e3-7ebaf6768207",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
-      "serverDomain": "garden-bank.eden.local",
+      "serverDomain": "garden-movie.eden.local",
       "serverPort": 3001,
       "networkType": "http",
-      "serviceType": "bank",
+      "serviceType": "movie",
       "isSnake": false,
+      "videoUrl": "/api/movie/video/2025-12-09-144801890.mp4",
       "certificate": {
-        "subject": "eden:garden:caab786f-92c2-4ac3-b00f-8759e9c83c8d",
+        "subject": "eden:garden:eca2c5c6-44d6-489a-b0e3-7ebaf6768207",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -333,43 +365,12 @@
         ],
         "constraints": {
           "gardenId": "garden-13",
-          "gardenName": "Garden-BANK",
+          "gardenName": "Garden-MOVIE",
           "stream": "eden:garden:garden-13"
         },
-        "issuedAt": 1768848995156,
-        "expiresAt": 1800384995156,
-        "signature": "yG/XZwdZLnmNky/QbYh9v3jde0RIWhLOF8FYAoO+13arSJUFoXJrF/KW2zY6gCr1Dv/5pihsnrSabDqY8ECaCQ=="
-      }
-    },
-    {
-      "id": "garden-14",
-      "name": "Garden-AUTOPARTS",
-      "stream": "eden:garden:garden-14",
-      "active": true,
-      "uuid": "eden:garden:e8bfc1d1-7c57-481f-a7f9-be8935e4dbc2",
-      "ownerEmail": "billdraper2026@gmail.com",
-      "priestEmail": "billdraper2026@gmail.com",
-      "serverIp": "localhost",
-      "serverDomain": "garden-autoparts.eden.local",
-      "serverPort": 3001,
-      "networkType": "http",
-      "serviceType": "autoparts",
-      "isSnake": false,
-      "certificate": {
-        "subject": "eden:garden:e8bfc1d1-7c57-481f-a7f9-be8935e4dbc2",
-        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
-        "capabilities": [
-          "INDEXER",
-          "ISSUE_CERT"
-        ],
-        "constraints": {
-          "gardenId": "garden-14",
-          "gardenName": "Garden-AUTOPARTS",
-          "stream": "eden:garden:garden-14"
-        },
-        "issuedAt": 1768899745601,
-        "expiresAt": 1800435745601,
-        "signature": "jCRNYrbfIYkbGN/ZLfeBgjmAgWWHIMZvgvmDM68LUFJJjSbMYH/bkRRGTJNasJACIdc8yOJkgqgkXjGEQegJCg=="
+        "issuedAt": 1768941527303,
+        "expiresAt": 1800477527303,
+        "signature": "Lsjl5wWAcRcHfYp7vQet7LvUhGzqpErPmZ/Gt8wdSu+RuM2snjfswRJyJHLECnOBETxDNmmjro2Rlsthz3XIDA=="
       }
     },
     {
@@ -377,7 +378,7 @@
       "name": "Garden-DEX",
       "stream": "eden:token-garden:T1",
       "active": true,
-      "uuid": "eden:garden:d1991aef-d21e-49f4-be09-e24cda6c81fe",
+      "uuid": "eden:garden:8720efbc-d017-4f8f-b995-7c5ba3d53bf1",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -387,7 +388,7 @@
       "serviceType": "dex",
       "tokenServiceType": "dex",
       "certificate": {
-        "subject": "eden:garden:d1991aef-d21e-49f4-be09-e24cda6c81fe",
+        "subject": "eden:garden:8720efbc-d017-4f8f-b995-7c5ba3d53bf1",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -398,9 +399,9 @@
           "gardenName": "Garden-DEX",
           "stream": "eden:token-garden:T1"
         },
-        "issuedAt": 1768807114218,
-        "expiresAt": 1800343114218,
-        "signature": "J78Xx7dvqju5j3Eq706GwTVihIXftRBKB/EEI2ZSSVbfgn91jvAjfRekPQy5GehY0heEAxlR39EwLaLnhzIvCA=="
+        "issuedAt": 1768940270540,
+        "expiresAt": 1800476270540,
+        "signature": "Qa6Ktnwo0cIH20Fq98s9hV4An49qLFlymemT4RcNbxKktU2qyWhHntqKwToYK0K5HJwBqKFKM0Dn+AltyyHHAg=="
       }
     },
     {
@@ -408,7 +409,7 @@
       "name": "Garden-DEX",
       "stream": "eden:token-garden:T2",
       "active": true,
-      "uuid": "eden:garden:8a818c81-ca68-4e67-b166-c0d39e8c56b2",
+      "uuid": "eden:garden:9bf2f77f-02de-4c15-8aa1-2e31f3763b9e",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -418,7 +419,7 @@
       "serviceType": "dex",
       "tokenServiceType": "dex",
       "certificate": {
-        "subject": "eden:garden:8a818c81-ca68-4e67-b166-c0d39e8c56b2",
+        "subject": "eden:garden:9bf2f77f-02de-4c15-8aa1-2e31f3763b9e",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -429,11 +430,11 @@
           "gardenName": "Garden-DEX",
           "stream": "eden:token-garden:T2"
         },
-        "issuedAt": 1768807298610,
-        "expiresAt": 1800343298610,
-        "signature": "eKYbsLPLYufTWyOjitk0Hz8YcuO5FJUPIZzcpECW94pYhBkmIRBQO9WasCB5wvZeX398etXpjNqWUVbQmqQxBg=="
+        "issuedAt": 1768940281756,
+        "expiresAt": 1800476281756,
+        "signature": "wIXfCZqCqO3dzBrepp6L8dzezn0mq1dP8B9CzbdCyg7enssVQb7/mew1fCbbcPtTbUwn4YZ1RN4xSRBG2bJcAQ=="
       }
     }
   ],
-  "lastSaved": "2026-01-20T09:02:25.623Z"
+  "lastSaved": "2026-01-20T20:38:47.322Z"
 }

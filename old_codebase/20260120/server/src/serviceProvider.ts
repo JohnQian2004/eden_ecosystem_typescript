@@ -4,10 +4,13 @@
  */
 
 import * as crypto from "crypto";
-import type { ServiceProvider, ServiceProviderWithCert, ServiceRegistryQuery, MovieListing, TokenListing } from "./types";
+import type { ServiceProvider, ServiceProviderWithCert, ServiceRegistryQuery, MovieListing, TokenListing, GenericServiceListing } from "./types";
 import { GARDENS, TOKEN_GARDENS, ROOT_CA_SERVICE_REGISTRY, CERTIFICATE_REGISTRY, REVOCATION_REGISTRY, DEX_POOLS, ROOT_CA } from "./state";
 import type { EdenCertificate } from "../EdenPKI";
 import { getServiceRegistry2 } from "./serviceRegistry2";
+import { getMySQLProviderPluginConfig } from "./plugins/providerPluginRegistry";
+import { testMySQLQuery } from "./plugins/mysql";
+import { extractGetDataParamsWithOpenAI, type GetDataParamsResult } from "./llm";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -746,7 +749,10 @@ export async function querySnakeAPI(provider: ServiceProvider, filters?: { genre
   return baseListings;
 }
 
-export async function queryProviderAPI(provider: ServiceProvider, filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
+export async function queryProviderAPI(
+  provider: ServiceProvider,
+  filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
+): Promise<MovieListing[] | TokenListing[] | GenericServiceListing[]> {
   // Handle Snake services (serviceType: "snake")
   // Snake is a service type, each Snake service belongs to a garden
   if (provider.serviceType === "snake") {
@@ -767,12 +773,252 @@ export async function queryProviderAPI(provider: ServiceProvider, filters?: { ge
     case "cinemark-001":
       return await queryCinemarkAPI(provider.location, filters);
     default:
+      // Provider plugin fallback (SQL-backed providers)
+      if (String(provider.apiEndpoint || "").toLowerCase().startsWith("eden:plugin:mysql")) {
+        const cfg = getMySQLProviderPluginConfig(provider.id);
+        if (!cfg) {
+          throw new Error(`MySQL plugin config not found for provider: ${provider.id}`);
+        }
+
+        // ROOT CA LLM Integration: Use GOD-controlled getData() parameter extraction
+        // If filters contain a raw user query, use ROOT CA LLM to extract structured params
+        let params: any[] = [];
+        const paramOrder = Array.isArray(cfg.paramOrder) ? cfg.paramOrder : [];
+        
+        // Check if filters contain a raw query (from ROOT CA LLM extraction)
+        if (filters && typeof (filters as any).rawQuery === "string" && (filters as any).rawQuery.trim()) {
+          console.log(`   👑 [Provider Plugin] ROOT CA LLM: Extracting getData() params from raw query`);
+          try {
+            const getDataParams = await extractGetDataParamsWithOpenAI((filters as any).rawQuery);
+            // Map getData() params to SQL params based on paramOrder
+            params = paramOrder.map(k => {
+              // Try to match getData() params to paramOrder keys
+              const matchedParam = getDataParams.params.find((p: string) => 
+                p.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(p.toLowerCase())
+              );
+              return matchedParam || (filters as any)?.[k];
+            });
+            console.log(`   👑 [Provider Plugin] ROOT CA LLM extracted params:`, getDataParams.params);
+            console.log(`   👑 [Provider Plugin] Mapped to SQL params:`, params);
+          } catch (llmErr: any) {
+            console.warn(`   ⚠️  [Provider Plugin] ROOT CA LLM extraction failed, falling back to direct filters:`, llmErr.message);
+            params = paramOrder.map(k => (filters as any)?.[k]);
+          }
+        } else {
+          // Standard parameter mapping (backward compatibility)
+          params = paramOrder.map(k => (filters as any)?.[k]);
+        }
+
+        const result = await testMySQLQuery({
+          connection: cfg.connection,
+          sql: cfg.sql,
+          params,
+          maxRows: cfg.maxRows || 50,
+        });
+
+        const fieldMap = cfg.fieldMap || {};
+        const rows = result.rows || [];
+
+        // Helper function to normalize BigInt values for JSON serialization
+        const normalizeBigInt = (value: any): any => {
+          if (typeof value === 'bigint') {
+            // Convert BigInt to Number if within safe integer range, otherwise to String
+            if (value <= Number.MAX_SAFE_INTEGER && value >= Number.MIN_SAFE_INTEGER) {
+              return Number(value);
+            } else {
+              return value.toString();
+            }
+          }
+          if (Array.isArray(value)) {
+            return value.map(normalizeBigInt);
+          }
+          if (value !== null && typeof value === 'object') {
+            const normalized: any = {};
+            for (const [k, v] of Object.entries(value)) {
+              normalized[k] = normalizeBigInt(v);
+            }
+            return normalized;
+          }
+          return value;
+        };
+
+        // Check if this is an autoparts query with images (has both autopart and image columns)
+        const hasImageColumns = rows.length > 0 && (
+          'autopart_id' in rows[0] || 
+          'image_id' in rows[0] || 
+          'image_url' in rows[0] ||
+          'i.id' in rows[0] ||
+          Object.keys(rows[0]).some(k => k.startsWith('image_') || k.startsWith('i.') || k.toLowerCase().includes('image'))
+        );
+        const hasAutopartId = rows.length > 0 && (
+          'id' in rows[0] || 
+          'a.id' in rows[0] ||
+          'autopart_id' in rows[0]
+        );
+
+        // If this is autoparts with images, group by autopart ID
+        if (cfg.serviceType === "autoparts" && hasImageColumns && hasAutopartId) {
+          console.log(`   🔄 [Provider Plugin] Grouping autoparts with images (${rows.length} rows)`);
+          
+          // Group rows by autopart ID
+          const autopartsMap = new Map<number | string, any>();
+          
+          for (const row of rows) {
+            // Determine autopart ID (could be 'id', 'a.id', or 'autopart_id')
+            const autopartId = row.id || row['a.id'] || row.autopart_id || row['a.id'];
+            if (!autopartId) continue;
+
+            // Get or create autopart entry
+            if (!autopartsMap.has(autopartId)) {
+              const autopart: any = {
+                providerId: provider.id,
+                providerName: provider.name,
+                gardenId: provider.gardenId,
+                location: provider.location,
+                imageModals: [] as any[]
+              };
+
+              // Copy autopart columns (columns starting with 'a.' or direct columns that aren't image-related)
+              for (const [k, v] of Object.entries(row || {})) {
+                // Skip image columns (they'll be in imageModals)
+                // Skip columns that start with 'image_' prefix or are image-related
+                if (k.startsWith('image_') || k.startsWith('i.') || (k.toLowerCase().includes('image') && k !== 'imageModals') || k === 'autopart_id') {
+                  continue;
+                }
+                // Copy autopart columns and normalize BigInt values
+                if (k.startsWith('a.')) {
+                  const cleanKey = k.substring(2); // Remove 'a.' prefix
+                  autopart[cleanKey] = normalizeBigInt(v);
+                } else {
+                  autopart[k] = normalizeBigInt(v);
+                }
+              }
+
+              // Canonical field mapping for autopart
+              for (const [canonical, col] of Object.entries(fieldMap)) {
+                if (row[col] !== undefined) {
+                  autopart[canonical] = normalizeBigInt(row[col]);
+                }
+              }
+
+              // Ensure price exists
+              if (autopart.price === undefined || autopart.price === null) {
+                const maybePrice = autopart.Price ?? autopart.price_usd ?? autopart.amount ?? autopart.cost ?? autopart.sale_price;
+                autopart.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+              }
+
+              // Autoparts workflow expects partName/partNumber/category/etc
+              if (!autopart.partName && autopart.part_name) autopart.partName = autopart.part_name;
+              if (!autopart.partName && autopart.title) autopart.partName = autopart.title;
+
+              autopartsMap.set(autopartId, autopart);
+            }
+
+            // Add image to imageModals if image data exists
+            const autopart = autopartsMap.get(autopartId)!;
+            const imageData: any = {};
+            let hasImageData = false;
+
+            // Extract image columns (columns prefixed with 'image_' or specific image fields)
+            for (const [k, v] of Object.entries(row || {})) {
+              // Handle aliased image columns (image_id, image_url, image_alt, etc.)
+              if (k.startsWith('image_')) {
+                const cleanKey = k.substring(6); // Remove 'image_' prefix
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = normalizeBigInt(v);
+                  hasImageData = true;
+                }
+              } else if (k === 'autopart_id' && v !== null && v !== undefined) {
+                // Keep autopart_id for reference
+                imageData[k] = normalizeBigInt(v);
+              } else if (k.startsWith('i.')) {
+                // Handle 'i.' prefixed columns (fallback)
+                const cleanKey = k.substring(2);
+                if (v !== null && v !== undefined) {
+                  imageData[cleanKey] = normalizeBigInt(v);
+                  hasImageData = true;
+                }
+              }
+            }
+
+            // Only add image if it has data (not null/undefined)
+            if (hasImageData && Object.keys(imageData).length > 0) {
+              // Avoid duplicates (check if image with same ID already exists)
+              const imageId = imageData.id || imageData.image_id;
+              if (imageId && !autopart.imageModals.find((img: any) => (img.id || img.image_id) === imageId)) {
+                autopart.imageModals.push(imageData);
+              } else if (!imageId) {
+                // If no ID, check by URL or other unique field to avoid duplicates
+                const imageUrl = imageData.url || imageData.image_url;
+                if (imageUrl && !autopart.imageModals.find((img: any) => (img.url || img.image_url) === imageUrl)) {
+                  autopart.imageModals.push(imageData);
+                } else if (!imageUrl) {
+                  // If no unique identifier, just add it (might be a duplicate, but better than losing data)
+                  autopart.imageModals.push(imageData);
+                }
+              }
+            }
+          }
+
+          // No hardcoded filtering - return all fields from grouped autoparts
+          // Field filtering is controlled by returnFields parameter in test-getdata endpoint
+          const listings = Array.from(autopartsMap.values());
+          console.log(`   ✅ [Provider Plugin] Grouped into ${listings.length} autoparts with images`);
+          console.log(`   📋 [Provider Plugin] Returning all fields (no hardcoded filtering)`);
+          return listings as GenericServiceListing[];
+        }
+
+        // Standard mapping for non-grouped results
+        // Map raw DB rows into a canonical listing object used by FlowWise workflows.
+        const listings: GenericServiceListing[] = rows.map((row: any, idx: number) => {
+          const out: any = {
+            providerId: provider.id,
+            providerName: provider.name,
+            gardenId: provider.gardenId,
+            location: provider.location,
+          };
+
+          // Generic copy of row values with BigInt normalization
+          for (const [k, v] of Object.entries(row || {})) out[k] = normalizeBigInt(v);
+
+          // Canonical field mapping
+          for (const [canonical, col] of Object.entries(fieldMap)) {
+            out[canonical] = normalizeBigInt((row as any)?.[col]);
+          }
+
+          // Ensure price exists (many workflows expect `price`)
+          if (out.price === undefined || out.price === null) {
+            const maybePrice = out.Price ?? out.price_usd ?? out.amount ?? out.cost ?? out.sale_price;
+            out.price = typeof maybePrice === "string" ? parseFloat(maybePrice) : (typeof maybePrice === "number" ? maybePrice : 0);
+          }
+
+          // Airline workflow expects flightId/flightNumber/destination/date for label templates
+          if (cfg.serviceType === "airline") {
+            if (!out.flightNumber && out.flight_no) out.flightNumber = out.flight_no;
+            if (!out.flightId) out.flightId = `flight-${out.flightNumber || idx}`;
+          }
+
+          // Autoparts workflow expects partName/partNumber/category/etc (best-effort)
+          if (cfg.serviceType === "autoparts") {
+            if (!out.partName && out.part_name) out.partName = out.part_name;
+            if (!out.partName && out.title) out.partName = out.title;
+          }
+
+          return out as GenericServiceListing;
+        });
+
+        return listings;
+      }
+
       throw new Error(`Unknown provider: ${provider.id}`);
   }
 }
 
-export async function queryServiceProviders(providers: ServiceProvider[], filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL' }): Promise<MovieListing[] | TokenListing[]> {
-  const allListings: (MovieListing | TokenListing)[] = [];
+export async function queryServiceProviders(
+  providers: ServiceProvider[],
+  filters?: { genre?: string; time?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
+): Promise<MovieListing[] | TokenListing[] | GenericServiceListing[]> {
+  const allListings: any[] = [];
   
   // Query each provider's external API in parallel
   const providerPromises = providers.map(provider => 
@@ -786,7 +1032,7 @@ export async function queryServiceProviders(providers: ServiceProvider[], filter
   
   // Flatten results
   for (const listings of results) {
-    allListings.push(...listings);
+    allListings.push(...(listings as any[]));
   }
   
   return allListings;

@@ -12,7 +12,7 @@
              'border-primary': msg.type === 'provider_rpc_query' || msg.type === 'ledger_entry_pushed',
              'border-warning': msg.type === 'provider_webhook_unregistered'
            }">
-        <small class="text-muted">{{ formatTimestamp(msg.timestamp) }}</small>
+        <small class="text-muted">{{ msg.timestamp | date:'shortTime' }}</small>
         <span class="badge bg-secondary ms-2">{{ msg.component }}</span>
         <span *ngIf="getEventIcon(msg)" class="ms-2">{{ getEventIcon(msg) }}</span>
         <div [ngClass]="getMessageClass(msg)" class="mt-1">

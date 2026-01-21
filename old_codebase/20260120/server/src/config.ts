@@ -32,3 +32,6 @@ export const STRIPE_SECRET_KEY = "sk_test_51RrflYP4h6MOSVxDAFUAr0i7mmsQ8MSGi9Y0a
 export const STRIPE_PUBLISHABLE_KEY = "pk_test_51RrflYP4h6MOSVxDENdMiwOSbNudvzG8PlrrhslZjfbg9qPvb8YkzVR42ro5bQ8nXUnnbuPQpSlI43SHBuKhiCS000VgCDGNrC";
 export const STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"; // Update with actual webhook secret from Stripe dashboard
 
+// Provider webhook demo behavior (default off for real deployments)
+export const EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS = String(process.env.EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS || "").toLowerCase() === "true";
+

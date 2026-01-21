@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 import { getApiBaseUrl } from '../../services/api-base';
+import { getCatalogEntry } from '../../services/service-type-catalog.service';
 
 interface LedgerEntry {
   entryId: string;
@@ -355,7 +356,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
     const fieldConfigs: Record<string, any> = {
       movie: {
         primary: 'movieTitle',
-        primaryLabel: 'Movie',
+        primaryLabel: getCatalogEntry('movie')?.adText || 'Movie',
         fields: [
           { key: 'movieTitle', label: 'Movie' },
           { key: 'showtime', label: 'Showtime' },
@@ -365,7 +366,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       airline: {
         primary: 'flightNumber',
-        primaryLabel: 'Flight',
+        primaryLabel: getCatalogEntry('airline')?.adText || 'Flight',
         fields: [
           { key: 'flightNumber', label: 'Flight' },
           { key: 'destination', label: 'To', format: (val: any) => val },
@@ -380,7 +381,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       autoparts: {
         primary: 'partName',
-        primaryLabel: 'Part',
+        primaryLabel: getCatalogEntry('autoparts')?.adText || 'Part',
         fields: [
           { key: 'partName', label: 'Part' },
           { key: 'partNumber', label: 'Part #' },
@@ -391,7 +392,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       hotel: {
         primary: 'hotelName',
-        primaryLabel: 'Hotel',
+        primaryLabel: getCatalogEntry('hotel')?.adText || 'Hotel',
         fields: [
           { key: 'hotelName', label: 'Hotel' },
           { key: 'roomType', label: 'Room' },
@@ -406,7 +407,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       restaurant: {
         primary: 'restaurantName',
-        primaryLabel: 'Restaurant',
+        primaryLabel: getCatalogEntry('restaurant')?.adText || 'Restaurant',
         fields: [
           { key: 'restaurantName', label: 'Restaurant' },
           { key: 'cuisine', label: 'Cuisine' },
@@ -417,7 +418,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       grocerystore: {
         primary: 'grocerystoreName',
-        primaryLabel: 'Grocery Store',
+        primaryLabel: getCatalogEntry('grocerystore')?.adText || 'Grocery Store',
         fields: [
           { key: 'grocerystoreName', label: 'Store' },
           { key: 'storeType', label: 'Type' },
@@ -428,7 +429,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       pharmacy: {
         primary: 'pharmacyName',
-        primaryLabel: 'Pharmacy',
+        primaryLabel: getCatalogEntry('pharmacy')?.adText || 'Pharmacy',
         fields: [
           { key: 'pharmacyName', label: 'Pharmacy' },
           { key: 'pharmacyType', label: 'Type' },
@@ -439,7 +440,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       dogpark: {
         primary: 'dogparkName',
-        primaryLabel: 'Dog Park',
+        primaryLabel: getCatalogEntry('dogpark')?.adText || 'Dog Park',
         fields: [
           { key: 'dogparkName', label: 'Park' },
           { key: 'parkType', label: 'Type' },
@@ -450,7 +451,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       gasstation: {
         primary: 'gasstationName',
-        primaryLabel: 'Gas Station',
+        primaryLabel: getCatalogEntry('gasstation')?.adText || 'Gas Station',
         fields: [
           { key: 'gasstationName', label: 'Station' },
           { key: 'stationType', label: 'Type' },
@@ -461,7 +462,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       party: {
         primary: 'partyName',
-        primaryLabel: 'Party/Event',
+        primaryLabel: getCatalogEntry('party')?.adText || 'Party/Event',
         fields: [
           { key: 'partyName', label: 'Event' },
           { key: 'partyType', label: 'Type' },
@@ -477,7 +478,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       bank: {
         primary: 'bankName',
-        primaryLabel: 'Bank',
+        primaryLabel: getCatalogEntry('bank')?.adText || 'Bank',
         fields: [
           { key: 'bankName', label: 'Bank' },
           { key: 'bankType', label: 'Type' },
@@ -489,7 +490,7 @@ export class LedgerDisplayComponent implements OnInit, OnDestroy {
       },
       dex: {
         primary: 'tokenSymbol',
-        primaryLabel: 'DEX',
+        primaryLabel: getCatalogEntry('dex')?.adText || 'DEX',
         fields: [
           { 
             key: 'tokenSymbol', 

@@ -394,6 +394,9 @@
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
                       </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
+                      </div>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
                         <span *ngIf="garden.serviceType">
                           {{ getServiceTypeIcon(garden.serviceType) }}
@@ -430,6 +433,9 @@
                     <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
                       </div>
                       <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
                         {{ getServiceTypeIcon('dex') }}
@@ -663,6 +669,22 @@
                       </span>
                       <small class="text-muted me-2">{{ m.timestamp | date:'shortTime' }}</small>
                       <span class="small">{{ m.content }}</span>
+                      <!-- Video Player for Movie Messages -->
+                      <div *ngIf="m.videoUrl" class="mt-2">
+                        <div class="card">
+                          <div class="card-body">
+                            <h6 class="card-title" *ngIf="m.movieTitle">🎬 {{ m.movieTitle }}</h6>
+                            <video 
+                              controls 
+                              class="w-100" 
+                              style="max-height: 400px;"
+                              [src]="getVideoUrl(m.videoUrl)">
+                              Your browser does not support the video tag.
+                            </video>
+                            <small class="text-muted d-block mt-1">Video URL: {{ m.videoUrl }}</small>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -835,6 +857,35 @@
                 <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-3" role="alert">
                   <h5 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h5>
                   <hr>
+                  <!-- Debug Info -->
+                  <div class="small text-muted mb-2" *ngIf="pendingDecision">
+                    🔍 DEBUG: videoUrl = "{{ pendingDecision.videoUrl || 'undefined' }}", movieTitle = "{{ pendingDecision.movieTitle || 'undefined' }}"
+                    <br>
+                    🔍 DEBUG: showDecisionPrompt = {{ showDecisionPrompt }}, pendingDecision exists = {{ !!pendingDecision }}
+                    <br>
+                    🔍 DEBUG: videoUrl truthy = {{ !!pendingDecision.videoUrl }}, videoUrl length = {{ pendingDecision.videoUrl?.length || 0 }}
+                  </div>
+                  <!-- Video Player for Movie Viewing Decision -->
+                  <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
+                    <div class="card" style="display: block !important; visibility: visible !important;">
+                      <div class="card-body" style="display: block !important; visibility: visible !important;">
+                        <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
+                        <video 
+                          controls 
+                          autoplay
+                          class="w-100" 
+                          style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                          [src]="getVideoUrl(pendingDecision?.videoUrl)"
+                          preload="auto">
+                          Your browser does not support the video tag.
+                        </video>
+                        <div class="small text-muted mt-1">
+                          Video Source: {{ getVideoUrl(pendingDecision?.videoUrl) }}
+                        </div>
+                        <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
+                      </div>
+                    </div>
+                  </div>
                   <div class="d-flex gap-2 flex-wrap">
                     <button
                       *ngFor="let option of pendingDecision.options"

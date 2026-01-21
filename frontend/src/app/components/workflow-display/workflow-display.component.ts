@@ -146,21 +146,13 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
 
     // Listen for workflow decision requests
-    console.log('🤔 [WorkflowDisplay] Setting up decision request subscription...');
-    const decisionSub = this.flowWiseService.getDecisionRequests().subscribe({
-      next: (decisionRequest: UserDecisionRequest) => {
-        console.log('🤔 [WorkflowDisplay] ========================================');
-        console.log('🤔 [WorkflowDisplay] ⚠️⚠️⚠️ DECISION REQUEST RECEIVED IN WORKFLOW DISPLAY ⚠️⚠️⚠️');
-        console.log('🤔 [WorkflowDisplay] Decision required:', JSON.stringify(decisionRequest, null, 2));
-        console.log('🤔 [WorkflowDisplay] Decision request options:', decisionRequest.options);
-        console.log('🤔 [WorkflowDisplay] Options count:', decisionRequest.options?.length || 0);
-        console.log('🤔 [WorkflowDisplay] Decision request stepId:', decisionRequest.stepId);
-        console.log('🤔 [WorkflowDisplay] Decision request videoUrl:', decisionRequest.videoUrl || 'none');
-        console.log('🤔 [WorkflowDisplay] Decision request movieTitle:', decisionRequest.movieTitle || 'none');
+    this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
+      console.log('🤔 [WorkflowDisplay] Decision required:', decisionRequest);
+      console.log('🤔 [WorkflowDisplay] Decision request options:', decisionRequest.options);
+      console.log('🤔 [WorkflowDisplay] Options count:', decisionRequest.options?.length || 0);
       
       // CRITICAL: If videoUrl is missing but stepId is view_movie, try to get it from active execution
       if (decisionRequest.stepId === 'view_movie' && !decisionRequest.videoUrl && this.activeExecution) {
-        console.log('🎬 [WorkflowDisplay] videoUrl missing for view_movie step - checking active execution context');
         const context = this.activeExecution.context || {};
         const videoUrl = context['selectedListing']?.['videoUrl'] || 
                         context['selectedListing2']?.['videoUrl'] ||
@@ -170,19 +162,13 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
                           context['movieTitle'] || '';
         
         if (videoUrl) {
-          console.log('🎬 [WorkflowDisplay] Found videoUrl in execution context:', videoUrl);
           decisionRequest.videoUrl = videoUrl;
           decisionRequest.movieTitle = movieTitle || decisionRequest.movieTitle;
-        } else {
-          console.log('🎬 [WorkflowDisplay] videoUrl not found in execution context');
         }
       }
       
       // CRITICAL: Clear any pending selection when a decision is required
-      // This prevents stale selections from being submitted when the workflow is waiting for a decision
       if (this.showSelectionPrompt || this.pendingSelection) {
-        console.log('🧹 [WorkflowDisplay] Clearing pending selection because decision is required');
-        console.log('🧹 [WorkflowDisplay] Previous selection stepId:', this.pendingSelection?.stepId);
         this.showSelectionPrompt = false;
         this.pendingSelection = null;
       }
@@ -191,18 +177,8 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       this.showDecisionPrompt = true;
       
       console.log('🤔 [WorkflowDisplay] Set pendingDecision and showDecisionPrompt=true');
-      console.log('🤔 [WorkflowDisplay] pendingDecision after assignment:', this.pendingDecision ? {
-        executionId: this.pendingDecision.executionId,
-        stepId: this.pendingDecision.stepId,
-        hasVideoUrl: !!this.pendingDecision.videoUrl,
-        videoUrl: this.pendingDecision.videoUrl,
-        hasMovieTitle: !!this.pendingDecision.movieTitle,
-        movieTitle: this.pendingDecision.movieTitle,
-        optionsCount: this.pendingDecision.options?.length || 0
-      } : 'null');
+      console.log('🤔 [WorkflowDisplay] pendingDecision:', this.pendingDecision);
       console.log('🤔 [WorkflowDisplay] showDecisionPrompt:', this.showDecisionPrompt);
-      console.log('🤔 [WorkflowDisplay] showSelectionPrompt (should be false):', this.showSelectionPrompt);
-      console.log('🤔 [WorkflowDisplay] ========================================');
       
       // Force change detection to update UI immediately
       this.cdr.detectChanges();
