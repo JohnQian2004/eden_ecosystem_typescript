@@ -9,12 +9,13 @@
             <span class="text-muted small">Wallet Balance:</span>
             <span *ngIf="isLoadingBalance" class="spinner-border spinner-border-sm text-primary"></span>
             <strong *ngIf="!isLoadingBalance" class="text-primary ms-2">
-              {{ walletBalance.toFixed(2) }} JSC
+                  {{ walletBalance.toFixed(2) }} 🍎 APPLES
             </strong>
           </div>
         </div>
       </div>
       <button 
+        *ngIf="isGodMode"
         type="button" 
         class="btn btn-danger" 
         (click)="resetWalletPersistence()"
@@ -41,6 +42,59 @@
   <div *ngIf="wizardStep === 1" class="wizard-step">
     <h4 class="mb-3">Step 1: Select Service Type</h4>
     <p class="text-muted mb-4">Choose the type of service provider for this garden</p>
+    
+    <!-- Existing Workflows Section -->
+    <div *ngIf="getExistingWorkflows().length > 0" class="mb-4">
+      <h5 class="mb-3">✅ Available Workflows</h5>
+      <p class="text-muted small mb-3">These service types have workflows already generated. Click to configure:</p>
+      <div class="row g-3">
+        <div class="col-md-6 col-lg-4 col-xl-3" *ngFor="let workflow of getExistingWorkflows()">
+          <div class="card h-100 workflow-card border-success" (click)="selectWorkflowAsServiceType(workflow)" style="cursor: pointer;">
+            <div class="card-body text-center">
+              <div class="display-4 mb-2">
+                <span *ngIf="workflow.serviceType === 'movie'">🎬</span>
+                <span *ngIf="workflow.serviceType === 'amc'">🎬</span>
+                <span *ngIf="workflow.serviceType === 'autobodyshop'">🔧</span>
+                <span *ngIf="workflow.serviceType === 'autorepairshop'">🔧</span>
+                <span *ngIf="workflow.serviceType === 'bank'">🏦</span>
+                <span *ngIf="workflow.serviceType === 'church'">⛪</span>
+                <span *ngIf="workflow.serviceType === 'court'">⚖️</span>
+                <span *ngIf="workflow.serviceType === 'dex'">💰</span>
+                <span *ngIf="workflow.serviceType === 'dogpark'">🐕</span>
+                <span *ngIf="workflow.serviceType === 'gasstation'">⛽</span>
+                <span *ngIf="workflow.serviceType === 'grocerystore'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'gym'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'hospital'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'hotel'">🏨</span>
+                <span *ngIf="workflow.serviceType === 'jail'">🔒</span>
+                <span *ngIf="workflow.serviceType === 'laborcamp'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'library'">📚</span>
+                <span *ngIf="workflow.serviceType === 'pharmacy'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'policestation'">🚔</span>
+                <span *ngIf="workflow.serviceType === 'postoffice'">📮</span>
+                <span *ngIf="workflow.serviceType === 'priest'">⛪</span>
+                <span *ngIf="workflow.serviceType === 'restaurant'">🍽️</span>
+                <span *ngIf="workflow.serviceType === 'school'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'university'">🏢</span>
+                <span *ngIf="workflow.serviceType === 'airline'">✈️</span>
+                <span *ngIf="workflow.serviceType === 'autoparts'">🔧</span>
+                <span *ngIf="workflow.serviceType === 'snake'">🐍</span>
+              </div>
+              <h6 class="card-title mb-2">{{ workflow.serviceType }}</h6>
+              <p class="card-text text-muted small mb-2">
+                <code>{{ workflow.filename }}</code>
+              </p>
+              <div *ngIf="workflow.stepCount !== undefined" class="mb-2">
+                <span class="badge bg-info">
+                  {{ workflow.stepCount }} step{{ workflow.stepCount !== 1 ? 's' : '' }}
+                </span>
+              </div>
+              <span class="badge bg-success">✅ Generated</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div *ngIf="isLoadingServiceTypes" class="text-center py-5">
       <div class="spinner-border text-primary" role="status">
@@ -193,7 +247,7 @@
         <div class="d-flex gap-2">
           <button 
             class="btn btn-primary" 
-            (click)="saveAndCreateIndexer()"
+            (click)="saveAndCreateGarden()"
             [disabled]="isCreating">
             <span *ngIf="!isCreating">✅ Save & Create Garden</span>
             <span *ngIf="isCreating">
@@ -235,35 +289,377 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.indexerName"
-                name="indexerName"
+                [(ngModel)]="gardenConfig.gardenName"
+                name="gardenName"
                 required>
             </div>
           </div>
           
-          <!-- Movie Theater Providers Multi-Select (only for movie service type) -->
-          <div class="row mb-3" *ngIf="selectedServiceType?.type === 'movie'">
+          <!-- Data Provider Selection -->
+          <div class="row mb-3">
             <div class="col-12">
-              <label class="form-label">Target Movie Theater Providers</label>
-              <select 
-                class="form-select" 
-                [(ngModel)]="indexerConfig.selectedProviders"
-                name="selectedProviders"
-                multiple
-                size="3"
-                style="min-height: 100px;">
-                <option *ngFor="let provider of movieProviders" [value]="provider.id">
-                  {{ provider.name }}
-                </option>
-              </select>
+              <label class="form-label fw-bold">Data Provider</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="dataProviderType" id="dataProviderLLM" 
+                       value="llm" [(ngModel)]="dataProviderType" (change)="onDataProviderTypeChange()">
+                <label class="btn btn-outline-primary" for="dataProviderLLM">
+                  🤖 LLM (Default for most services)
+                </label>
+                
+                <input type="radio" class="btn-check" name="dataProviderType" id="dataProviderGetData" 
+                       value="getdata" [(ngModel)]="dataProviderType" (change)="onDataProviderTypeChange()">
+                <label class="btn btn-outline-primary" for="dataProviderGetData">
+                  🗄️ getData (SQL/MySQL Plugin)
+                </label>
+              </div>
               <small class="text-muted">
-                Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
-                Selected: {{ indexerConfig.selectedProviders?.length || 0 }} provider(s)
+                <span *ngIf="dataProviderType === 'llm'">Using LLM to generate provider data dynamically</span>
+                <span *ngIf="dataProviderType === 'getdata'">Using SQL database queries via MySQL/MariaDB plugin</span>
               </small>
-              <div *ngIf="!hasSelectedProviders() && selectedServiceType?.type === 'movie'" class="mt-2">
-                <small class="text-danger">
-                  ⚠️ Please select at least one movie theater provider to continue
+            </div>
+          </div>
+          
+          <!-- Service Provider Configuration (for all service types) -->
+          <div class="row mb-3">
+            <div class="col-12">
+              <label class="form-label fw-bold">Service Providers</label>
+              <p class="text-muted small mb-2">Configure service providers for this garden. You can select predefined providers or add custom ones.</p>
+              
+              <!-- Predefined Providers (for movie service type) -->
+              <div *ngIf="selectedServiceType?.type === 'movie'" class="mb-3">
+                <label class="form-label small">Predefined Movie Theater Providers</label>
+                <select 
+                  class="form-select" 
+                  [(ngModel)]="gardenConfig.selectedProviders"
+                  name="selectedProviders"
+                  multiple
+                  size="3"
+                  style="min-height: 100px;">
+                  <option *ngFor="let provider of movieProviders" [value]="provider.id">
+                    {{ provider.name }}
+                  </option>
+                </select>
+                <small class="text-muted">
+                  Hold Ctrl (Windows) or Cmd (Mac) to select multiple providers. 
+                  Selected: {{ gardenConfig.selectedProviders?.length || 0 }} provider(s)
                 </small>
+              </div>
+              
+              <!-- Video URL Configuration (for movie service type) -->
+              <div *ngIf="selectedServiceType?.type === 'movie'" class="mb-3">
+                <label class="form-label small fw-bold">Video URL Endpoint</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  [(ngModel)]="gardenConfig.videoUrl"
+                  name="videoUrl"
+                  placeholder="/api/movie/video/2025-12-09-144801890.mp4">
+                <small class="text-muted">
+                  Server entry point for video file. This will be used for all movie listings in this garden.
+                  <br>Example: <code>/api/movie/video/2025-12-09-144801890.mp4</code>
+                </small>
+              </div>
+              
+              <!-- Token Pair Configuration (for DEX service type) -->
+              <div *ngIf="selectedServiceType?.type === 'dex'" class="mb-3">
+                <label class="form-label small fw-bold">Token Pair Configuration</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small">Token Symbol</label>
+                    <input 
+                      type="text" 
+                      class="form-control form-control-sm" 
+                      [(ngModel)]="gardenConfig.tokenSymbol"
+                      name="tokenSymbol"
+                      placeholder="TOKEN"
+                      required>
+                    <small class="text-muted">The token symbol (e.g., TOKEN)</small>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small">Base Token</label>
+                    <input 
+                      type="text" 
+                      class="form-control form-control-sm" 
+                      [(ngModel)]="gardenConfig.baseToken"
+                      name="baseToken"
+                      placeholder="SOL"
+                      required>
+                    <small class="text-muted">The base token (e.g., SOL)</small>
+                  </div>
+                </div>
+                <div class="alert alert-info mt-2 mb-0 py-2 small">
+                  <strong>Token Pair:</strong> <code>{{ gardenConfig.tokenSymbol || 'TOKEN' }}/{{ gardenConfig.baseToken || 'SOL' }}</code>
+                  <br><small>This pair will be used for all DEX trading operations in this garden.</small>
+                </div>
+              </div>
+              
+              <!-- Custom Providers (for all service types) -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label small mb-0">Custom Providers</label>
+                  <button 
+                    type="button" 
+                    class="btn btn-sm btn-outline-primary"
+                    (click)="addCustomProvider()">
+                    + Add Custom Provider
+                  </button>
+                </div>
+                
+                <div *ngIf="customProviders.length === 0" class="text-muted small mb-2">
+                  No custom providers added. Click "Add Custom Provider" to add one.
+                </div>
+                
+                <div *ngFor="let provider of customProviders; let i = index" class="card mb-2">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Provider {{ i + 1 }}</h6>
+                      <button 
+                        type="button" 
+                        class="btn btn-sm btn-outline-danger"
+                        (click)="removeCustomProvider(i)">
+                        Remove
+                      </button>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <label class="form-label small">Provider Name *</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.name"
+                          [name]="'customProviderName' + i"
+                          placeholder="e.g., United Airlines"
+                          required>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small">Location</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.location"
+                          [name]="'customProviderLocation' + i"
+                          placeholder="e.g., New York, NY">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Bond (🍎 APPLES)</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.bond"
+                          [name]="'customProviderBond' + i"
+                          min="0"
+                          step="100"
+                          placeholder="1000">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Reputation</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.reputation"
+                          [name]="'customProviderReputation' + i"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          placeholder="5.0">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">API Endpoint</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm"
+                          [(ngModel)]="provider.apiEndpoint"
+                          [name]="'customProviderApiEndpoint' + i"
+                          placeholder="https://api.example.com/v1">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Provider Summary -->
+              <div class="alert alert-info mb-0" *ngIf="getProviderCount() > 0">
+                <strong>Provider Summary:</strong> {{ getProviderCount() }} provider(s) configured
+                <span *ngIf="selectedServiceType?.type === 'movie' && gardenConfig.selectedProviders && gardenConfig.selectedProviders.length > 0">
+                  ({{ gardenConfig.selectedProviders.length }} predefined, {{ customProviders.length }} custom)
+                </span>
+                <span *ngIf="selectedServiceType?.type !== 'movie'">
+                  ({{ customProviders.length }} custom)
+                </span>
+              </div>
+              
+              <!-- Warning for movie service type if no providers -->
+              <div *ngIf="selectedServiceType?.type === 'movie' && !hasProviders()" class="alert alert-warning mt-2">
+                <small>
+                  ⚠️ Please select at least one movie theater provider or add a custom provider to continue
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Provider Plugin: MySQL/MariaDB + Webhook (deployable provider) -->
+          <div class="row mb-3" *ngIf="dataProviderType === 'getdata' && selectedServiceType?.type !== 'movie' && selectedServiceType?.type !== 'dex'">
+            <div class="col-12">
+              <div class="card border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>🗄️ getData Service (MySQL/MariaDB Plugin)</strong>
+                    <div class="small">Configure SQL database queries for provider data</div>
+                  </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Host <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlHost" name="mySqlHost" placeholder="127.0.0.1" required>
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small">Port</label>
+                        <input class="form-control form-control-sm" type="number" [(ngModel)]="mySqlPort" name="mySqlPort" min="1" max="65535">
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">User <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlUser" name="mySqlUser" placeholder="root" required>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Password <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" type="password" [(ngModel)]="mySqlPassword" name="mySqlPassword" required>
+                      </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-6">
+                        <label class="form-label small">Database <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" type="text" [(ngModel)]="mySqlDatabase" name="mySqlDatabase" placeholder="eden_providers" required>
+                        <small class="text-muted">Current value: "{{ mySqlDatabase }}"</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small">Param Order (comma separated filter keys)</label>
+                        <input class="form-control form-control-sm" [(ngModel)]="mySqlParamOrder" name="mySqlParamOrder" placeholder="destination,date">
+                      </div>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small">SQL (SELECT only, use <code>?</code> params)</label>
+                      <textarea class="form-control form-control-sm" rows="3" [(ngModel)]="mySqlSql" name="mySqlSql"></textarea>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small">Field Map JSON (optional)</label>
+                      <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="mySqlFieldMapJson" name="mySqlFieldMapJson" placeholder='{"flightNumber":"flight_no","destination":"dest","date":"date","price":"price"}'></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label small">Return Fields (comma-separated)</label>
+                      <input class="form-control form-control-sm" [(ngModel)]="mySqlReturnFields" name="mySqlReturnFields" placeholder="year, make, model, title, sale_price, user_first_name, user_last_name, user_email">
+                      <small class="text-muted">Fields to include in final getData return (excludes imageModals which is always included)</small>
+                      <div class="text-muted small mt-1">
+                        ProviderId: <code>{{ getWizardProviderId() }}</code>
+                      </div>
+                    </div>
+
+                    <div class="d-flex gap-2 align-items-center mb-2">
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="testMySqlQuery()" [disabled]="isTestingMySql">
+                        <span *ngIf="!isTestingMySql">🔎 Test SQL Query</span>
+                        <span *ngIf="isTestingMySql"><span class="spinner-border spinner-border-sm me-2"></span>Testing...</span>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="enableProviderWebhook = true" *ngIf="!enableProviderWebhook">
+                        Enable Webhook
+                      </button>
+                    </div>
+                    <div *ngIf="mySqlTestError" class="alert alert-danger py-2 small mb-2">{{ mySqlTestError }}</div>
+                    <div *ngIf="mySqlTestResult?.success" class="mb-2">
+                      <div class="alert alert-success py-2 small mb-2">
+                        ✅ SQL OK ({{ mySqlTestResult.result?.rowCount || 0 }} row(s), {{ mySqlTestResult.result?.elapsedMs || 0 }}ms)
+                      </div>
+                      <!-- SQL Results Table -->
+                      <div *ngIf="mySqlTestResult.result?.rows && mySqlTestResult.result.rows.length > 0" class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-bordered table-hover mb-0">
+                          <thead class="table-light sticky-top">
+                            <tr>
+                              <th *ngFor="let col of mySqlTestResult.result.columns" class="small">{{ col }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let row of mySqlTestResult.result.rows">
+                              <td *ngFor="let col of mySqlTestResult.result.columns" class="small">
+                                <span *ngIf="row[col] !== null && row[col] !== undefined">{{ row[col] }}</span>
+                                <span *ngIf="row[col] === null || row[col] === undefined" class="text-muted">—</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div *ngIf="!mySqlTestResult.result?.rows || mySqlTestResult.result.rows.length === 0" class="text-muted small">
+                        No rows returned
+                      </div>
+                    </div>
+
+                    <!-- getData Wrapper Test (Pre-flight Validation) -->
+                    <div class="mb-3 p-2 border rounded">
+                      <label class="form-label small fw-bold">🧪 getData Wrapper Test (Pre-flight Validation)</label>
+                      <div class="text-muted small mb-2">Test the full flow: Natural Language → LLM params → SQL parameterization → SQL execution</div>
+                      <div class="mb-2">
+                        <label class="form-label small">Test Query (Natural Language)</label>
+                        <input class="form-control form-control-sm" [(ngModel)]="getDataTestQuery" name="getDataTestQuery" placeholder="I need a front bumper for 2020 Honda Civic at best price">
+                      </div>
+                      <button type="button" class="btn btn-sm btn-outline-info" (click)="testGetDataWrapper()" [disabled]="isTestingGetData">
+                        <span *ngIf="!isTestingGetData">🚀 Test getData Wrapper</span>
+                        <span *ngIf="isTestingGetData"><span class="spinner-border spinner-border-sm me-2"></span>Testing...</span>
+                      </button>
+                      <div *ngIf="getDataTestError" class="alert alert-danger py-2 small mt-2 mb-0">{{ getDataTestError }}</div>
+                      <div *ngIf="getDataTestResult?.success" class="mt-2">
+                        <div class="alert alert-success py-2 small mb-2">
+                          <div>✅ getData Wrapper OK</div>
+                          <div class="mt-1" *ngIf="getDataTestResult.result?.summary">
+                            <small>
+                              <strong>Summary:</strong><br>
+                              - Service Type: {{ getDataTestResult.result.summary.serviceType }}<br>
+                              - Rows Returned: {{ getDataTestResult.result.summary.rowsReturned }}<br>
+                              - Elapsed: {{ getDataTestResult.result.summary.elapsedMs }}ms<br>
+                              - SQL Params Used: {{ getDataTestResult.result.summary.sqlParamsUsed?.join(', ') || 'None' }}
+                            </small>
+                          </div>
+                        </div>
+                        <!-- getData Wrapper Results Table -->
+                        <div *ngIf="getDataTestResult.result?.sqlExecution?.rows && getDataTestResult.result.sqlExecution.rows.length > 0" class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                          <table class="table table-sm table-striped table-bordered table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                              <tr>
+                                <th *ngFor="let col of getDataTestResult.result.sqlExecution.columns" class="small">{{ col }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr *ngFor="let row of getDataTestResult.result.sqlExecution.rows">
+                                <td *ngFor="let col of getDataTestResult.result.sqlExecution.columns" class="small">
+                                  <span *ngIf="row[col] !== null && row[col] !== undefined">{{ row[col] }}</span>
+                                  <span *ngIf="row[col] === null || row[col] === undefined" class="text-muted">—</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div *ngIf="!getDataTestResult.result?.sqlExecution?.rows || getDataTestResult.result.sqlExecution.rows.length === 0" class="text-muted small">
+                          No rows returned
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" [(ngModel)]="enableProviderWebhook" name="enableProviderWebhook" id="enableProviderWebhook">
+                      <label class="form-check-label" for="enableProviderWebhook">
+                        Register provider webhook (Eden will deliver <code>deliver_webhook</code> events to this URL)
+                      </label>
+                    </div>
+                    <div *ngIf="enableProviderWebhook" class="mb-2">
+                      <div class="text-muted small">Webhook URL:</div>
+                      <code>{{ getWizardProviderWebhookUrl() }}</code>
+                      <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-success" (click)="testProviderWebhook()" [disabled]="isTestingProviderWebhook">
+                          <span *ngIf="!isTestingProviderWebhook">📨 Test Webhook</span>
+                          <span *ngIf="isTestingProviderWebhook"><span class="spinner-border spinner-border-sm me-2"></span>Sending...</span>
+                        </button>
+                      </div>
+                      <div *ngIf="providerWebhookTestError" class="alert alert-danger py-2 small mt-2 mb-0">{{ providerWebhookTestError }}</div>
+                      <div *ngIf="providerWebhookTestResult?.success" class="alert alert-success py-2 small mt-2 mb-0">✅ Webhook OK</div>
+                    </div>
+                </div>
               </div>
             </div>
           </div>
@@ -274,7 +670,7 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverIp"
+                [(ngModel)]="gardenConfig.serverIp"
                 name="serverIp"
                 placeholder="localhost"
                 required>
@@ -284,9 +680,9 @@
               <input 
                 type="text" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverDomain"
+                [(ngModel)]="gardenConfig.serverDomain"
                 name="serverDomain"
-                placeholder="indexer.eden.local"
+                placeholder="garden.eden.local"
                 required>
             </div>
             <div class="col-md-4">
@@ -294,7 +690,7 @@
               <input 
                 type="number" 
                 class="form-control" 
-                [(ngModel)]="indexerConfig.serverPort"
+                [(ngModel)]="gardenConfig.serverPort"
                 name="serverPort"
                 placeholder="3001"
                 min="3001"
@@ -308,7 +704,7 @@
               <label class="form-label">Network Type</label>
               <select 
                 class="form-select" 
-                [(ngModel)]="indexerConfig.networkType"
+                [(ngModel)]="gardenConfig.networkType"
                 name="networkType"
                 required>
                 <option value="http">HTTP</option>
@@ -320,7 +716,7 @@
                 <input 
                   class="form-check-input" 
                   type="checkbox" 
-                  [(ngModel)]="indexerConfig.isSnake"
+                  [(ngModel)]="gardenConfig.isSnake"
                   name="isSnake"
                   [disabled]="selectedServiceType?.type === 'snake'">
                 <label class="form-check-label">
@@ -334,12 +730,12 @@
           <div class="alert alert-info mb-3">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <strong>Deployment Fee:</strong> {{ calculateDeploymentFee() }} JSC
+                <strong>Deployment Fee:</strong> {{ calculateDeploymentFee() }} 🍎 APPLES
                 <span *ngIf="selectedServiceType?.type === 'snake'" class="badge bg-warning ms-2">Snake Service (2x)</span>
                 <span *ngIf="selectedServiceType?.type === 'movie'" class="badge bg-info ms-2">
-                  Base: 100 JSC
-                  <span *ngIf="indexerConfig.selectedProviders && indexerConfig.selectedProviders.length > 0">
-                    + {{ (indexerConfig.selectedProviders || []).length }} provider(s) × 10 JSC
+                  Base: 100 🍎 APPLES
+                  <span *ngIf="gardenConfig.selectedProviders && gardenConfig.selectedProviders.length > 0">
+                    + {{ (gardenConfig.selectedProviders || []).length }} provider(s) × 10 🍎 APPLES
                   </span>
                 </span>
               </div>
@@ -347,13 +743,13 @@
                 <strong>Available Balance:</strong> 
                 <span [class.text-success]="hasSufficientBalance()" 
                       [class.text-danger]="!hasSufficientBalance()">
-                  {{ walletBalance.toFixed(2) }} JSC
+                  {{ walletBalance.toFixed(2) }} 🍎 APPLES
                 </span>
               </div>
             </div>
-            <div *ngIf="!hasSufficientBalance() && indexerConfig.indexerName" class="mt-2">
+            <div *ngIf="!hasSufficientBalance() && gardenConfig.gardenName" class="mt-2">
               <small class="text-danger">
-                ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} JSC, Available: {{ walletBalance.toFixed(2) }} JSC
+                ⚠️ Insufficient balance. Required: {{ calculateDeploymentFee() }} 🍎 APPLES, Available: {{ walletBalance.toFixed(2) }} 🍎 APPLES
               </small>
             </div>
           </div>
@@ -369,19 +765,19 @@
               type="button" 
               class="btn"
               [class.btn-primary]="hasSufficientBalance() && hasSelectedProviders()"
-              [class.btn-warning]="(!hasSufficientBalance() || !hasSelectedProviders()) && indexerConfig.indexerName"
-              [class.btn-secondary]="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName"
-              (click)="createIndexer()"
-              [disabled]="isCreating || !indexerConfig.indexerName || !hasSufficientBalance() || !hasSelectedProviders()">
+              [class.btn-warning]="(!hasSufficientBalance() || !hasSelectedProviders()) && gardenConfig.gardenName"
+              [class.btn-secondary]="(!hasSufficientBalance() || !hasSelectedProviders()) && !gardenConfig.gardenName"
+              (click)="createGarden()"
+              [disabled]="isCreating || !gardenConfig.gardenName || !hasSufficientBalance() || !hasSelectedProviders()">
               <span *ngIf="!isCreating">
                 <span *ngIf="hasSufficientBalance() && hasSelectedProviders()">Create Garden</span>
-                <span *ngIf="!hasSufficientBalance() && indexerConfig.indexerName">
-                  Insufficient Balance ({{ calculateDeploymentFee() }} JSC required)
+                <span *ngIf="!hasSufficientBalance() && gardenConfig.gardenName">
+                  Insufficient Balance ({{ calculateDeploymentFee() }} 🍎 APPLES required)
                 </span>
-                <span *ngIf="!hasSelectedProviders() && indexerConfig.indexerName && selectedServiceType?.type === 'movie'">
+                <span *ngIf="!hasSelectedProviders() && gardenConfig.gardenName && selectedServiceType?.type === 'movie'">
                   Select at least one provider
                 </span>
-                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !indexerConfig.indexerName">Create Garden</span>
+                <span *ngIf="(!hasSufficientBalance() || !hasSelectedProviders()) && !gardenConfig.gardenName">Create Garden</span>
               </span>
               <span *ngIf="isCreating">
                 <span class="spinner-border spinner-border-sm me-2"></span>Creating...
@@ -405,6 +801,182 @@
         <h3 class="mb-3">Garden Created Successfully!</h3>
         <p class="text-muted mb-4">The garden has been created, certified, and persisted to the system.</p>
         <button type="button" class="btn btn-primary" (click)="resetWizard()">Create Another Garden</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Workflow Designer Section (GOD mode only) -->
+  <div class="mt-5" *ngIf="isGodMode">
+    <div class="card">
+      <div class="card-header bg-info text-white">
+        <h4 class="mb-0">🔧 Workflow Designer</h4>
+        <p class="mb-0 small">Generate workflow JSON files for service types using LLM</p>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Select Service Type</label>
+            <select 
+              class="form-select" 
+              [(ngModel)]="selectedWorkflowServiceType"
+              name="selectedWorkflowServiceType"
+              [disabled]="isGeneratingWorkflow">
+              <option value="">-- Select Service Type --</option>
+              <option *ngFor="let option of getServiceTypeOptions()" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+          <div class="col-md-6 d-flex align-items-end">
+            <button 
+              class="btn btn-primary w-100"
+              (click)="generateWorkflow()"
+              [disabled]="!selectedWorkflowServiceType || isGeneratingWorkflow">
+              <span *ngIf="!isGeneratingWorkflow">🚀 Generate Selected Service Type Workflow</span>
+              <span *ngIf="isGeneratingWorkflow">
+                <span class="spinner-border spinner-border-sm me-2"></span>Generating...
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Existing Workflows Cards -->
+        <div class="mb-4" *ngIf="getExistingWorkflows().length > 0">
+          <h5 class="mb-3">✅ Existing Workflows</h5>
+          <div class="row g-3">
+            <div class="col-md-6 col-lg-4 col-xl-3" *ngFor="let workflow of getExistingWorkflows()">
+              <div class="card h-100 workflow-card border-success">
+                <div class="card-body text-center">
+                  <div class="display-4 mb-2">
+                    <span *ngIf="workflow.serviceType === 'movie'">🎬</span>
+                    <span *ngIf="workflow.serviceType === 'amc'">🎬</span>
+                    <span *ngIf="workflow.serviceType === 'autobodyshop'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'autorepairshop'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'bank'">🏦</span>
+                    <span *ngIf="workflow.serviceType === 'church'">⛪</span>
+                    <span *ngIf="workflow.serviceType === 'court'">⚖️</span>
+                    <span *ngIf="workflow.serviceType === 'dex'">💰</span>
+                    <span *ngIf="workflow.serviceType === 'dogpark'">🐕</span>
+                    <span *ngIf="workflow.serviceType === 'gasstation'">⛽</span>
+                    <span *ngIf="workflow.serviceType === 'grocerystore'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'gym'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'hospital'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'hotel'">🏨</span>
+                    <span *ngIf="workflow.serviceType === 'jail'">🔒</span>
+                    <span *ngIf="workflow.serviceType === 'laborcamp'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'library'">📚</span>
+                    <span *ngIf="workflow.serviceType === 'pharmacy'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'party'">🎉</span>
+                    <span *ngIf="workflow.serviceType === 'policestation'">🚔</span>
+                    <span *ngIf="workflow.serviceType === 'postoffice'">📮</span>
+                    <span *ngIf="workflow.serviceType === 'priest'">⛪</span>
+                    <span *ngIf="workflow.serviceType === 'restaurant'">🍽️</span>
+                    <span *ngIf="workflow.serviceType === 'school'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'university'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'airline'">✈️</span>
+                    <span *ngIf="workflow.serviceType === 'autoparts'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'snake'">🐍</span>
+                  </div>
+                  <h6 class="card-title mb-2">{{ workflow.serviceType }}</h6>
+                  <p class="card-text text-muted small mb-2">
+                    <code>{{ workflow.filename }}</code>
+                  </p>
+                  <div *ngIf="workflow.stepCount !== undefined" class="mb-2">
+                    <span class="badge bg-info">
+                      {{ workflow.stepCount }} step{{ workflow.stepCount !== 1 ? 's' : '' }}
+                    </span>
+                  </div>
+                  <span class="badge bg-success">✅ Generated</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Workflows Table -->
+        <div class="mb-4">
+          <h5 class="mb-3">All Available Workflows</h5>
+          <div class="table-responsive">
+            <table class="table table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Service Type</th>
+                  <th>Workflow File</th>
+                  <th>Steps</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let workflow of availableWorkflows; let i = index">
+                  <td>{{ i + 1 }}</td>
+                  <td>
+                    <span *ngIf="workflow.serviceType === 'movie'">🎬</span>
+                    <span *ngIf="workflow.serviceType === 'amc'">🎬</span>
+                    <span *ngIf="workflow.serviceType === 'autobodyshop'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'autorepairshop'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'bank'">🏦</span>
+                    <span *ngIf="workflow.serviceType === 'church'">⛪</span>
+                    <span *ngIf="workflow.serviceType === 'court'">⚖️</span>
+                    <span *ngIf="workflow.serviceType === 'dex'">💰</span>
+                    <span *ngIf="workflow.serviceType === 'dogpark'">🐕</span>
+                    <span *ngIf="workflow.serviceType === 'gasstation'">⛽</span>
+                    <span *ngIf="workflow.serviceType === 'grocerystore'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'gym'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'hospital'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'hotel'">🏨</span>
+                    <span *ngIf="workflow.serviceType === 'jail'">🔒</span>
+                    <span *ngIf="workflow.serviceType === 'laborcamp'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'library'">📚</span>
+                    <span *ngIf="workflow.serviceType === 'pharmacy'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'party'">🎉</span>
+                    <span *ngIf="workflow.serviceType === 'policestation'">🚔</span>
+                    <span *ngIf="workflow.serviceType === 'postoffice'">📮</span>
+                    <span *ngIf="workflow.serviceType === 'priest'">⛪</span>
+                    <span *ngIf="workflow.serviceType === 'restaurant'">🍽️</span>
+                    <span *ngIf="workflow.serviceType === 'school'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'university'">🏢</span>
+                    <span *ngIf="workflow.serviceType === 'airline'">✈️</span>
+                    <span *ngIf="workflow.serviceType === 'autoparts'">🔧</span>
+                    <span *ngIf="workflow.serviceType === 'snake'">🐍</span>
+                    <strong>{{ workflow.serviceType }}</strong>
+                  </td>
+                  <td><code>{{ workflow.filename }}</code></td>
+                  <td>
+                    <span *ngIf="workflow.exists && workflow.stepCount !== undefined" class="badge bg-info">
+                      {{ workflow.stepCount }} step{{ workflow.stepCount !== 1 ? 's' : '' }}
+                    </span>
+                    <span *ngIf="!workflow.exists || workflow.stepCount === undefined" class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <span *ngIf="workflow.exists" class="badge bg-success">✅ Exists</span>
+                    <span *ngIf="!workflow.exists" class="badge bg-warning">⚠️ Not Generated</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Success Message -->
+        <div *ngIf="workflowGenerationSuccess" class="alert alert-success alert-dismissible fade show" role="alert">
+          <strong>✅ Success!</strong> Workflow generated successfully: <code>{{ selectedWorkflowServiceType }}.json</code>
+          <button type="button" class="btn-close" (click)="workflowGenerationSuccess = false" aria-label="Close"></button>
+        </div>
+
+        <!-- Error Message -->
+        <div *ngIf="workflowGenerationError" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <strong>❌ Error:</strong> {{ workflowGenerationError }}
+          <button type="button" class="btn-close" (click)="workflowGenerationError = null" aria-label="Close"></button>
+        </div>
+
+        <!-- Generated Workflow Preview -->
+        <div *ngIf="generatedWorkflow" class="mt-4">
+          <h5 class="mb-3">Generated Workflow Preview</h5>
+          <div class="card">
+            <div class="card-body">
+              <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">{{ generatedWorkflow | json }}</pre>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -1,0 +1,35 @@
+{
+  "gardens": [
+    {
+      "id": "T1",
+      "name": "Garden-DEX",
+      "stream": "eden:token-garden:T1",
+      "active": true,
+      "uuid": "eden:garden:edf1b902-6b38-4581-b601-0b9007c43e0a",
+      "serverIp": "localhost",
+      "serverDomain": "garden-dex.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "dex",
+      "isSnake": false,
+      "certificate": {
+        "subject": "eden:garden:edf1b902-6b38-4581-b601-0b9007c43e0a",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "T1",
+          "gardenName": "Garden-DEX",
+          "stream": "eden:token-garden:T1"
+        },
+        "issuedAt": 1767148208004,
+        "expiresAt": 1798684208004,
+        "signature": "d91568Ljj9BQV43mbCed4bJSuf/96mzS/5Z1tlv0wDNPZhxczGnDnokl+MZaXZIGIAJydNOnbe9+gl8BRFVECQ=="
+      },
+      "tokenServiceType": "dex"
+    }
+  ],
+  "lastSaved": "2025-12-31T02:30:08.944Z"
+}

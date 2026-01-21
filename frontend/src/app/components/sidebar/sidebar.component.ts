@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
+import { getApiBaseUrl } from '../../services/api-base';
 
 interface ComponentStatus {
   name: string;
@@ -19,12 +20,13 @@ interface ComponentGroup {
   category: ComponentStatus['category'] | 'root';
 }
 
-interface IndexerInfo {
+interface GardenInfo {
   id: string;
   name: string;
   stream: string;
   active: boolean;
-  type?: 'root' | 'regular' | 'token'; // 'root' = Holy Ghost (ROOT CA's indexer)
+  type?: 'root' | 'regular' | 'token'; // 'root' = Holy Ghost (ROOT CA's garden)
+  serviceType?: string; // workflow service type (e.g. pharmacy, gasstation, dex)
 }
 
 @Component({
@@ -35,30 +37,109 @@ interface IndexerInfo {
 export class SidebarComponent implements OnInit, OnDestroy {
   components: Map<string, ComponentStatus> = new Map();
   groups: ComponentGroup[] = [];
-  indexers: IndexerInfo[] = [];
-  selectedIndexerTab: string = '';
-  selectedIndexerComponents: ComponentStatus[] = [];
-  serviceProviders: Map<string, {id: string, name: string, serviceType: string, indexerId: string}> = new Map(); // Store service providers from ServiceRegistry
-  viewMode: 'god' | 'priest' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it
+  gardens: GardenInfo[] = []; // Gardens (formerly called indexers)
+  selectedGardenTab: string = '';
+  selectedGardenComponents: ComponentStatus[] = [];
+  serviceProviders: Map<string, {id: string, name: string, serviceType: string, gardenId: string}> = new Map(); // Store service providers from ServiceRegistry
+  viewMode: 'god' | 'priest' | 'user' = 'god'; // GOD mode shows ROOT CA, Priest mode hides it, User mode hides entire sidebar
+  isAdmin: boolean = false; // Track if current user is admin
+  architectureViewMode: 'tree' | 'table' = 'tree'; // Tree view or Table view for System Architecture
+  gardensTableData: Array<{id: string, name: string, serviceType: string, ownerEmail: string, active: boolean, type?: string}> = [];
+  isLoadingGardensTable: boolean = false;
   private subscription: any;
-  private apiUrl = window.location.hostname === 'localhost' && window.location.port === '4200' 
-    ? 'http://localhost:3000' 
-    : `${window.location.protocol}//${window.location.host}`;
+  private emailCheckInterval: any; // Interval for checking email changes
+  private apiUrl = getApiBaseUrl();
 
   constructor(
     private wsService: WebSocketService,
     private http: HttpClient
   ) {}
 
+  private readonly serviceTypeIconMap: Record<string, string> = {
+    movie: '🎬',
+    airline: '✈️',
+    autoparts: '🔧',
+    bank: '🏦',
+    dogpark: '🐕',
+    gasstation: '⛽',
+    grocerystore: '🛒',
+    hotel: '🏨',
+    party: '🎉',
+    pharmacy: '💊',
+    restaurant: '🍽️',
+    dex: '💰',
+    token: '🔷'
+  };
+
+  getServiceTypeIcon(serviceType?: string): string {
+    const st = String(serviceType || '').toLowerCase().trim();
+    return this.serviceTypeIconMap[st] || '🌳';
+  }
+
+  getGardenIcon(garden: GardenInfo): string {
+    if (garden?.type === 'root') return '✨';
+    if (garden?.type === 'token') return '🔷';
+    return this.getServiceTypeIcon(garden?.serviceType);
+  }
+
+  getSelectedGardenIcon(): string {
+    const g = this.gardens.find(x => x.id === this.selectedGardenTab);
+    return g ? this.getGardenIcon(g) : (this.selectedGardenTab === 'HG' ? '✨' : '🌳');
+  }
+
   ngOnInit() {
-    // Load view mode from localStorage (default: 'god')
-    const savedMode = localStorage.getItem('edenViewMode');
-    if (savedMode === 'god' || savedMode === 'priest') {
-      this.viewMode = savedMode;
+    // Set view mode based on user email:
+    // - Non-admin users: Force USER mode (sidebar hidden)
+    // - Admin users: Default to GOD mode, but allow PRIEST if explicitly chosen
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    this.isAdmin = userEmail === adminEmail;
+    
+    if (!this.isAdmin) {
+      console.log(`👤 [Sidebar] Non-admin user detected (${userEmail}), forcing USER mode (sidebar hidden)`);
+      this.viewMode = 'user';
+      localStorage.setItem('edenViewMode', 'user');
+    } else {
+      // Admin: Default to GOD mode, but allow saved PRIEST mode if explicitly chosen
+      const savedMode = localStorage.getItem('edenViewMode');
+      if (savedMode === 'god' || savedMode === 'priest') {
+        this.viewMode = savedMode;
+      } else if (savedMode === 'user') {
+        // Admin should never be in USER mode - reset to GOD
+        console.log(`⛪ [Sidebar] Admin user was in USER mode, resetting to GOD mode`);
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
+      } else {
+        this.viewMode = 'god'; // Default for admin
+        localStorage.setItem('edenViewMode', 'god');
+      }
     }
     
-    // Fetch indexers from server
-    this.fetchIndexers();
+    // Listen for email changes (when user signs in)
+    // Note: storage event only fires in other windows, so we also check periodically
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'userEmail') {
+        console.log(`🛐 [Sidebar] Email changed via storage event, updating mode`);
+        this.updateModeFromEmail();
+      }
+    });
+    
+    // Also check periodically for email changes (for same-window updates)
+    // Storage event only fires in other windows, so we need to poll for same-window changes
+    this.emailCheckInterval = setInterval(() => {
+      const currentEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+      const shouldBeAdmin = currentEmail === adminEmail;
+      if (this.isAdmin !== shouldBeAdmin) {
+        console.log(`🛐 [Sidebar] Email changed detected (${currentEmail}), updating mode`);
+        this.updateModeFromEmail();
+      }
+    }, 1000); // Check every second
+    
+    // Fetch gardens from server
+    this.fetchGardens();
+    
+    // Fetch gardens table data
+    this.fetchGardensTableData();
     
     // Fetch service providers from ServiceRegistry
     this.fetchServiceProviders();
@@ -68,14 +149,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     this.subscription = this.wsService.events$.subscribe((event: SimulatorEvent) => {
       this.updateComponentStatus(event);
-      this.updateSelectedIndexerComponents();
+      this.updateSelectedGardenComponents();
     });
     
-    // Listen for indexer refresh events (triggered after wallet reset)
+    // Listen for garden refresh events (triggered after wallet reset)
     window.addEventListener('storage', (e) => {
-      if (e.key === 'edenRefreshIndexers') {
-        console.log('🔄 Refreshing indexers after wallet reset...');
-        this.fetchIndexers();
+      if (e.key === 'edenRefreshGardens') {
+        console.log('🔄 Refreshing gardens after wallet reset...');
+        this.fetchGardens();
         this.fetchServiceProviders();
       }
     });
@@ -85,51 +166,90 @@ export class SidebarComponent implements OnInit, OnDestroy {
     const self = this;
     localStorage.setItem = function(key: string, value: string) {
       originalSetItem.apply(this, arguments as any);
-      if (key === 'edenRefreshIndexers') {
-        console.log('🔄 Refreshing indexers after wallet reset...');
+      if (key === 'edenRefreshGardens') {
+        console.log('🔄 Refreshing gardens after wallet reset...');
         setTimeout(() => {
-          self.fetchIndexers();
+          self.fetchGardens();
           self.fetchServiceProviders();
         }, 100);
       }
     };
   }
   
-  setViewMode(mode: 'god' | 'priest') {
-    this.viewMode = mode;
-    localStorage.setItem('edenViewMode', mode);
+  /**
+   * Update mode based on current user email
+   * Called when email changes (e.g., Google sign-in)
+   */
+  updateModeFromEmail() {
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    this.isAdmin = userEmail === adminEmail;
     
-    // If switching to Priest mode and Holy Ghost is selected, switch to first non-HG indexer
-    if (mode === 'priest' && this.selectedIndexerTab === 'HG') {
-      const nonHGIndexers = this.getFilteredIndexers();
-      if (nonHGIndexers.length > 0) {
-        this.selectedIndexerTab = nonHGIndexers[0].id;
-        this.updateSelectedIndexerComponents();
+    if (!this.isAdmin) {
+      console.log(`👤 [Sidebar] Non-admin user detected (${userEmail}), forcing USER mode (sidebar hidden)`);
+      this.viewMode = 'user';
+      localStorage.setItem('edenViewMode', 'user');
+    } else {
+      // Admin: Default to GOD mode, but allow saved PRIEST mode if explicitly chosen
+      const savedMode = localStorage.getItem('edenViewMode');
+      if (savedMode === 'god' || savedMode === 'priest') {
+        this.viewMode = savedMode;
+      } else if (savedMode === 'user') {
+        // Admin should never be in USER mode - reset to GOD
+        console.log(`⛪ [Sidebar] Admin user was in USER mode, resetting to GOD mode`);
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
       } else {
-        this.selectedIndexerTab = '';
+        this.viewMode = 'god';
+        localStorage.setItem('edenViewMode', 'god');
       }
-    }
-    
-    // If switching to GOD mode and no tab is selected, select first indexer
-    if (mode === 'god' && !this.selectedIndexerTab && this.indexers.length > 0) {
-      this.selectedIndexerTab = this.indexers[0].id;
-      this.updateSelectedIndexerComponents();
     }
   }
   
-  // Get filtered indexers based on view mode
-  getFilteredIndexers(): IndexerInfo[] {
+  setViewMode(mode: 'god' | 'priest' | 'user') {
+    // Check if user is admin - only admin can use GOD or PRIEST mode
+    const userEmail = localStorage.getItem('userEmail') || 'bill.draper.auto@gmail.com';
+    const adminEmail = 'bill.draper.auto@gmail.com';
+    
+    if ((mode === 'god' || mode === 'priest') && userEmail !== adminEmail) {
+      console.warn(`⚠️ [Sidebar] Non-admin user (${userEmail}) cannot use GOD or PRIEST mode, forcing USER mode`);
+      mode = 'user';
+    }
+    
+    this.viewMode = mode;
+    localStorage.setItem('edenViewMode', mode);
+    
+    // If switching to Priest mode and Holy Ghost is selected, switch to first non-HG garden
+    if (mode === 'priest' && this.selectedGardenTab === 'HG') {
+      const nonHGGardens = this.getFilteredGardens();
+      if (nonHGGardens.length > 0) {
+        this.selectedGardenTab = nonHGGardens[0].id;
+        this.updateSelectedGardenComponents();
+      } else {
+        this.selectedGardenTab = '';
+      }
+    }
+    
+    // If switching to GOD mode and no tab is selected, select first garden
+    if (mode === 'god' && !this.selectedGardenTab && this.gardens.length > 0) {
+      this.selectedGardenTab = this.gardens[0].id;
+      this.updateSelectedGardenComponents();
+    }
+  }
+  
+  // Get filtered gardens based on view mode
+  getFilteredGardens(): GardenInfo[] {
     if (this.viewMode === 'priest') {
       // Priest mode: hide Holy Ghost (HG)
-      return this.indexers.filter(i => i.id !== 'HG');
+      return this.gardens.filter(i => i.id !== 'HG');
     }
-    // GOD mode: show all indexers
-    return this.indexers;
+    // GOD mode: show all gardens
+    return this.gardens;
   }
   
   fetchServiceProviders() {
     // Query all service providers from ServiceRegistry
-    this.http.get<{success: boolean, providers: Array<{id: string, name: string, serviceType: string, indexerId: string, status: string}>}>(`${this.apiUrl}/api/root-ca/service-registry`)
+    this.http.get<{success: boolean, providers: Array<{id: string, name: string, serviceType: string, gardenId?: string, indexerId?: string, status: string}>}>(`${this.apiUrl}/api/root-ca/service-registry`)
       .subscribe({
         next: (response) => {
           if (response.success && response.providers) {
@@ -140,7 +260,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
                   id: provider.id,
                   name: provider.name,
                   serviceType: provider.serviceType,
-                  indexerId: provider.indexerId
+                  gardenId: provider.gardenId || provider.indexerId || '' // Prefer gardenId, fall back to indexerId for backward compatibility
                 });
                 
                 // Add component for this service provider if it doesn't exist
@@ -153,7 +273,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
             
             // Update groups to reflect new service providers
             this.updateGroups();
-            this.updateSelectedIndexerComponents();
+            this.updateSelectedGardenComponents();
           }
         },
         error: (err) => {
@@ -187,6 +307,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (normalized === 'wallet-service-001' || normalized.startsWith('wallet-service')) {
       return 'wallet-service';
     }
+    if (normalized === 'accountant-service-001' || normalized.startsWith('accountant-service')) {
+      return 'accountant-service';
+    }
     
     if (normalized.startsWith('snake-')) {
       // Snake services: "snake-premium-cinema-001" -> "snake-premium-cinema-api"
@@ -211,53 +334,58 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return normalized.replace(/-\d+$/, '-api');
   }
   
-  fetchIndexers() {
-    this.http.get<{success: boolean, indexers: IndexerInfo[]}>(`${this.apiUrl}/api/indexers`)
+  fetchGardens() {
+    // Use /api/gardens endpoint (with fallback to /api/indexers for backward compatibility)
+    // IMPORTANT: System Architecture needs BOTH ecosystems (regular + token/DEX gardens).
+    // Backend defaults /api/gardens to ecosystem=saas; include token gardens via ecosystem=all.
+    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
       .subscribe({
         next: (response) => {
-          if (response.success && response.indexers) {
-            this.indexers = response.indexers.filter(i => i.active);
+          // Support both 'gardens' and 'indexers' response fields for backward compatibility
+          const gardens = response.gardens || response.indexers || [];
+          if (response.success && gardens.length > 0) {
+            this.gardens = gardens.filter(i => i.active);
             
-            // Select first available indexer based on view mode
-            const filteredIndexers = this.getFilteredIndexers();
-            if (filteredIndexers.length > 0) {
+            // Select first available garden based on view mode
+            const filteredGardens = this.getFilteredGardens();
+            if (filteredGardens.length > 0) {
               // If current selection is invalid for current mode, switch to first valid one
-              if (!filteredIndexers.find(i => i.id === this.selectedIndexerTab)) {
-                this.selectedIndexerTab = filteredIndexers[0].id;
+              if (!filteredGardens.find(i => i.id === this.selectedGardenTab)) {
+                this.selectedGardenTab = filteredGardens[0].id;
               }
-              this.updateSelectedIndexerComponents();
-            } else if (this.indexers.length > 0) {
-              // Fallback: select first indexer if filtered list is empty but we have indexers
-              this.selectedIndexerTab = this.indexers[0].id;
-              this.updateSelectedIndexerComponents();
+              this.updateSelectedGardenComponents();
+            } else if (this.gardens.length > 0) {
+              // Fallback: select first garden if filtered list is empty but we have gardens
+              this.selectedGardenTab = this.gardens[0].id;
+              this.updateSelectedGardenComponents();
             }
             this.updateGroups();
           }
         },
         error: (err) => {
-          console.error('Failed to fetch indexers:', err);
-          // Fallback to default indexers if API fails
-          this.indexers = [
-            { id: 'A', name: 'Indexer-A', stream: 'eden:indexer:A', active: true },
-            { id: 'B', name: 'Indexer-B', stream: 'eden:indexer:B', active: true }
+          console.error('Failed to fetch gardens:', err);
+          // Fallback to default gardens if API fails
+          this.gardens = [
+            { id: 'A', name: 'Garden-A', stream: 'eden:garden:A', active: true },
+            { id: 'B', name: 'Garden-B', stream: 'eden:garden:B', active: true }
           ];
-          this.selectedIndexerTab = 'A';
-          this.updateSelectedIndexerComponents();
+          this.selectedGardenTab = 'A';
+          this.updateSelectedGardenComponents();
           this.updateGroups();
         }
       });
   }
   
-  selectIndexerTab(indexerId: string) {
-    this.selectedIndexerTab = indexerId;
-    this.updateSelectedIndexerComponents();
+  selectGardenTab(gardenId: string) {
+    this.selectedGardenTab = gardenId;
+    this.updateSelectedGardenComponents();
   }
   
-  updateSelectedIndexerComponents() {
-    if (this.selectedIndexerTab) {
-      this.selectedIndexerComponents = this.getComponentsForIndexer(this.selectedIndexerTab);
+  updateSelectedGardenComponents() {
+    if (this.selectedGardenTab) {
+      this.selectedGardenComponents = this.getComponentsForGarden(this.selectedGardenTab);
     } else {
-      this.selectedIndexerComponents = [];
+      this.selectedGardenComponents = [];
     }
   }
   
@@ -265,9 +393,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // 1. ROOT CA (Law / Moses) - Top level
     this.addComponent('root-ca', 'ROOT CA', 'root');
     
-    // 2. Indexers (Knowledge Trees) - Federated nodes
-    this.addComponent('indexer-a', 'Indexer A', 'indexer');
-    this.addComponent('indexer-b', 'Indexer B', 'indexer');
+    // 2. Gardens (Knowledge Trees) - Federated nodes
+    this.addComponent('garden-a', 'Garden A', 'indexer');
+    this.addComponent('garden-b', 'Garden B', 'indexer');
     this.addComponent('redis', 'Replication Bus', 'indexer');
     
     // 3. Service Providers (Apples on Trees)
@@ -280,6 +408,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // 5. LLM (Intelligence Layer)
     this.addComponent('llm', 'LLM Intelligence', 'llm');
+    this.addComponent('root-ca-llm-getdata', 'ROOT CA LLM getData() Converter', 'llm');
+    this.addComponent('root-ca-llm-service-mapper', 'ROOT CA LLM Service Mapper', 'llm');
+    
+    // 5.5. ROOT CA Trading Infrastructure
+    this.addComponent('root-ca-price-order-service', 'ROOT CA Price Order Service', 'infrastructure');
     
     // 6. EdenCore (Ledger + Snapshots)
     this.addComponent('ledger', 'Ledger', 'edencore');
@@ -310,9 +443,17 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
+    if (this.emailCheckInterval) {
+      clearInterval(this.emailCheckInterval);
+    }
   }
 
   updateComponentStatus(event: SimulatorEvent) {
+    // Handle null or undefined component
+    if (!event.component) {
+      console.warn(`⚠️ [Sidebar] Event has no component:`, event.type);
+      return;
+    }
     const componentName = event.component.toLowerCase();
     let status: ComponentStatus['status'] = 'active';
     
@@ -395,6 +536,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       'wallet': 'wallet-service',
       'jsc': 'wallet-service',
       'jesuscoin': 'wallet-service',
+      'accountant-service-001': 'accountant-service',
+      'accountant-service': 'accountant-service',
+      'accountant': 'accountant-service',
       'llm': 'llm',
       'ledger': 'ledger',
       'cashier': 'cashier',
@@ -445,27 +589,27 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return 'cinemark-api';
     }
     
-    // Check if it's a new indexer (format: indexer-*)
-    if (normalized.startsWith('indexer-')) {
-      // Dynamically add new indexers
+    // Check if it's a new garden (format: indexer-*)
+    if (normalized.startsWith('garden-') || normalized.startsWith('indexer-')) { // Support both for migration
+      // Dynamically add new gardens
       if (!this.components.has(normalized)) {
-        const indexerName = normalized.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        this.addComponent(normalized, indexerName, 'indexer');
+        const gardenName = normalized.replace('garden-', 'Garden-').replace('indexer-', 'Garden-').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        this.addComponent(normalized, gardenName, 'indexer');
         this.updateGroups(); // Update groups after adding new component
       }
       return normalized;
     }
     
-    // Check if it's a token indexer (format: tokenindexer-* or token-indexer-*)
+    // Check if it's a token garden (format: tokenindexer-* or token-indexer-*)
     if (normalized.startsWith('tokenindexer-') || normalized.startsWith('token-indexer-')) {
-      // Dynamically add new token indexers
+      // Dynamically add new token gardens
       if (!this.components.has(normalized)) {
         // Format: "tokenindexer-t1" -> "Garden T1"
         const parts = normalized.split('-');
-        let indexerName = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        let gardenName = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         // Handle "tokenindexer" -> "Garden"
-        indexerName = indexerName.replace(/Tokenindexer/g, 'Garden');
-        this.addComponent(normalized, indexerName, 'indexer');
+        gardenName = gardenName.replace(/Tokenindexer/g, 'Garden');
+        this.addComponent(normalized, gardenName, 'indexer');
         this.updateGroups(); // Update groups after adding new component
       }
       return normalized;
@@ -588,17 +732,17 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.groups = groups;
   }
   
-  getIndexerNodes(): ComponentStatus[] {
-    // Return indexer nodes that match the current tab or all if no tab selected
-    const indexerNames = this.indexers.map(i => i.name);
+  getGardenNodes(): ComponentStatus[] {
+    // Return garden nodes that match the current tab or all if no tab selected
+    const gardenNames = this.gardens.map(i => i.name);
     return Array.from(this.components.values())
       .filter(c => {
         if (c.category !== 'indexer' || c.name.includes('Replication')) return false;
-        if (this.selectedIndexerTab) {
-          const selectedIndexer = this.indexers.find(i => i.id === this.selectedIndexerTab);
-          return selectedIndexer && c.name === selectedIndexer.name;
+        if (this.selectedGardenTab) {
+          const selectedGarden = this.gardens.find(i => i.id === this.selectedGardenTab);
+          return selectedGarden && c.name === selectedGarden.name;
         }
-        return indexerNames.includes(c.name);
+        return gardenNames.includes(c.name);
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -608,29 +752,29 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .filter(c => c.category === 'indexer' && c.name.includes('Replication'));
   }
   
-  getComponentsForIndexer(indexerId: string): ComponentStatus[] {
-    // Check indexer type
-    // indexerId can be either the tab ID (e.g., "1", "A", "B") or the full indexer ID (e.g., "indexer-1", "indexer-alpha")
-    // Try to find the indexer by matching both mapped ID and raw ID
-    const indexer = this.indexers.find(i => {
-      // Check if it matches the raw indexer ID
-      if (i.id === indexerId) return true;
-      // Map indexer's full ID to tab ID and compare
-      const mappedId = this.mapIndexerIdToTabId(i.id);
-      return mappedId === indexerId;
+  getComponentsForGarden(gardenId: string): ComponentStatus[] {
+    // Check garden type
+    // gardenId can be either the tab ID (e.g., "1", "A", "B") or the full garden ID (e.g., "indexer-1", "indexer-alpha")
+    // Try to find the garden by matching both mapped ID and raw ID
+    const garden = this.gardens.find(i => {
+      // Check if it matches the raw garden ID
+      if (i.id === gardenId) return true;
+      // Map garden's full ID to tab ID and compare
+      const mappedId = this.mapGardenIdToTabId(i.id);
+      return mappedId === gardenId;
     });
-    const isRootIndexer = indexer?.type === 'root'; // Holy Ghost
-    const isTokenIndexer = indexer?.type === 'token';
+    const isRootGarden = garden?.type === 'root'; // Holy Ghost
+    const isTokenGarden = garden?.type === 'token';
     
     // Get the actual tab ID to use for matching providers
-    // If indexerId is a raw ID like "indexer-1", map it to tab ID "1"
+    // If gardenId is a raw ID like "indexer-1", map it to tab ID "1"
     // Otherwise use it as-is
-    const tabId = indexer ? this.mapIndexerIdToTabId(indexer.id) : indexerId;
+    const tabId = garden ? this.mapGardenIdToTabId(garden.id) : gardenId;
     
-    // Holy Ghost (ROOT CA's indexer) shows infrastructure services
-    if (isRootIndexer) {
-      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet)
-      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+    // Holy Ghost (ROOT CA's garden) shows infrastructure services
+    if (isRootGarden) {
+      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet, accountant, price-order, root-ca-llm)
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'price-order', 'root-ca-llm'];
       // Match components by their key (which is derived from provider ID)
       let providerComponents = Array.from(this.components.entries())
         .filter(([componentKey, c]) => {
@@ -643,12 +787,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
             
             // Match if component key matches expected key
             if (componentKey === expectedComponentKey) {
-              // Skip providers without indexerId
-              if (!provider.indexerId) return false;
-              // Check if this provider belongs to Holy Ghost (indexerId: "HG")
-              const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
+              // Skip providers without gardenId
+              if (!provider.gardenId) return false;
+              // Check if this provider belongs to Holy Ghost (gardenId: "HG")
+              const mappedGardenId = this.mapGardenIdToTabId(provider.gardenId);
               
-              if (mappedIndexerId === tabId && infrastructureServiceTypes.includes(provider.serviceType)) {
+              if (mappedGardenId === tabId && infrastructureServiceTypes.includes(provider.serviceType)) {
                 return true;
               }
             }
@@ -682,15 +826,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
       ];
     }
     
-    // Regular and Token Indexers - filter service providers based on indexerId from ServiceRegistry
-    // Show ALL providers that are registered with this indexer in the backend ServiceRegistry
-    // The backend determines which providers belong to which indexer via the indexerId field
+    // Regular and Token Gardens - filter service providers based on gardenId from ServiceRegistry
+    // Show ALL providers that are registered with this garden in the backend ServiceRegistry
+    // The backend determines which providers belong to which garden via the gardenId field
     let providerComponents = Array.from(this.components.entries())
       .filter(([componentKey, c]) => {
         if (c.category !== 'service-provider') return false;
         
         // Find the service provider in our ServiceRegistry map by matching component key to provider ID
-        let belongsToIndexer = false;
+        let belongsToGarden = false;
         
         // Match component key to provider ID using the reverse mapping
         for (const [providerId, provider] of this.serviceProviders.entries()) {
@@ -699,22 +843,22 @@ export class SidebarComponent implements OnInit, OnDestroy {
           
           // Match if component key matches expected key
           if (componentKey === expectedComponentKey) {
-            // Skip providers without indexerId
-            if (!provider.indexerId) {
+            // Skip providers without gardenId
+            if (!provider.gardenId) {
               break;
             }
-            // Map provider's indexerId to sidebar tab ID
-            const mappedIndexerId = this.mapIndexerIdToTabId(provider.indexerId);
+            // Map provider's gardenId to sidebar tab ID
+            const mappedGardenId = this.mapGardenIdToTabId(provider.gardenId);
             
-            if (mappedIndexerId === tabId) {
-              belongsToIndexer = true;
+            if (mappedGardenId === tabId) {
+              belongsToGarden = true;
               break;
             }
           }
         }
         
-        // Show all providers that belong to this indexer according to the backend ServiceRegistry
-        return belongsToIndexer;
+        // Show all providers that belong to this garden according to the backend ServiceRegistry
+        return belongsToGarden;
       })
       .map(([_, c]) => c); // Extract component values
     
@@ -776,7 +920,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       case 'root':
         return 'text-danger'; // Red for ROOT CA (Law)
       case 'indexer':
-        return 'text-success'; // Green for Indexers (Knowledge Trees)
+        return 'text-success'; // Green for Gardens (Knowledge Trees)
       case 'service-provider':
         return 'text-primary'; // Blue for Service Providers
       case 'service-registry':
@@ -796,13 +940,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return components.filter(c => c.category === category);
   }
   
-  get selectedIndexerName(): string {
-    const indexer = this.indexers.find(i => i.id === this.selectedIndexerTab);
-    return indexer ? indexer.name : 'Garden';
+  get selectedGardenName(): string {
+    const garden = this.gardens.find(i => i.id === this.selectedGardenTab);
+    return garden ? garden.name : 'Garden';
   }
   
-  get selectedIndexerServiceRegistry(): ComponentStatus[] {
-    // ServiceRegistry belongs to ROOT CA, not indexers
+  get selectedGardenServiceRegistry(): ComponentStatus[] {
+    // ServiceRegistry belongs to ROOT CA, not gardens
     return [];
   }
   
@@ -812,12 +956,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .filter(c => c.category === 'service-registry');
   }
   
-  get selectedIndexerServiceProviders(): ComponentStatus[] {
-    return this.selectedIndexerComponents.filter(c => c.category === 'service-provider');
+  get selectedGardenServiceProviders(): ComponentStatus[] {
+    return this.selectedGardenComponents.filter(c => c.category === 'service-provider');
   }
   
   // Helper method to find provider for a component
-  private findProviderForComponent(component: ComponentStatus): {id: string, name: string, serviceType: string, indexerId: string} | null {
+  private findProviderForComponent(component: ComponentStatus): {id: string, name: string, serviceType: string, gardenId: string} | null {
     // Try to find component key by matching component object reference
     const componentEntry = Array.from(this.components.entries()).find(([_, comp]) => comp === component);
     if (!componentEntry) {
@@ -841,21 +985,35 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return null;
   }
   
-  get selectedIndexerInfrastructureServices(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
-    return this.selectedIndexerComponents.filter(c => {
+  get selectedGardenInfrastructureServices(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'price-order', 'root-ca-llm'];
+    const infrastructureComponents: ComponentStatus[] = [];
+    
+    // For Holy Ghost (HG), include ROOT CA Price Order Service component
+    if (this.selectedGardenTab === 'HG') {
+      const priceOrderService = this.components.get('root-ca-price-order-service');
+      if (priceOrderService) {
+        infrastructureComponents.push(priceOrderService);
+      }
+    }
+    
+    // Add infrastructure service providers from registry
+    const providerComponents = this.selectedGardenComponents.filter(c => {
       if (c.category !== 'service-provider') return false;
       const provider = this.findProviderForComponent(c);
       return provider !== null && infrastructureServiceTypes.includes(provider.serviceType);
     });
+    
+    infrastructureComponents.push(...providerComponents);
+    return infrastructureComponents;
   }
   
-  get selectedIndexerRegularServiceProviders(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet'];
+  get selectedGardenRegularServiceProviders(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
     // Return all service providers that are NOT infrastructure services
-    // Since selectedIndexerComponents already contains correctly filtered components for this indexer,
+    // Since selectedGardenComponents already contains correctly filtered components for this garden,
     // we just need to filter out infrastructure services
-    return this.selectedIndexerComponents.filter(c => {
+    return this.selectedGardenComponents.filter(c => {
       if (c.category !== 'service-provider') return false;
       const provider = this.findProviderForComponent(c);
       if (provider === null) return false;
@@ -863,47 +1021,128 @@ export class SidebarComponent implements OnInit, OnDestroy {
     });
   }
   
-  get selectedIndexerLLM(): ComponentStatus[] {
-    return this.selectedIndexerComponents.filter(c => c.category === 'llm');
+  get selectedGardenLLM(): ComponentStatus[] {
+    const llmComponents = this.selectedGardenComponents.filter(c => c.category === 'llm');
+    // For Holy Ghost (HG), also include ROOT CA LLM services
+    if (this.selectedGardenTab === 'HG') {
+      const rootCALlmGetData = this.components.get('root-ca-llm-getdata');
+      const rootCALlmServiceMapper = this.components.get('root-ca-llm-service-mapper');
+      if (rootCALlmGetData && !llmComponents.find(c => c.name === rootCALlmGetData.name)) {
+        llmComponents.push(rootCALlmGetData);
+      }
+      if (rootCALlmServiceMapper && !llmComponents.find(c => c.name === rootCALlmServiceMapper.name)) {
+        llmComponents.push(rootCALlmServiceMapper);
+      }
+    }
+    return llmComponents;
   }
   
-  get selectedIndexerEdenCore(): ComponentStatus[] {
-    return this.selectedIndexerComponents.filter(c => c.category === 'edencore');
+  get selectedGardenEdenCore(): ComponentStatus[] {
+    return this.selectedGardenComponents.filter(c => c.category === 'edencore');
   }
   
-  get selectedIndexerUsers(): ComponentStatus[] {
-    return this.selectedIndexerComponents.filter(c => c.category === 'user');
+  get selectedGardenUsers(): ComponentStatus[] {
+    return this.selectedGardenComponents.filter(c => c.category === 'user');
   }
   
-  get selectedIndexerNodeCount(): number {
-    const nodes = this.getIndexerNodes();
+  get selectedGardenNodeCount(): number {
+    const nodes = this.getGardenNodes();
     return nodes.length > 0 ? nodes[0].count : 0;
   }
   
-  mapIndexerIdToTabId(indexerId: string | undefined): string {
-    // Map ServiceRegistry indexerId to sidebar tab ID
+  mapGardenIdToTabId(gardenId: string | undefined): string {
+    // Map ServiceRegistry gardenId to sidebar tab ID
     // "HG" -> "HG" (Holy Ghost)
     // "indexer-alpha" -> "A", "indexer-beta" -> "B", "Garden-T1" -> "Garden-T1", etc.
-    if (!indexerId) {
-      return ''; // Return empty string if indexerId is undefined/null
+    if (!gardenId) {
+      return ''; // Return empty string if gardenId is undefined/null
     }
-    if (indexerId === 'HG') {
-      return 'HG'; // Holy Ghost indexer
+    if (gardenId === 'HG') {
+      return 'HG'; // Holy Ghost garden
     }
-    if (indexerId.startsWith('indexer-')) {
-      // Extract letter from "indexer-alpha" -> "A", "indexer-beta" -> "B"
-      const parts = indexerId.split('-');
+    if (gardenId.startsWith('garden-') || gardenId.startsWith('indexer-')) { // Support both for migration
+      // Extract number from "garden-1" -> "1", "garden-2" -> "2", etc.
+      const parts = gardenId.split('-');
       if (parts.length >= 2) {
-        const letter = parts[1].charAt(0).toUpperCase();
-        return letter;
+        // For garden-1, garden-2, etc., return the number
+        const number = parts[1];
+        return `Garden-${number}`;
       }
     }
-    // For token indexers, return as-is
-    if (indexerId.startsWith('Garden-')) {
-      return indexerId;
+    // For token gardens, return as-is
+    if (gardenId.startsWith('Garden-')) {
+      return gardenId;
     }
     // Default: return first character uppercase
-    return indexerId.charAt(0).toUpperCase();
+    return gardenId.charAt(0).toUpperCase();
+  }
+
+  setArchitectureViewMode(mode: 'tree' | 'table') {
+    this.architectureViewMode = mode;
+    if (mode === 'table') {
+      this.fetchGardensTableData();
+    }
+  }
+
+  fetchGardensTableData() {
+    this.isLoadingGardensTable = true;
+    // IMPORTANT: Table view must also include token/DEX gardens (ecosystem=all).
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name: string, stream: string, active: boolean, type?: string, ownerEmail?: string, serviceType?: string}>}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
+      .subscribe({
+        next: (response) => {
+          this.isLoadingGardensTable = false;
+          if (response.success && response.gardens) {
+            // Map gardens to table data format
+            this.gardensTableData = response.gardens.map(garden => ({
+              id: garden.id,
+              name: garden.name,
+              serviceType: this.inferServiceTypeFromGarden(garden) || 'N/A',
+              ownerEmail: garden.ownerEmail || 'N/A',
+              active: garden.active,
+              type: garden.type
+            }));
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch gardens table data:', err);
+          this.isLoadingGardensTable = false;
+        }
+      });
+  }
+
+  inferServiceTypeFromGarden(garden: {id: string, name: string, type?: string}): string {
+    // Infer service type from garden name or ID
+    const name = garden.name.toLowerCase();
+    const id = garden.id.toLowerCase();
+    
+    if (name.includes('movie') || id.includes('movie')) return 'movie';
+    if (name.includes('dex') || id.includes('dex')) return 'dex';
+    if (name.includes('airline') || id.includes('airline')) return 'airline';
+    if (name.includes('autoparts') || id.includes('autoparts')) return 'autoparts';
+    if (name.includes('hotel') || id.includes('hotel')) return 'hotel';
+    if (name.includes('restaurant') || id.includes('restaurant')) return 'restaurant';
+    if (name.includes('snake') || id.includes('snake')) return 'snake';
+    if (garden.type === 'root') return 'root';
+    if (garden.type === 'token') return 'token';
+    
+    return 'unknown';
+  }
+
+  getServiceTypeBadgeClass(serviceType: string): string {
+    switch (serviceType) {
+      case 'movie': return 'bg-primary';
+      case 'dex': return 'bg-success';
+      case 'airline': return 'bg-info';
+      case 'autoparts': return 'bg-warning';
+      case 'hotel': return 'bg-danger';
+      case 'restaurant': return 'bg-secondary';
+      case 'snake': return 'bg-dark';
+      case 'root': return 'bg-light text-dark';
+      case 'token': return 'bg-primary';
+      case 'unknown':
+      case 'N/A':
+      default: return 'bg-secondary';
+    }
   }
 }
 

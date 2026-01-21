@@ -1,0 +1,225 @@
+{
+  "serviceRegistry": [
+    {
+      "id": "autoparts-3c464392",
+      "uuid": "70ea6a54-66f0-4ab0-acd1-dcf26877faf6",
+      "name": "Garden-AUTOPARTS Provider",
+      "serviceType": "autoparts",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-1",
+      "apiEndpoint": "https://api.autoparts.com/v1"
+    },
+    {
+      "id": "stripe-payment-rail-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440100",
+      "name": "Stripe Payment Rail",
+      "serviceType": "payment-rail",
+      "location": "Global",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "https://api.stripe.com/v1"
+    },
+    {
+      "id": "settlement-service-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440101",
+      "name": "Settlement Service",
+      "serviceType": "settlement",
+      "location": "ROOT CA",
+      "bond": 100000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "internal://settlement"
+    },
+    {
+      "id": "service-registry-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440102",
+      "name": "Service Registry",
+      "serviceType": "registry",
+      "location": "ROOT CA",
+      "bond": 50000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "internal://service-registry"
+    },
+    {
+      "id": "webserver-service-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440103",
+      "name": "Web Server",
+      "serviceType": "webserver",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "http://localhost:3000"
+    },
+    {
+      "id": "websocket-service-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440104",
+      "name": "WebSocket Service",
+      "serviceType": "websocket",
+      "location": "ROOT CA",
+      "bond": 10000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "ws://localhost:3000"
+    },
+    {
+      "id": "wallet-service-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440105",
+      "name": "JesusCoin Wallet Service",
+      "serviceType": "wallet",
+      "location": "ROOT CA",
+      "bond": 200000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "HG",
+      "apiEndpoint": "internal://wallet"
+    },
+    {
+      "id": "amc-001",
+      "uuid": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "AMC Theatres",
+      "serviceType": "movie",
+      "location": "Baltimore, Maryland",
+      "bond": 1000,
+      "reputation": 4.8,
+      "status": "active",
+      "gardenId": "garden-2",
+      "apiEndpoint": "https://api.amctheatres.com/v1/listings"
+    },
+    {
+      "id": "hotel-58fd3671",
+      "uuid": "96f4802b-6783-403f-8a15-2ec69d583570",
+      "name": "Garden-HOTEL Provider",
+      "serviceType": "hotel",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-3",
+      "apiEndpoint": "https://api.hotel.com/v1"
+    },
+    {
+      "id": "airline-fcd06659",
+      "uuid": "e6c870ae-e088-4a50-9257-c667b0ba04a7",
+      "name": "Garden-AIRLINE Provider",
+      "serviceType": "airline",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-4",
+      "apiEndpoint": "https://api.airline.com/v1"
+    },
+    {
+      "id": "restaurant-5f4978cc",
+      "uuid": "6b18ff84-0164-4066-be96-7f8603bb420a",
+      "name": "Garden-RESTAURANT Provider",
+      "serviceType": "restaurant",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-5",
+      "apiEndpoint": "https://api.restaurant.com/v1"
+    },
+    {
+      "id": "grocerystore-f84bd5ce",
+      "uuid": "4658e8a6-3b53-4df1-ab01-a32416082ee7",
+      "name": "Garden-GROCERYSTORE Provider",
+      "serviceType": "grocerystore",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-6",
+      "apiEndpoint": "https://api.grocerystore.com/v1"
+    },
+    {
+      "id": "pharmacy-011a2a85",
+      "uuid": "6f59c2d5-3b77-401b-bb46-655cce2714f5",
+      "name": "Garden-PHARMACY Provider",
+      "serviceType": "pharmacy",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-7",
+      "apiEndpoint": "https://api.pharmacy.com/v1"
+    },
+    {
+      "id": "dogpark-8f30f702",
+      "uuid": "38659e63-2747-44b0-8a6d-cda54c23da3e",
+      "name": "Garden-DOGPARK Provider",
+      "serviceType": "dogpark",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-8",
+      "apiEndpoint": "https://api.dogpark.com/v1",
+      "certificate": {
+        "subject": "38659e63-2747-44b0-8a6d-cda54c23da3e",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "SERVICE_PROVIDER",
+          "PRICE_QUOTE",
+          "RECEIVE_PAYMENT"
+        ],
+        "constraints": {
+          "providerId": "dogpark-8f30f702",
+          "providerName": "Garden-DOGPARK Provider",
+          "serviceType": "dogpark",
+          "location": "Unknown",
+          "bond": 1000,
+          "reputation": 5
+        },
+        "issuedAt": 1768788466233,
+        "expiresAt": 1776564466233,
+        "signature": "F2I0NfZ5Q5M8S6GL1rqsbxC4aZQ3CLRBHvTihC9GfE1DuiDkXk1IWEL7DWQ4Jyfb6H5v/+NEP1sN/u1+mH9LDg=="
+      }
+    },
+    {
+      "id": "gasstation-eb0afc10",
+      "uuid": "c5203574-ca4e-4d12-bb70-9da841cbe724",
+      "name": "Garden-GASSTATION Provider",
+      "serviceType": "gasstation",
+      "location": "Unknown",
+      "bond": 1000,
+      "reputation": 5,
+      "status": "active",
+      "gardenId": "garden-9",
+      "apiEndpoint": "https://api.gasstation.com/v1",
+      "certificate": {
+        "subject": "c5203574-ca4e-4d12-bb70-9da841cbe724",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "SERVICE_PROVIDER",
+          "PRICE_QUOTE",
+          "RECEIVE_PAYMENT"
+        ],
+        "constraints": {
+          "providerId": "gasstation-eb0afc10",
+          "providerName": "Garden-GASSTATION Provider",
+          "serviceType": "gasstation",
+          "location": "Unknown",
+          "bond": 1000,
+          "reputation": 5
+        },
+        "issuedAt": 1768788472826,
+        "expiresAt": 1776564472826,
+        "signature": "Tjp7A8vrpq/AsOP00Vthg/yATeBc4j4PmgADeiNYgoL4C8JI3mwEOS9HQyAOURqfmpUrRWDoY/0oGb/z+6MLCw=="
+      }
+    }
+  ],
+  "lastSaved": "2026-01-19T02:07:52.910Z"
+}

@@ -1,0 +1,112 @@
+<div class="card-deck-container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">📋 My Bookings</h5>
+    <span class="badge bg-info">{{ filteredLedgerEntries.length }} entries</span>
+  </div>
+  
+  <div *ngIf="!filteredLedgerEntries || filteredLedgerEntries.length === 0" class="text-center text-muted py-5">
+    <p class="mb-0">No bookings yet.</p>
+  </div>
+  
+  <div class="row g-2" *ngIf="filteredLedgerEntries && filteredLedgerEntries.length > 0">
+    <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2" *ngFor="let entry of filteredLedgerEntries">
+      <div class="card h-100 ledger-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fs-5">{{ getServiceIcon(entry?.serviceType || '') }}</span>
+            <span class="badge bg-secondary">{{ entry?.serviceType || 'N/A' }}</span>
+          </div>
+          <span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span>
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <small class="text-muted d-block">Date</small>
+            <strong>{{ formatDate(entry?.timestamp) }}</strong>
+          </div>
+          
+          <div class="mb-2">
+            <small class="text-muted d-block">Amount</small>
+            <h6 class="mb-0 text-primary">{{ entry?.amount?.toFixed(2) || '0.00' }} 🍎 APPLES</h6>
+          </div>
+          
+          <div class="mb-2" *ngIf="entry?.merchant">
+            <small class="text-muted d-block">Merchant</small>
+            <small>{{ entry.merchant }}</small>
+          </div>
+          
+          <div class="mb-2" *ngIf="entry?.iGasCost">
+            <small class="text-muted d-block">iGas Cost</small>
+            <small>{{ formatIGasCost(entry.iGasCost) }}</small>
+          </div>
+          
+          <div *ngIf="entry?.bookingDetails" class="mt-3 pt-3 border-top">
+            <small class="text-muted d-block mb-1">Details</small>
+            <small class="text-muted">{{ formatBookingDetails(entry) }}</small>
+          </div>
+          
+          <!-- Stripe Payment Details -->
+          <div *ngIf="entry?.bookingDetails?.asset || entry?.bookingDetails?.stripePaymentIntentId" class="mt-3 pt-3 border-top">
+            <small class="text-muted d-block mb-2 fw-bold">Payment Information</small>
+            <div *ngIf="entry?.bookingDetails?.asset" class="mb-1">
+              <small class="text-muted d-block">Asset:</small>
+              <small class="fw-bold">{{ entry?.bookingDetails?.asset }}</small>
+            </div>
+            <div *ngIf="entry?.bookingDetails?.stripePaymentIntentId" class="mb-1">
+              <small class="text-muted d-block">Stripe Payment Intent Id:</small>
+              <small class="font-monospace">{{ entry?.bookingDetails?.stripePaymentIntentId }}</small>
+            </div>
+            <div *ngIf="entry?.bookingDetails?.stripePaymentMethodId" class="mb-1">
+              <small class="text-muted d-block">Stripe Payment Method Id:</small>
+              <small class="font-monospace">{{ entry?.bookingDetails?.stripePaymentMethodId }}</small>
+            </div>
+            <div *ngIf="entry?.bookingDetails?.stripeSessionId" class="mb-1">
+              <small class="text-muted d-block">Stripe Session Id:</small>
+              <small class="font-monospace">{{ entry?.bookingDetails?.stripeSessionId }}</small>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-light">
+          <small 
+            class="text-muted transaction-id clickable" 
+            (click)="getTransactionSnapshot(entry?.entryId || '', entry?.txId || '')"
+            title="Click to view transaction snapshot details">
+            {{ entry?.entryId || 'N/A' }}
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Snapshot Modal -->
+<div class="modal fade" [ngClass]="{'show': showTransactionModal, 'd-block': showTransactionModal}" 
+     *ngIf="showTransactionModal" tabindex="-1" role="dialog" 
+     style="background-color: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">📸 Transaction Snapshot Details</h5>
+        <button type="button" class="btn-close" (click)="closeTransactionModal()" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="isLoadingTransaction" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Fetching transaction snapshot from ROOT CA RPC Service...</p>
+        </div>
+        
+        <div *ngIf="transactionError" class="alert alert-danger">
+          <strong>Error:</strong> {{ transactionError }}
+        </div>
+        
+        <div *ngIf="transactionSnapshot && !isLoadingTransaction">
+          <pre class="bg-light p-3 rounded" style="font-size: 0.75rem; max-height: 70vh; overflow-y: auto;">{{ formatJson(transactionSnapshot) }}</pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeTransactionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

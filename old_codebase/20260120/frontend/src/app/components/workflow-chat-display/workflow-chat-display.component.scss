@@ -1,0 +1,144 @@
+.workflow-chat-container {
+  .chat-messages-container {
+    background-color: var(--bs-body-bg);
+    border-radius: 0.25rem;
+    border: 1px solid var(--bs-border-color);
+  }
+
+  .chat-bubble {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    margin-bottom: 8px;
+    position: relative;
+
+    .chat-content {
+      word-wrap: break-word;
+      margin-bottom: 4px;
+    }
+
+    .chat-timestamp {
+      display: block;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+  }
+
+  .chat-bubble-user {
+    background-color: var(--bs-primary);
+    color: var(--bs-white);
+    border-bottom-right-radius: 4px;
+  }
+
+  .chat-bubble-assistant {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  }
+
+  .chat-bubble-system {
+    background-color: var(--bs-info-bg-subtle, rgba(13, 110, 253, 0.12));
+    color: var(--bs-info-text-emphasis, var(--bs-body-color));
+    border: 1px solid var(--bs-info-border-subtle, var(--bs-border-color));
+    text-align: center;
+    max-width: 80%;
+  }
+
+  .chat-bubble-wallet {
+    background-color: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.12));
+    color: var(--bs-warning-text-emphasis, var(--bs-body-color));
+    border: 1px solid var(--bs-warning-border-subtle, var(--bs-border-color));
+    border-left: 4px solid var(--bs-warning);
+    text-align: left;
+    max-width: 85%;
+    padding: 16px;
+    
+    .chat-content {
+      font-weight: 500;
+    }
+  }
+
+  .chat-bubble-ledger {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-left: 4px solid var(--bs-success);
+    max-width: 85%;
+    padding: 16px;
+
+    .ledger-message-header {
+      margin-bottom: 8px;
+      color: var(--bs-success);
+    }
+
+    .ledger-message-content {
+      background-color: var(--bs-tertiary-bg);
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--bs-border-color);
+    }
+
+    .ledger-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--bs-border-color);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .ledger-label {
+        font-weight: 500;
+        color: var(--bs-secondary-color);
+        margin-right: 8px;
+      }
+    }
+  }
+
+  .listings-preview {
+    padding: 8px;
+    background-color: var(--bs-tertiary-bg);
+    border-radius: 8px;
+    margin-top: 8px;
+    border: 1px solid var(--bs-border-color);
+  }
+
+  .selection-options {
+    margin-top: 12px;
+  }
+
+  .option-card {
+    padding: 12px;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: var(--bs-secondary-bg);
+      border-color: var(--bs-primary);
+    }
+
+    .option-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+
+  .ledger-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid var(--bs-border-color);
+
+    table {
+      font-size: 0.875rem;
+    }
+  }
+}
+
