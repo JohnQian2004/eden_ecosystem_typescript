@@ -146,7 +146,19 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
 
     // Listen for workflow decision requests
+    // CRITICAL: Only handle decisions if this component is in the active tab
+    // This prevents conflicts when both workflow-display and workflow-chat-display are active
     this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: UserDecisionRequest) => {
+      // Check if this component is visible (in active tab)
+      // workflow-display is only visible when activeTab === 'workflow' and not in user mode
+      const isComponentVisible = this.isComponentInActiveTab();
+      
+      if (!isComponentVisible) {
+        console.log('🤔 [WorkflowDisplay] Decision request received but component is not in active tab - ignoring');
+        console.log('🤔 [WorkflowDisplay] This decision will be handled by workflow-chat-display instead');
+        return; // Don't handle decision if component is not visible
+      }
+      
       console.log('🤔 [WorkflowDisplay] Decision required:', decisionRequest);
       console.log('🤔 [WorkflowDisplay] Decision request options:', decisionRequest.options);
       console.log('🤔 [WorkflowDisplay] Options count:', decisionRequest.options?.length || 0);
@@ -1330,6 +1342,32 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         // Other events (ledger, payment, etc.) can be handled here if needed
         break;
     }
+  }
+
+  /**
+   * Check if this component is in the active tab
+   * workflow-display is only visible when activeTab === 'workflow' and not in user mode
+   */
+  private isComponentInActiveTab(): boolean {
+    // Check if the workflow tab pane is visible
+    const workflowPane = document.getElementById('workflow-pane');
+    if (!workflowPane) {
+      return false; // Tab pane doesn't exist
+    }
+    
+    // Check if the tab pane has 'show active' classes (Bootstrap tab active state)
+    const hasActiveClass = workflowPane.classList.contains('show') && workflowPane.classList.contains('active');
+    
+    // Also check if component is actually visible in DOM
+    const isVisible = workflowPane.offsetParent !== null;
+    
+    console.log('🔍 [WorkflowDisplay] Component visibility check:', {
+      hasActiveClass,
+      isVisible,
+      offsetParent: workflowPane.offsetParent !== null
+    });
+    
+    return hasActiveClass && isVisible;
   }
 
   private resetForNewExecution(executionId: string): void {
