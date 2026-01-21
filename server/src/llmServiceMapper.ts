@@ -217,9 +217,21 @@ export async function mapUserInputToServices(
   // Get available providers (filter out core services)
   let providers: ServiceProvider[] = availableProviders || Array.from(ROOT_CA_SERVICE_REGISTRY);
   providers = filterCoreServices(providers);
+  
+  // CRITICAL: For DEX-related queries, only send DEX services to LLM
+  // Detect DEX intent from user input (keywords like "buy", "sell", "trade", "token", "dex", "sol", etc.)
+  const dexKeywords = ['buy', 'sell', 'trade', 'token', 'dex', 'sol', 'solana', 'swap', 'exchange', 'pool', 'liquidity'];
+  const userInputLower = userInput.toLowerCase();
+  const isDexQuery = dexKeywords.some(keyword => userInputLower.includes(keyword));
+  
+  if (isDexQuery) {
+    // Filter to only DEX services
+    providers = providers.filter(p => p.serviceType === 'dex');
+    console.log(`🤖 [LLM Service Mapper] DEX query detected - filtering to ${providers.length} DEX service(s) only`);
+  }
 
   if (providers.length === 0) {
-    throw new Error("No services available in registry (all filtered as core services)");
+    throw new Error("No services available in registry (all filtered as core services or no DEX services found)");
   }
 
   // Prepare service registry summary for LLM
@@ -232,12 +244,16 @@ export async function mapUserInputToServices(
   }));
 
   // Build the LLM prompt with user input and service registry
+  const dexContextNote = isDexQuery 
+    ? "\n\nNOTE: This is a DEX (token trading) query. Only DEX services are available in the registry above. Select DEX pool providers that match the user's trading intent (BUY/SELL, token pair, amount, etc.)."
+    : "";
+  
   const fullPrompt = `${LLM_SERVICE_SELECTION_PROMPT}
 
 USER INPUT: "${userInput}"
 
 AVAILABLE SERVICE REGISTRY:
-${JSON.stringify(registrySummary, null, 2)}
+${JSON.stringify(registrySummary, null, 2)}${dexContextNote}
 
 Analyze the user input and select the best matching services from the registry above.
 Return ONLY the JSON object as specified in the format above.`;

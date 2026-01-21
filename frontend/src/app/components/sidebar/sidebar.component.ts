@@ -409,6 +409,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // 5. LLM (Intelligence Layer)
     this.addComponent('llm', 'LLM Intelligence', 'llm');
     this.addComponent('root-ca-llm-getdata', 'ROOT CA LLM getData() Converter', 'llm');
+    this.addComponent('root-ca-llm-service-mapper', 'ROOT CA LLM Service Mapper', 'llm');
+    
+    // 5.5. ROOT CA Trading Infrastructure
+    this.addComponent('root-ca-price-order-service', 'ROOT CA Price Order Service', 'infrastructure');
     
     // 6. EdenCore (Ledger + Snapshots)
     this.addComponent('ledger', 'Ledger', 'edencore');
@@ -769,8 +773,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // Holy Ghost (ROOT CA's garden) shows infrastructure services
     if (isRootGarden) {
-      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet, accountant, root-ca-llm)
-      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
+      // Filter service providers for infrastructure services (payment-rail, settlement, registry, webserver, websocket, wallet, accountant, price-order, root-ca-llm)
+      const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'price-order', 'root-ca-llm'];
       // Match components by their key (which is derived from provider ID)
       let providerComponents = Array.from(this.components.entries())
         .filter(([componentKey, c]) => {
@@ -982,12 +986,26 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
   
   get selectedGardenInfrastructureServices(): ComponentStatus[] {
-    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
-    return this.selectedGardenComponents.filter(c => {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'price-order', 'root-ca-llm'];
+    const infrastructureComponents: ComponentStatus[] = [];
+    
+    // For Holy Ghost (HG), include ROOT CA Price Order Service component
+    if (this.selectedGardenTab === 'HG') {
+      const priceOrderService = this.components.get('root-ca-price-order-service');
+      if (priceOrderService) {
+        infrastructureComponents.push(priceOrderService);
+      }
+    }
+    
+    // Add infrastructure service providers from registry
+    const providerComponents = this.selectedGardenComponents.filter(c => {
       if (c.category !== 'service-provider') return false;
       const provider = this.findProviderForComponent(c);
       return provider !== null && infrastructureServiceTypes.includes(provider.serviceType);
     });
+    
+    infrastructureComponents.push(...providerComponents);
+    return infrastructureComponents;
   }
   
   get selectedGardenRegularServiceProviders(): ComponentStatus[] {
@@ -1005,11 +1023,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   get selectedGardenLLM(): ComponentStatus[] {
     const llmComponents = this.selectedGardenComponents.filter(c => c.category === 'llm');
-    // For Holy Ghost (HG), also include ROOT CA LLM service
+    // For Holy Ghost (HG), also include ROOT CA LLM services
     if (this.selectedGardenTab === 'HG') {
-      const rootCALlm = this.components.get('root-ca-llm-getdata');
-      if (rootCALlm && !llmComponents.find(c => c.name === rootCALlm.name)) {
-        llmComponents.push(rootCALlm);
+      const rootCALlmGetData = this.components.get('root-ca-llm-getdata');
+      const rootCALlmServiceMapper = this.components.get('root-ca-llm-service-mapper');
+      if (rootCALlmGetData && !llmComponents.find(c => c.name === rootCALlmGetData.name)) {
+        llmComponents.push(rootCALlmGetData);
+      }
+      if (rootCALlmServiceMapper && !llmComponents.find(c => c.name === rootCALlmServiceMapper.name)) {
+        llmComponents.push(rootCALlmServiceMapper);
       }
     }
     return llmComponents;

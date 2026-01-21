@@ -571,12 +571,91 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           if (ledgerMessageIndex !== -1) {
             // Update the existing message
             const details = this.formatBookingDetails(completedEntry);
+            
+            // Extract fields from completed entry (handle nested structures)
+            // For DEX trades, ALWAYS prioritize bookingDetails.baseAmount (the actual SOL amount traded)
+            const isDexTradeCompleted = completedEntry.serviceType === 'dex' 
+              || completedEntry.entry?.serviceType === 'dex' 
+              || completedEntry.bookingDetails?.action
+              || completedEntry.bookingDetails?.tokenSymbol
+              || this.chatMessages[ledgerMessageIndex].data?.serviceType === 'dex';
+            
+            // Get bookingDetails from multiple possible locations
+            const completedBookingDetails = completedEntry.bookingDetails 
+              || completedEntry.entry?.bookingDetails 
+              || completedEntry.data?.bookingDetails
+              || this.chatMessages[ledgerMessageIndex].data?.entry?.bookingDetails;
+            
+            let amount = 0;
+            if (isDexTradeCompleted && completedBookingDetails) {
+              // For DEX: prioritize baseAmount from bookingDetails (this is the SOL amount)
+              // Check if baseAmount exists and is a valid number (even if it's a small decimal)
+              const baseAmount = completedBookingDetails.baseAmount;
+              const totalAmount = completedBookingDetails.totalAmount;
+              const bookingAmount = completedBookingDetails.amount;
+              
+              if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
+                amount = Number(baseAmount);
+              } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
+                amount = Number(totalAmount);
+              } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
+                amount = Number(bookingAmount);
+              }
+            }
+            
+            // If not DEX or bookingDetails didn't have amount, check standard fields
+            if (amount === 0 || amount === null || amount === undefined) {
+              amount = completedEntry.amount !== undefined && completedEntry.amount !== null && completedEntry.amount > 0
+                ? completedEntry.amount
+                : (completedEntry.entry?.amount !== undefined && completedEntry.entry?.amount !== null && completedEntry.entry.amount > 0
+                    ? completedEntry.entry.amount
+                    : (completedEntry.snapshot?.amount !== undefined && completedEntry.snapshot?.amount !== null && completedEntry.snapshot.amount > 0
+                        ? completedEntry.snapshot.amount
+                        : (this.chatMessages[ledgerMessageIndex].data?.amount || 0)));
+            }
+            
+            // Final fallback: try bookingDetails for non-DEX or if still 0
+            if ((amount === 0 || amount === null || amount === undefined) && completedEntry.bookingDetails) {
+              amount = completedEntry.bookingDetails.totalAmount 
+                || completedEntry.bookingDetails.baseAmount
+                || completedEntry.bookingDetails.price
+                || completedEntry.bookingDetails.amount
+                || 0;
+            }
+            
+            // Extract merchant - try multiple sources including bookingDetails
+            // Preserve existing merchant if new one is generic
+            const newMerchant = completedEntry.merchant 
+              || completedEntry.entry?.merchant 
+              || completedEntry.snapshot?.merchant 
+              || completedEntry.bookingDetails?.merchantName
+              || completedEntry.bookingDetails?.providerName;
+            
+            // If new merchant is generic like "Service Provider", keep the existing one
+            const existingMerchant = this.chatMessages[ledgerMessageIndex].data?.merchant;
+            const merchant = (newMerchant && newMerchant !== 'Service Provider' && newMerchant !== 'N/A')
+              ? newMerchant
+              : (existingMerchant && existingMerchant !== 'N/A' && existingMerchant !== 'Service Provider')
+                  ? existingMerchant
+                  : (newMerchant || existingMerchant || 'N/A');
+            
+            // Extract serviceType
+            const serviceType = completedEntry.serviceType 
+              || completedEntry.entry?.serviceType 
+              || completedEntry.snapshot?.serviceType 
+              || completedEntry.bookingDetails?.serviceType
+              || this.chatMessages[ledgerMessageIndex].data?.serviceType 
+              || 'N/A';
+            const status = completedEntry.status || completedEntry.entry?.status || 'completed';
+            
             // HARDCODED: Always show restaurant entries as completed
-            const displayStatus = completedEntry.serviceType === 'restaurant' ? 'completed' : completedEntry.status;
+            const displayStatus = serviceType === 'restaurant' ? 'completed' : status;
             const statusEmoji = '✅'; // completed status
             const iGasCost = completedEntry.iGasCost !== undefined && completedEntry.iGasCost !== null 
               ? completedEntry.iGasCost 
-              : (this.chatMessages[ledgerMessageIndex].data?.iGasCost || 0);
+              : (completedEntry.entry?.iGasCost !== undefined && completedEntry.entry?.iGasCost !== null
+                  ? completedEntry.entry.iGasCost
+                  : (this.chatMessages[ledgerMessageIndex].data?.iGasCost || 0));
             
             this.chatMessages[ledgerMessageIndex] = {
               ...this.chatMessages[ledgerMessageIndex],
@@ -585,9 +664,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
                 ...this.chatMessages[ledgerMessageIndex].data,
                 entry: { ...completedEntry, status: displayStatus },
                 details: details,
-                amount: completedEntry.amount,
-                merchant: completedEntry.merchant,
-                serviceType: completedEntry.serviceType,
+                amount: amount,
+                merchant: merchant,
+                serviceType: serviceType,
                 iGasCost: iGasCost
               }
             };
@@ -1225,10 +1304,113 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Mark as displayed
     this.displayedLedgerEntryIds.add(entry.entryId);
 
+    // Extract fields from entry (handle nested structures)
+    // For DEX trades, ALWAYS prioritize bookingDetails.baseAmount (the actual SOL amount traded)
+    const isDexTrade = entry.serviceType === 'dex' 
+      || entry.entry?.serviceType === 'dex' 
+      || entry.bookingDetails?.action
+      || entry.bookingDetails?.tokenSymbol;
+    
+    // Get bookingDetails from multiple possible locations
+    const bookingDetails = entry.bookingDetails 
+      || entry.entry?.bookingDetails 
+      || entry.data?.bookingDetails;
+    
+    let amount = 0;
+    
+    // For DEX trades, prioritize bookingDetails.baseAmount (the actual SOL amount traded)
+    // BUT: If baseAmount is 0 or missing, use entry.amount (which should be set correctly by backend)
+    if (isDexTrade && bookingDetails) {
+      const baseAmount = bookingDetails.baseAmount;
+      const totalAmount = bookingDetails.totalAmount;
+      const bookingAmount = bookingDetails.amount;
+      
+      console.log('💬 [WorkflowChat] DEX trade amount extraction:', {
+        entryId: entry.entryId,
+        entryAmount: entry.amount,
+        baseAmount,
+        totalAmount,
+        bookingAmount,
+        hasBookingDetails: !!bookingDetails
+      });
+      
+      // For DEX trades, baseAmount is the actual SOL amount traded (what user sees)
+      // If baseAmount exists and is > 0, use it; otherwise fall back to entry.amount
+      if (baseAmount !== undefined && baseAmount !== null && !isNaN(Number(baseAmount)) && Number(baseAmount) > 0) {
+        amount = Number(baseAmount);
+        console.log('💬 [WorkflowChat] Using baseAmount from bookingDetails:', amount);
+      } else if (totalAmount !== undefined && totalAmount !== null && !isNaN(Number(totalAmount)) && Number(totalAmount) > 0) {
+        amount = Number(totalAmount);
+        console.log('💬 [WorkflowChat] Using totalAmount from bookingDetails:', amount);
+      } else if (bookingAmount !== undefined && bookingAmount !== null && !isNaN(Number(bookingAmount)) && Number(bookingAmount) > 0) {
+        amount = Number(bookingAmount);
+        console.log('💬 [WorkflowChat] Using bookingAmount from bookingDetails:', amount);
+      } else {
+        // Fall back to entry.amount if bookingDetails amounts are missing or 0
+        if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
+          amount = entry.amount;
+          console.log('💬 [WorkflowChat] Using entry.amount (bookingDetails amounts missing/zero):', amount);
+        }
+      }
+    }
+    
+    // If not DEX or bookingDetails didn't have amount, check standard fields
+    if ((amount === 0 || amount === null || amount === undefined) && !isDexTrade) {
+      amount = entry.amount !== undefined && entry.amount !== null && entry.amount > 0
+        ? entry.amount
+        : (entry.entry?.amount !== undefined && entry.entry?.amount !== null && entry.entry.amount > 0
+            ? entry.entry.amount
+            : (entry.snapshot?.amount !== undefined && entry.snapshot?.amount !== null && entry.snapshot.amount > 0
+                ? entry.snapshot.amount
+                : 0));
+    }
+    
+    // For DEX: Final fallback to entry.amount if still 0 (should not happen, but safety net)
+    if (isDexTrade && (amount === 0 || amount === null || amount === undefined)) {
+      if (entry.amount !== undefined && entry.amount !== null && entry.amount > 0) {
+        console.warn('💬 [WorkflowChat] DEX trade: Using entry.amount as final fallback:', entry.amount);
+        amount = entry.amount;
+      } else {
+        console.error('💬 [WorkflowChat] DEX trade: Could not extract amount!', {
+          entryId: entry.entryId,
+          entryAmount: entry.amount,
+          bookingDetails: bookingDetails ? JSON.stringify(bookingDetails) : 'missing'
+        });
+      }
+    }
+    
+    // Final fallback: try bookingDetails for non-DEX or if still 0
+    if ((amount === 0 || amount === null || amount === undefined) && bookingDetails && !isDexTrade) {
+      const fallbackAmount = bookingDetails.totalAmount 
+        || bookingDetails.baseAmount
+        || bookingDetails.price
+        || bookingDetails.amount;
+      if (fallbackAmount !== undefined && fallbackAmount !== null && !isNaN(Number(fallbackAmount)) && Number(fallbackAmount) > 0) {
+        amount = Number(fallbackAmount);
+      }
+    }
+    
+    // Extract merchant - try multiple sources including bookingDetails
+    const merchant = entry.merchant 
+      || entry.entry?.merchant 
+      || entry.snapshot?.merchant 
+      || entry.bookingDetails?.merchantName
+      || entry.bookingDetails?.providerName
+      || 'N/A';
+    
+    // Extract serviceType
+    const serviceType = entry.serviceType 
+      || entry.entry?.serviceType 
+      || entry.snapshot?.serviceType 
+      || entry.bookingDetails?.serviceType
+      || 'N/A';
+    
+    const status = entry.status || entry.entry?.status || 'pending';
+    
     // Create a formatted ledger message
     const details = this.formatBookingDetails(entry);
     // HARDCODED: Always show restaurant entries as completed
-    const displayStatus = entry.serviceType === 'restaurant' ? 'completed' : entry.status;
+    const displayStatus = serviceType === 'restaurant' ? 'completed' : status;
     const statusEmoji = displayStatus === 'completed' ? '✅' : 
                         displayStatus === 'processed' ? '⏳' : 
                         displayStatus === 'pending' ? '⏱️' : '❌';
@@ -1240,11 +1422,27 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           ? entry.entry.iGasCost 
           : 0);
 
-    console.log('💬 [WorkflowChat] Creating ledger message with iGasCost:', {
+    console.log('💬 [WorkflowChat] Creating ledger message:', {
       entryId: entry.entryId,
+      extractedAmount: amount,
+      merchant: merchant,
+      serviceType: serviceType,
       iGasCost: iGasCost,
-      entryIGasCost: entry.iGasCost,
-      entryEntryIGasCost: entry.entry?.iGasCost
+      status: status,
+      isDexTrade: isDexTrade,
+      bookingDetails: bookingDetails ? {
+        baseAmount: bookingDetails.baseAmount,
+        totalAmount: bookingDetails.totalAmount,
+        action: bookingDetails.action,
+        tokenSymbol: bookingDetails.tokenSymbol,
+        tokenAmount: bookingDetails.tokenAmount,
+        fullBookingDetails: JSON.stringify(bookingDetails)
+      } : null,
+      entryAmount: entry.amount,
+      entryEntryAmount: entry.entry?.amount,
+      snapshotAmount: entry.snapshot?.amount,
+      hasBookingDetails: !!bookingDetails,
+      entryFull: JSON.stringify(entry, null, 2).substring(0, 500) // First 500 chars for debugging
     });
 
     // Log the full entry to debug
@@ -1253,13 +1451,13 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     this.addChatMessage({
       type: 'ledger',
       content: `${statusEmoji} **Transaction ${displayStatus}**`,
-      timestamp: entry.timestamp || Date.now(),
+      timestamp: entry.timestamp || entry.entry?.timestamp || Date.now(),
       data: {
         entry: { ...entry, status: displayStatus }, // Use displayStatus for UI
         details: details,
-        amount: entry.amount,
-        merchant: entry.merchant,
-        serviceType: entry.serviceType,
+        amount: amount,
+        merchant: merchant,
+        serviceType: serviceType,
         iGasCost: iGasCost
       }
     });

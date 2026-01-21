@@ -17,23 +17,27 @@ function normalizePoolId(poolId: string): string {
 
 function parseTokenSymbolFromPoolId(poolId: string): string | null {
   // Expected formats:
-  // - pool-solana-tokena
-  // - pool-solana-token-a
-  // Anything after the last '-' is treated as symbol suffix, with TOKEN prefix restored if needed.
+  // - pool-solana-token-1 => "TOKEN"
+  // - pool-solana-token-2 => "TOKEN"
+  // - pool-solana-tokena => "TOKEN" (legacy support)
+  // All pools now use "TOKEN" as the symbol (changed from TOKENA, TOKENB, etc.)
   const normalized = normalizePoolId(poolId);
   if (!normalized.startsWith("pool-solana-")) return null;
   const suffix = normalized.slice("pool-solana-".length);
   if (!suffix) return null;
-  // If already starts with token, keep; else assume it's token suffix like "tokena" => "TOKENA"
-  const cleaned = suffix.replace(/[^a-z0-9_-]/g, "");
+  
+  // If it starts with "token" (case-insensitive), return "TOKEN"
+  const cleaned = suffix.replace(/[^a-z0-9_-]/g, "").toLowerCase();
   if (!cleaned) return null;
-  // Convert "tokena" => "TOKENA"; "token-a" => "TOKENA"
-  const compact = cleaned.replace(/[^a-z0-9]/g, "");
-  if (!compact) return null;
-  if (compact.startsWith("token")) {
-    return compact.toUpperCase();
+  
+  // Check if it starts with "token" (handles "token-1", "token1", "tokena", etc.)
+  if (cleaned.startsWith("token")) {
+    return "TOKEN"; // All pools use "TOKEN" now
   }
-  return `TOKEN${compact.toUpperCase()}`;
+  
+  // Legacy support: if it's just a letter/number, assume it's a token suffix
+  // But still return "TOKEN" for consistency
+  return "TOKEN";
 }
 
 function createSyntheticPool(poolId: string): TokenPool | null {
@@ -81,10 +85,10 @@ export function initializeDEXPools(): void {
     if (!tokenGarden) continue;
     
     // Create pools for this token garden
-    // Token Garden T1 gets TOKENA, T2 gets TOKENB, etc.
-    const tokenSymbol = `TOKEN${String.fromCharCode(65 + i)}`; // TOKENA, TOKENB, TOKENC...
-    const tokenName = `Token ${String.fromCharCode(65 + i)}`;
-    const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
+    // All token gardens use TOKEN/SOL format
+    const tokenSymbol = 'TOKEN';
+    const tokenName = `Token ${i + 1}`;
+    const poolId = `pool-solana-token-${i + 1}`;
     
     const pool: TokenPool = {
       poolId: poolId,

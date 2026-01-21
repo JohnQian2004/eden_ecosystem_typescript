@@ -1351,8 +1351,9 @@ async function executeStepActions(
           break;
 
         case "execute_dex_trade":
-          // Execute DEX trade (FULLY AUTOMATED)
-          // Use handler to execute trade and update wallet
+          // NEW: Execute DEX trade using Order Processor (real-time order system)
+          // This uses the new matching engine, two-phase settlement, and event broadcasting
+          console.log(`🔄 [FlowWiseService] Executing DEX trade using Order Processor`);
           const { createActionHandlers } = await import("../flowwiseHandlers");
           const handlers = createActionHandlers();
           const dexHandler = handlers.get("execute_dex_trade");
@@ -1363,11 +1364,24 @@ async function executeStepActions(
           
           const dexResult = await dexHandler(processedAction, context);
           
-          // Merge result into context
+          // Merge result into context (now includes order, settlement, matchResult)
+          if (dexResult.order) {
+            context.dexOrder = dexResult.order;
+            console.log(`✅ [FlowWiseService] DEX order created: ${dexResult.order.orderId} (status: ${dexResult.order.status})`);
+          }
           if (dexResult.trade) {
             context.trade = dexResult.trade;
             // Update totalCost with actual trade amount
             context.totalCost = dexResult.trade.baseAmount + (context.iGasCost || 0);
+            console.log(`✅ [FlowWiseService] DEX trade executed: ${dexResult.trade.action} ${dexResult.trade.tokenAmount} ${dexResult.trade.tokenSymbol}`);
+          }
+          if (dexResult.settlement) {
+            context.dexSettlement = dexResult.settlement;
+            console.log(`🔒 [FlowWiseService] Provisional settlement created: ${dexResult.settlement.settlementId}`);
+          }
+          if (dexResult.matchResult) {
+            context.dexMatchResult = dexResult.matchResult;
+            console.log(`🎯 [FlowWiseService] Order matched: ${dexResult.matchResult.matched ? 'YES' : 'NO'} (filled: ${dexResult.matchResult.filledAmount})`);
           }
           if (dexResult.updatedBalance !== undefined) {
             context.user.balance = dexResult.updatedBalance;

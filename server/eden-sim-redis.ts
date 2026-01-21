@@ -126,6 +126,7 @@ import {
   executeNextStep,
   getWorkflowState
 } from "./src/components/flowwiseService";
+import { initializePriceBroadcaster } from "./src/dex/priceBroadcaster";
 import {
   initializePriesthoodCertification,
   applyForPriesthood,
@@ -7292,8 +7293,13 @@ httpServer.on("request", async (req, res) => {
       try {
         const requestData = JSON.parse(body);
         const gardenName = requestData.gardenName || requestData.indexerName;
-        const { serverIp, serverDomain, serverPort, networkType, email } = requestData;
+        const { serverIp, serverDomain, serverPort, networkType, email, tokenSymbol, baseToken } = requestData;
         const serviceType = "dex";
+        
+        // Get token pair from request or use defaults
+        const finalTokenSymbol = tokenSymbol || 'TOKEN';
+        const finalBaseToken = baseToken || 'SOL';
+        console.log(`   💰 [DEX Garden] Token pair configuration: ${finalTokenSymbol}/${finalBaseToken}`);
 
         if (!gardenName) {
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -7427,9 +7433,31 @@ httpServer.on("request", async (req, res) => {
         // This prevents the service registry persistence file from containing only HG infrastructure.
         try {
           const tokenGardenIndex = TOKEN_GARDENS.findIndex(tg => tg.id === gardenConfig.id);
-          const tokenSymbol = `TOKEN${String.fromCharCode(65 + Math.max(0, tokenGardenIndex))}`; // TOKENA, TOKENB...
-          const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
-          const providerId = `dex-pool-${tokenSymbol.toLowerCase()}`;
+          // Use token pair from request or defaults
+          const tokenSymbol = finalTokenSymbol;
+          const poolId = `pool-${finalBaseToken.toLowerCase()}-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
+          const providerId = `dex-pool-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
+          
+          // Create the pool if it doesn't exist
+          if (!DEX_POOLS.has(poolId)) {
+            const pool: TokenPool = {
+              poolId: poolId,
+              tokenSymbol: tokenSymbol,
+              tokenName: `${tokenSymbol} ${tokenGardenIndex + 1}`,
+              baseToken: finalBaseToken,
+              poolLiquidity: 100 - (tokenGardenIndex * 10),
+              tokenReserve: 100000 - (tokenGardenIndex * 10000),
+              baseReserve: 100 - (tokenGardenIndex * 10),
+              price: 0.001,
+              bond: 5000,
+              gardenId: gardenConfig.id,
+              createdAt: Date.now(),
+              totalVolume: 0,
+              totalTrades: 0,
+            };
+            DEX_POOLS.set(poolId, pool);
+            console.log(`   ✅ [DEX Gardens] Created DEX pool: ${tokenSymbol}/${finalBaseToken} (${poolId}) → ${gardenConfig.id}`);
+          }
 
           const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === gardenConfig.id);
           if (!existing) {
@@ -8230,10 +8258,10 @@ httpServer.on("request", async (req, res) => {
             console.warn(`   ⚠️  Skipping DEX pool and provider creation for ${gardenConfig.id}`);
           } else {
             // Create pool for this token garden (matching initializeDEXPools format)
-            // Token Garden T1 gets TOKENA, T2 gets TOKENB, etc.
-            const tokenSymbol = `TOKEN${String.fromCharCode(65 + tokenGardenIndex)}`; // TOKENA, TOKENB, TOKENC...
-            const tokenName = `Token ${String.fromCharCode(65 + tokenGardenIndex)}`;
-            const poolId = `pool-solana-${tokenSymbol.toLowerCase()}`;
+            // Use token pair from request or defaults
+            const tokenSymbol = finalTokenSymbol;
+            const tokenName = `${tokenSymbol} ${tokenGardenIndex + 1}`;
+            const poolId = `pool-${finalBaseToken.toLowerCase()}-${tokenSymbol.toLowerCase()}-${tokenGardenIndex + 1}`;
             
             // Check if pool already exists
             if (DEX_POOLS.has(poolId)) {
@@ -8244,7 +8272,7 @@ httpServer.on("request", async (req, res) => {
                 poolId: poolId,
                 tokenSymbol: tokenSymbol,
                 tokenName: tokenName,
-                baseToken: "SOL",
+                baseToken: finalBaseToken,
                 poolLiquidity: 100 - (tokenGardenIndex * 10), // Decreasing liquidity for variety: 100, 90, 80...
                 tokenReserve: 100000 - (tokenGardenIndex * 10000), // 100k, 90k, 80k...
                 baseReserve: 100 - (tokenGardenIndex * 10), // 100, 90, 80...
@@ -9850,6 +9878,19 @@ const ROOT_CA_SERVICE_REGISTRY: ServiceProviderWithCert[] = [
     gardenId: "HG", // Holy Ghost garden
     apiEndpoint: "internal://accountant",
     status: 'active'
+  },
+  {
+    id: "price-order-service-001",
+    uuid: "550e8400-e29b-41d4-a716-446655440107",
+    name: "Price Order Service",
+    serviceType: "price-order",
+    location: "ROOT CA",
+    bond: 100000, // Very high bond for order matching and settlement authority
+    reputation: 5.0,
+    gardenId: "HG", // Holy Ghost garden
+    apiEndpoint: "internal://price-order",
+    status: 'active',
+    description: "Real-time DEX order matching, two-phase settlement, and price broadcasting service"
   },
   // Regular Service Providers
   // In ROOT mode: All service providers (including amc-001) are created dynamically via the wizard
@@ -13430,6 +13471,10 @@ async function main() {
   
   // Initialize LLM module with dependencies
   initializeLLM(broadcastEvent);
+  
+  // Initialize DEX Price Broadcaster (real-time price updates and trade events)
+  initializePriceBroadcaster(broadcastEvent);
+  console.log("✅ [DEX Price Broadcaster] Real-time price update service initialized");
   
   // Initialize PriestHood Certification Service
   initializePriesthoodCertification();

@@ -360,6 +360,39 @@
                 </small>
               </div>
               
+              <!-- Token Pair Configuration (for DEX service type) -->
+              <div *ngIf="selectedServiceType?.type === 'dex'" class="mb-3">
+                <label class="form-label small fw-bold">Token Pair Configuration</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small">Token Symbol</label>
+                    <input 
+                      type="text" 
+                      class="form-control form-control-sm" 
+                      [(ngModel)]="gardenConfig.tokenSymbol"
+                      name="tokenSymbol"
+                      placeholder="TOKEN"
+                      required>
+                    <small class="text-muted">The token symbol (e.g., TOKEN)</small>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small">Base Token</label>
+                    <input 
+                      type="text" 
+                      class="form-control form-control-sm" 
+                      [(ngModel)]="gardenConfig.baseToken"
+                      name="baseToken"
+                      placeholder="SOL"
+                      required>
+                    <small class="text-muted">The base token (e.g., SOL)</small>
+                  </div>
+                </div>
+                <div class="alert alert-info mt-2 mb-0 py-2 small">
+                  <strong>Token Pair:</strong> <code>{{ gardenConfig.tokenSymbol || 'TOKEN' }}/{{ gardenConfig.baseToken || 'SOL' }}</code>
+                  <br><small>This pair will be used for all DEX trading operations in this garden.</small>
+                </div>
+              </div>
+              
               <!-- Custom Providers (for all service types) -->
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">

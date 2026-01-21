@@ -378,7 +378,7 @@
       "name": "Garden-DEX",
       "stream": "eden:token-garden:T1",
       "active": true,
-      "uuid": "eden:garden:8720efbc-d017-4f8f-b995-7c5ba3d53bf1",
+      "uuid": "eden:garden:2d117581-4fba-4974-97c8-c5a0f97af938",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -388,7 +388,7 @@
       "serviceType": "dex",
       "tokenServiceType": "dex",
       "certificate": {
-        "subject": "eden:garden:8720efbc-d017-4f8f-b995-7c5ba3d53bf1",
+        "subject": "eden:garden:2d117581-4fba-4974-97c8-c5a0f97af938",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -399,9 +399,9 @@
           "gardenName": "Garden-DEX",
           "stream": "eden:token-garden:T1"
         },
-        "issuedAt": 1768940270540,
-        "expiresAt": 1800476270540,
-        "signature": "Qa6Ktnwo0cIH20Fq98s9hV4An49qLFlymemT4RcNbxKktU2qyWhHntqKwToYK0K5HJwBqKFKM0Dn+AltyyHHAg=="
+        "issuedAt": 1769019994245,
+        "expiresAt": 1800555994245,
+        "signature": "VSCvoEwVRo1GmSDslMJNLH09526Y4E09HFaRbEHbEXQTCERAd1vQuolbbSkDie6vSscgl/dHmM8x632xNV9ICw=="
       }
     },
     {
@@ -409,7 +409,7 @@
       "name": "Garden-DEX",
       "stream": "eden:token-garden:T2",
       "active": true,
-      "uuid": "eden:garden:9bf2f77f-02de-4c15-8aa1-2e31f3763b9e",
+      "uuid": "eden:garden:7892f873-c059-4ca0-9b8b-08627932670e",
       "ownerEmail": "bill.draper.auto@gmail.com",
       "priestEmail": "bill.draper.auto@gmail.com",
       "serverIp": "localhost",
@@ -419,7 +419,7 @@
       "serviceType": "dex",
       "tokenServiceType": "dex",
       "certificate": {
-        "subject": "eden:garden:9bf2f77f-02de-4c15-8aa1-2e31f3763b9e",
+        "subject": "eden:garden:7892f873-c059-4ca0-9b8b-08627932670e",
         "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
         "capabilities": [
           "INDEXER",
@@ -430,11 +430,11 @@
           "gardenName": "Garden-DEX",
           "stream": "eden:token-garden:T2"
         },
-        "issuedAt": 1768940281756,
-        "expiresAt": 1800476281756,
-        "signature": "wIXfCZqCqO3dzBrepp6L8dzezn0mq1dP8B9CzbdCyg7enssVQb7/mew1fCbbcPtTbUwn4YZ1RN4xSRBG2bJcAQ=="
+        "issuedAt": 1769020003243,
+        "expiresAt": 1800556003243,
+        "signature": "17Md0ZmQUy5ci+kgVL+wtcpeYffV3ALTaA/FCMvmTpO+DdXhkvPpP+55kDDt9wmBDnNHZi1ZA5AEKMY/EqSBDA=="
       }
     }
   ],
-  "lastSaved": "2026-01-20T20:38:47.322Z"
+  "lastSaved": "2026-01-21T18:26:43.246Z"
 }

@@ -20,6 +20,8 @@ interface GardenConfig {
   isSnake: boolean;
   selectedProviders?: string[]; // Selected movie theater providers
   videoUrl?: string; // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+  tokenSymbol?: string; // Token symbol for DEX gardens (e.g., 'TOKEN')
+  baseToken?: string; // Base token for DEX gardens (e.g., 'SOL')
 }
 
 interface CustomProvider {
@@ -122,7 +124,9 @@ LIMIT 30 OFFSET 0`;
     networkType: 'http',
     isSnake: false,
     selectedProviders: [],
-    videoUrl: '' // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+    videoUrl: '', // Video URL endpoint for movie gardens (e.g., /api/movie/video/2025-12-09-144801890.mp4)
+    tokenSymbol: 'TOKEN', // Default token symbol for DEX gardens
+    baseToken: 'SOL' // Default base token for DEX gardens
   };
   
   // Available movie theater providers (predefined)
@@ -442,6 +446,13 @@ LIMIT 30 OFFSET 0`;
       this.gardenConfig.videoUrl = '/api/movie/video/2025-12-09-144801890.mp4';
       console.log('🎬 Initialized selectedProviders for movie: empty (user must select)');
       console.log('🎬 Set default videoUrl:', this.gardenConfig.videoUrl);
+    } else if (serviceType.type === 'dex') {
+      // Initialize DEX garden defaults
+      this.gardenConfig.selectedProviders = [];
+      this.gardenConfig.videoUrl = '';
+      this.gardenConfig.tokenSymbol = 'TOKEN';
+      this.gardenConfig.baseToken = 'SOL';
+      console.log('💰 Initialized DEX garden with TOKEN/SOL pair');
     } else {
       this.gardenConfig.selectedProviders = [];
       this.gardenConfig.videoUrl = '';
@@ -565,6 +576,13 @@ LIMIT 30 OFFSET 0`;
       email: this.userEmail,
       videoUrl: this.gardenConfig.videoUrl || '' // Video URL for movie gardens
     };
+
+    // Add token pair configuration for DEX gardens
+    if (isDexGarden) {
+      requestBody.tokenSymbol = this.gardenConfig.tokenSymbol || 'TOKEN';
+      requestBody.baseToken = this.gardenConfig.baseToken || 'SOL';
+      console.log(`💰 [DEX Garden] Token pair: ${requestBody.tokenSymbol}/${requestBody.baseToken}`);
+    }
 
     if (!isDexGarden) {
       requestBody.amount = requiredFee;
@@ -747,7 +765,9 @@ LIMIT 30 OFFSET 0`;
       serverPort: 3001,
       networkType: 'http',
       isSnake: false,
-      selectedProviders: []
+      selectedProviders: [],
+      tokenSymbol: 'TOKEN',
+      baseToken: 'SOL'
     };
     this.customProviders = [];
     this.creationError = null;

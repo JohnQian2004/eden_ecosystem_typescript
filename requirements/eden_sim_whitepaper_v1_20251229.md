@@ -70,6 +70,11 @@ This fundamental difference enables:
 - Certifies gardens and services
 - **Manages centralized ServiceRegistry** (single source of truth for all services)
 - Provides quick post-LLM in-memory service lookup for gardens
+- **ROOT CA LLM Services**:
+  - **LLM Service Mapper**: Maps user natural language input to services/gardens from the registry, eliminating pre-canned prompts and garden-based service selection
+  - **LLM getData() Converter**: Translates natural language queries into structured getData() function parameters for provider data layers
+- **ROOT CA Trading Infrastructure**:
+  - **Price Order Service**: Real-time DEX order matching engine with dual support (AMM + Order Book), two-phase settlement (provisional → final), and WebSocket-based price broadcasting. Handles order lifecycle, matching, settlement, and real-time price updates for DEX trading.
 - Collects minimal intelligence fee (≈0.001%)
 - Guarantees fallback, insurance, and dispute resolution
 - **Settlement authority** (only ROOT CA can settle transactions and update balances)
@@ -1287,6 +1292,8 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
      - Web Server Service (`webserver-service-001`)
      - WebSocket Service (`websocket-service-001`)
      - Wallet Service (`wallet-service-001`)
+     - Accountant Service (`accountant-service-001`)
+     - Price Order Service (`price-order-service-001`)
      - System Prompt Generator Service (`system-prompt-generator-001`)
      - Notification Code Generator Service (`notification-code-generator-001`)
    - Holy Ghost certificate issued
@@ -1315,6 +1322,8 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
      ├─── Settlement Service
      ├─── Service Registry
      ├─── Wallet Service
+     ├─── Accountant Service
+     ├─── Price Order Service
      ├─── System Prompt Generator
      ├─── Notification Code Generator
      └─── Replication Bus (Redis)
@@ -3513,6 +3522,8 @@ Eden covers **all first-order primitives** of a sovereign ecosystem:
 - ✅ iGas / iTax as intelligence cost (not compute gas)
 - ✅ LLM System Prompt Management (Redis-backed, auto-generated)
 - ✅ Transaction Notification Code Generation (LLM-powered)
+- ✅ **ROOT CA LLM Service Mapper**: Maps user natural language input to services/gardens from the registry, eliminating pre-canned prompts
+- ✅ **ROOT CA LLM getData() Converter**: Translates natural language queries into structured getData() function parameters for provider data layers
 
 #### Economy
 - ✅ No web3 dependency (pure fiat-backed economy)
