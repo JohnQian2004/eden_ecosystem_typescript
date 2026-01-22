@@ -1,0 +1,70 @@
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+import { RouterModule, Routes } from '@angular/router';
+import { AppComponent } from './app.component';
+import { ChatBoxComponent } from './components/chat-box/chat-box.component';
+import { SidebarComponent } from './components/sidebar/sidebar.component';
+import { IgasDisplayComponent } from './components/igas-display/igas-display.component';
+import { LedgerDisplayComponent } from './components/ledger-display/ledger-display.component';
+import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
+import { WorkflowDisplayComponent } from './components/workflow-display/workflow-display.component';
+import { WorkflowChatDisplayComponent } from './components/workflow-chat-display/workflow-chat-display.component';
+import { WebSocketService } from './services/websocket.service';
+import { ChatService } from './services/chat.service';
+import { FlowWiseService } from './services/flowwise.service';
+import { SystemConfigComponent } from './components/system-config/system-config.component';
+import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
+import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
+import { DexGardenWizardComponent } from './components/dex-garden-wizard/dex-garden-wizard.component';
+import { CacheInterceptor } from './services/cache.interceptor';
+
+const routes: Routes = [
+  { 
+    path: '', 
+    component: AppComponent,
+    children: [
+      { 
+        path: 'dex-garden-wizard', 
+        component: DexGardenWizardComponent 
+      }
+    ]
+  }
+];
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    ChatBoxComponent,
+    SidebarComponent,
+    IgasDisplayComponent,
+    LedgerDisplayComponent,
+    CertificateDisplayComponent,
+    WorkflowDisplayComponent,
+    WorkflowChatDisplayComponent,
+    SystemConfigComponent,
+    MovieTheaterComponent,
+    LedgerCardDeckComponent,
+    DexGardenWizardComponent
+  ],
+  imports: [
+    BrowserModule,
+    HttpClientModule,
+    FormsModule,
+    RouterModule.forRoot(routes)
+  ],
+  providers: [
+    WebSocketService, 
+    ChatService, 
+    FlowWiseService,
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: CacheInterceptor,
+      multi: true
+    }
+  ],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+

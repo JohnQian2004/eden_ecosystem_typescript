@@ -1,0 +1,133 @@
+<div class="card">
+  <div class="card-header bg-info text-white">
+    <h5 class="mb-0">{{ ledgerTitle }}</h5>
+  </div>
+  <div class="card-body">
+    <!-- Cashier Status -->
+    <div *ngIf="cashier && !isUserMode" class="mb-4 p-3 bg-light rounded">
+      <h6>💳 Cashier Status</h6>
+      <div class="row">
+        <div class="col-md-4">
+          <strong>Name:</strong> {{ cashier.name }}
+        </div>
+        <div class="col-md-4">
+          <strong>Processed:</strong> {{ cashier.processedCount }} transactions
+        </div>
+        <div class="col-md-4">
+          <strong>Total:</strong> {{ cashier.totalProcessed?.toFixed(2) || '0.00' }} 🍎 APPLES
+        </div>
+      </div>
+    </div>
+    
+    <!-- Entry Count -->
+    <div class="mb-3">
+      <strong>Total Entries:</strong> {{ filteredLedgerEntries?.length || 0 }}
+      <span *ngIf="isUserMode && ledgerEntries.length > filteredLedgerEntries.length" class="text-muted small">
+        (filtered from {{ ledgerEntries.length }} total)
+      </span>
+      <span *ngIf="filteredLedgerEntries.length > itemsPerPage" class="text-muted small ms-2">
+        | Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredLedgerEntries.length) }} of {{ filteredLedgerEntries.length }}
+      </span>
+    </div>
+    
+    <!-- Entry List -->
+    <div *ngIf="!filteredLedgerEntries || filteredLedgerEntries.length === 0" class="text-center text-muted py-5">
+      <p class="mb-0">No ledger entries yet.</p>
+    </div>
+    
+    <div *ngIf="filteredLedgerEntries && filteredLedgerEntries.length > 0" class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Entry ID</th>
+            <th>Timestamp</th>
+            <th>Email</th>
+            <th>Merchant</th>
+            <th>Service Type</th>
+            <th>Amount</th>
+            <th>iGas Cost</th>
+            <th>Status</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let entry of paginatedEntries">
+            <td>
+              <small 
+                class="text-primary clickable" 
+                (click)="getTransactionSnapshot(entry?.entryId || '', entry?.txId || '')"
+                title="Click to view transaction snapshot details"
+                style="cursor: pointer; text-decoration: underline;">
+                {{ entry?.entryId || 'N/A' }}
+              </small>
+            </td>
+            <td><small>{{ entry?.timestamp ? formatDate(entry.timestamp) : 'N/A' }}</small></td>
+            <td><small>{{ entry?.payer || entry?.payerId || 'N/A' }}</small></td>
+            <td>{{ entry?.merchant || 'N/A' }}</td>
+            <td><span class="badge bg-secondary">{{ entry?.serviceType || 'N/A' }}</span></td>
+            <td><strong>{{ formatAmount(entry) }} 🍎 APPLES</strong></td>
+            <td>{{ formatIGasCost(entry?.iGasCost) }}</td>
+            <td><span [ngClass]="getStatusClass(entry?.status || 'N/A')">{{ entry?.status || 'N/A' }}</span></td>
+            <td>
+              <div *ngIf="entry?.bookingDetails" [innerHTML]="formatBookingDetails(entry)"></div>
+              <span *ngIf="!entry?.bookingDetails" class="text-muted">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Pagination Controls -->
+    <div *ngIf="filteredLedgerEntries && filteredLedgerEntries.length > itemsPerPage" class="mt-4">
+      <nav aria-label="Ledger pagination">
+        <ul class="pagination justify-content-center">
+          <li class="page-item" [ngClass]="{'disabled': currentPage === 1}">
+            <a class="page-link" (click)="previousPage()" [attr.aria-disabled]="currentPage === 1" style="cursor: pointer;">Previous</a>
+          </li>
+          <li *ngFor="let page of getPageNumbers()" class="page-item" [ngClass]="{'active': page === currentPage}">
+            <a class="page-link" (click)="goToPage(page)" style="cursor: pointer;">{{ page }}</a>
+          </li>
+          <li class="page-item" [ngClass]="{'disabled': currentPage === totalPages}">
+            <a class="page-link" (click)="nextPage()" [attr.aria-disabled]="currentPage === totalPages" style="cursor: pointer;">Next</a>
+          </li>
+        </ul>
+      </nav>
+      <div class="text-center mt-2 text-muted small">
+        Page {{ currentPage }} of {{ totalPages }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Snapshot Modal -->
+<div class="modal fade" [ngClass]="{'show': showTransactionModal, 'd-block': showTransactionModal}" 
+     *ngIf="showTransactionModal" tabindex="-1" role="dialog" 
+     style="background-color: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">📸 Transaction Snapshot Details</h5>
+        <button type="button" class="btn-close" (click)="closeTransactionModal()" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="isLoadingTransaction" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Fetching transaction snapshot from ROOT CA RPC Service...</p>
+        </div>
+        
+        <div *ngIf="transactionError" class="alert alert-danger">
+          <strong>Error:</strong> {{ transactionError }}
+        </div>
+        
+        <div *ngIf="transactionSnapshot && !isLoadingTransaction">
+          <pre class="bg-light p-3 rounded" style="font-size: 0.75rem; max-height: 70vh; overflow-y: auto;">{{ formatJson(transactionSnapshot) }}</pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeTransactionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

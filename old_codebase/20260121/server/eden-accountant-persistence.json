@@ -1,0 +1,157 @@
+{
+  "totalIGas": 0.21190000000000014,
+  "totalITax": 3.1501250047302055e-7,
+  "totalRootCAFees": 0.481100026401104,
+  "totalIndexerFees": 0.000125,
+  "totalProviderFees": 200.36420008500156,
+  "totalCashierFees": 31.300000000000175,
+  "revenueByServiceType": {
+    "garden_deployment": {
+      "count": 48,
+      "totalAmount": 0,
+      "totalIGas": 0,
+      "totalITax": 0,
+      "totalRootCAFees": 0,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 0,
+      "totalCashierFees": 0
+    },
+    "grocerystore": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000356,
+      "totalIndexerFees": 0.000089
+    },
+    "pharmacy": {
+      "count": 36,
+      "totalAmount": 0,
+      "totalIGas": 0.16020000000000004,
+      "totalITax": 0,
+      "totalRootCAFees": 9.594534000000001,
+      "totalIndexerFees": 0.0001335,
+      "totalProviderFees": 22.386000000000017,
+      "totalCashierFees": 2.800000000000001
+    },
+    "gasstation": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000356,
+      "totalIndexerFees": 0.000089
+    },
+    "dogpark": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 0.000356,
+      "totalIndexerFees": 0.000089
+    },
+    "party": {
+      "count": 18,
+      "totalAmount": 0,
+      "totalIGas": 0.0801,
+      "totalITax": 0,
+      "totalRootCAFees": 3.8381339999999997,
+      "totalIndexerFees": 0.0001335,
+      "totalProviderFees": 7.995000000000001,
+      "totalCashierFees": 0.9999999999999999
+    },
+    "bank": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0.0178,
+      "totalITax": 0,
+      "totalRootCAFees": 2.000178,
+      "totalIndexerFees": 0.0000445,
+      "totalProviderFees": null,
+      "totalCashierFees": null
+    },
+    "dex": {
+      "count": 65,
+      "totalAmount": 0,
+      "totalIGas": 0.2030000000000001,
+      "totalITax": 3.1501250047302055e-7,
+      "totalRootCAFees": 0.0015670316011920532,
+      "totalIndexerFees": 0.00019175000000000016,
+      "totalProviderFees": 0.0019000760029201287,
+      "totalCashierFees": 3.600000000000002
+    },
+    "priesthood": {
+      "count": 4,
+      "totalAmount": 0,
+      "totalIGas": 0,
+      "totalITax": 0,
+      "totalRootCAFees": 0,
+      "totalIndexerFees": 0,
+      "totalProviderFees": null,
+      "totalCashierFees": null
+    },
+    "airline": {
+      "count": 10,
+      "totalAmount": 0,
+      "totalIGas": 0.044500000000000005,
+      "totalITax": 0,
+      "totalRootCAFees": 47.998578,
+      "totalIndexerFees": 0.0000445,
+      "totalProviderFees": 89.997,
+      "totalCashierFees": 0.6
+    },
+    "autoparts": {
+      "count": 10,
+      "totalAmount": 0,
+      "totalIGas": 0.044500000000000005,
+      "totalITax": 0,
+      "totalRootCAFees": 2.7188000000000008,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 6.797000000000001,
+      "totalCashierFees": 0.9999999999999999
+    },
+    "restaurant": {
+      "count": 18,
+      "totalAmount": 0,
+      "totalIGas": 0.0801,
+      "totalITax": 0,
+      "totalRootCAFees": 5.756399999999999,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 14.391000000000002,
+      "totalCashierFees": 1.8000000000000005
+    },
+    "hotel": {
+      "count": 2,
+      "totalAmount": 0,
+      "totalIGas": 0.0089,
+      "totalITax": 0,
+      "totalRootCAFees": 0.6396000000000001,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 1.5990000000000002,
+      "totalCashierFees": 0.2
+    },
+    "movie": {
+      "count": 194,
+      "totalAmount": 0,
+      "totalIGas": 0.863299999999997,
+      "totalITax": 0,
+      "totalRootCAFees": 7.600080002400058,
+      "totalIndexerFees": 0,
+      "totalProviderFees": 19.000200006000128,
+      "totalCashierFees": 19.400000000000006
+    },
+    "undefined": {
+      "count": 3,
+      "totalAmount": 0,
+      "totalIGas": null,
+      "totalITax": 0,
+      "totalRootCAFees": null,
+      "totalIndexerFees": null,
+      "totalProviderFees": 0,
+      "totalCashierFees": 0
+    }
+  },
+  "lastUpdated": 1769045872875,
+  "createdAt": 1768780667884,
+  "lastSaved": "2026-01-22T01:37:52.875Z"
+}

@@ -1,0 +1,448 @@
+<div class="sidebar-content">
+  <div class="sidebar-header">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h5 class="mb-1">🌳 System Architecture</h5>
+        <small class="text-muted">Eden Hierarchy</small>
+      </div>
+    </div>
+    
+    <!-- Mode Filter Toggle (Admin Only) -->
+    <div class="mode-filter" *ngIf="isAdmin">
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': viewMode === 'god', 'btn-outline-primary': viewMode !== 'god'}"
+          (click)="setViewMode('god')"
+          title="GOD Mode: Shows ROOT CA and all infrastructure">
+          ⛪ GOD
+        </button>
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-success': viewMode === 'priest', 'btn-outline-success': viewMode !== 'priest'}"
+          (click)="setViewMode('priest')"
+          title="Priest Mode: Hides ROOT CA (infrastructure), shows only gardens">
+          🛐 Priest
+        </button>
+      </div>
+      <small class="text-muted d-block mt-1">Admin Mode Selection</small>
+    </div>
+    
+    <!-- Architecture View Toggle (GOD Mode Only) -->
+    <div class="architecture-view-toggle mt-2" *ngIf="isAdmin && viewMode === 'god'">
+      <div class="btn-group btn-group-sm w-100" role="group">
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': architectureViewMode === 'tree', 'btn-outline-primary': architectureViewMode !== 'tree'}"
+          (click)="setArchitectureViewMode('tree')"
+          title="Tree View: Hierarchical system architecture">
+          🌳 Tree View
+        </button>
+        <button 
+          type="button" 
+          class="btn"
+          [ngClass]="{'btn-primary': architectureViewMode === 'table', 'btn-outline-primary': architectureViewMode !== 'table'}"
+          (click)="setArchitectureViewMode('table')"
+          title="Table View: Scalable garden listing">
+          📊 Table View
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Table View (GOD Mode Only) -->
+  <div *ngIf="isAdmin && viewMode === 'god' && architectureViewMode === 'table'" class="gardens-table-container">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Garden ID</th>
+            <th>Name</th>
+            <th>Service Type</th>
+            <th>Owner Email</th>
+            <th>Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="isLoadingGardensTable">
+            <td colspan="6" class="text-center py-3">
+              <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!isLoadingGardensTable && gardensTableData.length === 0">
+            <td colspan="6" class="text-center text-muted py-3">No gardens found</td>
+          </tr>
+          <tr *ngFor="let garden of gardensTableData" [class.table-success]="garden.active" [class.table-secondary]="!garden.active">
+            <td><code>{{ garden.id }}</code></td>
+            <td><strong>{{ garden.name }}</strong></td>
+            <td>
+              <span class="badge" 
+                    [ngClass]="getServiceTypeBadgeClass(garden.serviceType)">
+                <span class="me-1">{{ getServiceTypeIcon(garden.serviceType) }}</span>
+                {{ garden.serviceType }}
+              </span>
+            </td>
+            <td><small>{{ garden.ownerEmail }}</small></td>
+            <td>
+              <span class="badge" 
+                    [ngClass]="{
+                      'bg-info': garden.type === 'root',
+                      'bg-primary': garden.type === 'token',
+                      'bg-secondary': garden.type === 'regular' || !garden.type
+                    }">
+                {{ garden.type || 'regular' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="{'bg-success': garden.active, 'bg-secondary': !garden.active}">
+                {{ garden.active ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Tree View (GOD Mode Only) -->
+  <div *ngIf="isAdmin && viewMode === 'god' && architectureViewMode === 'tree'">
+  <!-- ROOT CA at the top (only shown in GOD mode) -->
+  <div *ngFor="let group of groups" class="component-group">
+    <ng-container *ngIf="group.category === 'root' && viewMode === 'god'">
+      <div 
+        class="group-header d-flex justify-content-between align-items-center cursor-pointer"
+        [class.bg-light]="group.expanded"
+        (click)="toggleGroup(group)"
+        [attr.data-category]="group.category">
+        <div class="d-flex align-items-center">
+          <span class="group-icon">{{ group.icon }}</span>
+          <span class="group-name" [ngClass]="getCategoryColor(group.category)">{{ group.name }}</span>
+          <span class="badge bg-secondary badge-xs">{{ group.components.length }}</span>
+        </div>
+        <span class="toggle-icon">{{ group.expanded ? '▼' : '▶' }}</span>
+      </div>
+      
+      <div *ngIf="group.expanded" class="group-components">
+        <!-- Service Registry sub-group (only for ROOT CA) -->
+        <div *ngIf="group.category === 'root' && rootCAServiceRegistry.length > 0" class="sub-group">
+          <div class="sub-group-label">Service Registry</div>
+          <div 
+            *ngFor="let component of rootCAServiceRegistry" 
+            class="component-item border-start border-2"
+            [ngClass]="getStatusClass(component.status)"
+            [class.border-success]="component.status === 'success'"
+            [class.border-danger]="component.status === 'error'"
+            [class.border-warning]="component.status === 'active'"
+            [class.border-secondary]="component.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                <span class="component-name">{{ component.name }}</span>
+              </div>
+              <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Other ROOT CA components (non-ServiceRegistry) -->
+        <ng-container *ngIf="group.category === 'root'">
+          <ng-container *ngFor="let component of group.components">
+            <div 
+              *ngIf="component.category !== 'service-registry'"
+              class="component-item border-start border-2"
+              [ngClass]="getStatusClass(component.status)"
+              [class.border-success]="component.status === 'success'"
+              [class.border-danger]="component.status === 'error'"
+              [class.border-warning]="component.status === 'active'"
+              [class.border-secondary]="component.status === 'idle'">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                  <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                  <span class="component-name">{{ component.name }}</span>
+                </div>
+                <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+              </div>
+            </div>
+          </ng-container>
+          <!-- ROOT CA LLM Service (GOD-controlled data access) -->
+          <div 
+            *ngIf="components.get('root-ca-llm-getdata')"
+            class="component-item border-start border-2 border-warning"
+            [ngClass]="getStatusClass(components.get('root-ca-llm-getdata')?.status || 'idle')"
+            [class.border-success]="components.get('root-ca-llm-getdata')?.status === 'success'"
+            [class.border-danger]="components.get('root-ca-llm-getdata')?.status === 'error'"
+            [class.border-warning]="components.get('root-ca-llm-getdata')?.status === 'active'"
+            [class.border-secondary]="components.get('root-ca-llm-getdata')?.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(components.get('root-ca-llm-getdata')?.status || 'idle') }}</span>
+                <span class="component-name">👑 {{ components.get('root-ca-llm-getdata')?.name }}</span>
+              </div>
+              <span class="badge bg-warning badge-xs">{{ components.get('root-ca-llm-getdata')?.count || 0 }}</span>
+            </div>
+          </div>
+        </ng-container>
+        
+        <!-- Non-ROOT CA components -->
+        <ng-container *ngIf="group.category !== 'root'">
+          <div 
+            *ngFor="let component of group.components" 
+            class="component-item border-start border-2"
+            [ngClass]="getStatusClass(component.status)"
+            [class.border-success]="component.status === 'success'"
+            [class.border-danger]="component.status === 'error'"
+            [class.border-warning]="component.status === 'active'"
+            [class.border-secondary]="component.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                <span class="component-name">{{ component.name }}</span>
+              </div>
+              <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+    </ng-container>
+  </div>
+  
+  <!-- Garden Tabs (filtered by view mode) -->
+  <div *ngIf="getFilteredGardens().length > 0" class="garden-tabs-container">
+    <div class="garden-tabs">
+      <button 
+        *ngFor="let garden of getFilteredGardens()" 
+        class="garden-tab"
+        [class.active]="selectedGardenTab === garden.id"
+        [class.token-garden]="garden.type === 'token'"
+        [class.root-garden]="garden.type === 'root'"
+        type="button"
+        (click)="selectGardenTab(garden.id)">
+        <span class="tab-icon">
+          {{ getGardenIcon(garden) }}
+        </span>
+        <span class="tab-label">{{ garden.name }}</span>
+      </button>
+    </div>
+  </div>
+  
+  <div class="architecture-tree">
+    <div *ngFor="let group of groups" class="component-group">
+      <ng-container *ngIf="group.category !== 'root'">
+      <div 
+        class="group-header d-flex justify-content-between align-items-center cursor-pointer"
+        [class.bg-light]="group.expanded"
+        (click)="toggleGroup(group)"
+        [attr.data-category]="group.category">
+        <div class="d-flex align-items-center">
+          <span class="group-icon">{{ group.icon }}</span>
+          <span class="group-name" [ngClass]="getCategoryColor(group.category)">{{ group.name }}</span>
+          <span class="badge bg-secondary badge-xs">{{ group.components.length }}</span>
+        </div>
+        <span class="toggle-icon">{{ group.expanded ? '▼' : '▶' }}</span>
+      </div>
+      
+      <div *ngIf="group.expanded" class="group-components">
+        <!-- Nested structure for Gardens: Show components for selected garden tab -->
+        <ng-container *ngIf="group.category === 'indexer'">
+          <!-- Selected Garden Node -->
+          <div *ngIf="selectedGardenTab" class="garden-node">
+            <div class="garden-header">
+              <span class="garden-icon">
+                {{ getSelectedGardenIcon() }}
+              </span>
+              <span class="garden-name">{{ selectedGardenName }}</span>
+              <span class="badge bg-success badge-xs">{{ selectedGardenNodeCount }}</span>
+            </div>
+            
+            <div class="garden-components">
+              <!-- Holy Ghost (ROOT CA Garden) shows Infrastructure Services -->
+              <ng-container *ngIf="selectedGardenTab === 'HG'">
+                <!-- Infrastructure Services -->
+                <div *ngIf="selectedGardenInfrastructureServices.length > 0" class="sub-group">
+                  <div class="sub-group-label">Infrastructure Services</div>
+                  <div 
+                    *ngFor="let component of selectedGardenInfrastructureServices" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                    </div>
+                  </div>
+                </div>
+              </ng-container>
+              
+              <!-- Regular/Token Gardens show Infrastructure Services and Service Providers -->
+              <ng-container *ngIf="selectedGardenTab !== 'HG'">
+                <!-- Infrastructure Services -->
+                <div *ngIf="selectedGardenInfrastructureServices.length > 0" class="sub-group">
+                  <div class="sub-group-label">Infrastructure Services</div>
+                  <div 
+                    *ngFor="let component of selectedGardenInfrastructureServices" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Service Providers -->
+                <div *ngIf="selectedGardenRegularServiceProviders.length > 0" class="sub-group">
+                  <div class="sub-group-label">Service Providers</div>
+                  <div 
+                    *ngFor="let component of selectedGardenRegularServiceProviders" 
+                    class="component-item border-start border-2"
+                    [ngClass]="getStatusClass(component.status)"
+                    [class.border-success]="component.status === 'success'"
+                    [class.border-danger]="component.status === 'error'"
+                    [class.border-warning]="component.status === 'active'"
+                    [class.border-secondary]="component.status === 'idle'">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center">
+                        <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                        <span class="component-name">{{ component.name }}</span>
+                      </div>
+                      <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                    </div>
+                  </div>
+                </div>
+              </ng-container>
+              
+              <!-- LLM (shown for all gardens) -->
+              <div *ngIf="selectedGardenLLM.length > 0" class="sub-group">
+                <div class="sub-group-label">LLM Intelligence</div>
+                <div 
+                  *ngFor="let component of selectedGardenLLM" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- EdenCore -->
+              <div *ngIf="selectedGardenEdenCore.length > 0" class="sub-group">
+                <div class="sub-group-label">EdenCore</div>
+                <div 
+                  *ngFor="let component of selectedGardenEdenCore" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Users -->
+              <div *ngIf="selectedGardenUsers.length > 0" class="sub-group">
+                <div class="sub-group-label">Users</div>
+                <div 
+                  *ngFor="let component of selectedGardenUsers" 
+                  class="component-item border-start border-2"
+                  [ngClass]="getStatusClass(component.status)"
+                  [class.border-success]="component.status === 'success'"
+                  [class.border-danger]="component.status === 'error'"
+                  [class.border-warning]="component.status === 'active'"
+                  [class.border-secondary]="component.status === 'idle'">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                      <span class="component-name">{{ component.name }}</span>
+                    </div>
+                    <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Replication Bus (shared infrastructure) -->
+          <div *ngIf="getReplicationBus().length > 0" class="sub-group">
+            <div class="sub-group-label">Replication Bus</div>
+            <div 
+              *ngFor="let component of getReplicationBus()" 
+              class="component-item border-start border-2"
+              [ngClass]="getStatusClass(component.status)"
+              [class.border-success]="component.status === 'success'"
+              [class.border-danger]="component.status === 'error'"
+              [class.border-warning]="component.status === 'active'"
+              [class.border-secondary]="component.status === 'idle'">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                  <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                  <span class="component-name">{{ component.name }}</span>
+                </div>
+                <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        
+        <!-- Regular flat list for non-Garden groups (Infrastructure, etc.) -->
+        <ng-container *ngIf="group.category !== 'indexer'">
+          <div 
+            *ngFor="let component of group.components" 
+            class="component-item border-start border-2"
+            [ngClass]="getStatusClass(component.status)"
+            [class.border-success]="component.status === 'success'"
+            [class.border-danger]="component.status === 'error'"
+            [class.border-warning]="component.status === 'active'"
+            [class.border-secondary]="component.status === 'idle'">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <span class="status-icon">{{ getStatusIcon(component.status) }}</span>
+                <span class="component-name">{{ component.name }}</span>
+              </div>
+              <span class="badge bg-secondary badge-xs">{{ component.count }}</span>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+      </ng-container>
+    </div>
+  </div>
+  
+  <div *ngIf="groups.length === 0" class="empty-state">
+    <small class="text-muted">Waiting for events...</small>
+  </div>
+  </div>
+</div>
+
