@@ -4525,16 +4525,33 @@ httpServer.on("request", async (req, res) => {
     // Fall through by calling the same logic via early return is not possible here;
     // so implement a minimal response using in-memory token gardens (source of truth).
     res.writeHead(200, { "Content-Type": "application/json" });
-    const tokenGardens = TOKEN_GARDENS.filter(g => g.active).map(g => ({
-      id: g.id,
-      name: g.name,
-      stream: g.stream,
-      active: g.active,
-      uuid: g.uuid,
-      hasCertificate: !!(g as any).certificate,
-      type: 'token' as const,
-      ownerEmail: (g as any).ownerEmail || (g as any).priestEmail || undefined
-    }));
+    const tokenGardens = TOKEN_GARDENS.filter(g => g.active).map(g => {
+      // Calculate total trades for this garden (sum of all pools in this garden)
+      let totalTrades = 0;
+      let totalVolume = 0;
+      for (const [poolId, pool] of DEX_POOLS.entries()) {
+        if (pool.gardenId === g.id) {
+          totalTrades += pool.totalTrades || 0;
+          totalVolume += pool.totalVolume || 0;
+        }
+      }
+      
+      return {
+        id: g.id,
+        name: g.name,
+        stream: g.stream,
+        active: g.active,
+        uuid: g.uuid,
+        hasCertificate: !!(g as any).certificate,
+        type: 'token' as const,
+        ownerEmail: (g as any).ownerEmail || (g as any).priestEmail || undefined,
+        initialLiquidity: (g as any).initialLiquidity || 0,
+        liquidityCertified: (g as any).liquidityCertified || false,
+        stripePaymentRailBound: (g as any).stripePaymentRailBound || false,
+        totalTrades: totalTrades,
+        totalVolume: totalVolume
+      };
+    });
     res.end(JSON.stringify({ success: true, gardens: tokenGardens, timestamp: Date.now() }));
     return;
   }
@@ -4552,17 +4569,34 @@ httpServer.on("request", async (req, res) => {
       }
       const ownerDexGardens = TOKEN_GARDENS
         .filter(g => (g.ownerEmail || (g as any).priestEmail)?.toLowerCase() === ownerEmail.toLowerCase())
-        .map(g => ({
-          id: g.id,
-          name: g.name,
-          stream: g.stream,
-          active: g.active,
-          uuid: g.uuid,
-          ownerEmail: g.ownerEmail || (g as any).priestEmail,
-          serviceType: (g as any).serviceType || 'dex',
-          hasCertificate: !!(g as any).certificate,
-          certificate: (g as any).certificate
-        }));
+        .map(g => {
+          // Calculate total trades for this garden (sum of all pools in this garden)
+          let totalTrades = 0;
+          let totalVolume = 0;
+          for (const [poolId, pool] of DEX_POOLS.entries()) {
+            if (pool.gardenId === g.id) {
+              totalTrades += pool.totalTrades || 0;
+              totalVolume += pool.totalVolume || 0;
+            }
+          }
+          
+          return {
+            id: g.id,
+            name: g.name,
+            stream: g.stream,
+            active: g.active,
+            uuid: g.uuid,
+            ownerEmail: g.ownerEmail || (g as any).priestEmail,
+            serviceType: (g as any).serviceType || 'dex',
+            hasCertificate: !!(g as any).certificate,
+            certificate: (g as any).certificate,
+            initialLiquidity: (g as any).initialLiquidity || 0,
+            liquidityCertified: (g as any).liquidityCertified || false,
+            stripePaymentRailBound: (g as any).stripePaymentRailBound || false,
+            totalTrades: totalTrades,
+            totalVolume: totalVolume
+          };
+        });
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: true, gardens: ownerDexGardens, count: ownerDexGardens.length }));
     } catch (err: any) {
@@ -7721,8 +7755,10 @@ httpServer.on("request", async (req, res) => {
           }
 
           const existing = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === providerId && p.gardenId === gardenConfig.id);
+          let provider: any = null;
+          
           if (!existing) {
-            const provider: any = {
+            provider = {
               id: providerId,
               uuid: crypto.randomUUID(),
               name: `${tokenSymbol} Pool (${gardenConfig.name})`,
@@ -7746,7 +7782,63 @@ httpServer.on("request", async (req, res) => {
           } else {
             console.log(`✓ [DEX Gardens] DEX pool provider already exists: ${providerId} → gardenId ${gardenConfig.id}`);
           }
-
+          
+          // Create ledger entry for initial liquidity provisioning (visible to priests)
+          try {
+            const finalProvider = existing || provider;
+            const providerUuid = finalProvider?.uuid || crypto.randomUUID();
+            
+            const snapshot: TransactionSnapshot = {
+              chainId: 'eden',
+              txId: `dex_liquidity_${poolId}_${Date.now()}`,
+              slot: Date.now(),
+              blockTime: Date.now(),
+              payer: email,
+              merchant: `${tokenSymbol} Pool (${gardenConfig.name})`,
+              amount: initialLiquidity,
+              feeSplit: {},
+            };
+            
+            const liquiditySource = finalStripePaymentIntentId 
+              ? `Stripe Payment Rail (${finalStripePaymentIntentId})` 
+              : 'User Wallet Balance';
+            
+            const ledgerEntry = addLedgerEntry(
+              snapshot,
+              'dex',
+              0, // No iGas cost for liquidity provisioning
+              email,
+              `${tokenSymbol} Pool (${gardenConfig.name})`,
+              providerUuid,
+              {
+                action: 'PROVISION_LIQUIDITY',
+                poolId: poolId,
+                gardenId: gardenConfig.id,
+                tokenSymbol: tokenSymbol,
+                baseToken: finalBaseToken,
+                initialLiquidity: initialLiquidity,
+                baseReserve: baseReserve,
+                tokenReserve: tokenReserve,
+                liquiditySource: liquiditySource,
+                stripePaymentIntentId: finalStripePaymentIntentId || undefined,
+                liquidityCertified: liquidityCertified,
+                stripePaymentRailBound: stripePaymentRailBound,
+                provisionedAt: Date.now()
+              }
+            );
+            
+            // Mark as completed immediately (liquidity is already provisioned)
+            ledgerEntry.status = 'completed';
+            
+            console.log(`   📝 [DEX Gardens] Created ledger entry for initial liquidity: ${initialLiquidity} 🍎 APPLES (${ledgerEntry.entryId})`);
+            console.log(`      Source: ${liquiditySource}`);
+            console.log(`      Pool: ${tokenSymbol}/${finalBaseToken} (${poolId})`);
+            console.log(`      Provider UUID: ${providerUuid}`);
+          } catch (ledgerErr: any) {
+            console.warn(`   ⚠️  [DEX Gardens] Failed to create ledger entry for initial liquidity: ${ledgerErr.message}`);
+            // Don't fail garden creation if ledger entry fails
+          }
+          
           // Persist via ServiceRegistry2 (primary) and via redis helper (legacy/backward compatibility).
           try {
             const sr2 = getServiceRegistry2();

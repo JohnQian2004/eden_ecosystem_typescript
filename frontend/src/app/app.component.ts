@@ -129,6 +129,8 @@ export class AppComponent implements OnInit, OnDestroy {
     stripePaymentRailBound?: boolean;
     baseToken?: string;
     tokenSymbol?: string;
+    totalTrades?: number;
+    totalVolume?: number;
   }> = [];
   selectedDexGarden: {id: string, name: string} | null = null;
 
@@ -1214,7 +1216,9 @@ export class AppComponent implements OnInit, OnDestroy {
             type: g.type || 'token',
             initialLiquidity: g.initialLiquidity || 0,
             liquidityCertified: g.liquidityCertified || false,
-            stripePaymentRailBound: g.stripePaymentRailBound || false
+            stripePaymentRailBound: g.stripePaymentRailBound || false,
+            totalTrades: g.totalTrades || 0,
+            totalVolume: g.totalVolume || 0
           }));
           console.log(`💰 [DEX Main Street] Loaded ${this.dexGardens.length} DEX garden(s): ${this.dexGardens.map(g => g.id).join(', ')}`);
           

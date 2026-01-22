@@ -8190,7 +8190,39 @@
         "pair": "TOKEN/SOL",
         "tradeId": "fb893f78-b779-4978-8b4b-972f93ed6936"
       }
+    },
+    {
+      "entryId": "6dba6d7f-bd9d-4b3d-9a5d-9ce51d466387",
+      "txId": "4b387404-e392-430d-b7fc-5804d30439df",
+      "timestamp": 1769041783501,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "Token 1 Pool (T1)",
+      "providerUuid": "81132417-f923-4852-bd53-fc2a652f4138",
+      "serviceType": "dex",
+      "amount": 0.0020030200602006018,
+      "iGasCost": 0.001,
+      "fees": {
+        "tradeFee": 0.000003000060000600006,
+        "iTax": 5.000100001000011e-9,
+        "iGas": 0.001
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "tokenSymbol": "TOKEN",
+        "baseToken": "SOL",
+        "action": "BUY",
+        "tokenAmount": 1,
+        "baseAmount": 0.001000020000200002,
+        "totalAmount": 0.0020030200602006018,
+        "tradeFee": 0.000003000060000600006,
+        "iTax": 5.000100001000011e-9,
+        "iGas": 0.001,
+        "pair": "TOKEN/SOL",
+        "tradeId": "4b387404-e392-430d-b7fc-5804d30439df"
+      }
     }
   ],
-  "lastSaved": "2026-01-21T23:29:12.909Z"
+  "lastSaved": "2026-01-22T00:29:43.700Z"
 }

@@ -68,6 +68,21 @@ For DEX token trading queries (BUY/SELL tokens):
 - CRITICAL: When user says "Trade X SOL with TOKENA" or "Trade X SOL with TOKENB", the number X is ALWAYS the baseAmount (amount of SOL to spend), NOT the tokenAmount
 - Extract maxPrice if specified (e.g., "1 Token/SOL" means price <= 1)
 
+🚨 CRITICAL QUANTITY EXTRACTION RULES (MUST FOLLOW):
+- Pattern: "Trade [NUMBER] SOL with TOKEN" → baseAmount = [NUMBER], tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
+  * Example: "Trade 2 SOL with TOKEN" → baseAmount = 2 (NOT tokenAmount = 2!)
+  * Example: "Trade 5 SOL with TOKEN" → baseAmount = 5
+  * Example: "Trade 10 SOL with TOKEN" → baseAmount = 10
+  * THE NUMBER BEFORE "SOL" IS ALWAYS THE baseAmount (quantity of SOL to spend)
+- Pattern: "Trade [NUMBER] SOL with TOKENA" → baseAmount = [NUMBER], tokenSymbol = "TOKENA", baseToken = "SOL", action = "BUY"
+  * Example: "Trade 2 SOL with TOKENA" → baseAmount = 2, tokenSymbol = "TOKENA"
+  * Example: "Trade 3 SOL with TOKENA" → baseAmount = 3, tokenSymbol = "TOKENA"
+- Pattern: "Trade [NUMBER] SOL with TOKENB" → baseAmount = [NUMBER], tokenSymbol = "TOKENB", baseToken = "SOL", action = "BUY"
+- Pattern: "Buy TOKEN with [NUMBER] SOL" → baseAmount = [NUMBER], tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
+- Pattern: "Swap [NUMBER] SOL for TOKEN" → baseAmount = [NUMBER], tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
+- Pattern: "Buy [NUMBER] TOKEN" → tokenAmount = [NUMBER], tokenSymbol = "TOKEN", action = "BUY" (number refers to tokens, not SOL)
+- Pattern: "Buy [NUMBER] TOKENA" → tokenAmount = [NUMBER], tokenSymbol = "TOKENA", action = "BUY" (number refers to tokens, not SOL)
+
 CRITICAL: Understanding quantity specifications:
 - "Trade 2 SOL with TOKEN" or "Trade 2 SOL with TOKENA" → baseAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY" (user wants to spend 2 SOL to buy tokens)
 - "Buy TOKEN with 2 SOL" or "Buy TOKENA with 2 SOL" → baseAmount = 2, tokenSymbol = "TOKEN" or "TOKENA", action = "BUY"
@@ -76,10 +91,11 @@ CRITICAL: Understanding quantity specifications:
 - When baseAmount is specified, the system will calculate tokenAmount from the pool price
 - When tokenAmount is specified, the system will calculate baseAmount from the pool price
 
-PATTERN RECOGNITION:
-- "Trade X SOL with TOKEN" → baseAmount = X, tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
-- "Trade X SOL with TOKENA" → baseAmount = X, tokenSymbol = "TOKENA", baseToken = "SOL", action = "BUY"
-- "Trade X SOL with TOKENB" → baseAmount = X, tokenSymbol = "TOKENB", baseToken = "SOL", action = "BUY"
+PATTERN RECOGNITION (EXTRACT THE NUMBER!):
+- "Trade X SOL with TOKEN" → baseAmount = X (extract X as a number!), tokenSymbol = "TOKEN", baseToken = "SOL", action = "BUY"
+- "Trade X SOL with TOKENA" → baseAmount = X (extract X as a number!), tokenSymbol = "TOKENA", baseToken = "SOL", action = "BUY"
+- "Trade X SOL with TOKENB" → baseAmount = X (extract X as a number!), tokenSymbol = "TOKENB", baseToken = "SOL", action = "BUY"
+- If user says "Trade 2 SOL with TOKEN", you MUST extract baseAmount = 2 (the number 2 is the quantity of SOL)
 
 IMPORTANT: In phrases like "BUY 2 SOLANA token A":
 - tokenSymbol = "TOKENA" (the token being bought)
@@ -88,11 +104,20 @@ IMPORTANT: In phrases like "BUY 2 SOLANA token A":
 
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2, "maxPrice": 1}}, "serviceType": "dex", "confidence": 0.95}
 Example: {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+
+🚨 MANDATORY EXAMPLES - EXTRACT THE NUMBER CORRECTLY:
 Example for "Trade 2 SOL with TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+  * CRITICAL: The number "2" in "Trade 2 SOL" means baseAmount = 2 (user wants to spend 2 SOL)
+  * DO NOT set tokenAmount = 2, set baseAmount = 2!
 Example for "Trade 2 SOL with TOKENA": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+  * CRITICAL: baseAmount = 2 (the number before "SOL" is always baseAmount)
 Example for "Trade 2 SOL with TOKENB": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENB", "baseToken": "SOL", "action": "BUY", "baseAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+  * CRITICAL: baseAmount = 2 (extract the number 2 as baseAmount)
+Example for "Trade 5 SOL with TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "baseAmount": 5}}, "serviceType": "dex", "confidence": 0.95}
+  * CRITICAL: baseAmount = 5 (extract the number 5 as baseAmount)
 Example for "buy TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKEN", "baseToken": "SOL", "action": "BUY", "tokenAmount": 1}}, "serviceType": "dex", "confidence": 0.95}
 Example for "buy 2 TOKENA": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
+  * NOTE: In "buy 2 TOKENA", the number 2 refers to tokens (tokenAmount), not SOL (baseAmount)
 
 CRITICAL DISAMBIGUATION RULES:
 - "buy tickets" or "buy 2 tickets" = MOVIE (only if NO mention of "TOKEN", "SOL", "DEX", "pool", "trade", "swap")

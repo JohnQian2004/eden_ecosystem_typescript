@@ -461,6 +461,11 @@
                           ✅ Certified
                         </span>
                       </div>
+                      <div class="mt-1" *ngIf="garden.totalTrades !== undefined && garden.totalTrades > 0">
+                        <span class="badge bg-info-subtle text-info small" [style.background-color]="!isUserSignedIn ? '#1c2128' : ''" [style.color]="!isUserSignedIn ? '#79c0ff' : ''">
+                          📊 {{ garden.totalTrades.toLocaleString() }} Trade{{ garden.totalTrades !== 1 ? 's' : '' }}
+                        </span>
+                      </div>
                       <!-- Owners removed by request -->
                     </div>
                   </div>

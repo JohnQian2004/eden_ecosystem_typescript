@@ -24,14 +24,14 @@
       "currentLiquidity": 100.0010000200002,
       "baseReserve": 100.0010000200002,
       "tokenReserve": 99999,
-      "totalVolume": 0.001000020000200002,
-      "totalTrades": 1,
+      "totalVolume": 0.002000040000400004,
+      "totalTrades": 2,
       "liquidityLoadedAt": 1769038134292,
-      "lastUpdated": 1769038152717,
+      "lastUpdated": 1769041783498,
       "createdAt": 1769038134292
     }
   ],
-  "lastUpdated": 1769038152717,
+  "lastUpdated": 1769041783498,
   "createdAt": 1769038123624,
-  "lastSaved": "2026-01-21T23:29:12.717Z"
+  "lastSaved": "2026-01-22T00:29:43.498Z"
 }
