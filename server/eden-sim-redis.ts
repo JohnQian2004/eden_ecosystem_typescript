@@ -338,8 +338,9 @@ httpServer.on("request", async (req, res) => {
 
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Range");
+  res.setHeader("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
 
   if (req.method === "OPTIONS") {
     console.log(`   ✅ [${requestId}] OPTIONS request, sending CORS preflight`);
@@ -4246,13 +4247,35 @@ httpServer.on("request", async (req, res) => {
       }
     }
     
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
+    // Generate ETag for caching (hash of providers data)
+    const responseData = {
       success: true,
       providers,
       count: providers.length,
       timestamp: Date.now()
-    }));
+    };
+    const responseJson = JSON.stringify(responseData);
+    const etag = `"${crypto.createHash('md5').update(responseJson).digest('hex')}"`;
+    
+    // Check If-None-Match header for 304 Not Modified
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (ifNoneMatch === etag) {
+      res.writeHead(304, {
+        "ETag": etag,
+        "Cache-Control": "public, max-age=1800, stale-while-revalidate=3600" // Cache for 30 minutes, serve stale for 60 minutes
+      });
+      res.end();
+      return;
+    }
+    
+    // Set cache headers
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "ETag": etag,
+      "Cache-Control": "public, max-age=1800, stale-while-revalidate=3600", // Cache for 30 minutes, serve stale for 60 minutes
+      "Last-Modified": new Date().toUTCString()
+    });
+    res.end(responseJson);
     return;
   }
 
@@ -9635,6 +9658,19 @@ httpServer.on("request", async (req, res) => {
 
   // Serve video files from /api/movie/video/ endpoint (garden-specific video serving)
   if (pathname.startsWith("/api/movie/video/")) {
+    // Handle OPTIONS preflight for video requests
+    if (req.method === "OPTIONS") {
+      console.log(`   ✅ [${requestId}] OPTIONS preflight for video endpoint`);
+      res.writeHead(200, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Range, Content-Type",
+        "Access-Control-Max-Age": "86400", // 24 hours
+      });
+      res.end();
+      return;
+    }
+    
     const videoFile = pathname.substring("/api/movie/video/".length); // Remove "/api/movie/video/" prefix
     const videoPath = path.join(__dirname, "data", videoFile);
     
@@ -9690,6 +9726,9 @@ httpServer.on("request", async (req, res) => {
           "Accept-Ranges": "bytes",
           "Content-Length": chunksize,
           "Content-Type": "video/mp4",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Access-Control-Allow-Headers": "Range",
         };
         res.writeHead(206, head);
         file.pipe(res);
@@ -9697,6 +9736,9 @@ httpServer.on("request", async (req, res) => {
         res.writeHead(200, {
           "Content-Length": stat.size,
           "Content-Type": "video/mp4",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Access-Control-Allow-Headers": "Range",
         });
         fs.createReadStream(videoPath).pipe(res);
       }
@@ -9706,6 +9748,19 @@ httpServer.on("request", async (req, res) => {
 
   // Serve video files from data directory (legacy /videos/ endpoint)
   if (pathname.startsWith("/videos/")) {
+    // Handle OPTIONS preflight for video requests
+    if (req.method === "OPTIONS") {
+      console.log(`   ✅ [${requestId}] OPTIONS preflight for legacy video endpoint`);
+      res.writeHead(200, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Range, Content-Type",
+        "Access-Control-Max-Age": "86400", // 24 hours
+      });
+      res.end();
+      return;
+    }
+    
     const videoFile = pathname.substring(8); // Remove "/videos/" prefix
     const videoPath = path.join(__dirname, "data", videoFile);
 
@@ -9755,6 +9810,9 @@ httpServer.on("request", async (req, res) => {
           "Accept-Ranges": "bytes",
           "Content-Length": chunksize,
           "Content-Type": "video/mp4",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Access-Control-Allow-Headers": "Range",
         });
         file.pipe(res);
       } else {
@@ -9762,6 +9820,9 @@ httpServer.on("request", async (req, res) => {
         res.writeHead(200, {
           "Content-Length": fileSize,
           "Content-Type": "video/mp4",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Access-Control-Allow-Headers": "Range",
         });
         fs.createReadStream(videoPath).pipe(res);
       }

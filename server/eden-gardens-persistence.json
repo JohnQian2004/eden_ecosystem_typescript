@@ -408,7 +408,43 @@
         "expiresAt": 1800574134272,
         "signature": "jRdTBJfiubYR3CRqDg1Ff+95g2Hc1+gAOFwKdtqyNnhgU3NyPlFKeqQp2g8L0UP7TlioYn3YpxI8b0pmzYVaBA=="
       }
+    },
+    {
+      "id": "T2",
+      "name": "Garden-DEX",
+      "stream": "eden:token-garden:T2",
+      "active": true,
+      "uuid": "eden:garden:5ed4c28c-f864-42bc-9568-c9828494c623",
+      "ownerEmail": "bill.draper.auto@gmail.com",
+      "priestEmail": "bill.draper.auto@gmail.com",
+      "serverIp": "localhost",
+      "serverDomain": "garden-dex.eden.local",
+      "serverPort": 3001,
+      "networkType": "http",
+      "serviceType": "dex",
+      "tokenServiceType": "dex",
+      "stripePaymentRailBound": false,
+      "liquidityCertified": false,
+      "initialLiquidity": 10000,
+      "stripePaymentIntentId": "",
+      "liquidityLoadedAt": 1769042937000,
+      "certificate": {
+        "subject": "eden:garden:5ed4c28c-f864-42bc-9568-c9828494c623",
+        "issuer": "eden:root:ca:00000000-0000-0000-0000-000000000001",
+        "capabilities": [
+          "INDEXER",
+          "ISSUE_CERT"
+        ],
+        "constraints": {
+          "gardenId": "T2",
+          "gardenName": "Garden-DEX",
+          "stream": "eden:token-garden:T2"
+        },
+        "issuedAt": 1769042937000,
+        "expiresAt": 1800578937000,
+        "signature": "MnAL83Yz3827f6prVrWSY93fDFHfNqw9moOmsG92+RjIXq3pOTAiqkj+IxW0z0mozA9wBkLytcBjckW7KlInBw=="
+      }
     }
   ],
-  "lastSaved": "2026-01-21T23:28:54.275Z"
+  "lastSaved": "2026-01-22T00:48:57.004Z"
 }

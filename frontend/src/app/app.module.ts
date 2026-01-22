@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
@@ -18,6 +18,7 @@ import { SystemConfigComponent } from './components/system-config/system-config.
 import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
 import { DexGardenWizardComponent } from './components/dex-garden-wizard/dex-garden-wizard.component';
+import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
   { 
@@ -53,7 +54,16 @@ const routes: Routes = [
     FormsModule,
     RouterModule.forRoot(routes)
   ],
-  providers: [WebSocketService, ChatService, FlowWiseService],
+  providers: [
+    WebSocketService, 
+    ChatService, 
+    FlowWiseService,
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: CacheInterceptor,
+      multi: true
+    }
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

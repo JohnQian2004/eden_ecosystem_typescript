@@ -41,9 +41,11 @@
             #movieVideo
             class="movie-video"
             [src]="getVideoUrl()"
+            crossorigin="anonymous"
             controls
             autoplay
             muted
+            preload="auto"
             (timeupdate)="onVideoTimeUpdate($event)"
             (ended)="onVideoEnded()"
             (error)="onVideoError($event)"

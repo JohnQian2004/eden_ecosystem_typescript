@@ -11,6 +11,7 @@ import { CertificateDisplayComponent } from './components/certificate-display/ce
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { getApiBaseUrl } from './services/api-base';
 import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
+import { CacheInterceptor } from './services/cache.interceptor';
 
 export interface ServiceProvider {
   id: string;
@@ -2180,6 +2181,7 @@ export class AppComponent implements OnInit, OnDestroy {
           
           // Now load service registry
           // In PRIEST mode, filter by ownerEmail to show only providers from priest-owned gardens
+          // Cache is handled automatically by CacheInterceptor
           const ownerEmailParam = isPriestMode && this.userEmail ? `?ownerEmail=${encodeURIComponent(this.userEmail)}` : '';
           this.http.get<{success: boolean, providers: ServiceProvider[], count: number}>(`${this.apiUrl}/api/root-ca/service-registry${ownerEmailParam}`)
             .pipe(timeout(8000))

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
 import { getApiBaseUrl } from '../services/api-base';
 
 // Avatar Movie Neural Link Simulation
@@ -180,7 +180,7 @@ interface SceneTransition {
   templateUrl: './movie-theater.component.html',
   styleUrls: ['./movie-theater.component.scss']
 })
-export class MovieTheaterComponent implements OnInit, OnDestroy {
+export class MovieTheaterComponent implements OnInit, OnDestroy, AfterViewInit, OnChanges {
   @Input() movieTitle: string = '';
   @Input() duration: number = 10; // seconds
   @Input() selectedListing: any = null; // Movie listing with videoUrl
@@ -192,6 +192,8 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
 
   @Output() movieProgress = new EventEmitter<{ progress: number; scene: string; message?: string }>();
   @Output() movieFinished = new EventEmitter<{ completed: boolean; finalScene: string }>();
+
+  @ViewChild('movieVideo', { static: false }) movieVideoRef!: ElementRef<HTMLVideoElement>;
 
   // Avatar-specific properties
   private avatarTheater: EdenAvatarTheater | null = null;
@@ -219,12 +221,53 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     console.log('🎬 [Movie Theater] Component initialized');
+    console.log('🎬 [Movie Theater] selectedListing:', this.selectedListing);
+    console.log('🎬 [Movie Theater] movieTitle:', this.movieTitle);
+    console.log('🎬 [Movie Theater] videoUrl:', this.selectedListing?.videoUrl);
+  }
+
+  ngAfterViewInit(): void {
+    console.log('🎬 [Movie Theater] AfterViewInit - video element available');
+    // Get video element reference
+    if (this.movieVideoRef?.nativeElement) {
+      this.videoElement = this.movieVideoRef.nativeElement;
+      // Set crossOrigin for CORS support (critical for remote servers)
+      this.videoElement.crossOrigin = 'anonymous';
+      console.log('🎬 [Movie Theater] Video element reference set with crossOrigin="anonymous"');
+    }
+    
     // Auto-start movie if movieTitle is provided (workflow-driven)
     if (this.movieTitle && this.movieTitle !== 'Unknown Movie') {
       console.log('🎬 [Movie Theater] Auto-starting movie:', this.movieTitle);
       setTimeout(() => {
         this.startWatching();
       }, 500); // Small delay to ensure component is fully rendered
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    // Handle changes to selectedListing input
+    if (changes['selectedListing'] && !changes['selectedListing'].firstChange) {
+      console.log('🎬 [Movie Theater] selectedListing changed:', this.selectedListing);
+      // Reset video error when selectedListing changes
+      this.videoError = false;
+      // Update video element reference if available
+      if (this.movieVideoRef?.nativeElement) {
+        this.videoElement = this.movieVideoRef.nativeElement;
+        // Ensure crossOrigin is set for CORS
+        this.videoElement.crossOrigin = 'anonymous';
+      }
+    }
+    
+    // Handle changes to movieTitle input
+    if (changes['movieTitle'] && !changes['movieTitle'].firstChange) {
+      console.log('🎬 [Movie Theater] movieTitle changed:', this.movieTitle);
+      // If movie is not playing and we have a title, consider auto-starting
+      if (this.movieTitle && this.movieTitle !== 'Unknown Movie' && !this.isPlaying) {
+        setTimeout(() => {
+          this.startWatching();
+        }, 500);
+      }
     }
   }
 
@@ -265,6 +308,26 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
       if (this.selectedListing?.videoUrl) {
         // Video-based playback - scene transitions will be triggered by video time
         console.log('🎬 Using video-based playback with scene transitions');
+        console.log('🎬 Video URL:', this.getVideoUrl());
+        
+        // Ensure video element is available
+        if (!this.videoElement && this.movieVideoRef?.nativeElement) {
+          this.videoElement = this.movieVideoRef.nativeElement;
+        }
+        
+        // Try to start video playback
+        if (this.videoElement) {
+          console.log('🎬 Video element found, attempting to play');
+          // Video should autoplay, but we can try to play it programmatically
+          this.videoElement.play().catch((error) => {
+            console.warn('⚠️ [Movie Theater] Autoplay prevented, user interaction required:', error);
+            // Fallback to simulated playback if autoplay fails
+            this.startSimulatedPlayback();
+          });
+        } else {
+          console.warn('⚠️ [Movie Theater] Video element not found, falling back to simulated playback');
+          this.startSimulatedPlayback();
+        }
       } else {
         // Fallback to simulated playback
         console.log('🎭 Using simulated playback (no video available)');
@@ -449,11 +512,54 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
     this.videoError = false;
     const video = event.target as HTMLVideoElement;
     this.videoElement = video;
-    this.videoDuration = video.duration;
+    this.videoDuration = video.duration || this.duration;
+    console.log('🎬 Video duration:', this.videoDuration);
+    
+    // If we're playing and video just loaded, ensure it starts
+    if (this.isPlaying && this.videoElement) {
+      this.videoElement.play().catch((error) => {
+        console.warn('⚠️ [Movie Theater] Failed to play video after load:', error);
+      });
+    }
   }
 
   onVideoError(event: Event): void {
+    const video = event.target as HTMLVideoElement;
+    const error = video.error;
     console.error('🎬 Video playback error:', event);
+    console.error('🎬 Video error code:', error?.code);
+    console.error('🎬 Video error message:', error?.message);
+    console.error('🎬 Video URL:', this.getVideoUrl());
+    console.error('🎬 API Base URL:', getApiBaseUrl());
+    
+    // Check for CORS or network errors
+    if (error) {
+      // MediaError constants
+      const MEDIA_ERR_ABORTED = 1;
+      const MEDIA_ERR_NETWORK = 2;
+      const MEDIA_ERR_DECODE = 3;
+      const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+      
+      switch (error.code) {
+        case MEDIA_ERR_ABORTED:
+          console.error('🎬 Video loading aborted by user');
+          break;
+        case MEDIA_ERR_NETWORK:
+          console.error('🎬 Network error - video may be blocked by CORS or network issue');
+          console.error('🎬 This often happens when Angular is on a remote server');
+          console.error('🎬 Make sure the server has CORS headers for video endpoints');
+          break;
+        case MEDIA_ERR_DECODE:
+          console.error('🎬 Video decode error - file may be corrupted');
+          break;
+        case MEDIA_ERR_SRC_NOT_SUPPORTED:
+          console.error('🎬 Video source not supported or not found');
+          break;
+        default:
+          console.error('🎬 Unknown video error');
+      }
+    }
+    
     this.videoError = true;
     // Fallback to simulated playback
     console.log('🔄 Falling back to simulated playback');
@@ -461,12 +567,31 @@ export class MovieTheaterComponent implements OnInit, OnDestroy {
   }
 
   getVideoUrl(): string {
-    if (!this.selectedListing?.videoUrl) return '';
+    if (!this.selectedListing?.videoUrl) {
+      console.warn('🎬 [Movie Theater] No videoUrl in selectedListing');
+      return '';
+    }
+    
+    const apiBaseUrl = getApiBaseUrl();
+    let finalUrl: string;
+    
     // Ensure the video URL is absolute
     if (this.selectedListing.videoUrl.startsWith('/')) {
-      return `${getApiBaseUrl()}${this.selectedListing.videoUrl}`;
+      finalUrl = `${apiBaseUrl}${this.selectedListing.videoUrl}`;
+    } else if (this.selectedListing.videoUrl.startsWith('http://') || this.selectedListing.videoUrl.startsWith('https://')) {
+      // Already absolute URL
+      finalUrl = this.selectedListing.videoUrl;
+    } else {
+      // Relative URL without leading slash - add it
+      finalUrl = `${apiBaseUrl}/${this.selectedListing.videoUrl}`;
     }
-    return this.selectedListing.videoUrl;
+    
+    console.log('🎬 [Movie Theater] Video URL construction:');
+    console.log('   Original videoUrl:', this.selectedListing.videoUrl);
+    console.log('   API Base URL:', apiBaseUrl);
+    console.log('   Final URL:', finalUrl);
+    
+    return finalUrl;
   }
 
   // Photo Mode for capturing Avatar experience
