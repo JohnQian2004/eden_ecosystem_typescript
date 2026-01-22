@@ -14,14 +14,14 @@
           <strong>Processed:</strong> {{ cashier.processedCount }} transactions
         </div>
         <div class="col-md-4">
-          <strong>Total:</strong> {{ cashier.totalProcessed?.toFixed(2) || '0.00' }} 🍎 APPLES
+          <strong>Total:</strong> {{ cashier.totalProcessed.toFixed(2) || '0.00' }} 🍎 APPLES
         </div>
       </div>
     </div>
     
     <!-- Entry Count -->
     <div class="mb-3">
-      <strong>Total Entries:</strong> {{ filteredLedgerEntries?.length || 0 }}
+      <strong>Total Entries:</strong> {{ filteredLedgerEntries.length || 0 }}
       <span *ngIf="isUserMode && ledgerEntries.length > filteredLedgerEntries.length" class="text-muted small">
         (filtered from {{ ledgerEntries.length }} total)
       </span>

@@ -1,4 +1,4 @@
-<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''" [attr.data-user-signed-in]="_isUserSignedIn">
+<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''" [attr.data-user-signed-in]="isUserSignedIn">
   <!-- Global Loading Overlay (GOD mode boot + long network operations) -->
   <div *ngIf="isGlobalLoading" class="global-loading-overlay">
     <div class="global-loading-card">
@@ -895,12 +895,12 @@
                           autoplay
                           class="w-100" 
                           style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
-                          [src]="getVideoUrl(pendingDecision?.videoUrl)"
+                          [src]="getVideoUrl(pendingDecision.videoUrl)"
                           preload="auto">
                           Your browser does not support the video tag.
                         </video>
                         <div class="small text-muted mt-1">
-                          Video Source: {{ getVideoUrl(pendingDecision?.videoUrl) }}
+                          Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
                         </div>
                         <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
                       </div>

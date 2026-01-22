@@ -123,7 +123,7 @@
     <div *ngIf="!isLoading && currentWorkflow">
       <!-- Debug: Template condition met -->
       <div style="background: #f0f0f0; padding: 5px; margin-bottom: 10px; font-size: 12px;">
-        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, currentWorkflow: {{!!currentWorkflow}}, workflowName: {{currentWorkflow?.name || 'N/A'}}, steps: {{debugWorkflowSteps?.length || 0}}<br>
+        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, currentWorkflow: {{!!currentWorkflow}}, workflowName: {{currentWorkflow.name || 'N/A'}}, steps: {{debugWorkflowSteps.length || 0}}<br>
         🔍 DEBUG: Selection - showSelectionPrompt: {{showSelectionPrompt}}, pendingSelection: {{!!pendingSelection}}, options count: {{pendingSelection?.options?.length || 0}}<br>
         🔍 DEBUG: Decision - showDecisionPrompt: {{showDecisionPrompt}}, pendingDecision: {{!!pendingDecision}}, options count: {{pendingDecision?.options?.length || 0}}
       </div>
@@ -131,8 +131,8 @@
       <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div>
-            <h5 class="mb-1">{{ currentWorkflow?.name || 'No Workflow' }}</h5>
-            <p class="text-muted mb-0">{{ currentWorkflow?.description || '' }}</p>
+            <h5 class="mb-1">{{ currentWorkflow.name || 'No Workflow' }}</h5>
+            <p class="text-muted mb-0">{{ currentWorkflow.description || '' }}</p>
           </div>
           <button
             type="button"
@@ -180,12 +180,12 @@
                 autoplay
                 class="w-100" 
                 style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
-                [src]="getVideoUrl(pendingDecision?.videoUrl)"
+                [src]="getVideoUrl(pendingDecision.videoUrl)"
                 preload="auto">
                 Your browser does not support the video tag.
               </video>
               <div class="small text-muted mt-1">
-                Video Source: {{ getVideoUrl(pendingDecision?.videoUrl) }}
+                Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
               </div>
               <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
             </div>

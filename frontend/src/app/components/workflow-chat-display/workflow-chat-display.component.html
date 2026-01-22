@@ -110,9 +110,9 @@
                       <button 
                         class="btn btn-sm float-end"
                         [ngClass]="{
-                          'btn-success': message.data?.isDecision && (option.label?.toUpperCase() === 'YES' || option.value?.toUpperCase() === 'YES'),
-                          'btn-danger': message.data?.isDecision && (option.label?.toUpperCase() === 'NO' || option.value?.toUpperCase() === 'NO'),
-                          'btn-primary': !message.data?.isDecision || (option.label?.toUpperCase() !== 'YES' && option.label?.toUpperCase() !== 'NO' && option.value?.toUpperCase() !== 'YES' && option.value?.toUpperCase() !== 'NO')
+                          'btn-success': message.data?.isDecision && (option.label.toUpperCase() === 'YES' || option.value.toUpperCase() === 'YES'),
+                          'btn-danger': message.data?.isDecision && (option.label.toUpperCase() === 'NO' || option.value.toUpperCase() === 'NO'),
+                          'btn-primary': !message.data?.isDecision || (option.label.toUpperCase() !== 'YES' && option.label.toUpperCase() !== 'NO' && option.value.toUpperCase() !== 'YES' && option.value.toUpperCase() !== 'NO')
                         }"
                         (click)="onOptionSelected(option, message)">
                         {{ message.data?.isDecision ? 'Choose' : 'Select' }}
