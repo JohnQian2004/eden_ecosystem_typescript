@@ -13,9 +13,19 @@
   </div>
   <!-- Main App Content (hidden when on DEX wizard route) -->
   <div *ngIf="!isDexWizardRoute" class="row" [attr.data-render-key]="renderKey">
-    <!-- Sidebar (hidden in USER and PRIEST modes, only shown in GOD mode) -->
+    <!-- Sidebar (shown for all signed-in users: USER, PRIEST, and GOD modes) -->
+    <!-- Chat history is always visible, System Architecture only for admins -->
     <div class="col-md-3 sidebar" *ngIf="showSidebar">
-      <app-sidebar #sidebarComponent></app-sidebar>
+      <app-sidebar 
+        #sidebarComponent
+        [activeConversationId]="activeConversationId"
+        [chatHistoryMessages]="chatHistoryMessages"
+        [isLoadingChatHistory]="isLoadingChatHistory"
+        [getVideoUrl]="getVideoUrl.bind(this)"
+        (loadChatHistory)="loadChatHistory()"
+        (clearChatHistory)="clearChatHistoryPanel()"
+        (stopChatHistoryLoading)="stopChatHistoryLoading()">
+      </app-sidebar>
     </div>
     
     <!-- Main Content -->
@@ -653,61 +663,6 @@
                     <span *ngIf="selectedServiceType === 'restaurant'">🍽️ Context: Restaurant service - ROOT CA ServiceRegistry will find the best restaurant providers</span>
                   </small>
                 </form>
-
-                <!-- Garden/Service Chat History (scoped by selected tile) -->
-                <div class="mt-3">
-                  <div class="d-flex align-items-center justify-content-between">
-                    <div class="small text-muted">
-                      <strong>Conversation:</strong>
-                      <span *ngIf="activeConversationId; else noConv">{{ activeConversationId }}</span>
-                      <ng-template #noConv>None (click a tile)</ng-template>
-                    </div>
-                    <div class="d-flex gap-2">
-                      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearChatHistoryPanel()"
-                        [disabled]="chatHistoryMessages.length === 0 && !isLoadingChatHistory">
-                        Clear
-                      </button>
-                      <button *ngIf="isLoadingChatHistory" class="btn btn-sm btn-outline-secondary" type="button" (click)="stopChatHistoryLoading()">
-                        Stop
-                      </button>
-                      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="loadChatHistory()"
-                        [disabled]="!activeConversationId || isLoadingChatHistory">
-                        <span *ngIf="!isLoadingChatHistory">Reload</span>
-                        <span *ngIf="isLoadingChatHistory" class="spinner-border spinner-border-sm"></span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="border rounded mt-2 p-2" style="max-height: 220px; overflow: auto;">
-                    <div *ngIf="chatHistoryMessages.length === 0" class="small text-muted">
-                      No messages yet.
-                    </div>
-                    <div *ngFor="let m of chatHistoryMessages" class="mb-2">
-                      <span class="badge me-2"
-                        [ngClass]="{'bg-primary': m.role==='USER', 'bg-success': m.role==='ASSISTANT', 'bg-secondary': m.role==='SYSTEM'}">
-                        {{ m.role }}
-                      </span>
-                      <small class="text-muted me-2">{{ m.timestamp | date:'shortTime' }}</small>
-                      <span class="small">{{ m.content }}</span>
-                      <!-- Video Player for Movie Messages -->
-                      <div *ngIf="m.videoUrl" class="mt-2">
-                        <div class="card">
-                          <div class="card-body">
-                            <h6 class="card-title" *ngIf="m.movieTitle">🎬 {{ m.movieTitle }}</h6>
-                            <video 
-                              controls 
-                              class="w-100" 
-                              style="max-height: 400px;"
-                              [src]="getVideoUrl(m.videoUrl)">
-                              Your browser does not support the video tag.
-                            </video>
-                            <small class="text-muted d-block mt-1">Video URL: {{ m.videoUrl }}</small>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

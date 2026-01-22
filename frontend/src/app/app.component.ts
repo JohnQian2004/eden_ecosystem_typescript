@@ -369,10 +369,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Update sidebar visibility based on view mode
   updateSidebarVisibility(): void {
-    // Sidebar is only shown in GOD mode
-    // Hidden in both PRIEST and USER modes
+    // Sidebar is shown for all signed-in users (USER, PRIEST, and GOD modes)
+    // Chat history is always visible, System Architecture only for admins
     const viewMode = this.currentViewMode;
-    this.showSidebar = viewMode === 'god' && this.userEmail === this.adminEmail;
+    this.showSidebar = this.isUserSignedIn; // Show sidebar for all signed-in users
     console.log(`📊 [App] Sidebar visibility updated: ${this.showSidebar} (mode: ${viewMode}, email: ${this.userEmail})`);
   }
 

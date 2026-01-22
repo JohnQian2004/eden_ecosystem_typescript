@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
@@ -49,6 +49,21 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private subscription: any;
   private emailCheckInterval: any; // Interval for checking email changes
   private apiUrl = getApiBaseUrl();
+
+  // Chat History (ChatGPT-style sidebar)
+  @Input() activeConversationId: string | null = null;
+  @Input() chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string; videoUrl?: string; movieTitle?: string }> = [];
+  @Input() isLoadingChatHistory: boolean = false;
+  @Output() loadChatHistory = new EventEmitter<void>();
+  @Output() clearChatHistory = new EventEmitter<void>();
+  @Output() stopChatHistoryLoading = new EventEmitter<void>();
+  @Input() getVideoUrl: ((url: string | undefined) => string) | null = null;
+  
+  // Helper method to safely call getVideoUrl
+  safeGetVideoUrl(url: string | undefined): string {
+    if (!this.getVideoUrl || !url) return url || '';
+    return this.getVideoUrl(url);
+  }
 
   constructor(
     private wsService: WebSocketService,

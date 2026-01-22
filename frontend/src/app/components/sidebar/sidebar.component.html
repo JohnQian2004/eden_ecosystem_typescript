@@ -1,5 +1,101 @@
 <div class="sidebar-content">
-  <div class="sidebar-header">
+  <!-- Chat History Section (ChatGPT-style) -->
+  <div class="chat-history-section">
+    <div class="chat-history-header d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">💬 Chat History</h6>
+      <div class="d-flex gap-1">
+        <button 
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="clearChatHistory.emit()"
+          [disabled]="chatHistoryMessages.length === 0 && !isLoadingChatHistory"
+          title="Clear chat history">
+          🗑️
+        </button>
+        <button 
+          *ngIf="isLoadingChatHistory" 
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="stopChatHistoryLoading.emit()"
+          title="Stop loading">
+          ⏹️
+        </button>
+        <button 
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="loadChatHistory.emit()"
+          [disabled]="!activeConversationId || isLoadingChatHistory"
+          title="Reload chat history">
+          <span *ngIf="!isLoadingChatHistory">🔄</span>
+          <span *ngIf="isLoadingChatHistory" class="spinner-border spinner-border-sm"></span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Conversation Info -->
+    <div class="conversation-info mb-2" *ngIf="activeConversationId">
+      <small class="text-muted">
+        <strong>Conversation:</strong> 
+        <span class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ activeConversationId }}">
+          {{ activeConversationId }}
+        </span>
+      </small>
+    </div>
+    
+    <!-- Chat Messages -->
+    <div class="chat-messages-container" [class.loading]="isLoadingChatHistory">
+      <div *ngIf="chatHistoryMessages.length === 0 && !isLoadingChatHistory" class="text-center text-muted py-3">
+        <small>No messages yet</small>
+      </div>
+      <div *ngIf="isLoadingChatHistory" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div class="chat-messages-list">
+        <div *ngFor="let m of chatHistoryMessages" class="chat-message-item mb-2 p-2 rounded" 
+             [ngClass]="{
+               'user-message': m.role === 'USER',
+               'assistant-message': m.role === 'ASSISTANT',
+               'system-message': m.role === 'SYSTEM'
+             }">
+          <div class="d-flex align-items-start gap-2">
+            <span class="message-role-badge" 
+                  [ngClass]="{
+                    'badge-primary': m.role === 'USER',
+                    'badge-success': m.role === 'ASSISTANT',
+                    'badge-secondary': m.role === 'SYSTEM'
+                  }">
+              {{ m.role }}
+            </span>
+            <div class="flex-grow-1">
+              <small class="text-muted d-block mb-1">{{ m.timestamp | date:'shortTime' }}</small>
+              <div class="message-content small">{{ m.content }}</div>
+              <!-- Video Player for Movie Messages -->
+              <div *ngIf="m.videoUrl && getVideoUrl" class="mt-2">
+                <div class="card">
+                  <div class="card-body p-2">
+                    <h6 class="card-title small mb-1" *ngIf="m.movieTitle">🎬 {{ m.movieTitle }}</h6>
+                    <video 
+                      controls 
+                      class="w-100" 
+                      style="max-height: 200px;"
+                      [src]="safeGetVideoUrl(m.videoUrl)">
+                      Your browser does not support the video tag.
+                    </video>
+                    <small class="text-muted d-block mt-1">Video URL: {{ m.videoUrl }}</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- System Architecture Section (Only for admins: GOD and PRIEST modes) -->
+  <div class="sidebar-header" *ngIf="isAdmin && (viewMode === 'god' || viewMode === 'priest')">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div>
         <h5 class="mb-1">🌳 System Architecture</h5>
@@ -7,8 +103,8 @@
       </div>
     </div>
     
-    <!-- Mode Filter Toggle (Admin Only) -->
-    <div class="mode-filter" *ngIf="isAdmin">
+    <!-- Mode Filter Toggle (Admin Only - GOD and PRIEST modes) -->
+    <div class="mode-filter" *ngIf="isAdmin && (viewMode === 'god' || viewMode === 'priest')">
       <div class="btn-group btn-group-sm w-100" role="group">
         <button 
           type="button" 
@@ -212,8 +308,8 @@
     </ng-container>
   </div>
   
-  <!-- Garden Tabs (filtered by view mode) -->
-  <div *ngIf="getFilteredGardens().length > 0" class="garden-tabs-container">
+  <!-- Garden Tabs (filtered by view mode) - Only for admins -->
+  <div *ngIf="isAdmin && (viewMode === 'god' || viewMode === 'priest') && getFilteredGardens().length > 0" class="garden-tabs-container">
     <div class="garden-tabs">
       <button 
         *ngFor="let garden of getFilteredGardens()" 
@@ -231,7 +327,8 @@
     </div>
   </div>
   
-  <div class="architecture-tree">
+  <!-- Architecture Tree - Only for admins -->
+  <div class="architecture-tree" *ngIf="isAdmin && (viewMode === 'god' || viewMode === 'priest')">
     <div *ngFor="let group of groups" class="component-group">
       <ng-container *ngIf="group.category !== 'root'">
       <div 

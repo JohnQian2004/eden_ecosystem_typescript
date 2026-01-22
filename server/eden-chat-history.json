@@ -4539,6 +4539,27 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769048042796_7948fd8a3ae8b",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769048042796,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769048047971_fbcf5feb409d1",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Enjoy an exciting sci-fi evening with 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM, and tickets are just $2. With a high rating of 4.9 from 150 reviews, it's a great choice for a movie night!",
+        "timestamp": 1769048047971,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [
@@ -4797,6 +4818,39 @@
         "timestamp": 1769044421499,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-13:priest": [
+      {
+        "id": "c_1769048155564_e893405ed1bd58",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769048155564,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769048161495_31448f0fb572b",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Enjoy a thrilling sci-fi evening with 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM, perfectly fitting your evening schedule. With a ticket price of just $2 and a high rating of 4.9 from 150 reviews, it's a great choice for sci-fi fans.",
+        "timestamp": 1769048161495,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769048174977_3295a73dc55fd",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769048174977,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
         "status": "active"
       }
     ]

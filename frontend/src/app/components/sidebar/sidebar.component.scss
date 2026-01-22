@@ -6,6 +6,152 @@
   overflow: hidden;
 }
 
+// Chat History Section (ChatGPT-style)
+.chat-history-section {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  
+  .chat-history-header {
+    h6 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0;
+      color: #495057;
+    }
+    
+    .btn {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.4rem;
+      border: none;
+      background: transparent;
+      color: #6c757d;
+      
+      &:hover:not(:disabled) {
+        background-color: rgba(0, 0, 0, 0.05);
+        color: #495057;
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+  
+  .conversation-info {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 0.25rem;
+  }
+  
+  .chat-messages-container {
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 0.5rem;
+    border: 1px solid #e9ecef;
+    border-radius: 0.25rem;
+    background-color: #f8f9fa;
+    padding: 0.5rem;
+    
+    &.loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100px;
+    }
+    
+    // Custom scrollbar
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: #ced4da;
+      border-radius: 2px;
+      
+      &:hover {
+        background: #adb5bd;
+      }
+    }
+    
+    .chat-messages-list {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .chat-message-item {
+      background-color: white;
+      border: 1px solid #e9ecef;
+      transition: all 0.2s;
+      
+      &:hover {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      
+      &.user-message {
+        border-left: 3px solid #007bff;
+        background-color: rgba(0, 123, 255, 0.05);
+      }
+      
+      &.assistant-message {
+        border-left: 3px solid #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+      }
+      
+      &.system-message {
+        border-left: 3px solid #6c757d;
+        background-color: rgba(108, 117, 125, 0.05);
+      }
+      
+      .message-role-badge {
+        font-size: 0.65rem;
+        padding: 0.15em 0.4em;
+        font-weight: 600;
+        border-radius: 0.2rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+        
+        &.badge-primary {
+          background-color: #007bff;
+          color: white;
+        }
+        
+        &.badge-success {
+          background-color: #28a745;
+          color: white;
+        }
+        
+        &.badge-secondary {
+          background-color: #6c757d;
+          color: white;
+        }
+      }
+      
+      .message-content {
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        line-height: 1.4;
+        color: #212529;
+      }
+      
+      video {
+        border-radius: 0.25rem;
+      }
+    }
+  }
+}
+
 .indexer-tabs-container {
   margin-bottom: 0.5rem;
   border-bottom: 1px solid #dee2e6;
