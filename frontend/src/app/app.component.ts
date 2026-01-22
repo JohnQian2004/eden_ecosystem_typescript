@@ -204,7 +204,7 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
+  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -1065,6 +1065,9 @@ export class AppComponent implements OnInit, OnDestroy {
     // This is async and won't block balance loading
     this.initializeGoogleSignIn();
     
+    // Initialize tab visibility handling before connecting
+    // This ensures WebSocket is only active in the visible tab
+    this.wsService.initializeTabVisibilityHandling();
     this.wsService.connect();
     
     // Listen for service provider creation events to refresh service types

@@ -4852,6 +4852,266 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "priest",
         "status": "active"
+      },
+      {
+        "id": "c_1769048482299_5fcab25b011ef8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769048482299,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769048489574_115469743ca5d8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie this evening, consider watching 'The Matrix'. It's showing at 8:00 PM at AMC Theatres in Baltimore, Maryland. Tickets are priced at $2. This movie has an excellent rating of 4.9 based on 150 reviews.",
+        "timestamp": 1769048489574,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769048504709_180eab3292c02",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769048504709,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049009772_54f27f1ed825d8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769049009772,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049019003_07ca818ae1d33",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Enjoy an evening of sci-fi with 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM and tickets are just $2. With a fantastic rating of 4.9 from 150 reviews, this movie is a must-watch!",
+        "timestamp": 1769049019003,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049255000_34e7ce507c65e8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769049255000,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049261301_5dcae7382f55f",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Enjoy an exciting evening watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM and is priced at just $2. With a high rating of 4.9 from 150 reviews, it's a great choice for sci-fi fans!",
+        "timestamp": 1769049261301,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049285896_12f7847aa8b888",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769049285896,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049912479_fb34e6e7b3df48",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769049912479,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049917831_c6702b958f2f5",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Enjoy an evening at AMC Theatres with the sci-fi classic, 'The Matrix'. With a showtime at 8:00 PM in Baltimore, Maryland, and a fantastic rating of 4.9 from 150 reviews, your ticket is priced at just $2. Don't miss out on this thrilling experience!",
+        "timestamp": 1769049917831,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769049944449_c576f3b1e2806",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769049944449,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050481221_6bdf30539856d8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050481221,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050486299_5deee91e8779f8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie evening, consider watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM. The movie has an excellent rating of 4.9 based on 150 reviews, and tickets are priced at $2.",
+        "timestamp": 1769050486299,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050499498_970f0d87ec7478",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769050499498,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050510559_ddb32678d25a08",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050510559,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050529564_ab1b8c855f64a",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie this evening, I recommend watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM, and it has an excellent rating of 4.9 from 150 reviews. Tickets are priced at $2.",
+        "timestamp": 1769050529564,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050530647_4187e12ab57438",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050530647,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050534826_a99dee9194e5e8",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "For an evening showing of a sci-fi movie, we recommend 'The Matrix' at AMC Theatres. It starts at 8:00 PM in Baltimore, Maryland. The movie has a fantastic rating of 4.9 out of 5 from 150 reviews, and tickets are priced at just $2.",
+        "timestamp": 1769050534826,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050552720_979bb26e5a0d3",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050552720,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050558023_ccda2f0e7e62a",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Looking for an exciting sci-fi movie to watch in the evening? Check out 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM, and with a rating of 4.9 based on 150 reviews, it's a must-see. Tickets are available for just $2.",
+        "timestamp": 1769050558023,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050794137_c9bc03b7711b18",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050794137,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050799345_59002d5d0e7cf",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "Here are some sci-fi movie options for the evening. We recommend checking out 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM, and it has an excellent rating of 4.9 from 150 reviews. Tickets are priced at $2.",
+        "timestamp": 1769050799345,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050812378_a38721792d5228",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769050812378,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050841138_a5a0ac1d4e7b98",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769050841138,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769050846848_fa8418b2951558",
+        "conversationId": "conv:garden:garden-13:priest",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie experience in the evening, I recommend watching 'The Matrix' at AMC Theatres. It has an excellent rating of 4.9 based on 150 reviews. The showtime is at 8:00 PM in Baltimore, Maryland, with a ticket price of $2.",
+        "timestamp": 1769050846848,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "priest",
+        "status": "active"
       }
     ]
   }

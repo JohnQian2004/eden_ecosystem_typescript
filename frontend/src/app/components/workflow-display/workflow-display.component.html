@@ -171,19 +171,28 @@
           🔍 DEBUG: stepId = {{ pendingDecision.stepId }}, executionId = {{ pendingDecision.executionId }}
         </div>
         <!-- Video Player for Movie Viewing Decision -->
+        <!-- Use *ngIf with videoUrl to force video element recreation when URL changes (fixes Windows player issue) -->
         <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
           <div class="card" style="display: block !important; visibility: visible !important;">
             <div class="card-body" style="display: block !important; visibility: visible !important;">
               <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
-              <video 
-                controls 
-                autoplay
-                class="w-100" 
-                style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
-                [src]="getVideoUrl(pendingDecision.videoUrl)"
-                preload="auto">
-                Your browser does not support the video tag.
-              </video>
+              <!-- Wrapping video in *ngIf with unique condition forces recreation when videoUrl changes (Windows player fix) -->
+              <div *ngIf="pendingDecision.videoUrl; let videoUrl">
+                <video 
+                  #videoPlayer
+                  controls 
+                  autoplay
+                  class="w-100" 
+                  style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                  [src]="getVideoUrl(videoUrl)"
+                  [attr.data-video-url]="videoUrl"
+                  preload="auto"
+                  (loadstart)="onVideoLoadStart($event, videoUrl)"
+                  (error)="onVideoError($event, videoUrl)"
+                  (loadeddata)="onVideoLoadedData($event, videoUrl)">
+                  Your browser does not support the video tag.
+                </video>
+              </div>
               <div class="small text-muted mt-1">
                 Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
               </div>

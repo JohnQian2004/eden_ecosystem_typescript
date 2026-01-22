@@ -10,6 +10,7 @@ import { IgasDisplayComponent } from './components/igas-display/igas-display.com
 import { LedgerDisplayComponent } from './components/ledger-display/ledger-display.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { WorkflowDisplayComponent } from './components/workflow-display/workflow-display.component';
+import { WorkflowDisplay2Component } from './components/workflow-display2/workflow-display2.component';
 import { WorkflowChatDisplayComponent } from './components/workflow-chat-display/workflow-chat-display.component';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
@@ -38,6 +39,7 @@ const routes: Routes = [
     LedgerDisplayComponent,
     CertificateDisplayComponent,
     WorkflowDisplayComponent,
+    WorkflowDisplay2Component,
     WorkflowChatDisplayComponent,
     SystemConfigComponent,
     MovieTheaterComponent,
