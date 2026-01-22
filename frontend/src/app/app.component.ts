@@ -212,10 +212,24 @@ export class AppComponent implements OnInit, OnDestroy {
   private gardensRefreshTimer: any = null;
   private dexGardensRefreshTimer: any = null;
   
+  // Cached sign-in state to prevent duplicate renders
+  private _isUserSignedIn: boolean = false;
+  
+  // Render key to force component recreation and prevent duplication
+  renderKey: string = `render-${Date.now()}`;
+  
+  // Flag to prevent duplicate renders during sign out
+  private isSigningOut: boolean = false;
+  
   // Helper getter to check if user is actually signed in (has saved email in localStorage)
   get isUserSignedIn(): boolean {
+    return this._isUserSignedIn;
+  }
+  
+  // Update sign-in state (call this when localStorage changes)
+  private updateSignInState(): void {
     const savedEmail = localStorage.getItem('userEmail');
-    return !!savedEmail && savedEmail.trim() !== '';
+    this._isUserSignedIn = !!savedEmail && savedEmail.trim() !== '';
   }
   
   // Admin email constant
@@ -312,7 +326,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this._currentViewMode = mode;
     // Tiny forced overlay window so the UI always feels responsive during big GOD-mode boot loads.
     this.viewTransitionUntilMs = Date.now() + 800;
-    this.cdr.detectChanges();
+    // Don't call detectChanges here - let it be batched with other changes
   }
 
   // Check if we're in user mode (non-admin)
@@ -637,6 +651,8 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Initialize sign-in state from localStorage
+    this.updateSignInState();
     // Check initial route for DEX wizard - check multiple times to catch route initialization
     const checkRoute = () => {
       const routerUrl = this.router.url || '';
@@ -644,7 +660,8 @@ export class AppComponent implements OnInit, OnDestroy {
       const currentUrl = routerUrl || locationUrl;
       this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
       console.log('[AppComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
-      this.cdr.detectChanges();
+      // Use markForCheck instead of detectChanges to prevent duplicate renders
+      this.cdr.markForCheck();
     };
     
     // Check immediately
@@ -1571,6 +1588,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.isGoogleSignedIn = true;
         localStorage.setItem('userEmail', email);
         localStorage.setItem('googleCredential', response.credential);
+        this.updateSignInState(); // Update cached state
         console.log(`✅ Google Sign-In successful: ${email}`);
         
         // Update title to show user email
@@ -1891,19 +1909,23 @@ export class AppComponent implements OnInit, OnDestroy {
   signOut() {
     // Clear wallet balance IMMEDIATELY when signing out (before any other operations)
     console.log(`🔄 [App] User signing out, clearing wallet balance immediately`);
-    this.walletBalance = 0;
-    this.isLoadingBalance = true; // Set to loading state to show spinner
     
-    // Force change detection immediately to update UI
-    this.cdr.detectChanges();
-    
-    // Clear Google Sign-In data
+    // Clear Google Sign-In data FIRST to prevent any race conditions
     localStorage.removeItem('userEmail');
     localStorage.removeItem('googleCredential');
     
+    // Update cached sign-in state FIRST to prevent getter from returning different values
+    this._isUserSignedIn = false;
+    
+    // Generate new render key to force clean render and prevent duplication
+    this.renderKey = `render-${Date.now()}`;
+    
     // Clear userEmail to put dashboard in non-user binding state
+    // IMPORTANT: Set these synchronously to prevent intermediate renders
     this.userEmail = '';
     this.isGoogleSignedIn = false;
+    this.walletBalance = 0;
+    this.isLoadingBalance = true; // Set to loading state to show spinner
     
     // Set view mode to USER when signing out
     console.log(`🔄 [App] Setting view mode to USER after sign out`);
@@ -1917,18 +1939,17 @@ export class AppComponent implements OnInit, OnDestroy {
     
     this.updateTitle();
     
-    // Load wallet balance for default user after a short delay to ensure UI has updated
+    // Use a single change detection after all state is updated
+    // Batch all changes in a single render cycle to prevent duplication
     setTimeout(() => {
-      this.loadWalletBalance();
-    }, 100);
-    
-    // Force change detection again after all updates
-    this.cdr.detectChanges();
-    
-    // Re-initialize Google Sign-In to show button again (with a small delay to ensure DOM is updated)
-    setTimeout(() => {
-      this.initializeGoogleSignIn();
-    }, 100);
+      this.cdr.detectChanges();
+      
+      // Load wallet balance and re-initialize Google Sign-In after UI has updated
+      setTimeout(() => {
+        this.loadWalletBalance();
+        this.initializeGoogleSignIn();
+      }, 50);
+    }, 0);
   }
   
   signOutAndClose() {
@@ -1958,6 +1979,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.userEmail = this.signInEmail;
       this.isGoogleSignedIn = true; // Mark as signed in (even though it's email/password)
       localStorage.setItem('userEmail', this.signInEmail);
+      this.updateSignInState(); // Update cached state
       
       // Check for pending mode selection (selected before login)
       const pendingMode = localStorage.getItem('pendingViewMode');

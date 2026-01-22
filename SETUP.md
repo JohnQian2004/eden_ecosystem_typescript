@@ -1,6 +1,6 @@
 npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run build
 npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run dev
-
+npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 # Eden Simulator - Full Stack Setup Guide
 
 ## Architecture

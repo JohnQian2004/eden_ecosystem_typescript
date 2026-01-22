@@ -22,15 +22,11 @@ import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
   { 
-    path: '', 
-    component: AppComponent,
-    children: [
-      { 
-        path: 'dex-garden-wizard', 
-        component: DexGardenWizardComponent 
-      }
-    ]
+    path: 'dex-garden-wizard', 
+    component: DexGardenWizardComponent 
   }
+  // Note: AppComponent is the bootstrap component, so we don't need it as a route
+  // The router-outlet in AppComponent will render DexGardenWizardComponent when on that route
 ];
 
 @NgModule({

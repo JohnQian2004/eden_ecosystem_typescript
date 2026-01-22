@@ -1,4 +1,4 @@
-<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''">
+<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''" [attr.data-user-signed-in]="_isUserSignedIn">
   <!-- Global Loading Overlay (GOD mode boot + long network operations) -->
   <div *ngIf="isGlobalLoading" class="global-loading-overlay">
     <div class="global-loading-card">
@@ -7,12 +7,12 @@
       <div class="small text-muted mt-1">Please wait…</div>
     </div>
   </div>
-  <!-- Router Outlet for DEX Garden Wizard (always visible for child routes) -->
-  <div style="position: relative;">
+  <!-- Router Outlet for DEX Garden Wizard (only visible for child routes) -->
+  <div style="position: relative;" *ngIf="isDexWizardRoute">
     <router-outlet></router-outlet>
   </div>
   <!-- Main App Content (hidden when on DEX wizard route) -->
-  <div *ngIf="!isDexWizardRoute" class="row">
+  <div *ngIf="!isDexWizardRoute" class="row" [attr.data-render-key]="renderKey">
     <!-- Sidebar (hidden in USER and PRIEST modes, only shown in GOD mode) -->
     <div class="col-md-3 sidebar" *ngIf="showSidebar">
       <app-sidebar #sidebarComponent></app-sidebar>
