@@ -1,0 +1,106 @@
+<div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">🎭 Choose Your Eden Identity</h5>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-4">
+          Welcome to Eden! Choose a unique username that will be your identity across all Gardens.
+          This username cannot be changed later, so choose wisely.
+        </p>
+
+        <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()">
+          <!-- Username Input -->
+          <div class="mb-3">
+            <label for="globalUsername" class="form-label">
+              <strong>Username</strong> <span class="text-danger">*</span>
+              <small class="text-muted">(unique, immutable)</small>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="globalUsername"
+              formControlName="globalUsername"
+              placeholder="e.g., billdraper"
+              [class.is-invalid]="usernameAvailable === false"
+              [class.is-valid]="usernameAvailable === true"
+              autocomplete="username">
+            
+            <!-- Availability Status -->
+            <div *ngIf="isCheckingAvailability" class="form-text">
+              <span class="spinner-border spinner-border-sm me-1"></span>
+              Checking availability...
+            </div>
+            <div *ngIf="usernameAvailable === true && !isCheckingAvailability" class="text-success small mt-1">
+              ✅ Username is available
+            </div>
+            <div *ngIf="usernameAvailable === false && usernameError" class="text-danger small mt-1">
+              ❌ {{ usernameError }}
+            </div>
+            <div class="form-text">
+              Must be 3-30 characters, letters, numbers, underscores, and hyphens only. Cannot start with a number.
+            </div>
+          </div>
+
+          <!-- Suggested Usernames -->
+          <div *ngIf="suggestedUsernames.length > 0" class="mb-3">
+            <label class="form-label small text-muted">Suggested usernames:</label>
+            <div class="d-flex gap-2 flex-wrap">
+              <button
+                *ngFor="let suggestion of suggestedUsernames"
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                (click)="useSuggestedUsername(suggestion)">
+                {{ suggestion }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Nickname Input (Optional) -->
+          <div class="mb-3">
+            <label for="globalNickname" class="form-label">
+              <strong>Display Name</strong>
+              <small class="text-muted">(optional, changeable)</small>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="globalNickname"
+              formControlName="globalNickname"
+              placeholder="e.g., Bill Draper 🎬"
+              maxlength="50"
+              autocomplete="nickname">
+            <div class="form-text">
+              Optional display name that others will see. Can include emojis and can be changed later.
+            </div>
+          </div>
+
+          <!-- Email Display (Read-only) -->
+          <div class="mb-3">
+            <label class="form-label small text-muted">Email:</label>
+            <div class="form-control-plaintext">{{ email }}</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="onCancel()"
+          [disabled]="isRegistering">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="onSubmit()"
+          [disabled]="registrationForm.invalid || !usernameAvailable || isRegistering">
+          <span *ngIf="isRegistering" class="spinner-border spinner-border-sm me-2"></span>
+          {{ isRegistering ? 'Registering...' : 'Register' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+

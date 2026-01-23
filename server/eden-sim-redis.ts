@@ -141,6 +141,19 @@ import {
   type PriesthoodCertification
 } from "./src/priesthoodCertification";
 import {
+  initializeIdentity,
+  createEdenUser,
+  getEdenUser,
+  getEdenUserByGoogleId,
+  getEdenUserByUsername,
+  isUsernameAvailable,
+  validateUsername,
+  joinGarden,
+  getGardenUser,
+  updateGardenNickname,
+  resolveDisplayName
+} from "./src/identity";
+import {
   initializeLLM,
   extractQueryWithOpenAI,
   // COMMENTED OUT: formatResponseWithOpenAI is now cloned directly in this file - do not import
@@ -3801,6 +3814,144 @@ httpServer.on("request", async (req, res) => {
         sendChatHistoryResponse(200, { success: true, message: saved });
       } catch (e: any) {
         sendChatHistoryResponse(400, { success: false, error: e?.message || "Failed to append" });
+      }
+    });
+    return;
+  }
+
+  // ============================================
+  // Identity API Endpoints
+  // ============================================
+
+  // POST /api/identity/register - Register new Eden user with username
+  if (pathname === "/api/identity/register" && req.method === "POST") {
+    console.log(`   🎭 [${requestId}] POST /api/identity/register - Username registration`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body);
+        const { googleUserId, email, globalUsername, globalNickname } = parsed;
+        
+        if (!googleUserId || !email || !globalUsername) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing required fields" }));
+          return;
+        }
+
+        const user = createEdenUser(googleUserId, email, globalUsername, globalNickname);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, user }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Registration error:`, error);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message || "Registration failed" }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/identity/username/check - Check username availability
+  if (pathname === "/api/identity/username/check" && req.method === "GET") {
+    const parsed = url.parse(req.url || "/", true);
+    const username = parsed.query.username as string;
+    
+    if (!username) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ available: false, error: "Username parameter required" }));
+      return;
+    }
+
+    const available = isUsernameAvailable(username);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ available }));
+    return;
+  }
+
+  // GET /api/identity/user/:userId - Get Eden user
+  if (pathname?.startsWith("/api/identity/user/") && req.method === "GET") {
+    const userId = pathname.split("/").pop();
+    if (!userId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "User ID required" }));
+      return;
+    }
+
+    const user = getEdenUser(userId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: !!user, user: user || null }));
+    return;
+  }
+
+  // GET /api/identity/garden-user - Get Garden user
+  if (pathname === "/api/identity/garden-user" && req.method === "GET") {
+    const parsed = url.parse(req.url || "/", true);
+    const userId = parsed.query.userId as string;
+    const gardenId = parsed.query.gardenId as string;
+    
+    if (!userId || !gardenId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "userId and gardenId required" }));
+      return;
+    }
+
+    const gardenUser = getGardenUser(userId, gardenId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true, gardenUser: gardenUser || null }));
+    return;
+  }
+
+  // POST /api/identity/garden/join - Join a Garden
+  if (pathname === "/api/identity/garden/join" && req.method === "POST") {
+    console.log(`   🎭 [${requestId}] POST /api/identity/garden/join - Garden join`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body);
+        const { userId, gardenId, gardenUsername, gardenNickname } = parsed;
+        
+        if (!userId || !gardenId) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userId and gardenId required" }));
+          return;
+        }
+
+        const gardenUser = joinGarden(userId, gardenId, gardenUsername, gardenNickname);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, gardenUser }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Garden join error:`, error);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message || "Garden join failed" }));
+      }
+    });
+    return;
+  }
+
+  // PUT /api/identity/garden-user/nickname - Update garden nickname
+  if (pathname === "/api/identity/garden-user/nickname" && req.method === "PUT") {
+    console.log(`   🎭 [${requestId}] PUT /api/identity/garden-user/nickname - Update nickname`);
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body);
+        const { userId, gardenId, nickname } = parsed;
+        
+        if (!userId || !gardenId || !nickname) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "userId, gardenId, and nickname required" }));
+          return;
+        }
+
+        const gardenUser = updateGardenNickname(userId, gardenId, nickname);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, gardenUser }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Nickname update error:`, error);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message || "Nickname update failed" }));
       }
     });
     return;
@@ -13471,25 +13622,9 @@ async function processChatInput(input: string, email: string) {
     throw new Error(errorMsg);
   }
   
-  // CRITICAL: Broadcast cashier_payment_processed here (matches old codebase pattern exactly)
-  // Old codebase: processPayment() broadcasts "cashier_payment_processed" internally,
-  // then processChatInput broadcasts "purchase" here (we broadcast both for compatibility)
-  const updatedCashier = getCashierStatus();
-  const updatedBalance = user.balance; // Updated by processPayment
-  console.log(`📡 [Broadcast] ⭐ Sending cashier_payment_processed event from processChatInput: ${ledgerEntry.amount} 🍎 APPLES`);
-  console.log(`📡 [Broadcast] Event details: cashier=${updatedCashier.name}, entryId=${ledgerEntry.entryId}, amount=${ledgerEntry.amount}, balance=${updatedBalance}`);
-  broadcastEvent({
-    type: "cashier_payment_processed",
-    component: "cashier",
-    message: `${updatedCashier.name} processed payment: ${ledgerEntry.amount} 🍎 APPLES`,
-    timestamp: Date.now(),
-    data: { 
-      entry: ledgerEntry, 
-      cashier: updatedCashier, 
-      userBalance: updatedBalance, 
-      walletService: "wallet-service-001" 
-    }
-  });
+  // REMOVED: Duplicate cashier_payment_processed broadcast
+  // processPayment() in ledger.ts already broadcasts this event, so we don't need to broadcast it again here
+  // This prevents duplicate confirmation messages from appearing in the frontend
   
   // Also broadcast purchase event (matches old codebase pattern)
   console.log(`📡 [Broadcast] ⭐ Sending purchase event from processChatInput: ${selectedListing.movieTitle || 'service'}`);
@@ -13821,6 +13956,9 @@ async function main() {
 
   // Initialize ROOT CA
   initializeRootCA();
+  
+  // Initialize Identity System
+  initializeIdentity();
   
   // Initialize logger FIRST (needed for tracing garden lifecycle)
   initializeLogger();

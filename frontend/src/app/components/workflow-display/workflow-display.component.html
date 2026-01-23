@@ -1,115 +1,19 @@
 <div class="card">
   <div class="card-header bg-primary text-white">
-    <h5 class="mb-0">🎬 AMC Cinema Workflow Control</h5>
-    <small class="text-white-50">🔄 Atomic Server Execution | 🤖 LLM Self-Play + 💰 Server Autopay</small>
+    <h5 class="mb-0">🎬 Workflow Display (Testbed)</h5>
+    <small class="text-white-50">🔄 Atomic Server Execution</small>
   </div>
   <div class="card-body">
-    <!-- Debug Info -->
-    <div class="alert alert-info small mb-3">
-      <strong>Debug Info:</strong><br>
-      Loading: {{ isLoading }} | Current Workflow: {{ currentWorkflow ? currentWorkflow.name : 'None' }} | Selected: {{ selectedWorkflow || 'None' }} | Active Execution: {{ activeExecution ? activeExecution.serviceType : 'None' }}<br>
-      API URL: {{ apiUrl }}
-    </div>
-
-    <!-- LLM Response Display -->
-    <div *ngIf="llmResponses.length > 0" class="card mb-3">
-      <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">🤖 LLM Responses ({{ llmResponses.length }})</h6>
-        <div class="btn-group" role="group">
-          <button class="btn btn-sm btn-outline-light" (click)="exportLlmHistory()" title="Export LLM History as JSON">
-            📤 Export
-          </button>
-          <button class="btn btn-sm btn-outline-light" (click)="clearLlmHistory()" title="Clear LLM History">
-            🗑️ Clear
-          </button>
-        </div>
+    <!-- Waiting State - Show when no execution is active -->
+    <div *ngIf="!activeExecution" class="alert alert-warning text-center py-5">
+      <div class="mb-3">
+        <i class="fas fa-hourglass-half fs-1 text-warning"></i>
       </div>
-      <div class="card-body">
-        <!-- LLM History Summary -->
-        <div class="row mb-3 text-muted small">
-          <div class="col-md-3">
-            <strong>Total:</strong> {{ llmResponses.length }}
-          </div>
-          <div class="col-md-3">
-            <strong>Processing:</strong> {{ processingCount }}
-          </div>
-          <div class="col-md-3">
-            <strong>Responses:</strong> {{ responseCount }}
-          </div>
-          <div class="col-md-3" *ngIf="llmResponses.length > 0">
-            <strong>Latest:</strong> {{ llmResponses[llmResponses.length - 1].timestamp | date:'shortTime' }}
-          </div>
-        </div>
-
-        <div *ngFor="let response of llmResponses; let i = index" class="mb-3">
-          <div class="alert" [ngClass]="response.type === 'start' ? 'alert-info' : 'alert-success'">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <strong>{{ response.type === 'start' ? '🤖 Processing...' : '✅ Response' }}</strong>
-                <p class="mb-2">{{ response.message }}</p>
-
-                <!-- Raw Data Toggle (for responses only) -->
-                <div *ngIf="response.type === 'response'" class="mb-2">
-                  <button class="btn btn-sm btn-outline-info" (click)="toggleRawData(response)">
-                    🔍 {{ response.showRawData ? 'Hide' : 'Show' }} Raw LLM Data
-                  </button>
-                </div>
-
-                <!-- Raw LLM Data Display -->
-                <div *ngIf="response.showRawData" class="mb-3 p-3 bg-light rounded">
-                  <h6 class="text-muted mb-2">🔍 Original LLM Event Data:</h6>
-                  <pre class="small text-muted">{{ response.originalEvent | json }}</pre>
-
-                  <h6 class="text-muted mb-2 mt-3" *ngIf="response.llmData">📊 Extracted LLM Data:</h6>
-                  <pre class="small text-muted" *ngIf="response.llmData">{{ response.llmData | json }}</pre>
-                </div>
-
-                <!-- Structured Data Table -->
-                <div *ngIf="response.data" class="mt-2">
-                  <table class="table table-sm table-bordered">
-                    <thead class="table-light">
-                      <tr>
-                        <th scope="col" style="width: 30%;">Field</th>
-                        <th scope="col">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let field of getDataFields(response.data)">
-                        <td><strong>{{ getFieldLabel(field.key) }}</strong></td>
-                        <td>
-                          <span [innerHTML]="formatTableValue(field.value)"></span>
-                          <!-- Nested object display -->
-                          <div *ngIf="isObject(field.value) && !isArray(field.value)" class="mt-1">
-                            <table class="table table-sm table-light">
-                              <tbody>
-                                <tr *ngFor="let subField of getDataFields(field.value)">
-                                  <td style="width: 40%; font-size: 0.85em;"><em>{{ getFieldLabel(subField.key) }}</em></td>
-                                  <td style="font-size: 0.85em;">{{ formatTableValue(subField.value) }}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <small class="text-muted">{{ response.timestamp | date:'HH:mm:ss' }}</small>
-            </div>
-          </div>
-        </div>
-
-        <div *ngIf="iGasCost" class="alert alert-warning">
-          <strong>⛽ iGas Cost:</strong> {{ iGasCost | number:'1.6-6' }}
-        </div>
-      </div>
-    </div>
-
-    <!-- No LLM Responses Message -->
-    <div *ngIf="llmResponses.length === 0" class="alert alert-info">
-      <strong>🤖 No LLM Responses Yet</strong><br>
-      <small>LLM responses will appear here during workflow execution. History is automatically saved and restored.</small>
+      <h5>⏳ Waiting for Workflow Execution</h5>
+      <p class="text-muted mb-0">
+        This component will display workflow execution details when a workflow is started.<br>
+        <small>Start a workflow from the chat interface to see it here.</small>
+      </p>
     </div>
 
     <div *ngIf="isLoading" class="text-center py-4">
@@ -121,12 +25,6 @@
     </div>
 
     <div *ngIf="!isLoading && currentWorkflow">
-      <!-- Debug: Template condition met -->
-      <div style="background: #f0f0f0; padding: 5px; margin-bottom: 10px; font-size: 12px;">
-        🔍 DEBUG: Template rendering - isLoading: {{isLoading}}, currentWorkflow: {{!!currentWorkflow}}, workflowName: {{currentWorkflow.name || 'N/A'}}, steps: {{debugWorkflowSteps.length || 0}}<br>
-        🔍 DEBUG: Selection - showSelectionPrompt: {{showSelectionPrompt}}, pendingSelection: {{!!pendingSelection}}, options count: {{pendingSelection?.options?.length || 0}}<br>
-        🔍 DEBUG: Decision - showDecisionPrompt: {{showDecisionPrompt}}, pendingDecision: {{!!pendingDecision}}, options count: {{pendingDecision?.options?.length || 0}}
-      </div>
       <!-- Workflow Control -->
       <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -154,56 +52,6 @@
       <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-4" role="alert">
         <h6 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h6>
         <hr>
-        <!-- Debug Info -->
-        <div class="small text-muted mb-2" *ngIf="pendingDecision" style="background: #fff3cd; padding: 10px; border-radius: 4px;">
-          🔍 DEBUG: videoUrl = "{{ pendingDecision.videoUrl || 'undefined' }}", movieTitle = "{{ pendingDecision.movieTitle || 'undefined' }}"
-          <br>
-          🔍 DEBUG: showDecisionPrompt = {{ showDecisionPrompt }}, pendingDecision exists = {{ !!pendingDecision }}
-          <br>
-          🔍 DEBUG: videoUrl truthy = {{ !!pendingDecision.videoUrl }}, videoUrl length = {{ pendingDecision.videoUrl ? pendingDecision.videoUrl.length : 0 }}
-          <br>
-          🔍 DEBUG: pendingDecision.options exists = {{ !!pendingDecision.options }}
-          <br>
-          🔍 DEBUG: pendingDecision.options length = {{ pendingDecision.options ? pendingDecision.options.length : 0 }}
-          <br>
-          🔍 DEBUG: pendingDecision.options = {{ pendingDecision.options ? (pendingDecision.options | json) : 'null' }}
-          <br>
-          🔍 DEBUG: stepId = {{ pendingDecision.stepId }}, executionId = {{ pendingDecision.executionId }}
-        </div>
-        <!-- Video Player for Movie Viewing Decision -->
-        <!-- Use *ngIf with videoUrl to force video element recreation when URL changes (fixes Windows player issue) -->
-        <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
-          <div class="card" style="display: block !important; visibility: visible !important;">
-            <div class="card-body" style="display: block !important; visibility: visible !important;">
-              <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
-              <!-- Wrapping video in *ngIf with unique condition forces recreation when videoUrl changes (Windows player fix) -->
-              <div *ngIf="pendingDecision.videoUrl; let videoUrl">
-                <video 
-                  #videoPlayer
-                  controls 
-                  autoplay
-                  class="w-100" 
-                  style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
-                  [src]="getVideoUrl(videoUrl)"
-                  [attr.data-video-url]="videoUrl"
-                  preload="auto"
-                  (loadstart)="onVideoLoadStart($event, videoUrl)"
-                  (error)="onVideoError($event, videoUrl)"
-                  (loadeddata)="onVideoLoadedData($event, videoUrl)">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="small text-muted mt-1">
-                Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
-              </div>
-              <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
-            </div>
-          </div>
-        </div>
-        <!-- Debug: Options rendering -->
-        <div class="small text-danger mb-2" *ngIf="!pendingDecision.options || pendingDecision.options.length === 0" style="background: #f8d7da; padding: 10px; border-radius: 4px;">
-          ⚠️ WARNING: No options available! pendingDecision.options = {{ pendingDecision.options | json }}
-        </div>
         <div class="d-flex gap-2" *ngIf="pendingDecision.options && pendingDecision.options.length > 0">
           <button
             *ngFor="let option of pendingDecision.options; let i = index"
@@ -219,15 +67,6 @@
         <small class="text-muted mt-2 d-block">
           Timeout: {{ pendingDecision.timeout }}ms
         </small>
-      </div>
-
-      <!-- Debug: Selection Prompt State (always visible for debugging) -->
-      <div style="background: #fff3cd; padding: 10px; margin-bottom: 10px; font-size: 12px; border: 1px solid #ffc107;">
-        ⚠️ DEBUG Selection State:<br>
-        showSelectionPrompt: {{showSelectionPrompt}}<br>
-        pendingSelection exists: {{!!pendingSelection}}<br>
-        pendingSelection options count: {{pendingSelection?.options?.length || 0}}<br>
-        pendingSelection prompt: {{pendingSelection?.prompt || 'N/A'}}
       </div>
 
       <!-- Movie Selection Prompt -->
@@ -279,10 +118,6 @@
           </div>
 
           <div class="list-group">
-            <!-- Debug: Steps iteration -->
-            <div style="background: #ffe0e0; padding: 5px; margin-bottom: 5px; font-size: 11px;" *ngIf="debugWorkflowSteps.length > 0">
-              🔍 DEBUG: Iterating {{debugWorkflowSteps.length}} steps
-            </div>
             <div
               *ngFor="let step of debugWorkflowSteps; let i = index; trackBy: trackByStepId"
               class="list-group-item"
@@ -329,16 +164,19 @@
 
         <!-- Current Step Details -->
         <div class="col-md-8">
-          <div *ngIf="currentStep" class="card">
+          <!-- Completely hide Eden Chat input step card -->
+          <div *ngIf="currentStep && !(currentStep.type === 'input' && currentStep.component === 'eden_chat')" class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
               <h6 class="mb-0">
                 {{ getStepIcon(currentStep.type) }} {{ currentStep.name }}
                 <span [ngClass]="getStepTypeClass(currentStep.type)" class="ms-2">{{ currentStep.type }}</span>
+                <span *ngIf="currentStepIndex >= debugWorkflowSteps.length - 1" class="badge bg-success ms-2">🏁 FINAL STEP</span>
               </h6>
               <small class="text-muted">Step {{ currentStepIndex + 1 }} of {{ debugWorkflowSteps.length }}</small>
             </div>
             <div class="card-body">
-              <p class="lead">{{ currentStep.description }}</p>
+              <!-- Hide description for Eden Chat input step -->
+              <p *ngIf="!(currentStep.type === 'input' && currentStep.component === 'eden_chat')" class="lead">{{ currentStep.description }}</p>
 
               <!-- Decision Step Interactive UI -->
               <div *ngIf="currentStep.type === 'decision' && currentStep.requiresUserDecision && pendingDecision" class="alert alert-warning">
@@ -394,32 +232,16 @@
                     </li>
                   </ul>
                   <div class="alert alert-light mt-2 small">
-                    <strong>🔄 Atomic Execution:</strong> All actions processed together on server |
-                    <strong>🤖 LLM Self-Play</strong> + <strong>💰 Server Autopay</strong>
+                    <strong>🔄 Atomic Execution:</strong> All actions processed together on server
                   </div>
                 </div>
               </div>
 
               <!-- Input Step UI -->
-              <div *ngIf="currentStep.type === 'input'" class="alert alert-primary">
-                <h6>📝 {{ currentStep.component === 'eden_chat' ? 'Eden Chat Input Required' : 'Input Required' }}</h6>
+              <!-- Completely hide Eden Chat input step in testbed - user input is handled in main chat interface -->
+              <div *ngIf="currentStep.type === 'input' && currentStep.component !== 'eden_chat'" class="alert alert-primary">
+                <h6>📝 Input Required</h6>
                 <p>{{ currentStep.description }}</p>
-
-                <!-- Eden Chat specific UI -->
-                <div *ngIf="currentStep.component === 'eden_chat'" class="mt-3">
-                  <div class="card bg-light">
-                    <div class="card-body">
-                      <h6 class="card-title">💬 Eden Chat Interface</h6>
-                      <p class="card-text small text-muted">
-                        Please use the chat input below to describe your movie preferences.
-                        The Eden Chat system will process your request and guide you through the movie booking process.
-                      </p>
-                      <div class="alert alert-info small">
-                        <strong>Expected Input:</strong> Movie preferences, show times, ticket requests, etc.
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 <!-- Show validation rules -->
                 <div *ngIf="currentStep.actions" class="mt-3">
@@ -434,6 +256,8 @@
                   </ul>
                 </div>
               </div>
+              
+              <!-- Eden Chat step - completely hidden in testbed, no UI shown -->
 
               <!-- Movie Theater Step UI -->
               <div *ngIf="currentStep.type === 'process' && currentStep.component === 'movie_theater'" class="movie-theater-wrapper">
@@ -450,6 +274,8 @@
                   (movieFinished)="onMovieFinished($event)">
                 </app-movie-theater>
               </div>
+
+              <!-- Video player is now in a popup modal - see bottom of template -->
 
               <!-- Output Step UI -->
               <div *ngIf="currentStep.type === 'output'" class="alert alert-success">
@@ -537,4 +363,67 @@
     </div>
   </div>
 </div>
+
+<!-- Video Player Modal Popup -->
+<div class="modal fade" 
+     [class.show]="showVideoModal" 
+     [style.display]="showVideoModal ? 'block' : 'none'"
+     [style.z-index]="showVideoModal ? '1055' : '-1'"
+     id="videoPlayerModal" 
+     tabindex="-1" 
+     role="dialog"
+     [attr.aria-labelledby]="showVideoModal ? 'videoPlayerModalLabel' : null"
+     [attr.aria-hidden]="!showVideoModal"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="videoPlayerModalLabel">
+          🎬 {{ modalMovieTitle || 'Movie Player' }}
+        </h5>
+        <button type="button" 
+                class="btn-close btn-close-white" 
+                (click)="closeVideoModal()"
+                aria-label="Close">
+        </button>
+      </div>
+      <div class="modal-body p-0 bg-black">
+        <div *ngIf="modalVideoUrl" class="w-100" style="position: relative; padding-top: 56.25%; background: #000;">
+          <video 
+            #modalVideoPlayer
+            controls 
+            autoplay
+            class="w-100 h-100"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+            [src]="getVideoUrl(modalVideoUrl)"
+            [attr.data-video-url]="modalVideoUrl"
+            preload="auto"
+            (loadstart)="onVideoLoadStart($event, modalVideoUrl)"
+            (error)="onVideoError($event, modalVideoUrl)"
+            (loadeddata)="onVideoLoadedData($event, modalVideoUrl)">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      </div>
+      <div class="modal-footer bg-dark text-white">
+        <button type="button" 
+                class="btn btn-secondary" 
+                (click)="closeVideoModal()">
+          Close
+        </button>
+        <button *ngIf="pendingDecision && pendingDecision.stepId === 'view_movie'" 
+                type="button" 
+                class="btn btn-primary" 
+                (click)="submitDecision('DONE_WATCHING')">
+          Done Watching
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div *ngIf="showVideoModal" 
+     class="modal-backdrop fade show" 
+     style="z-index: 1050;"
+     (click)="closeVideoModal()"></div>
 

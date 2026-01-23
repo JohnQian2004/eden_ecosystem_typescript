@@ -1,0 +1,16 @@
+.modal {
+  z-index: 1055;
+}
+
+.modal-dialog {
+  max-width: 500px;
+}
+
+.form-control.is-valid {
+  border-color: #28a745;
+}
+
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
+
