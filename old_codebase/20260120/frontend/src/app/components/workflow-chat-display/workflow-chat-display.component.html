@@ -73,19 +73,29 @@
               </div>
               
               <!-- Video Player for Movie Viewing -->
+              <!-- Use *ngIf with videoUrl to force video element recreation when URL changes (fixes Windows player issue) -->
               <div *ngIf="message.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
                 <div class="card" style="display: block !important; visibility: visible !important;">
                   <div class="card-body" style="display: block !important; visibility: visible !important;">
                     <h6 class="card-title" *ngIf="message.movieTitle">🎬 {{ message.movieTitle }}</h6>
-                    <video 
-                      controls 
-                      autoplay
-                      class="w-100" 
-                      style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
-                      [src]="getVideoUrl(message.videoUrl)"
-                      preload="auto">
-                      Your browser does not support the video tag.
-                    </video>
+                    <!-- Wrapping video in *ngIf with unique condition forces recreation when videoUrl changes (Windows player fix) -->
+                    <div *ngIf="message.videoUrl; let videoUrl">
+                      <video 
+                        #videoPlayer
+                        controls 
+                        autoplay
+                        class="w-100" 
+                        style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                        [src]="getVideoUrl(videoUrl)"
+                        [attr.data-video-url]="videoUrl"
+                        [attr.data-message-id]="message.id"
+                        preload="auto"
+                        (loadstart)="onVideoLoadStart($event, videoUrl)"
+                        (error)="onVideoError($event, videoUrl)"
+                        (loadeddata)="onVideoLoadedData($event, videoUrl)">
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
                     <div class="small text-muted mt-1">
                       Video Source: {{ getVideoUrl(message.videoUrl) }}
                     </div>
@@ -110,9 +120,9 @@
                       <button 
                         class="btn btn-sm float-end"
                         [ngClass]="{
-                          'btn-success': message.data?.isDecision && (option.label?.toUpperCase() === 'YES' || option.value?.toUpperCase() === 'YES'),
-                          'btn-danger': message.data?.isDecision && (option.label?.toUpperCase() === 'NO' || option.value?.toUpperCase() === 'NO'),
-                          'btn-primary': !message.data?.isDecision || (option.label?.toUpperCase() !== 'YES' && option.label?.toUpperCase() !== 'NO' && option.value?.toUpperCase() !== 'YES' && option.value?.toUpperCase() !== 'NO')
+                          'btn-success': message.data?.isDecision && (option.label.toUpperCase() === 'YES' || option.value.toUpperCase() === 'YES'),
+                          'btn-danger': message.data?.isDecision && (option.label.toUpperCase() === 'NO' || option.value.toUpperCase() === 'NO'),
+                          'btn-primary': !message.data?.isDecision || (option.label.toUpperCase() !== 'YES' && option.label.toUpperCase() !== 'NO' && option.value.toUpperCase() !== 'YES' && option.value.toUpperCase() !== 'NO')
                         }"
                         (click)="onOptionSelected(option, message)">
                         {{ message.data?.isDecision ? 'Choose' : 'Select' }}

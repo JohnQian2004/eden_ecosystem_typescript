@@ -24,14 +24,44 @@
       "currentLiquidity": 100.0010000200002,
       "baseReserve": 100.0010000200002,
       "tokenReserve": 99999,
-      "totalVolume": 0.001000020000200002,
-      "totalTrades": 1,
+      "totalVolume": 0.002000040000400004,
+      "totalTrades": 2,
       "liquidityLoadedAt": 1769038134292,
-      "lastUpdated": 1769038152717,
+      "lastUpdated": 1769041783498,
       "createdAt": 1769038134292
+    },
+    {
+      "tokenSymbol": "TOKEN",
+      "baseToken": "SOL",
+      "poolId": "pool-sol-token-2",
+      "gardenId": "T2",
+      "initialLiquidity": 10000,
+      "currentLiquidity": 10000,
+      "baseReserve": 10000,
+      "tokenReserve": 10000000,
+      "totalVolume": 0,
+      "totalTrades": 0,
+      "liquidityLoadedAt": 1769042937007,
+      "lastUpdated": 1769042937007,
+      "createdAt": 1769042937007
+    },
+    {
+      "tokenSymbol": "TOKEN",
+      "baseToken": "SOL",
+      "poolId": "pool-solana-token-2",
+      "gardenId": "T2",
+      "initialLiquidity": 90,
+      "currentLiquidity": 90,
+      "baseReserve": 90,
+      "tokenReserve": 90000,
+      "totalVolume": 0,
+      "totalTrades": 0,
+      "liquidityLoadedAt": 1769042937023,
+      "lastUpdated": 1769042937023,
+      "createdAt": 1769042937023
     }
   ],
-  "lastUpdated": 1769038152717,
+  "lastUpdated": 1769042937023,
   "createdAt": 1769038123624,
-  "lastSaved": "2026-01-21T23:29:12.717Z"
+  "lastSaved": "2026-01-22T00:48:57.023Z"
 }

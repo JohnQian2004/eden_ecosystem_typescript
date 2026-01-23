@@ -45,6 +45,11 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
   // Movie theater state
   selectedListing: any = null;
+  
+  // Video player modal state
+  showVideoModal: boolean = false;
+  modalVideoUrl: string | null = null;
+  modalMovieTitle: string | null = null;
 
   // Cache for step statuses to avoid repeated calculations
   private stepStatusCache: Map<string, string> = new Map();
@@ -53,6 +58,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   private activeExecutionId: string | null = null;
   private onWorkflowStartedEvt: any;
   private onChatResetEvt: any;
+  private executionCheckInterval: any;
 
   // Computed properties for template bindings (avoiding filter() in templates)
   get processingCount(): number {
@@ -128,6 +134,37 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     // this.loadWorkflows(); // REMOVED: Only load workflows when service type is clicked
     
     this.loadLlmHistory();
+    
+    // CRITICAL: Check for active execution immediately on init (not just in interval)
+    // This ensures the component shows data if an execution is already running
+    const initialExecution = this.flowWiseService.getLatestActiveExecution();
+    if (initialExecution) {
+      console.log('🔄 [WorkflowDisplay] Found active execution on init:', initialExecution.executionId);
+      this.activeExecutionId = String(initialExecution.executionId);
+      this.activeExecution = initialExecution;
+      this.selectedWorkflow = initialExecution.serviceType;
+      
+      // Get the workflow for this execution
+      const workflow = this.flowWiseService.getWorkflow(initialExecution.serviceType);
+      if (workflow) {
+        console.log(`✅ [WorkflowDisplay] Found workflow for ${initialExecution.serviceType}: ${workflow.name}`);
+        if (initialExecution.serviceType === 'movie') {
+          this.movieWorkflow = workflow;
+        } else if (initialExecution.serviceType === 'dex') {
+          this.dexWorkflow = workflow;
+        }
+        this.currentWorkflow = workflow;
+        this.updateDebugWorkflowSteps();
+        this.initializeWorkflowDisplay(initialExecution.serviceType);
+        this.processExecutionMessages(initialExecution);
+        this.cdr.detectChanges();
+      } else {
+        console.warn(`⚠️ [WorkflowDisplay] Workflow not found for ${initialExecution.serviceType}, attempting to load...`);
+        this.flowWiseService.loadWorkflowIfNeeded(initialExecution.serviceType);
+      }
+    } else {
+      console.log('🔄 [WorkflowDisplay] No active execution found on init');
+    }
 
     // Instant reset when AppComponent starts a new workflow (new chat)
     this.onWorkflowStartedEvt = (e: any) => {
@@ -173,10 +210,21 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
                           context['selectedListing2']?.['movieTitle'] ||
                           context['movieTitle'] || '';
         
+        console.log('🎬 [WorkflowDisplay] Extracting videoUrl from decisionRequest for view_movie:', { videoUrl, movieTitle });
+        
         if (videoUrl) {
           decisionRequest.videoUrl = videoUrl;
           decisionRequest.movieTitle = movieTitle || decisionRequest.movieTitle;
+          console.log('🎬 [WorkflowDisplay] Set videoUrl in decisionRequest, opening modal...');
+          // Open video modal immediately when decisionRequest has videoUrl
+          this.openVideoModal(videoUrl, movieTitle);
+        } else {
+          console.warn('🎬 [WorkflowDisplay] No videoUrl found in execution context for view_movie step');
         }
+      } else if (decisionRequest.stepId === 'view_movie' && decisionRequest.videoUrl) {
+        // If videoUrl is already in decisionRequest, open modal
+        console.log('🎬 [WorkflowDisplay] decisionRequest already has videoUrl, opening modal...');
+        this.openVideoModal(decisionRequest.videoUrl, decisionRequest.movieTitle);
       }
       
       // CRITICAL: Clear any pending selection when a decision is required
@@ -224,56 +272,84 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     });
     console.log('🎬 [WorkflowDisplay] ✅ Subscribed to selection requests');
 
-    // Listen for active workflow executions and update display
-    // Check for active executions periodically (only when needed)
-    let lastExecutionId: string | null = null;
-    const executionCheckInterval = setInterval(() => {
+    // SIMPLIFIED APPROACH: Check for active executions periodically (like workflow-chat-display)
+    // This is simpler and more reliable than complex state management
+    this.executionCheckInterval = setInterval(() => {
       const latestExecution = this.flowWiseService.getLatestActiveExecution();
       
       // Only update if execution actually changed
-      if (latestExecution && latestExecution.executionId !== lastExecutionId) {
-        lastExecutionId = latestExecution.executionId;
-        console.log(`🔄 [WorkflowDisplay] Active execution detected: ${latestExecution.serviceType} (${latestExecution.executionId})`);
-        this.resetForNewExecution(String(latestExecution.executionId));
+      if (latestExecution && latestExecution.executionId !== this.activeExecution?.executionId) {
+        console.log(`🔄 [WorkflowDisplay] NEW Active execution detected: ${latestExecution.serviceType} (${latestExecution.executionId})`);
+        
+        // Set active execution
+        this.activeExecutionId = String(latestExecution.executionId);
         this.activeExecution = latestExecution;
         this.selectedWorkflow = latestExecution.serviceType;
         
-        // Get the workflow for this execution
+        // Reset UI for new execution
+        this.resetForNewExecution(String(latestExecution.executionId));
+        
+        // Load and set workflow
         const workflow = this.flowWiseService.getWorkflow(latestExecution.serviceType);
         if (workflow) {
-          console.log(`✅ [WorkflowDisplay] Found workflow for ${latestExecution.serviceType}: ${workflow.name}`);
-          // Store in legacy properties for backward compatibility
-          if (latestExecution.serviceType === 'movie') {
-            this.movieWorkflow = workflow;
-          } else if (latestExecution.serviceType === 'dex') {
-            this.dexWorkflow = workflow;
-          }
-          // Update current workflow property (no getter, just set it)
           this.currentWorkflow = workflow;
           this.updateDebugWorkflowSteps();
           this.initializeWorkflowDisplay(latestExecution.serviceType);
+          
+          // Process execution messages to populate UI
+          this.processExecutionMessages(latestExecution);
+          this.updateCurrentStep();
+          this.cdr.detectChanges();
         } else {
-          console.warn(`⚠️ [WorkflowDisplay] Workflow not found for ${latestExecution.serviceType}, attempting to load...`);
-          // Try to load the workflow if it's not in cache
+          // Try to load workflow if not in cache
           this.flowWiseService.loadWorkflowIfNeeded(latestExecution.serviceType);
+          // Workflow will be loaded asynchronously, check again after a delay
+          setTimeout(() => {
+            const w = this.flowWiseService.getWorkflow(latestExecution.serviceType);
+            if (w) {
+              this.currentWorkflow = w;
+              this.updateDebugWorkflowSteps();
+              this.initializeWorkflowDisplay(latestExecution.serviceType);
+              this.processExecutionMessages(latestExecution);
+              this.updateCurrentStep();
+              this.cdr.detectChanges();
+            }
+          });
         }
       } else if (!latestExecution && this.activeExecution) {
-        // Execution was cleared
-        console.log(`🔄 [WorkflowDisplay] Active execution cleared`);
-        lastExecutionId = null;
+        // Execution completed
+        console.log(`🔄 [WorkflowDisplay] Active execution completed`);
         this.activeExecution = null;
         this.activeExecutionId = null;
         this.updateCurrentWorkflow();
         this.updateDebugWorkflowSteps();
+        this.cdr.detectChanges();
       }
-    }, 1000); // Check every 1 second (less frequent)
-    
-    // Store interval ID for cleanup
-    (this as any)._executionCheckInterval = executionCheckInterval;
+    }, 1000);
 
     // Listen for WebSocket events (LLM responses, etc.)
     console.log('📡 [WorkflowDisplay] Subscribing to WebSocket events...');
     this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
+      // CRITICAL: Filter out ledger/settlement events BEFORE any processing or logging
+      // This prevents them from interfering with video player display
+      // NOTE: cashier_payment_processed is NOT filtered here - we need it to open video modal
+      const ledgerEventTypes = [
+        'root_ca_settlement_start',
+        'root_ca_entry_validated',
+        'ledger_entry_settled',
+        'root_ca_ledger_settlement_complete',
+        'ledger_entry_created',
+        'ledger_entry_updated',
+        'payment_processed',
+        'wallet_updated',
+        'error' // System errors are handled elsewhere
+      ];
+      
+      // Silently ignore ledger events - they're handled by ledger-display component
+      if (ledgerEventTypes.includes(event.type)) {
+        return; // Don't process or log ledger events
+      }
+      
       console.log('📡 [WorkflowDisplay] WebSocket event received:', event.type);
       if (event.type === 'user_selection_required') {
         console.log('🎬 [WorkflowDisplay] ⚡ DIRECT WEBSOCKET SELECTION EVENT');
@@ -286,8 +362,8 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     // Clean up interval
-    if ((this as any)._executionCheckInterval) {
-      clearInterval((this as any)._executionCheckInterval);
+    if (this.executionCheckInterval) {
+      clearInterval(this.executionCheckInterval);
     }
     if (this.onWorkflowStartedEvt) {
       window.removeEventListener('eden_workflow_started', this.onWorkflowStartedEvt as any);
@@ -510,18 +586,22 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateCurrentStep() {
+  private updateCurrentStep(): void {
     console.log('🔄 [WorkflowDisplay] updateCurrentStep called - activeExecution:', !!this.activeExecution, 'selectedWorkflow:', this.selectedWorkflow);
-    console.log('🔄 [WorkflowDisplay] movieWorkflow exists:', !!this.movieWorkflow, 'dexWorkflow exists:', !!this.dexWorkflow);
+    console.log('🔄 [WorkflowDisplay] currentWorkflow exists:', !!this.currentWorkflow);
 
-    if (!this.selectedWorkflow) {
-      console.log('🔄 [WorkflowDisplay] No selectedWorkflow, cannot update current step');
-      return;
-    }
-
-    const workflow = this.selectedWorkflow === 'movie' ? this.movieWorkflow : this.dexWorkflow;
+    // CRITICAL: Use currentWorkflow instead of legacy properties
+    const workflow = this.currentWorkflow;
     if (!workflow) {
-      console.log('🔄 [WorkflowDisplay] No workflow found for selectedWorkflow:', this.selectedWorkflow);
+      console.log('🔄 [WorkflowDisplay] No currentWorkflow, cannot update current step');
+      // Fallback to legacy properties for backward compatibility
+      if (this.selectedWorkflow === 'movie' && this.movieWorkflow) {
+        this.currentWorkflow = this.movieWorkflow;
+        return this.updateCurrentStep(); // Recursive call with workflow now set
+      } else if (this.selectedWorkflow === 'dex' && this.dexWorkflow) {
+        this.currentWorkflow = this.dexWorkflow;
+        return this.updateCurrentStep(); // Recursive call with workflow now set
+      }
       return;
     }
 
@@ -531,8 +611,10 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
     if (this.activeExecution) {
       // If there's an active execution, use its current step
-      newCurrentStep = workflow.steps.find(step => step.id === this.activeExecution?.currentStep) || null;
-      console.log('🔄 [WorkflowDisplay] Active execution found, setting currentStep to:', newCurrentStep?.name || 'null');
+      const executionStepId = this.activeExecution.currentStep;
+      console.log('🔄 [WorkflowDisplay] Active execution currentStep:', executionStepId);
+      newCurrentStep = workflow.steps.find(step => step.id === executionStepId) || null;
+      console.log('🔄 [WorkflowDisplay] Active execution found, setting currentStep to:', newCurrentStep?.name || 'null', newCurrentStep?.id || 'null');
     } else {
       // If no active execution, show the initial step as current
       newCurrentStep = workflow.steps.find(step => step.id === workflow.initialStep) || null;
@@ -540,13 +622,14 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     }
 
     this.currentStep = newCurrentStep;
-    console.log('🔄 [WorkflowDisplay] FINAL currentStep set to:', this.currentStep?.name || 'null');
+    console.log('🔄 [WorkflowDisplay] FINAL currentStep set to:', this.currentStep?.name || 'null', this.currentStep?.id || 'null');
 
     // Update completed steps from execution history
     if (this.activeExecution) {
       this.completedSteps = this.activeExecution.history.map(h => h.step);
       // Also mark any step before current step as completed
-      const currentStepIndex = workflow.steps.findIndex(step => step.id === this.activeExecution?.currentStep);
+      const executionCurrentStepId = this.activeExecution.currentStep;
+      const currentStepIndex = workflow.steps.findIndex(step => step.id === executionCurrentStepId);
       if (currentStepIndex > 0) {
         for (let i = 0; i < currentStepIndex; i++) {
           const stepId = workflow.steps[i].id;
@@ -555,16 +638,17 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           }
         }
       }
+      console.log('🔄 [WorkflowDisplay] Updated completed steps from execution:', this.completedSteps);
     }
 
     // Find current step index - use activeExecution.currentStep if available, otherwise use currentStep
     if (this.activeExecution && this.activeExecution.currentStep) {
       this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.activeExecution?.currentStep);
       // If not found, fall back to currentStep
-      if (this.currentStepIndex === -1) {
+      if (this.currentStepIndex === -1 && this.currentStep) {
         this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
       }
-    } else {
+    } else if (this.currentStep) {
       this.currentStepIndex = workflow.steps.findIndex(step => step.id === this.currentStep?.id);
     }
     
@@ -573,10 +657,56 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       this.currentStepIndex = 0;
     }
     
-    console.log('🔄 [WorkflowDisplay] Step index updated:', this.currentStepIndex + 1, 'of', workflow.steps.length, 'currentStep:', this.currentStep?.name, 'activeExecution.currentStep:', this.activeExecution?.currentStep);
+    // CRITICAL: Check if this is the final step and add extensive debug logging
+    const isFinalStep = this.currentStepIndex >= workflow.steps.length - 1;
+    const totalSteps = workflow.steps.length;
+    const lastStepId = workflow.steps[totalSteps - 1]?.id;
+    const isLastStepById = this.currentStep?.id === lastStepId;
+    
+    console.log('🔄 [WorkflowDisplay] Step index updated:', this.currentStepIndex + 1, 'of', totalSteps, 'currentStep:', this.currentStep?.name, 'activeExecution.currentStep:', this.activeExecution?.currentStep);
+    console.log('🏁 [WorkflowDisplay] ========================================');
+    console.log('🏁 [WorkflowDisplay] FINAL STEP DEBUG ANALYSIS');
+    console.log('🏁 [WorkflowDisplay] ========================================');
+    console.log('🏁 [WorkflowDisplay] Is Final Step (by index):', isFinalStep);
+    console.log('🏁 [WorkflowDisplay] Is Last Step (by ID):', isLastStepById);
+    console.log('🏁 [WorkflowDisplay] Current Step Index:', this.currentStepIndex);
+    console.log('🏁 [WorkflowDisplay] Total Steps:', totalSteps);
+    console.log('🏁 [WorkflowDisplay] Last Step ID:', lastStepId);
+    console.log('🏁 [WorkflowDisplay] Current Step ID:', this.currentStep?.id);
+    console.log('🏁 [WorkflowDisplay] Current Step Name:', this.currentStep?.name);
+    console.log('🏁 [WorkflowDisplay] Current Step Type:', this.currentStep?.type);
+    console.log('🏁 [WorkflowDisplay] Current Step Component:', this.currentStep?.component);
+    console.log('🏁 [WorkflowDisplay] Active Execution exists:', !!this.activeExecution);
+    if (this.activeExecution) {
+      console.log('🏁 [WorkflowDisplay] Active Execution ID:', this.activeExecution.executionId);
+      console.log('🏁 [WorkflowDisplay] Active Execution currentStep:', this.activeExecution.currentStep);
+      console.log('🏁 [WorkflowDisplay] Active Execution history length:', this.activeExecution.history?.length || 0);
+      console.log('🏁 [WorkflowDisplay] Active Execution history steps:', this.activeExecution.history?.map(h => h.step) || []);
+      console.log('🏁 [WorkflowDisplay] Active Execution context keys:', Object.keys(this.activeExecution.context || {}));
+    }
+    console.log('🏁 [WorkflowDisplay] Completed Steps:', this.completedSteps);
+    console.log('🏁 [WorkflowDisplay] Completed Steps Count:', this.completedSteps.length);
+    console.log('🏁 [WorkflowDisplay] All Workflow Step IDs:', workflow.steps.map(s => s.id));
+    console.log('🏁 [WorkflowDisplay] All Workflow Step Names:', workflow.steps.map(s => s.name));
+    console.log('🏁 [WorkflowDisplay] Pending Decision exists:', !!this.pendingDecision);
+    console.log('🏁 [WorkflowDisplay] Show Decision Prompt:', this.showDecisionPrompt);
+    console.log('🏁 [WorkflowDisplay] Pending Selection exists:', !!this.pendingSelection);
+    console.log('🏁 [WorkflowDisplay] Show Selection Prompt:', this.showSelectionPrompt);
+    console.log('🏁 [WorkflowDisplay] Selected Listing exists:', !!this.selectedListing);
+    if (this.selectedListing) {
+      console.log('🏁 [WorkflowDisplay] Selected Listing videoUrl:', this.selectedListing.videoUrl);
+      console.log('🏁 [WorkflowDisplay] Selected Listing movieTitle:', this.selectedListing.movieTitle);
+    }
+    console.log('🏁 [WorkflowDisplay] LLM Responses Count:', this.llmResponses.length);
+    console.log('🏁 [WorkflowDisplay] Current Workflow Name:', this.currentWorkflow?.name);
+    console.log('🏁 [WorkflowDisplay] Debug Workflow Steps Count:', this.debugWorkflowSteps.length);
+    console.log('🏁 [WorkflowDisplay] ========================================');
     
     // Clear status cache when step changes
     this.clearStatusCache();
+    
+    // Force change detection to update UI
+    this.cdr.detectChanges();
 
     // Special handling for Eden Chat input step
     if (this.currentStep?.component === 'eden_chat' && this.currentStep?.type === 'input') {
@@ -630,7 +760,75 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     if (videoUrl.startsWith('/')) {
       return `${this.apiUrl}${videoUrl}`;
     }
-    return videoUrl;
+    // If already absolute URL, return as-is
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      return videoUrl;
+    }
+    // Convert relative URL to absolute URL
+    const baseUrl = this.apiUrl.replace(/\/$/, ''); // Remove trailing slash
+    return `${baseUrl}/${videoUrl}`;
+  }
+
+  // Video event handlers to help debug and fix Windows player issues
+  onVideoLoadStart(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.log('🎬 [WorkflowDisplay] Video load started:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      readyState: video.readyState
+    });
+    // Force reload if src doesn't match (Windows player fix)
+    if (videoUrl) {
+      const expectedSrc = this.getVideoUrl(videoUrl);
+      if (video.src !== expectedSrc) {
+        console.log('🎬 [WorkflowDisplay] Video src mismatch detected, forcing reload...', {
+          expected: expectedSrc,
+          actual: video.src
+        });
+        video.src = expectedSrc;
+        video.load();
+        this.cdr.detectChanges();
+      }
+    }
+  }
+
+  onVideoLoadedData(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.log('🎬 [WorkflowDisplay] Video data loaded:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      readyState: video.readyState,
+      duration: video.duration
+    });
+  }
+
+  onVideoError(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.error('🎬 [WorkflowDisplay] Video error:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      error: video.error,
+      networkState: video.networkState,
+      readyState: video.readyState
+    });
+    // Try to reload the video (Windows player fix)
+    if (videoUrl) {
+      console.log('🎬 [WorkflowDisplay] Attempting to reload video...');
+      const expectedSrc = this.getVideoUrl(videoUrl);
+      setTimeout(() => {
+        // Clear src first, then set it again to force reload
+        video.src = '';
+        video.load();
+        setTimeout(() => {
+          video.src = expectedSrc;
+          video.load();
+          this.cdr.detectChanges();
+        }, 50);
+      }, 100);
+    }
   }
 
   getCurrentWorkflow(): FlowWiseWorkflow | null {
@@ -891,6 +1089,16 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   }
 
   private addLlmResponse(response: any): void {
+    // CRITICAL: Final safety net - filter out confirmation messages before adding to array
+    // This ensures they never appear in the UI, regardless of where they come from
+    const message = response.message || response.content || '';
+    if (message.includes('Your choice has been confirmed') || 
+        message.includes('choice has been confirmed') ||
+        message.includes('processed that costs')) {
+      console.log('🎬 [WorkflowDisplay] Final filter: Blocking confirmation message from being added to llmResponses');
+      return; // Don't add this message to the array
+    }
+    
     this.llmResponses.push(response);
     this.latestLlmResponse = response;
     this.saveLlmHistory(); // Persist after each addition
@@ -1126,11 +1334,25 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
   }
 
   private handleWebSocketEvent(event: SimulatorEvent): void {
+    // Note: Ledger events are already filtered in the subscription callback above
+    // This method only processes workflow-related events
+    
     console.log('📡 [WorkflowDisplay] ========================================');
-    console.log('📡 [WorkflowDisplay] Received WebSocket event:', event.type);
+    console.log('📡 [WorkflowDisplay] Processing workflow event:', event.type);
     console.log('📡 [WorkflowDisplay] Full event:', JSON.stringify(event, null, 2));
     console.log('📡 [WorkflowDisplay] Event data:', JSON.stringify(event.data, null, 2));
     console.log('📡 [WorkflowDisplay] ========================================');
+
+    // CRITICAL: Handle workflow_started event to set activeExecutionId early
+    // This ensures we can scope subsequent events properly (same as workflow-chat-display)
+    if (event.type === 'workflow_started' && (event as any).data?.executionId) {
+      const newId = String((event as any).data.executionId);
+      if (newId && newId !== this.activeExecutionId) {
+        console.log('🔄 [WorkflowDisplay] New workflow started, executionId:', newId);
+        this.activeExecutionId = newId;
+        // Don't reset here - let the execution check interval handle it
+      }
+    }
 
     // If we're scoped to a specific execution, ignore late events from older executions.
     const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
@@ -1143,10 +1365,16 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       event.type === 'workflow_step_changed';
     if (isExecutionScopedEvent && this.activeExecutionId) {
       // During pending reset, ignore everything until we know the new execution id.
-      if (this.activeExecutionId === '__pending__') return;
-      // If event doesn't carry an execution id, ignore (prevents old noise from re-populating after reset)
-      if (!evExecId) return;
-      if (String(evExecId) !== this.activeExecutionId) return;
+      if (this.activeExecutionId === '__pending__') {
+        console.log('📡 [WorkflowDisplay] Ignoring event during pending reset');
+        return;
+      }
+      // CRITICAL: If event has executionId, it must match (same logic as workflow-chat-display)
+      // But if event doesn't have executionId, still process it (might be for current execution)
+      if (evExecId && String(evExecId) !== this.activeExecutionId) {
+        console.log('📡 [WorkflowDisplay] Ignoring event from different execution:', evExecId, 'vs', this.activeExecutionId);
+        return;
+      }
     }
 
     switch (event.type) {
@@ -1154,29 +1382,80 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         console.log('🤖 [WorkflowDisplay] LLM processing started');
         this.addLlmResponse({
           type: 'start',
-          message: event.message,
-          timestamp: event.timestamp,
+          message: event.message || 'LLM processing started...',
+          timestamp: event.timestamp || Date.now(),
           originalEvent: event // Preserve original event data
         });
+        this.cdr.detectChanges();
         break;
 
       case 'llm_response':
         console.log('🤖 [WorkflowDisplay] LLM response received:', event.data);
+        const responseMessage = event.message || event.data?.response?.message || event.data?.message || 'LLM response received';
+        
+        // CRITICAL: Filter out confirmation messages that block the video player
+        // These are system messages, not actual LLM responses
+        if (responseMessage.includes('Your choice has been confirmed') || 
+            responseMessage.includes('choice has been confirmed') ||
+            responseMessage.includes('processed that costs')) {
+          console.log('🎬 [WorkflowDisplay] Filtering out confirmation message - not adding to LLM responses');
+          // Still update iGas cost if available
+          if (event.data?.igas || event.data?.iGasCost) {
+            this.iGasCost = event.data?.igas || event.data?.iGasCost;
+          }
+          // CRITICAL: After confirmation, try to open video modal
+          // The confirmation happens after payment, and the workflow should transition to view_movie
+          setTimeout(() => {
+            // Check current step - might be view_movie or about to transition
+            const currentStepId = this.activeExecution?.currentStep || this.currentStep?.id;
+            console.log('🎬 [WorkflowDisplay] After confirmation, current step:', currentStepId);
+            
+            // Try to get videoUrl from multiple sources
+            const videoUrl = this.pendingDecision?.videoUrl || 
+                            this.selectedListing?.videoUrl ||
+                            this.activeExecution?.context?.['selectedListing']?.['videoUrl'] ||
+                            this.activeExecution?.context?.['selectedListing2']?.['videoUrl'] ||
+                            this.activeExecution?.context?.['videoUrl'] || '';
+            const movieTitle = this.pendingDecision?.movieTitle || 
+                              this.selectedListing?.movieTitle ||
+                              this.activeExecution?.context?.['selectedListing']?.['movieTitle'] ||
+                              this.activeExecution?.context?.['selectedListing2']?.['movieTitle'] ||
+                              this.activeExecution?.context?.['movieTitle'] || '';
+            
+            console.log('🎬 [WorkflowDisplay] After confirmation, videoUrl:', videoUrl ? 'YES' : 'NO', videoUrl);
+            
+            if (videoUrl && !this.showVideoModal) {
+              console.log('🎬 [WorkflowDisplay] Opening video modal after confirmation message');
+              this.openVideoModal(videoUrl, movieTitle);
+            } else if (!videoUrl) {
+              console.warn('🎬 [WorkflowDisplay] No videoUrl found after confirmation, will retry when step transitions');
+            }
+          }, 500); // Wait 500ms after confirmation to ensure workflow has transitioned
+          break; // Don't add this as an LLM response
+        }
+        
         const llmResponse = {
           type: 'response',
-          message: event.message,
-          data: event.data?.response,
-          timestamp: event.timestamp,
+          message: responseMessage,
+          data: event.data?.response || event.data,
+          timestamp: event.timestamp || Date.now(),
           originalEvent: event, // Preserve complete original event
           // Extract key LLM data for easy access
           llmData: {
-            response: event.data?.response,
-            iGasCost: event.data?.igas,
+            response: event.data?.response || event.data,
+            iGasCost: event.data?.igas || event.data?.iGasCost,
             serviceType: event.data?.serviceType,
             rawData: event.data
           }
         };
         this.addLlmResponse(llmResponse);
+        
+        // Update iGas cost if available
+        if (event.data?.igas || event.data?.iGasCost) {
+          this.iGasCost = event.data?.igas || event.data?.iGasCost;
+        }
+        
+        this.cdr.detectChanges();
         break;
 
       case 'igas':
@@ -1186,16 +1465,141 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
 
       case 'user_decision_required':
         console.log('🤔 [WorkflowDisplay] ========================================');
-        console.log('🤔 [WorkflowDisplay] ⚠️⚠️⚠️ user_decision_required EVENT RECEIVED IN handleWebSocketEvent ⚠️⚠️⚠️');
-        console.log('🤔 [WorkflowDisplay] This should be handled by FlowWise service subscription');
-        console.log('🤔 [WorkflowDisplay] Event:', JSON.stringify(event, null, 2));
+        console.log('🤔 [WorkflowDisplay] user_decision_required EVENT RECEIVED');
         console.log('🤔 [WorkflowDisplay] Event data:', event.data);
-        console.log('🤔 [WorkflowDisplay] Event data.options:', event.data?.options);
-        console.log('🤔 [WorkflowDisplay] Event data.options count:', event.data?.options?.length || 0);
-        console.log('🤔 [WorkflowDisplay] Checking if FlowWise service will handle this...');
+        console.log('🤔 [WorkflowDisplay] stepId:', event.data?.stepId);
+        console.log('🤔 [WorkflowDisplay] videoUrl (direct):', event.data?.videoUrl);
+        console.log('🤔 [WorkflowDisplay] selectedListing?.videoUrl:', event.data?.selectedListing?.videoUrl);
         console.log('🤔 [WorkflowDisplay] ========================================');
-        // This is handled by the FlowWise service subscription above
-        // But we log it here to verify the event is being received
+        
+        // CRITICAL: Extract videoUrl and movieTitle from WebSocket event (like workflow-chat-display does)
+        // This is what makes the video player show up
+        let videoUrl = event.data?.videoUrl;
+        let movieTitle = event.data?.movieTitle;
+        
+        // If videoUrl is missing but stepId is view_movie, try to get from selectedListing or active execution
+        if (!videoUrl && event.data?.stepId === 'view_movie') {
+          videoUrl = event.data?.selectedListing?.videoUrl;
+          movieTitle = event.data?.selectedListing?.movieTitle;
+          
+          // Also check active execution context
+          if (!videoUrl && this.activeExecution) {
+            const context = this.activeExecution.context || {};
+            videoUrl = context['selectedListing']?.['videoUrl'] || 
+                      context['selectedListing2']?.['videoUrl'] ||
+                      context['videoUrl'] || '';
+            movieTitle = context['selectedListing']?.['movieTitle'] || 
+                        context['selectedListing2']?.['movieTitle'] ||
+                        context['movieTitle'] || '';
+          }
+          
+          console.log('🎬 [WorkflowDisplay] view_movie step - extracted videoUrl:', videoUrl);
+          console.log('🎬 [WorkflowDisplay] view_movie step - extracted movieTitle:', movieTitle);
+        }
+        
+        // Update pendingDecision with videoUrl if we have it
+        if (videoUrl && this.pendingDecision) {
+          this.pendingDecision.videoUrl = videoUrl;
+          this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
+          console.log('🎬 [WorkflowDisplay] Updated pendingDecision with videoUrl from WebSocket event');
+          // Open video modal
+          this.openVideoModal(videoUrl, movieTitle);
+        } else if (videoUrl && !this.pendingDecision) {
+          // Create pendingDecision if it doesn't exist yet (shouldn't happen, but just in case)
+          this.pendingDecision = {
+            executionId: event.data?.executionId || event.data?.workflowId || this.activeExecutionId || '',
+            stepId: event.data?.stepId || 'view_movie',
+            prompt: event.data?.prompt || 'Please watch the movie and click "Done Watching" when finished.',
+            options: event.data?.options || [
+              { value: 'DONE_WATCHING', label: 'Done Watching', action: 'Mark movie as watched' }
+            ],
+            timeout: event.data?.timeout || 300000,
+            videoUrl: videoUrl,
+            movieTitle: movieTitle
+          };
+          this.showDecisionPrompt = true;
+          console.log('🎬 [WorkflowDisplay] Created pendingDecision from WebSocket event with videoUrl');
+          // Open video modal
+          this.openVideoModal(videoUrl, movieTitle);
+        }
+        
+        // Also update selectedListing if we have videoUrl
+        if (videoUrl && !this.selectedListing?.videoUrl) {
+          if (!this.selectedListing) {
+            this.selectedListing = {};
+          }
+          this.selectedListing.videoUrl = videoUrl;
+          this.selectedListing.movieTitle = movieTitle || this.selectedListing.movieTitle;
+          console.log('🎬 [WorkflowDisplay] Updated selectedListing with videoUrl from WebSocket event');
+          // Open video modal if not already open
+          if (!this.showVideoModal) {
+            this.openVideoModal(videoUrl, movieTitle);
+          }
+        }
+        
+        // Note: The FlowWise service subscription will also handle this, but we extract videoUrl here
+        // to ensure it's available immediately
+        break;
+
+      case 'cashier_payment_processed':
+        // CRITICAL: Payment processed - filter out confirmation message and open video modal
+        // NOTE: We handle this event here (not filtered) because we need it to open the video modal
+        // But we ensure no confirmation messages are added to llmResponses
+        console.log('💳 [WorkflowDisplay] Payment processed event received (ignoring confirmation message)');
+        if (event.data?.entry) {
+          const iGasCost = event.data.entry.iGasCost || event.data.iGasCost || 0.00445;
+          // Update iGas cost
+          this.iGasCost = typeof iGasCost === 'number' ? iGasCost : parseFloat(iGasCost || '0.00445');
+          console.log('💳 [WorkflowDisplay] Updated iGas cost:', this.iGasCost);
+        }
+        
+        // CRITICAL: Do NOT add any confirmation message to llmResponses
+        // The confirmation message is filtered by addLlmResponse() method
+        
+        // CRITICAL: After payment is processed, check if we should open video modal
+        // Payment happens before view_movie step, so we need to wait for step transition
+        setTimeout(() => {
+          console.log('🎬 [WorkflowDisplay] After payment processed, checking for video modal');
+          const currentStepId = this.activeExecution?.currentStep || this.currentStep?.id;
+          console.log('🎬 [WorkflowDisplay] Current step after payment:', currentStepId);
+          
+          // Try to get videoUrl from multiple sources
+          const videoUrl = this.pendingDecision?.videoUrl || 
+                          this.selectedListing?.videoUrl ||
+                          this.activeExecution?.context?.['selectedListing']?.['videoUrl'] ||
+                          this.activeExecution?.context?.['selectedListing2']?.['videoUrl'] ||
+                          this.activeExecution?.context?.['videoUrl'] || '';
+          const movieTitle = this.pendingDecision?.movieTitle || 
+                            this.selectedListing?.movieTitle ||
+                            this.activeExecution?.context?.['selectedListing']?.['movieTitle'] ||
+                            this.activeExecution?.context?.['selectedListing2']?.['movieTitle'] ||
+                            this.activeExecution?.context?.['movieTitle'] || '';
+          
+          console.log('🎬 [WorkflowDisplay] After payment, videoUrl:', videoUrl ? 'YES' : 'NO', videoUrl);
+          console.log('🎬 [WorkflowDisplay] After payment, movieTitle:', movieTitle || 'N/A');
+          
+          // Open modal if we have videoUrl and we're at or about to be at view_movie step
+          if (videoUrl && !this.showVideoModal) {
+            if (currentStepId === 'view_movie' || currentStepId === 'watch_movie') {
+              console.log('🎬 [WorkflowDisplay] Opening video modal after payment processed');
+              this.openVideoModal(videoUrl, movieTitle);
+            } else {
+              // Step might not have transitioned yet, wait a bit more
+              setTimeout(() => {
+                const retryStepId = this.activeExecution?.currentStep || this.currentStep?.id;
+                if (retryStepId === 'view_movie' || retryStepId === 'watch_movie') {
+                  console.log('🎬 [WorkflowDisplay] Opening video modal after payment (retry)');
+                  this.openVideoModal(videoUrl, movieTitle);
+                } else {
+                  console.warn('🎬 [WorkflowDisplay] Still not at view_movie step, current:', retryStepId);
+                }
+              }, 1000); // Wait another 1 second
+            }
+          } else if (!videoUrl) {
+            console.warn('🎬 [WorkflowDisplay] No videoUrl found after payment');
+          }
+        }, 500); // Wait 500ms after payment to ensure workflow has transitioned
+        // CRITICAL: Do NOT add confirmation message - it's filtered by addLlmResponse() method
         break;
 
       case 'user_selection_required':
@@ -1267,8 +1671,8 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
       case 'workflow_step_changed':
         console.log('🔄 [WorkflowDisplay] Workflow step changed:', event.data);
         // Update the current step display when workflow progresses
-        // Only update if workflow is loaded
-        if (this.selectedWorkflow && ((this.selectedWorkflow === 'movie' && this.movieWorkflow) || (this.selectedWorkflow === 'dex' && this.dexWorkflow))) {
+        // CRITICAL: Use currentWorkflow instead of checking selectedWorkflow and legacy properties
+        if (this.currentWorkflow) {
           // Update active execution current step if available
           if (this.activeExecution && event.data?.stepId) {
             const previousStep = this.activeExecution.currentStep;
@@ -1281,6 +1685,25 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
               console.log(`🎬 [WorkflowDisplay] Workflow transitioned to view_movie - clearing selection prompt`);
               this.showSelectionPrompt = false;
               this.pendingSelection = null;
+              
+              // Try to open video modal if we have videoUrl
+              const videoUrl = this.pendingDecision?.videoUrl || 
+                              this.selectedListing?.videoUrl ||
+                              this.activeExecution?.context?.['selectedListing']?.['videoUrl'] ||
+                              this.activeExecution?.context?.['selectedListing2']?.['videoUrl'] ||
+                              this.activeExecution?.context?.['videoUrl'] || '';
+              const movieTitle = this.pendingDecision?.movieTitle ||
+                                this.selectedListing?.movieTitle ||
+                                this.activeExecution?.context?.['selectedListing']?.['movieTitle'] ||
+                                this.activeExecution?.context?.['selectedListing2']?.['movieTitle'] ||
+                                this.activeExecution?.context?.['movieTitle'] || '';
+              
+              if (videoUrl && !this.showVideoModal) {
+                console.log(`🎬 [WorkflowDisplay] Opening video modal on view_movie step transition:`, { videoUrl, movieTitle });
+                this.openVideoModal(videoUrl, movieTitle);
+              } else if (!videoUrl) {
+                console.warn(`🎬 [WorkflowDisplay] view_movie step reached but no videoUrl found yet`);
+              }
             }
             
             // Mark previous step as completed
@@ -1339,7 +1762,25 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         break;
 
       default:
-        // Other events (ledger, payment, etc.) can be handled here if needed
+        // CRITICAL: Ignore ledger, payment, and settlement events
+        // These are handled by their respective display components (ledger-display, etc.)
+        // Processing them here can interfere with video player display
+        const ignoredEventTypes = [
+          'root_ca_settlement_start',
+          'root_ca_entry_validated',
+          'ledger_entry_settled',
+          'root_ca_ledger_settlement_complete',
+          'ledger_entry_created',
+          'ledger_entry_updated',
+          'payment_processed',
+          'wallet_updated',
+          'error' // System errors are handled elsewhere
+        ];
+        
+        if (!ignoredEventTypes.includes(event.type)) {
+          // Only log non-ignored events for debugging
+          console.log('📡 [WorkflowDisplay] Unhandled event type (not workflow-related):', event.type);
+        }
         break;
     }
   }
@@ -1392,6 +1833,301 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     } catch {}
 
     this.cdr.detectChanges();
+  }
+
+  /**
+   * Process execution messages to populate UI with existing data from execution context
+   * This is similar to workflow-chat-display's processExecutionMessages method
+   * CRITICAL: This is what makes the component work in pure chat environment
+   */
+  private processExecutionMessages(execution: WorkflowExecution): void {
+    console.log('🔄 [WorkflowDisplay] ========================================');
+    console.log('🔄 [WorkflowDisplay] Processing execution messages for:', execution.executionId);
+    console.log('🔄 [WorkflowDisplay] Execution serviceType:', execution.serviceType);
+    console.log('🔄 [WorkflowDisplay] Execution currentStep:', execution.currentStep);
+    console.log('🔄 [WorkflowDisplay] Execution context keys:', Object.keys(execution.context || {}));
+    console.log('🔄 [WorkflowDisplay] Execution history length:', execution.history?.length || 0);
+    console.log('🔄 [WorkflowDisplay] currentWorkflow exists:', !!this.currentWorkflow);
+    console.log('🔄 [WorkflowDisplay] currentWorkflow steps count:', this.currentWorkflow?.steps?.length || 0);
+    
+    // CRITICAL: Ensure workflow is loaded before processing
+    if (!this.currentWorkflow) {
+      console.warn('⚠️ [WorkflowDisplay] currentWorkflow is null, attempting to get it from FlowWiseService...');
+      const workflow = this.flowWiseService.getWorkflow(execution.serviceType);
+      if (workflow) {
+        this.currentWorkflow = workflow;
+        this.updateDebugWorkflowSteps();
+        console.log('✅ [WorkflowDisplay] Loaded workflow from FlowWiseService:', workflow.name);
+      } else {
+        console.error('❌ [WorkflowDisplay] Cannot process messages - workflow not loaded for serviceType:', execution.serviceType);
+        return;
+      }
+    }
+    
+    // Extract data from execution context
+    const context = execution.context || {};
+    
+    // Add user input as LLM start event
+    const userInput = context['input'] || context['userInput'] || context['queryResult']?.query;
+    console.log('🔄 [WorkflowDisplay] User input found:', userInput ? 'YES' : 'NO', userInput);
+    if (userInput) {
+      const existingStartEvent = this.llmResponses.find(r => r.type === 'start' && r.message === userInput);
+      if (!existingStartEvent) {
+        const startTimestamp = execution.history && execution.history.length > 0 
+          ? execution.history[0].timestamp 
+          : Date.now() - 1000;
+        
+        console.log('🔄 [WorkflowDisplay] Adding user input as start event');
+        this.addLlmResponse({
+          type: 'start',
+          message: userInput,
+          timestamp: startTimestamp,
+          originalEvent: { type: 'user_input', data: { input: userInput } }
+        });
+      }
+    }
+    
+    // Add LLM response if available
+    const llmResponse = context['llmResponse'];
+    console.log('🔄 [WorkflowDisplay] LLM response found:', llmResponse ? 'YES' : 'NO');
+    if (llmResponse) {
+      const responseMessage = llmResponse.message || llmResponse.response?.message || llmResponse.response;
+      console.log('🔄 [WorkflowDisplay] Response message:', responseMessage);
+      if (responseMessage) {
+        // CRITICAL: Filter out confirmation messages that block the video player
+        if (responseMessage.includes('Your choice has been confirmed') || 
+            responseMessage.includes('choice has been confirmed') ||
+            responseMessage.includes('processed that costs')) {
+          console.log('🎬 [WorkflowDisplay] Filtering out confirmation message from execution context');
+          // Still update iGas cost if available
+          if (llmResponse.iGasCost || llmResponse.igas) {
+            this.iGasCost = llmResponse.iGasCost || llmResponse.igas;
+          }
+          // CRITICAL: After confirmation, check if we should open video modal
+          setTimeout(() => {
+            if (execution.currentStep === 'view_movie') {
+              const videoUrl = selectedListing?.videoUrl || 
+                              context['selectedListing']?.['videoUrl'] ||
+                              context['selectedListing2']?.['videoUrl'] ||
+                              context['videoUrl'] || '';
+              if (videoUrl && !this.showVideoModal) {
+                console.log('🎬 [WorkflowDisplay] Opening video modal after confirmation in processExecutionMessages');
+                this.openVideoModal(videoUrl, selectedListing?.movieTitle || context['movieTitle']);
+              }
+            }
+          }, 500); // Wait 500ms after confirmation to ensure workflow has transitioned
+          // Don't add this as an LLM response - it's a system message
+        } else {
+          const existingResponseEvent = this.llmResponses.find(r => r.type === 'response' && r.message === responseMessage);
+          if (!existingResponseEvent) {
+            const responseTimestamp = userInput 
+              ? (this.llmResponses.find(r => r.type === 'start')?.timestamp || Date.now()) + 100
+              : Date.now();
+            
+            console.log('🔄 [WorkflowDisplay] Adding LLM response event');
+            this.addLlmResponse({
+              type: 'response',
+              message: responseMessage,
+              data: llmResponse.response || llmResponse,
+              timestamp: responseTimestamp,
+              originalEvent: { type: 'llm_response', data: { response: llmResponse } },
+              llmData: {
+                response: llmResponse.response || llmResponse,
+                iGasCost: llmResponse.iGasCost || llmResponse.igas,
+                serviceType: llmResponse.serviceType || execution.serviceType,
+                rawData: llmResponse
+              }
+            });
+            
+            // Update iGas cost if available
+            if (llmResponse.iGasCost || llmResponse.igas) {
+              this.iGasCost = llmResponse.iGasCost || llmResponse.igas;
+              console.log('🔄 [WorkflowDisplay] Updated iGas cost:', this.iGasCost);
+            }
+          }
+        }
+      }
+    }
+    
+    // Update selected listing if available
+    const selectedListing = context['selectedListing'] || context['selectedListing2'] || llmResponse?.selectedListing || llmResponse?.selectedListing2;
+    if (selectedListing) {
+      this.selectedListing = selectedListing;
+      console.log('🔄 [WorkflowDisplay] Updated selected listing:', selectedListing.movieTitle || selectedListing.name);
+      console.log('🔄 [WorkflowDisplay] Selected listing videoUrl:', selectedListing.videoUrl);
+    }
+    
+    // CRITICAL: For view_movie step, ensure videoUrl is available in pendingDecision
+    // This is what makes the video player show up
+    if (execution.currentStep === 'view_movie' || execution.currentStep === 'watch_movie') {
+      console.log('🎬 [WorkflowDisplay] Movie viewing step detected, checking for videoUrl...');
+      const videoUrl = selectedListing?.videoUrl || 
+                      context['videoUrl'] || 
+                      llmResponse?.selectedListing?.videoUrl ||
+                      llmResponse?.selectedListing2?.videoUrl ||
+                      context['selectedListing']?.['videoUrl'] ||
+                      context['selectedListing2']?.['videoUrl'] ||
+                      '';
+      const movieTitle = selectedListing?.movieTitle ||
+                        context['movieTitle'] ||
+                        llmResponse?.selectedListing?.movieTitle ||
+                        llmResponse?.selectedListing2?.movieTitle ||
+                        context['selectedListing']?.['movieTitle'] ||
+                        context['selectedListing2']?.['movieTitle'] ||
+                        '';
+      
+      console.log('🎬 [WorkflowDisplay] Extracted videoUrl:', videoUrl);
+      console.log('🎬 [WorkflowDisplay] Extracted movieTitle:', movieTitle);
+      
+      // If we have videoUrl but no pendingDecision yet, create one or update existing
+      if (videoUrl) {
+        if (!this.pendingDecision) {
+          // Create a pending decision for view_movie step
+          this.pendingDecision = {
+            executionId: execution.executionId,
+            stepId: execution.currentStep,
+            prompt: 'Please watch the movie and click "Done Watching" when finished.',
+            options: [
+              { value: 'DONE_WATCHING', label: 'Done Watching' }
+            ],
+            timeout: 300000, // 5 minutes
+            videoUrl: videoUrl,
+            movieTitle: movieTitle
+          };
+          this.showDecisionPrompt = true;
+          console.log('🎬 [WorkflowDisplay] Created pendingDecision for view_movie step with videoUrl');
+          // Open video modal
+          this.openVideoModal(videoUrl, movieTitle);
+        } else if (!this.pendingDecision.videoUrl) {
+          // Update existing pendingDecision with videoUrl
+          this.pendingDecision.videoUrl = videoUrl;
+          this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
+          console.log('🎬 [WorkflowDisplay] Updated pendingDecision with videoUrl');
+          // Open video modal
+          this.openVideoModal(videoUrl, movieTitle);
+        }
+      }
+    }
+    
+    // Update current step based on execution's current step
+    // CRITICAL: Only update if workflow is loaded
+    if (execution.currentStep && this.currentWorkflow) {
+      const step = this.currentWorkflow.steps.find(s => s.id === execution.currentStep);
+      if (step) {
+        this.currentStep = step;
+        this.currentStepIndex = this.currentWorkflow.steps.findIndex(s => s.id === step.id);
+        console.log(`🔄 [WorkflowDisplay] Updated current step to: ${step.name} (${step.id}), index: ${this.currentStepIndex}`);
+      } else {
+        console.warn(`⚠️ [WorkflowDisplay] Step ${execution.currentStep} not found in workflow steps`);
+        console.warn(`⚠️ [WorkflowDisplay] Available step IDs:`, this.currentWorkflow.steps.map(s => s.id));
+      }
+    } else {
+      if (!execution.currentStep) {
+        console.warn(`⚠️ [WorkflowDisplay] Execution has no currentStep`);
+      }
+      if (!this.currentWorkflow) {
+        console.warn(`⚠️ [WorkflowDisplay] currentWorkflow is null`);
+      }
+    }
+    
+    // Update completed steps from execution history
+    if (execution.history && execution.history.length > 0) {
+      this.completedSteps = execution.history.map(h => h.step).filter((step, index, self) => self.indexOf(step) === index);
+      console.log(`🔄 [WorkflowDisplay] Updated completed steps (${this.completedSteps.length}):`, this.completedSteps);
+    }
+    
+    // CRITICAL: Final step debug logging
+    const totalSteps = this.currentWorkflow?.steps?.length || 0;
+    const isFinalStep = this.currentStepIndex >= totalSteps - 1;
+    const lastStepId = this.currentWorkflow?.steps?.[totalSteps - 1]?.id;
+    const isLastStepById = execution.currentStep === lastStepId;
+    
+    console.log('🔄 [WorkflowDisplay] After processing:');
+    console.log('🔄 [WorkflowDisplay]   llmResponses.length:', this.llmResponses.length);
+    console.log('🔄 [WorkflowDisplay]   currentStep:', this.currentStep?.id, this.currentStep?.name);
+    console.log('🔄 [WorkflowDisplay]   currentStepIndex:', this.currentStepIndex);
+    console.log('🔄 [WorkflowDisplay]   completedSteps.length:', this.completedSteps.length);
+    console.log('🔄 [WorkflowDisplay]   currentWorkflow:', this.currentWorkflow?.name);
+    console.log('🔄 [WorkflowDisplay]   debugWorkflowSteps.length:', this.debugWorkflowSteps.length);
+    console.log('🏁 [WorkflowDisplay] ========================================');
+    console.log('🏁 [WorkflowDisplay] FINAL STEP CHECK IN processExecutionMessages');
+    console.log('🏁 [WorkflowDisplay] ========================================');
+    console.log('🏁 [WorkflowDisplay] Execution currentStep:', execution.currentStep);
+    console.log('🏁 [WorkflowDisplay] Current Step Index:', this.currentStepIndex);
+    console.log('🏁 [WorkflowDisplay] Total Steps:', totalSteps);
+    console.log('🏁 [WorkflowDisplay] Is Final Step (by index):', isFinalStep);
+    console.log('🏁 [WorkflowDisplay] Is Last Step (by ID):', isLastStepById);
+    console.log('🏁 [WorkflowDisplay] Last Step ID:', lastStepId);
+    console.log('🏁 [WorkflowDisplay] Current Step ID:', this.currentStep?.id);
+    console.log('🏁 [WorkflowDisplay] Current Step Name:', this.currentStep?.name);
+    console.log('🏁 [WorkflowDisplay] Current Step Type:', this.currentStep?.type);
+    console.log('🏁 [WorkflowDisplay] Current Step Component:', this.currentStep?.component);
+    console.log('🏁 [WorkflowDisplay] Execution History:', execution.history?.map(h => `${h.step}@${new Date(h.timestamp).toLocaleTimeString()}`) || []);
+    console.log('🏁 [WorkflowDisplay] Completed Steps:', this.completedSteps);
+    console.log('🏁 [WorkflowDisplay] All Step IDs:', this.currentWorkflow?.steps?.map(s => s.id) || []);
+    console.log('🏁 [WorkflowDisplay] Selected Listing:', this.selectedListing ? {
+      movieTitle: this.selectedListing.movieTitle,
+      videoUrl: this.selectedListing.videoUrl,
+      providerName: this.selectedListing.providerName
+    } : 'N/A');
+    console.log('🏁 [WorkflowDisplay] Pending Decision:', this.pendingDecision ? {
+      stepId: this.pendingDecision.stepId,
+      videoUrl: this.pendingDecision.videoUrl,
+      optionsCount: this.pendingDecision.options?.length || 0
+    } : 'N/A');
+    console.log('🏁 [WorkflowDisplay] ========================================');
+    
+    // Force change detection to update UI
+    this.cdr.detectChanges();
+  }
+  
+  /**
+   * Open video player modal popup
+   */
+  openVideoModal(videoUrl: string, movieTitle?: string): void {
+    if (!videoUrl) {
+      console.warn('🎬 [WorkflowDisplay] Cannot open video modal - no videoUrl provided');
+      return;
+    }
+    
+    console.log('🎬 [WorkflowDisplay] ========================================');
+    console.log('🎬 [WorkflowDisplay] Opening video modal');
+    console.log('🎬 [WorkflowDisplay] videoUrl:', videoUrl);
+    console.log('🎬 [WorkflowDisplay] movieTitle:', movieTitle);
+    console.log('🎬 [WorkflowDisplay] Current showVideoModal:', this.showVideoModal);
+    console.log('🎬 [WorkflowDisplay] ========================================');
+    
+    this.modalVideoUrl = videoUrl;
+    this.modalMovieTitle = movieTitle || null;
+    this.showVideoModal = true;
+    
+    // Force change detection multiple times to ensure modal shows
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      this.cdr.detectChanges();
+      console.log('🎬 [WorkflowDisplay] Modal state after timeout:', {
+        showVideoModal: this.showVideoModal,
+        modalVideoUrl: this.modalVideoUrl,
+        modalMovieTitle: this.modalMovieTitle
+      });
+    }, 100);
+    
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+  }
+  
+  /**
+   * Close video player modal popup
+   */
+  closeVideoModal(): void {
+    console.log('🎬 [WorkflowDisplay] Closing video modal');
+    this.showVideoModal = false;
+    this.modalVideoUrl = null;
+    this.modalMovieTitle = null;
+    this.cdr.detectChanges();
+    
+    // Restore body scroll
+    document.body.style.overflow = '';
   }
 }
 

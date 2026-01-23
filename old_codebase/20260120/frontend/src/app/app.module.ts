@@ -1,7 +1,7 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
@@ -10,6 +10,7 @@ import { IgasDisplayComponent } from './components/igas-display/igas-display.com
 import { LedgerDisplayComponent } from './components/ledger-display/ledger-display.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { WorkflowDisplayComponent } from './components/workflow-display/workflow-display.component';
+import { WorkflowDisplay2Component } from './components/workflow-display2/workflow-display2.component';
 import { WorkflowChatDisplayComponent } from './components/workflow-chat-display/workflow-chat-display.component';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
@@ -18,18 +19,16 @@ import { SystemConfigComponent } from './components/system-config/system-config.
 import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
 import { DexGardenWizardComponent } from './components/dex-garden-wizard/dex-garden-wizard.component';
+import { UsernameRegistrationComponent } from './components/username-registration/username-registration.component';
+import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
   { 
-    path: '', 
-    component: AppComponent,
-    children: [
-      { 
-        path: 'dex-garden-wizard', 
-        component: DexGardenWizardComponent 
-      }
-    ]
+    path: 'dex-garden-wizard', 
+    component: DexGardenWizardComponent 
   }
+  // Note: AppComponent is the bootstrap component, so we don't need it as a route
+  // The router-outlet in AppComponent will render DexGardenWizardComponent when on that route
 ];
 
 @NgModule({
@@ -41,19 +40,31 @@ const routes: Routes = [
     LedgerDisplayComponent,
     CertificateDisplayComponent,
     WorkflowDisplayComponent,
+    WorkflowDisplay2Component,
     WorkflowChatDisplayComponent,
     SystemConfigComponent,
     MovieTheaterComponent,
     LedgerCardDeckComponent,
-    DexGardenWizardComponent
+    DexGardenWizardComponent,
+    UsernameRegistrationComponent
   ],
   imports: [
     BrowserModule,
     HttpClientModule,
     FormsModule,
+    ReactiveFormsModule,
     RouterModule.forRoot(routes)
   ],
-  providers: [WebSocketService, ChatService, FlowWiseService],
+  providers: [
+    WebSocketService, 
+    ChatService, 
+    FlowWiseService,
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: CacheInterceptor,
+      multi: true
+    }
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

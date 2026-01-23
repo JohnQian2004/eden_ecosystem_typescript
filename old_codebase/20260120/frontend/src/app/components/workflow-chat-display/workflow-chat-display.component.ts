@@ -61,6 +61,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   private emailCheckInterval: any;
   private onWorkflowStartedEvt: any;
   private onChatResetEvt: any;
+  private isTabVisible: boolean = true;
+  private visibilityChangeHandler: (() => void) | null = null;
 
   constructor(
     private http: HttpClient,
@@ -108,8 +110,13 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       }
     }, 1500);
     
-    // Check for active executions periodically
+    // Check for active executions periodically (only when tab is visible)
     this.executionCheckInterval = setInterval(() => {
+      // Skip processing if tab is not visible
+      if (!this.isTabVisible) {
+        return;
+      }
+      
       const latestExecution = this.flowWiseService.getLatestActiveExecution();
       if (latestExecution && latestExecution.executionId !== this.activeExecution?.executionId) {
         console.log('💬 [WorkflowChat] New active execution detected:', latestExecution.executionId);
@@ -131,6 +138,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         }, 1000);
       }
     }, 1000);
+
+    // Initialize tab visibility handling
+    this.initializeTabVisibilityHandling();
 
     // Listen for WebSocket events
     this.wsSubscription = this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
@@ -154,25 +164,23 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     window.addEventListener('eden_chat_reset', this.onChatResetEvt as any);
 
     // Listen for decision requests from FlowWiseService
-    // CRITICAL: Only handle decisions if this component is in the active tab
-    // This prevents conflicts when both workflow-display and workflow-chat-display are active
+    // Only process decisions when tab is visible (prevents conflicts with other tabs)
     this.decisionSubscription = this.flowWiseService.getDecisionRequests().subscribe((decisionRequest: any) => {
-      // Check if this component is visible (in active tab)
-      // workflow-chat-display is visible when activeTab === 'workflow-chat'
-      const isComponentVisible = this.isComponentInActiveTab();
-      
-      if (!isComponentVisible) {
-        console.log('💬 [WorkflowChat] Decision request received but component is not in active tab - ignoring');
-        console.log('💬 [WorkflowChat] This decision will be handled by workflow-display instead');
-        return; // Don't handle decision if component is not visible
+      if (!this.isTabVisible) {
+        console.log('💬 [WorkflowChat] Tab is hidden, skipping decision request');
+        return;
       }
-      
       console.log('💬 [WorkflowChat] Decision required:', decisionRequest);
       this.addDecisionMessage(decisionRequest);
     });
 
     // Listen for selection requests from FlowWiseService
+    // Only process selections when tab is visible
     this.selectionSubscription = this.flowWiseService.getSelectionRequests().subscribe((selectionRequest: any) => {
+      if (!this.isTabVisible) {
+        console.log('💬 [WorkflowChat] Tab is hidden, skipping selection request');
+        return;
+      }
       console.log('💬 [WorkflowChat] Selection required:', selectionRequest);
       if (selectionRequest.options && selectionRequest.options.length > 0) {
         this.addSelectionMessage(selectionRequest.options, selectionRequest.serviceType || 'service');
@@ -185,6 +193,44 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Load initial wallet balance (show in header, not chat)
     // Balance will be updated via WebSocket events (ledger_entry_added, cashier_payment_processed, etc.)
     this.loadWalletBalance(false);
+  }
+
+  /**
+   * Initialize tab visibility detection
+   * Pauses workflow processing when tab is hidden
+   */
+  private initializeTabVisibilityHandling() {
+    if (typeof document === 'undefined') return;
+
+    // Check initial visibility state
+    this.isTabVisible = !document.hidden;
+
+    // Set up visibility change handler
+    this.visibilityChangeHandler = () => {
+      const wasVisible = this.isTabVisible;
+      this.isTabVisible = !document.hidden;
+
+      console.log(`👁️ [WorkflowChat] Tab visibility changed: ${wasVisible ? 'visible' : 'hidden'} → ${this.isTabVisible ? 'visible' : 'hidden'}`);
+
+      if (!this.isTabVisible && wasVisible) {
+        // Tab became hidden - pause workflow processing
+        console.log('⏸️ [WorkflowChat] Tab hidden - pausing workflow processing');
+      } else if (this.isTabVisible && !wasVisible) {
+        // Tab became visible - resume workflow processing
+        console.log('▶️ [WorkflowChat] Tab visible - resuming workflow processing');
+        // Check for any missed executions
+        const latestExecution = this.flowWiseService.getLatestActiveExecution();
+        if (latestExecution) {
+          this.activeExecutionId = String(latestExecution.executionId);
+          this.currentThreadExecutionId = this.activeExecutionId;
+          this.activeExecution = latestExecution;
+          this.processExecutionMessages(latestExecution);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    console.log('👁️ [WorkflowChat] Tab visibility handling initialized');
   }
 
   /**
@@ -235,8 +281,14 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     if (this.onChatResetEvt) {
       window.removeEventListener('eden_chat_reset', this.onChatResetEvt as any);
     }
+    // Remove visibility change listener
+    if (this.visibilityChangeHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
     // Remove storage event listener
     window.removeEventListener('storage', () => {});
+    console.log('💬 [WorkflowChat] Component destroyed');
   }
 
   private processExecutionMessages(execution: WorkflowExecution) {
@@ -344,11 +396,18 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   private handleWebSocketEvent(event: SimulatorEvent) {
+    // Skip processing WebSocket events if tab is not visible
+    if (!this.isTabVisible) {
+      return;
+    }
+    
     // If the backend provides executionId, scope "chat console" to the latest execution.
     if (event.type === 'workflow_started' && (event as any).data?.executionId) {
       const newId = String((event as any).data.executionId);
       if (newId && newId !== this.activeExecutionId) {
+        console.log('💬 [WorkflowChat] New workflow started, executionId:', newId);
         this.activeExecutionId = newId;
+        this.currentThreadExecutionId = newId;
         this.resetChat();
       }
       // Let the event fall through (we don't render workflow_started itself)
@@ -362,15 +421,24 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       event.type === 'eden_chat_input' ||
       event.type === 'llm_query_extraction_start' ||
       event.type === 'llm_query_extraction_complete' ||
-      event.type === 'igas';
+      event.type === 'igas' ||
+      event.type === 'ledger_entry_added' ||
+      event.type === 'ledger_booking_completed';
 
-    // Ignore late chat-scoped events from previous executions.
-    // If we have an activeExecutionId, REQUIRE the event to carry a matching executionId.
+    // IMPORTANT: Always process workflow events - they run on backend regardless of tab visibility
+    // Only filter by executionId to avoid mixing events from different workflows
     if (isChatScopedEvent && this.activeExecutionId) {
       // During pending reset, ignore everything until we know the new execution id.
-      if (this.activeExecutionId === '__pending__') return;
-      if (!evExecId) return;
-      if (String(evExecId) !== this.activeExecutionId) return;
+      if (this.activeExecutionId === '__pending__') {
+        console.log('💬 [WorkflowChat] Ignoring event during pending reset');
+        return;
+      }
+      // If we have an activeExecutionId, only process events for that execution
+      // But if event has no executionId, still process it (might be for current execution)
+      if (evExecId && String(evExecId) !== this.activeExecutionId) {
+        console.log('💬 [WorkflowChat] Ignoring event from different execution:', evExecId, 'vs', this.activeExecutionId);
+        return;
+      }
     }
 
     // Filter events to only show user-facing ones (hide technical details)
@@ -947,6 +1015,68 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     // Convert relative URL to absolute URL
     const baseUrl = this.apiUrl.replace(/\/$/, ''); // Remove trailing slash
     return `${baseUrl}/${videoUrl}`;
+  }
+
+  // Video event handlers to help debug and fix Windows player issues
+  onVideoLoadStart(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.log('🎬 [WorkflowChat] Video load started:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      readyState: video.readyState
+    });
+    // Force reload if src doesn't match (Windows player fix)
+    if (videoUrl) {
+      const expectedSrc = this.getVideoUrl(videoUrl);
+      if (video.src !== expectedSrc) {
+        console.log('🎬 [WorkflowChat] Video src mismatch detected, forcing reload...', {
+          expected: expectedSrc,
+          actual: video.src
+        });
+        video.src = expectedSrc;
+        video.load();
+        this.cdr.detectChanges();
+      }
+    }
+  }
+
+  onVideoLoadedData(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.log('🎬 [WorkflowChat] Video data loaded:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      readyState: video.readyState,
+      duration: video.duration
+    });
+  }
+
+  onVideoError(event: Event, videoUrl?: string): void {
+    const video = event.target as HTMLVideoElement;
+    console.error('🎬 [WorkflowChat] Video error:', {
+      videoUrl: videoUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      error: video.error,
+      networkState: video.networkState,
+      readyState: video.readyState
+    });
+    // Try to reload the video (Windows player fix)
+    if (videoUrl) {
+      console.log('🎬 [WorkflowChat] Attempting to reload video...');
+      const expectedSrc = this.getVideoUrl(videoUrl);
+      setTimeout(() => {
+        // Clear src first, then set it again to force reload
+        video.src = '';
+        video.load();
+        setTimeout(() => {
+          video.src = expectedSrc;
+          video.load();
+          this.cdr.detectChanges();
+        }, 50);
+      }, 100);
+    }
   }
 
   private addSelectionMessage(options: any[], serviceType: string) {

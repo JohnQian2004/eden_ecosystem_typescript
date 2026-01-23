@@ -1,0 +1,24 @@
+{
+  "edenUsers": [
+    {
+      "userId": "18a60fec-3999-4e23-bece-aaae4729a522",
+      "googleUserId": "email_bill_draper_auto_gmail_com",
+      "primaryEmail": "bill.draper.auto@gmail.com",
+      "createdAt": 1769179358725,
+      "globalUsername": "billdraperauto",
+      "globalNickname": "Root",
+      "status": "ACTIVE"
+    },
+    {
+      "userId": "9561855a-001a-4649-a632-deaffef4d437",
+      "googleUserId": "email_rashardgarcia_gmail_com",
+      "primaryEmail": "rashardgarcia@gmail.com",
+      "createdAt": 1769179740194,
+      "globalUsername": "rashardgarcia",
+      "globalNickname": "Rashard",
+      "status": "ACTIVE"
+    }
+  ],
+  "gardenUsers": [],
+  "savedAt": 1769179740195
+}
