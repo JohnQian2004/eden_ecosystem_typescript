@@ -146,6 +146,7 @@ import {
   getEdenUser,
   getEdenUserByGoogleId,
   getEdenUserByUsername,
+  getEdenUserByEmail,
   isUsernameAvailable,
   validateUsername,
   joinGarden,
@@ -3878,6 +3879,36 @@ httpServer.on("request", async (req, res) => {
     }
 
     const user = getEdenUser(userId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: !!user, user: user || null }));
+    return;
+  }
+
+  // GET /api/identity/user-by-google/:googleUserId - Get Eden user by Google ID
+  if (pathname?.startsWith("/api/identity/user-by-google/") && req.method === "GET") {
+    const googleUserId = pathname.split("/").pop();
+    if (!googleUserId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Google User ID required" }));
+      return;
+    }
+
+    const user = getEdenUserByGoogleId(googleUserId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: !!user, user: user || null }));
+    return;
+  }
+
+  // GET /api/identity/user-by-email/:email - Get Eden user by email
+  if (pathname?.startsWith("/api/identity/user-by-email/") && req.method === "GET") {
+    const email = decodeURIComponent(pathname.split("/").pop() || "");
+    if (!email) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Email required" }));
+      return;
+    }
+
+    const user = getEdenUserByEmail(email);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: !!user, user: user || null }));
     return;

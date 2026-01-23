@@ -1,7 +1,7 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
@@ -19,6 +19,7 @@ import { SystemConfigComponent } from './components/system-config/system-config.
 import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
 import { DexGardenWizardComponent } from './components/dex-garden-wizard/dex-garden-wizard.component';
+import { UsernameRegistrationComponent } from './components/username-registration/username-registration.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -44,12 +45,14 @@ const routes: Routes = [
     SystemConfigComponent,
     MovieTheaterComponent,
     LedgerCardDeckComponent,
-    DexGardenWizardComponent
+    DexGardenWizardComponent,
+    UsernameRegistrationComponent
   ],
   imports: [
     BrowserModule,
     HttpClientModule,
     FormsModule,
+    ReactiveFormsModule,
     RouterModule.forRoot(routes)
   ],
   providers: [

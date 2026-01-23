@@ -128,6 +128,19 @@ export function getEdenUserByUsername(username: string): EdenUser | null {
 }
 
 /**
+ * Get Eden user by email
+ */
+export function getEdenUserByEmail(email: string): EdenUser | null {
+  // Search through all users to find matching email
+  for (const user of EDEN_USERS.values()) {
+    if (user.primaryEmail.toLowerCase() === email.toLowerCase()) {
+      return user;
+    }
+  }
+  return null;
+}
+
+/**
  * Check if username is available
  */
 export function isUsernameAvailable(username: string): boolean {

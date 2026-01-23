@@ -140,6 +140,30 @@ export class IdentityService {
   }
 
   /**
+   * Get Eden user by Google userId
+   */
+  getUserByGoogleId(googleUserId: string): Observable<EdenUser | null> {
+    return this.http.get<{ success: boolean; user?: EdenUser }>(
+      `${this.apiUrl}/api/identity/user-by-google/${googleUserId}`
+    ).pipe(
+      map(response => response.user || null),
+      catchError(() => of(null))
+    );
+  }
+
+  /**
+   * Get Eden user by email
+   */
+  getUserByEmail(email: string): Observable<EdenUser | null> {
+    return this.http.get<{ success: boolean; user?: EdenUser }>(
+      `${this.apiUrl}/api/identity/user-by-email/${encodeURIComponent(email)}`
+    ).pipe(
+      map(response => response.user || null),
+      catchError(() => of(null))
+    );
+  }
+
+  /**
    * Get Garden user (userId + gardenId)
    */
   getGardenUser(userId: string, gardenId: string): Observable<GardenUser | null> {

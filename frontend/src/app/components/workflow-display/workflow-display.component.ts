@@ -302,7 +302,10 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         } else {
           // Try to load workflow if not in cache
-          this.flowWiseService.loadWorkflowIfNeeded(latestExecution.serviceType).then(w => {
+          this.flowWiseService.loadWorkflowIfNeeded(latestExecution.serviceType);
+          // Workflow will be loaded asynchronously, check again after a delay
+          setTimeout(() => {
+            const w = this.flowWiseService.getWorkflow(latestExecution.serviceType);
             if (w) {
               this.currentWorkflow = w;
               this.updateDebugWorkflowSteps();
@@ -583,7 +586,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateCurrentStep() {
+  private updateCurrentStep(): void {
     console.log('🔄 [WorkflowDisplay] updateCurrentStep called - activeExecution:', !!this.activeExecution, 'selectedWorkflow:', this.selectedWorkflow);
     console.log('🔄 [WorkflowDisplay] currentWorkflow exists:', !!this.currentWorkflow);
 
@@ -1985,7 +1988,7 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
             stepId: execution.currentStep,
             prompt: 'Please watch the movie and click "Done Watching" when finished.',
             options: [
-              { value: 'DONE_WATCHING', label: 'Done Watching', action: 'Mark movie as watched' }
+              { value: 'DONE_WATCHING', label: 'Done Watching' }
             ],
             timeout: 300000, // 5 minutes
             videoUrl: videoUrl,

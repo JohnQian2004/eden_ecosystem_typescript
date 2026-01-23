@@ -3,6 +3,7 @@ import { Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { timeout, finalize } from 'rxjs/operators';
 import { filter } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService, UserDecisionRequest } from './services/flowwise.service';
@@ -10,6 +11,8 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { getApiBaseUrl } from './services/api-base';
+import { IdentityService } from './services/identity.service';
+import { EdenUser } from './models/identity.models';
 import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
 import { CacheInterceptor } from './services/cache.interceptor';
 
@@ -268,6 +271,16 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoadingApplications: boolean = false;
   priesthoodStats: any = null;
 
+  // Username Registration
+  showUsernameRegistration: boolean = false;
+  currentEdenUser: EdenUser | null = null;
+  googleUserIdForRegistration: string = '';
+  emailForRegistration: string = '';
+  isCheckingUsername: boolean = false;
+
+  // Username cache for garden owners (email -> username)
+  ownerUsernameCache: Map<string, string> = new Map();
+
   // Global UX: full-screen loading overlay (especially useful in GOD mode boot)
   private viewTransitionUntilMs: number = 0;
 
@@ -457,7 +470,8 @@ export class AppComponent implements OnInit, OnDestroy {
     private flowWiseService: FlowWiseService,
     private cdr: ChangeDetectorRef,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private identityService: IdentityService
   ) {
     // Track route changes to hide main content when on DEX wizard
     this.router.events.pipe(
@@ -1234,6 +1248,7 @@ export class AppComponent implements OnInit, OnDestroy {
             active: g.active !== false,
             uuid: g.uuid,
             ownerEmail: g.ownerEmail,
+            ownerUsername: null as string | null, // Will be resolved
             type: g.type || 'token',
             initialLiquidity: g.initialLiquidity || 0,
             liquidityCertified: g.liquidityCertified || false,
@@ -1241,6 +1256,9 @@ export class AppComponent implements OnInit, OnDestroy {
             totalTrades: g.totalTrades || 0,
             totalVolume: g.totalVolume || 0
           }));
+          
+          // Resolve usernames for garden owners
+          this.resolveGardenOwnerUsernames(this.dexGardens);
           console.log(`💰 [DEX Main Street] Loaded ${this.dexGardens.length} DEX garden(s): ${this.dexGardens.map(g => g.id).join(', ')}`);
           
           // Load liquidity data for each garden
@@ -1321,12 +1339,16 @@ export class AppComponent implements OnInit, OnDestroy {
           active: g.active !== false,
           uuid: g.uuid,
           ownerEmail: g.ownerEmail,
+          ownerUsername: null as string | null, // Will be resolved
           // IMPORTANT: do NOT let "type: regular" leak into UI/workflow selection.
           // Always compute a workflow-capable serviceType for Apple gardens.
           serviceType: effectiveServiceType,
           isSnake: !!g.isSnake
           };
         });
+        
+        // Resolve usernames for garden owners
+        this.resolveGardenOwnerUsernames(this.appleGardens);
       },
       error: (err) => {
         console.error('Failed to load Apple gardens:', err);
@@ -1594,6 +1616,25 @@ export class AppComponent implements OnInit, OnDestroy {
         this.updateSignInState(); // Update cached state
         console.log(`✅ Google Sign-In successful: ${email}`);
         
+        // Extract Google user ID from credential (decode JWT)
+        let googleUserId = '';
+        try {
+          const payload = JSON.parse(atob(response.credential.split('.')[1]));
+          googleUserId = payload.sub || '';
+          console.log(`🎭 [Identity] Extracted Google user ID: ${googleUserId}`);
+        } catch (e) {
+          console.error('❌ [Identity] Failed to extract Google user ID from credential:', e);
+        }
+        
+        // If no Google user ID, use email as fallback identifier
+        if (!googleUserId) {
+          googleUserId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          console.log(`🎭 [Identity] Using email-based Google user ID: ${googleUserId}`);
+        }
+        
+        // Check if user has registered username
+        this.checkAndPromptUsernameRegistration(email, googleUserId);
+        
         // Update title to show user email
         this.updateTitle();
         
@@ -1603,8 +1644,10 @@ export class AppComponent implements OnInit, OnDestroy {
         // Load wallet balance for the new user
         this.loadWalletBalance();
         
-        // Close modal after successful sign-in
-        this.closeSignInModal();
+        // Close modal after successful sign-in (unless username registration is needed)
+        if (!this.showUsernameRegistration) {
+          this.closeSignInModal();
+        }
         
         // Set view mode based on email: if NOT bill.draper.auto@gmail.com, use USER mode (hide sidebar)
         this.showSidebar = email === this.adminEmail;
@@ -1983,6 +2026,13 @@ export class AppComponent implements OnInit, OnDestroy {
       this.isGoogleSignedIn = true; // Mark as signed in (even though it's email/password)
       localStorage.setItem('userEmail', this.signInEmail);
       this.updateSignInState(); // Update cached state
+      
+      // For email/password sign-in, use email as Google user ID (fallback)
+      // In production, you'd have a proper user ID system
+      const googleUserId = `email_${this.signInEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      
+      // Check if user has registered username
+      this.checkAndPromptUsernameRegistration(this.signInEmail, googleUserId);
       
       // Check for pending mode selection (selected before login)
       const pendingMode = localStorage.getItem('pendingViewMode');
@@ -3381,6 +3431,174 @@ export class AppComponent implements OnInit, OnDestroy {
       return `${getApiBaseUrl()}${videoUrl}`;
     }
     return videoUrl;
+  }
+
+  /**
+   * Check if user has registered username and prompt if needed
+   */
+  checkAndPromptUsernameRegistration(email: string, googleUserId: string): void {
+    console.log(`🎭 [Identity] checkAndPromptUsernameRegistration called - email: ${email}, googleUserId: ${googleUserId}`);
+    
+    // If no Google user ID provided, show registration immediately
+    if (!googleUserId || googleUserId.trim() === '') {
+      console.log(`🎭 [Identity] No Google user ID provided, showing registration immediately`);
+      this.googleUserIdForRegistration = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      this.emailForRegistration = email;
+      this.showUsernameRegistration = true;
+      this.cdr.detectChanges();
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 100);
+      return;
+    }
+    
+    this.isCheckingUsername = true;
+    
+    // Check if user already exists by Google ID
+    this.identityService.getUserByGoogleId(googleUserId).subscribe({
+      next: (user) => {
+        this.isCheckingUsername = false;
+        if (user) {
+          // User already has username
+          this.currentEdenUser = user;
+          this.identityService.setCurrentUser(user);
+          console.log(`✅ [Identity] User already registered: ${user.globalUsername}`);
+        } else {
+          // User needs to register username
+          console.log(`🎭 [Identity] User needs to register username - email: ${email}, googleUserId: ${googleUserId}`);
+          this.googleUserIdForRegistration = googleUserId;
+          this.emailForRegistration = email;
+          this.showUsernameRegistration = true;
+          console.log(`🎭 [Identity] showUsernameRegistration set to: ${this.showUsernameRegistration}`);
+          this.cdr.detectChanges();
+          // Force another change detection after a brief delay to ensure modal renders
+          setTimeout(() => {
+            console.log(`🎭 [Identity] After timeout - showUsernameRegistration: ${this.showUsernameRegistration}`);
+            this.cdr.detectChanges();
+          }, 100);
+        }
+      },
+      error: (error) => {
+        console.error('❌ [Identity] Failed to check user:', error);
+        this.isCheckingUsername = false;
+        // On error, assume user needs registration
+        console.log(`🎭 [Identity] Error checking user - assuming registration needed - email: ${email}, googleUserId: ${googleUserId}`);
+        this.googleUserIdForRegistration = googleUserId;
+        this.emailForRegistration = email;
+        this.showUsernameRegistration = true;
+        console.log(`🎭 [Identity] showUsernameRegistration set to: ${this.showUsernameRegistration}`);
+        this.cdr.detectChanges();
+        // Force another change detection after a brief delay to ensure modal renders
+        setTimeout(() => {
+          console.log(`🎭 [Identity] After timeout (error case) - showUsernameRegistration: ${this.showUsernameRegistration}`);
+          this.cdr.detectChanges();
+        }, 100);
+      }
+    });
+  }
+
+  /**
+   * Handle username registration completion
+   */
+  onUsernameRegistrationComplete(user: EdenUser): void {
+    console.log(`✅ [Identity] Username registration completed: ${user.globalUsername}`);
+    this.currentEdenUser = user;
+    this.showUsernameRegistration = false;
+    this.identityService.setCurrentUser(user);
+    this.closeSignInModal();
+    this.cdr.detectChanges();
+  }
+
+  /**
+   * Handle username registration cancellation
+   */
+  onUsernameRegistrationCancel(): void {
+    console.log(`❌ [Identity] Username registration cancelled`);
+    this.showUsernameRegistration = false;
+    // Don't close sign-in modal, let user try again
+    this.cdr.detectChanges();
+  }
+
+  /**
+   * Resolve usernames for garden owners
+   */
+  resolveGardenOwnerUsernames(gardens: Array<{ownerEmail?: string, ownerUsername?: string | null}>): void {
+    const emailsToResolve = new Set<string>();
+    
+    // Collect unique owner emails
+    gardens.forEach(garden => {
+      if (garden.ownerEmail && !this.ownerUsernameCache.has(garden.ownerEmail)) {
+        emailsToResolve.add(garden.ownerEmail);
+      }
+    });
+    
+    // Resolve each email to username
+    emailsToResolve.forEach(email => {
+      // Try to get user by email (we'll need to add this endpoint or use a workaround)
+      // For now, we'll use a simple approach: check if we can get user info
+      // In a real implementation, you'd have an endpoint to get user by email
+      // For now, we'll use the identity service to try to resolve
+      this.resolveUsernameForEmail(email).then(username => {
+        if (username) {
+          this.ownerUsernameCache.set(email, username);
+          // Update all gardens with this owner email
+          gardens.forEach(garden => {
+            if (garden.ownerEmail === email) {
+              (garden as any).ownerUsername = username;
+            }
+          });
+          this.cdr.detectChanges();
+        }
+      });
+    });
+  }
+
+  /**
+   * Resolve username for an email address
+   */
+  async resolveUsernameForEmail(email: string): Promise<string | null> {
+    // Check cache first
+    if (this.ownerUsernameCache.has(email)) {
+      return this.ownerUsernameCache.get(email) || null;
+    }
+    
+    // Check if it's the current user first (fast path)
+    if (this.currentEdenUser && this.currentEdenUser.primaryEmail === email) {
+      const resolved = this.identityService.resolveDisplayName(undefined, this.currentEdenUser);
+      this.ownerUsernameCache.set(email, resolved.displayName);
+      return resolved.displayName;
+    }
+    
+    // Query server for user by email
+    try {
+      const user = await firstValueFrom(this.identityService.getUserByEmail(email));
+      if (user) {
+        const resolved = this.identityService.resolveDisplayName(undefined, user);
+        this.ownerUsernameCache.set(email, resolved.displayName);
+        return resolved.displayName;
+      }
+    } catch (error) {
+      console.error(`❌ [Identity] Failed to resolve username for email ${email}:`, error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get display name for garden owner (username or email fallback)
+   */
+  getGardenOwnerDisplayName(garden: {ownerEmail?: string, ownerUsername?: string | null}): string {
+    if (garden.ownerUsername) {
+      return `@${garden.ownerUsername}`;
+    }
+    if (garden.ownerEmail) {
+      // Show email as fallback, but try to resolve username
+      if (!this.ownerUsernameCache.has(garden.ownerEmail)) {
+        this.resolveUsernameForEmail(garden.ownerEmail);
+      }
+      return garden.ownerEmail;
+    }
+    return 'N/A';
   }
 
 }
