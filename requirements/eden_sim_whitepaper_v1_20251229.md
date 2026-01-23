@@ -1,6 +1,6 @@
 # 🌳 The Garden of Eden (Eden)
 
-**Whitepaper v1.17 – Garden‑First, Intelligence‑Native Marketplace**
+**Whitepaper v1.23 – Garden‑First, Intelligence‑Native Marketplace**
 
 Author: Bill Draper (CTO)  
 Date: 2026
@@ -315,7 +315,189 @@ Gardens replicate state, not blocks.
 
 ---
 
-## 6. Intelligence Gas (iGas)
+## 6. Universal Messaging System
+
+### 6.1 Purpose
+
+The Eden Universal Messaging System provides a **governed, auditable, real-time communication layer** enabling interaction among all entities in the Eden ecosystem, including Users, Service Providers (Gardens), Priests (Governance Operators), and the Root Authority.
+
+Messaging is treated as a **first-class system primitive**, not a side feature. All commerce, labor, governance, dispute resolution, and coordination flows are grounded in structured conversations rather than untraceable messages.
+
+---
+
+### 6.2 Design Principles
+
+The messaging system is governed by the following principles:
+
+1. **Contextual Scope**
+   Every message exists within a defined operational context (e.g., order, trade, service, dispute). There are no "global" or contextless messages.
+
+2. **Auditability Without Deletion**
+   Messages are never deleted. Administrative actions alter message *state*, not history.
+
+3. **Role-Aware Governance**
+   Messaging permissions are derived from entity roles and policies, not implicit trust.
+
+4. **Forgiveness Over Erasure**
+   Harmful or resolved interactions are neutralized through forgiveness and redaction, not removal.
+
+5. **Federation-Ready**
+   Messaging supports multi-Garden and cross-domain communication without central bottlenecks.
+
+---
+
+### 6.3 Messaging Entities
+
+Messaging participants are modeled as **entities**, not accounts.
+
+Supported entity types:
+
+* User
+* Service Provider (Garden)
+* Priest (Governance Operator)
+* Root Authority
+
+Each entity is addressed through a canonical identity reference, allowing messages to traverse Gardens and domains without identity ambiguity.
+
+---
+
+### 6.4 Conversations
+
+A **Conversation** is the primary container for messaging.
+
+Each conversation is defined by:
+
+* A unique identifier
+* A scoped object reference (order, service, dispute, system)
+* A bounded participant set
+* A governing policy
+* A lifecycle state
+
+#### Conversation Lifecycle States
+
+* **OPEN** – Active communication
+* **FROZEN** – Temporarily locked (e.g., during disputes)
+* **CLOSED** – Finalized and immutable
+
+Conversations cannot be reused across unrelated contexts.
+
+---
+
+### 6.5 Message Events
+
+Messages are represented as **immutable events** appended to a conversation.
+
+Supported message types:
+
+* Text
+* Media
+* Action (machine-readable instructions)
+* System (governance actions)
+
+Each message includes:
+
+* Sender identity and role
+* Timestamp
+* Payload
+* State (Active, Forgiven, Redacted)
+
+This event-based model aligns messaging with Eden's ledger and settlement architecture.
+
+---
+
+### 6.6 Governance & Permissions
+
+Messaging permissions are enforced through **Conversation Policies**, which specify:
+
+* Who may read
+* Who may write
+* Who may invite participants
+* Who may escalate
+* Who may close the conversation
+
+Policies are evaluated dynamically and may vary by Garden, role, and context.
+
+---
+
+### 6.7 Forgiveness Model
+
+Forgiveness is a **first-class governance action**.
+
+When forgiveness is applied:
+
+* Message content may be redacted
+* Behavioral penalties are neutralized
+* Historical records remain intact
+
+Forgiveness never deletes data and is fully auditable.
+
+---
+
+### 6.8 Behavioral Integration (Attitude & AttiJuice)
+
+Messaging activity feeds into Eden's behavioral layer.
+
+Message events may generate:
+
+* Positive Attitude adjustments (constructive communication)
+* Negative Attitude adjustments (abusive or disruptive behavior)
+
+Attitude influences system friction (fees, rate limits, priorities) but **never suppresses speech or access**.
+
+Forgiveness resets behavioral impact without rewriting history.
+
+---
+
+### 6.9 Escalation & Dispute Messaging
+
+Conversations may be escalated to governance operators (Priests) when:
+
+* Disputes arise
+* Policies are violated
+* Automated resolution fails
+
+Escalation does not create a new conversation; it **extends the existing scope** with additional authorized participants.
+
+---
+
+### 6.10 Federation & Cross-Garden Messaging
+
+The messaging system supports:
+
+* Cross-Garden communication
+* Custom Garden domains
+* Federated routing via Eden's replication bus
+
+No central message broker is required. Governance rules travel with the conversation context.
+
+---
+
+### 6.11 Security & Compliance
+
+Messaging provides:
+
+* End-to-end identity verification
+* Role-based access control
+* Immutable audit trails
+* Policy-driven moderation
+
+Eden messaging is designed to meet enterprise, financial, and regulatory requirements without compromising user agency.
+
+---
+
+### 6.12 Summary
+
+The Eden Universal Messaging System transforms communication from an informal side channel into a **governed, auditable, and behavior-aware coordination fabric**.
+
+By grounding all interaction in structured conversations, Eden enables scalable commerce, labor, governance, and trust—without censorship, erasure, or centralized control.
+
+---
+
+**Version Note:** This section supersedes messaging descriptions in v1.14–v1.22 and reflects the finalized architecture as of **White Paper v1.23**.
+
+---
+
+## 7. Intelligence Gas (iGas)
 
 - No blockchain gas
 - No native token
@@ -346,9 +528,9 @@ This creates a **positive‑sum economy** where all participants benefit from sy
 
 ---
 
-## 7. Service Registry & Routing
+## 8. Service Registry & Routing
 
-### 7.1 ROOT CA Service Registry (Centralized Management)
+### 8.1 ROOT CA Service Registry (Centralized Management)
 
 **ServiceRegistry is managed by ROOT CA, not gardens.**
 
@@ -375,7 +557,7 @@ Each service registration includes:
 
 The core systems (workflow execution, ledger creation, service registry) automatically adapt to any service type.
 
-### 7.2 User Experience Flow (Garden of Eden Main Street)
+### 8.2 User Experience Flow (Garden of Eden Main Street)
 
 **New Workflow: Service Type Selection Before LLM**
 
@@ -395,7 +577,7 @@ Eden introduces a **"Garden of Eden Main Street"** UI that eliminates the need f
 
 **Dynamic Architecture**: All steps are service-type agnostic. The system automatically adapts to any service type without code changes.
 
-### 7.3 Garden Query Flow (Post-LLM)
+### 8.3 Garden Query Flow (Post-LLM)
 
 Gardens query ROOT CA ServiceRegistry **after** LLM extraction:
 
@@ -432,7 +614,7 @@ Gardens query ROOT CA ServiceRegistry **after** LLM extraction:
 - ✅ **Context-aware**: Unified input adapts to service type
 - ✅ **Efficient**: ROOT CA ServiceRegistry lookup replaces LLM type resolution
 
-### 7.4 Architectural Benefits
+### 8.4 Architectural Benefits
 
 **Why ROOT CA manages ServiceRegistry:**
 
@@ -453,7 +635,7 @@ Gardens query ROOT CA ServiceRegistry **after** LLM extraction:
 
 ---
 
-### 7.5 LLM System Prompt Management (Redis-Backed, LLM-Generated)
+### 8.5 LLM System Prompt Management (Redis-Backed, LLM-Generated)
 
 Eden introduces an **intelligent, LLM-governed system prompt generation service** that replaces hardcoded prompts with dynamic, service-type-specific prompts stored in Redis.
 
@@ -703,7 +885,7 @@ if (promptData) {
 
 ---
 
-### 7.6 Transaction Notification Code Generation Service
+### 8.6 Transaction Notification Code Generation Service
 
 Eden provides an **LLM-powered code generation service** that creates ready-to-use code samples for external service providers to implement the three-level transaction notification system (Webhook, Pull, Push).
 
@@ -1153,7 +1335,7 @@ if __name__ == '__main__':
 
 ---
 
-## 8. Dynamic Bonds & Pricing
+## 9. Dynamic Bonds & Pricing
 
 - Every successful transaction:
   - Increases service bond
@@ -1168,7 +1350,7 @@ This replaces ratings with **economic truth**.
 
 ---
 
-## 9. No‑Rug DEX Model (Optional Layer)
+## 10. No‑Rug DEX Model (Optional Layer)
 
 - Pools must be ROOT‑certified
 - Creator cannot rug without losing bond
@@ -1249,7 +1431,7 @@ Distribution:
 
 ---
 
-## 10. SaaS & Legacy Integration
+## 11. SaaS & Legacy Integration
 
 Eden integrates via **API plugins**:
 - AMC
@@ -1262,7 +1444,7 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 
 ---
 
-## 11. Security & Identity
+## 12. Security & Identity
 
 - Google identity only
 - Email‑based trust
@@ -1271,7 +1453,7 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 
 ---
 
-## 12. Deployment Model
+## 13. Deployment Model
 
 ### 12.1 Initial Bootstrap
 
@@ -2332,7 +2514,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 
 ---
 
-## 13. Sample Service Providers
+## 14. Sample Service Providers
 
 Eden provides **sample service provider implementations** in the codebase that demonstrate how to build standalone service providers using LLM-generated system prompts and notification code. These samples eliminate the need for hardcoded service providers and serve as templates for creating new service providers.
 
@@ -3292,7 +3474,7 @@ eden_ecosystem_typescript/
 
 ---
 
-## 14. Eden Service Type Testbed (STT) Specification — v1.0
+## 15. Eden Service Type Testbed (STT) Specification — v1.0
 
 ### Purpose
 
@@ -3471,7 +3653,7 @@ This specification is sufficient to bootstrap Eden's service evolution without i
 
 ---
 
-## 15. Eden‑Sim (Reference Implementation)
+## 16. Eden‑Sim (Reference Implementation)
 
 - TypeScript
 - <1500 LOC
@@ -3483,7 +3665,7 @@ Purpose: economic + architectural validation
 
 ---
 
-## 16. Why Eden Wins
+## 17. Why Eden Wins
 
 | Problem | Eden Solution |
 |------|-------------|
@@ -3495,9 +3677,9 @@ Purpose: economic + architectural validation
 
 ---
 
-## 17. Architectural Completeness & Validation
+## 18. Architectural Completeness & Validation
 
-### 16.1 Conceptual Completeness
+### 18.1 Conceptual Completeness
 
 Eden covers **all first-order primitives** of a sovereign ecosystem:
 
@@ -3544,7 +3726,7 @@ Eden covers **all first-order primitives** of a sovereign ecosystem:
 **This is a complete GENESIS layer.**
 Eden intentionally replaces blockchain features, not replicates them.
 
-### 16.2 HTTPS / PKI Architecture
+### 18.2 HTTPS / PKI Architecture
 
 **Question:** Can we build HTTPS-like security without Big CA dependency?
 
@@ -3577,7 +3759,7 @@ ROOT CA / Gardens verify:
 
 **This avoids all third-party CA pain while maintaining security.**
 
-### 16.3 ROOT Garden (HOLY GHOST) — Design Rationale
+### 18.3 ROOT Garden (HOLY GHOST) — Design Rationale
 
 Making ROOT CA also run a **ROOT GARDEN** solves three hard problems simultaneously:
 
@@ -3597,7 +3779,7 @@ HOLY GHOST provides that accountability **without centralizing execution**.
 
 This is novel and architecturally correct.
 
-### 16.4 Wallet Service Architecture
+### 18.4 Wallet Service Architecture
 
 **Question:** Wallet coupled or decoupled from EdenCore?
 
@@ -3617,7 +3799,7 @@ They must reconcile, but not collapse into one.
 
 **This architecture is correct for Genesis v1.**
 
-### 16.5 The Snake (Advertiser) — Design Rationale
+### 18.5 The Snake (Advertiser) — Design Rationale
 
 Eden avoids the biggest trap: **letting ads dominate truth**.
 
@@ -3639,7 +3821,7 @@ Eden avoids the biggest trap: **letting ads dominate truth**.
 
 **This keeps Eden "holy" without being naive.**
 
-### 16.6 Federation & Docker Reality Check
+### 18.6 Federation & Docker Reality Check
 
 **Current Approach (v1):**
 - ROOT CA Redis = authoritative
@@ -3656,7 +3838,7 @@ Eden avoids the biggest trap: **letting ads dominate truth**.
 
 **Not missing — just phase-2 optimization.**
 
-### 16.7 What Eden Is NOT
+### 18.7 What Eden Is NOT
 
 **Eden is NOT:**
 - ❌ Vaporware (fully executable, reference implementation exists)
@@ -3669,7 +3851,7 @@ Eden avoids the biggest trap: **letting ads dominate truth**.
 - ✅ A trust system that scales down instead of up
 - ✅ A system that decentralizes judgment, not machines
 
-### 16.8 Genesis Completion Status
+### 18.8 Genesis Completion Status
 
 **Genesis Chapter 1 is complete.**
 
@@ -3697,7 +3879,7 @@ The system is:
 
 ---
 
-## 18. Genesis Statement
+## 19. Genesis Statement
 
 > *Eden is not a protocol.*  
 > *It is a living system.*
@@ -3710,7 +3892,7 @@ Humans give meaning.
 
 ---
 
-## 19. ENCERT v1
+## 20. ENCERT v1
 
 ### Redis Stream Schema — Revocation Events
 
@@ -4083,11 +4265,11 @@ It is **PKI built for intelligence systems**, not browsers.
 
 ---
 
-## 20. Federation Design & Trust Architecture
+## 21. Federation Design & Trust Architecture
 
 Eden implements a **lightweight PKI-based trust fabric** that provides HTTPS-equivalent security without relying on third-party Certificate Authorities (CAs). This design enables secure federation between ROOT CA, gardens, and service providers while maintaining sovereignty and avoiding browser trust dependencies.
 
-### 20.1 Trust Layer Separation
+### 21.1 Trust Layer Separation
 
 Eden separates **three distinct HTTPS trust problems**:
 
@@ -4104,7 +4286,7 @@ Eden separates **three distinct HTTPS trust problems**:
 - Gardens and services trust Eden
 - Eden PKI provides mutual trust without third-party dependencies
 
-### 20.2 Eden Trust Model
+### 21.2 Eden Trust Model
 
 Eden's trust architecture follows a **Kubernetes-style model**, not browser PKI:
 
@@ -4120,7 +4302,7 @@ Eden's trust architecture follows a **Kubernetes-style model**, not browser PKI:
 - Garden ↔ Service Provider: Eden mTLS or signed payloads
 - Browser ↔ Eden UI: Public HTTPS (optional, edge-only)
 
-### 20.3 ROOT CA HTTPS Without Public CA
+### 21.3 ROOT CA HTTPS Without Public CA
 
 **Solution: Private PKI + mTLS (Mutual TLS)**
 
@@ -4159,7 +4341,7 @@ Eden issues **ENCERT certificates**, not X.509 certificates from public CAs.
 
 **This is how Kubernetes, etcd, Consul, Vault work.**
 
-### 20.4 Garden HTTP with TLS Termination
+### 21.4 Garden HTTP with TLS Termination
 
 **Problem:** What if gardens run HTTP only (for simplicity)?
 
@@ -4201,7 +4383,7 @@ Gardens can remain **pure HTTP** while maintaining network security through a ga
 - ✅ **Eden-controlled trust**: Gateway enforces Eden PKI policies
 - ✅ **Lightweight gardens**: Reduced operational complexity
 
-### 20.5 Garden Authorization & Network Binding
+### 21.5 Garden Authorization & Network Binding
 
 When ROOT CA issues an ENCERT certificate, it includes **network binding constraints**:
 
@@ -4240,7 +4422,7 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 - Prevents certificate reuse across different network locations
 - Enables network-level access control and routing decisions
 
-### 20.6 HTTPS Traffic Matrix
+### 21.6 HTTPS Traffic Matrix
 
 **Traffic Security by Layer:**
 
@@ -4258,7 +4440,7 @@ When ROOT CA issues an ENCERT certificate, it includes **network binding constra
 - **Internal traffic**: Can use plain HTTP within trusted boundaries
 - **Sovereignty**: Core remains sovereign, independent of public CAs
 
-### 20.7 Certificate Revocation Architecture
+### 21.7 Certificate Revocation Architecture
 
 Eden's revocation system is **stronger than traditional OCSP**:
 
@@ -4282,7 +4464,7 @@ eden:garden:*:auth (per-garden streams)
 - ✅ **Scalable**: Redis Streams handle high throughput
 - ✅ **Auditable**: Complete revocation history in streams
 
-### 20.8 Why Eden PKI Is Superior to Public CAs
+### 21.8 Why Eden PKI Is Superior to Public CAs
 
 **Public CAs (DigiCert, Let's Encrypt) provide:**
 - Domain name identity
@@ -4314,7 +4496,7 @@ An Eden ENCERT certificate **can**:
 }
 ```
 
-### 20.9 Implementation Architecture
+### 21.9 Implementation Architecture
 
 #### Option 1: Eden mTLS over Standard TLS (Recommended)
 
@@ -4349,7 +4531,7 @@ An Eden ENCERT certificate **can**:
 5. Garden processes request (no TLS complexity)
 6. Gateway returns response over HTTPS
 
-### 20.10 Certificate Constraints & Network Law
+### 21.10 Certificate Constraints & Network Law
 
 **Network Binding Constraints:**
 - `serverIp`: IP address where garden accepts connections
@@ -4373,7 +4555,7 @@ An Eden ENCERT certificate **can**:
 - Gateway checks revocation status
 - Network routing based on certificate constraints
 
-### 20.11 Implementation Requirements
+### 21.11 Implementation Requirements
 
 **REQ-FED-001**: Root CA Certificate Generation
 - ROOT CA generates self-signed root certificate
@@ -4405,7 +4587,7 @@ An Eden ENCERT certificate **can**:
 - Prevents certificate reuse across different endpoints
 - Enforces network-level access control
 
-### 20.12 Benefits
+### 21.12 Benefits
 
 **For System:**
 - ✅ **Sovereignty**: No dependency on third-party CAs
@@ -4427,7 +4609,7 @@ An Eden ENCERT certificate **can**:
 
 ---
 
-## 20. JesusCoin (JSC) — A Pure Non-Web3 Economy
+## 22. JesusCoin (JSC) — A Pure Non-Web3 Economy
 
 > **"Render unto Caesar what is Caesar's."**  
 > Eden renders to Stripe. GOD governs value.
@@ -4436,7 +4618,7 @@ An Eden ENCERT certificate **can**:
 
 ---
 
-### 20.1 Why Removing Web3 Is the Correct Move
+### 22.1 Why Removing Web3 Is the Correct Move
 
 Web3 was doing **three jobs**:
 
@@ -4458,7 +4640,7 @@ Removing it **clarifies Eden's theology**.
 
 ---
 
-### 20.2 JesusCoin (JSC) — Definition
+### 22.2 JesusCoin (JSC) — Definition
 
 **JesusCoin is not crypto.**  
 It is **scriptural money**.
@@ -4483,7 +4665,7 @@ No rug.
 
 ---
 
-### 20.3 How Users Buy JesusCoin
+### 22.3 How Users Buy JesusCoin
 
 #### Flow (Simple & Legal)
 
@@ -4540,7 +4722,7 @@ But governed like **a central bank with conscience**.
 
 ---
 
-### 20.4 Spending JesusCoin Inside Eden
+### 22.4 Spending JesusCoin Inside Eden
 
 Everything costs JSC:
 
@@ -4560,7 +4742,7 @@ All settled instantly.
 
 ---
 
-### 20.5 iGas & iTax in a Fiat-Backed World
+### 22.5 iGas & iTax in a Fiat-Backed World
 
 This is where Eden becomes **cleaner than Web3 ever was**.
 
@@ -4595,7 +4777,7 @@ But now:
 
 ---
 
-### 20.6 Gardens in a Non-Web3 Eden
+### 22.6 Gardens in a Non-Web3 Eden
 
 Gardens:
 
@@ -4619,7 +4801,7 @@ Payout options:
 
 ---
 
-### 20.7 ServiceRegistry Gets Even Faster
+### 22.7 ServiceRegistry Gets Even Faster
 
 Since there is no chain:
 
@@ -4632,7 +4814,7 @@ This aligns with Eden's centralized ServiceRegistry architecture.
 
 ---
 
-### 20.8 Theological Consistency
+### 22.8 Theological Consistency
 
 Let's say it plainly:
 
@@ -4651,7 +4833,7 @@ That is what users actually want.
 
 ---
 
-### 20.9 Legal & Product Advantage
+### 22.9 Legal & Product Advantage
 
 Eden:
 
@@ -4672,7 +4854,7 @@ This is how Eden ships.
 
 ---
 
-### 20.13 Holy Ghost: JesusCoin Wallet Service (Redis-backed)
+### 22.13 Holy Ghost: JesusCoin Wallet Service (Redis-backed)
 
 **Single Source of Truth**
 
@@ -4751,7 +4933,7 @@ Wallet identity:
 
 ---
 
-### 20.14 EdenCore's Proper Role
+### 22.14 EdenCore's Proper Role
 
 EdenCore:
 
@@ -4787,7 +4969,7 @@ Only then:
 
 ---
 
-### 20.15 Ledger = Proof, Not Control
+### 22.15 Ledger = Proof, Not Control
 
 Ledger entries are:
 
@@ -4806,7 +4988,7 @@ This is a subtle but important distinction.
 
 ---
 
-### 20.16 Wallet Architecture Rationale
+### 22.16 Wallet Architecture Rationale
 
 #### External Wallet Provider Risks:
 
@@ -4820,7 +5002,7 @@ Once money truth leaves God, God is no longer God.
 
 ---
 
-### 19.14 Snake Governance Still Works Perfectly
+### 22.14 Snake Governance Still Works Perfectly
 
 Because:
 
@@ -4835,7 +5017,7 @@ Snake cannot steal.
 
 ---
 
-### 19.15 User Experience Enhancements (v1.1)
+### 22.15 User Experience Enhancements (v1.1)
 
 #### Google Sign-In Integration
 
@@ -4890,7 +5072,7 @@ Snake cannot steal.
 
 ---
 
-### 19.16 Angular UI Facelift (v1.2)
+### 22.16 Angular UI Facelift (v1.2)
 
 The Angular UI has been enhanced with a major facelift to improve navigation, organization, and user experience.
 
@@ -4956,7 +5138,7 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 
 ---
 
-### 19.17 Implementation Status
+### 22.17 Implementation Status
 
 #### ✅ Completed Enhancements
 
@@ -4991,7 +5173,7 @@ The Angular UI has been enhanced with a major facelift to improve navigation, or
 
 ---
 
-## 14. Version History & Changelog
+## 23. Version History & Changelog
 
 ### Version 1.17 (January 2026) - Service-Type Agnostic Architecture
 
