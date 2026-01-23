@@ -15,6 +15,7 @@ import { WorkflowChatDisplayComponent } from './components/workflow-chat-display
 import { WebSocketService } from './services/websocket.service';
 import { ChatService } from './services/chat.service';
 import { FlowWiseService } from './services/flowwise.service';
+import { MessagingService } from './services/messaging.service';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
 import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
@@ -59,6 +60,7 @@ const routes: Routes = [
     WebSocketService, 
     ChatService, 
     FlowWiseService,
+    MessagingService,
     {
       provide: HTTP_INTERCEPTORS,
       useClass: CacheInterceptor,

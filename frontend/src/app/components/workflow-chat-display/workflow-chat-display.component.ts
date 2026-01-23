@@ -4,6 +4,7 @@ import { FlowWiseService, WorkflowExecution } from '../../services/flowwise.serv
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 import { getApiBaseUrl } from '../../services/api-base';
+import { MessagingService, Conversation, Message } from '../../services/messaging.service';
 
 interface ChatMessage {
   id: string;
@@ -64,10 +65,15 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   private isTabVisible: boolean = true;
   private visibilityChangeHandler: (() => void) | null = null;
 
+  // Messaging system
+  activeConversations: Map<string, Conversation> = new Map();
+  conversationMessages: Map<string, Message[]> = new Map();
+
   constructor(
     private http: HttpClient,
     private flowWiseService: FlowWiseService,
     private webSocketService: WebSocketService,
+    private messagingService: MessagingService,
     private cdr: ChangeDetectorRef
   ) {
     this.apiUrl = getApiBaseUrl();
@@ -402,13 +408,26 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     }
     
     // If the backend provides executionId, scope "chat console" to the latest execution.
+    // BUT: Don't reset chat for messaging-only conversations (no workflow execution)
     if (event.type === 'workflow_started' && (event as any).data?.executionId) {
       const newId = String((event as any).data.executionId);
       if (newId && newId !== this.activeExecutionId) {
         console.log('💬 [WorkflowChat] New workflow started, executionId:', newId);
-        this.activeExecutionId = newId;
-        this.currentThreadExecutionId = newId;
-        this.resetChat();
+        // Only reset if we have an existing execution (don't reset for first workflow)
+        // OR if the current thread has workflow messages (not just messaging)
+        const hasWorkflowMessages = this.chatMessages.some(m => 
+          m.data?.executionId || m.data?.workflowId || m.type === 'ledger'
+        );
+        if (this.activeExecutionId && hasWorkflowMessages) {
+          // Archive current workflow thread before starting new one
+          this.activeExecutionId = newId;
+          this.currentThreadExecutionId = newId;
+          this.resetChat();
+        } else {
+          // First workflow or messaging-only thread - just update executionId without resetting
+          this.activeExecutionId = newId;
+          this.currentThreadExecutionId = newId;
+        }
       }
       // Let the event fall through (we don't render workflow_started itself)
     }
@@ -424,9 +443,18 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       event.type === 'igas' ||
       event.type === 'ledger_entry_added' ||
       event.type === 'ledger_booking_completed';
+    
+    // Messaging system events should ALWAYS be processed (not scoped to executionId)
+    const isMessagingEvent =
+      event.type === 'conversation_created' ||
+      event.type === 'message_sent' ||
+      event.type === 'message_forgiven' ||
+      event.type === 'conversation_state_changed' ||
+      event.type === 'conversation_escalated';
 
     // IMPORTANT: Always process workflow events - they run on backend regardless of tab visibility
     // Only filter by executionId to avoid mixing events from different workflows
+    // BUT: Messaging events are NOT scoped to executionId - they should always be shown
     if (isChatScopedEvent && this.activeExecutionId) {
       // During pending reset, ignore everything until we know the new execution id.
       if (this.activeExecutionId === '__pending__') {
@@ -440,6 +468,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         return;
       }
     }
+    
+    // Messaging events are always processed (not filtered by executionId)
+    // They represent general conversations, not workflow-specific events
 
     // Filter events to only show user-facing ones (hide technical details)
     switch (event.type) {
@@ -553,6 +584,16 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         break;
 
       case 'user_decision_required':
+        // CRITICAL: Only handle decisions if this component is in the active tab
+        // This prevents decisions from appearing in the wrong tab
+        const isChatComponentVisible = this.isComponentInActiveTab();
+        
+        if (!isChatComponentVisible) {
+          console.log('💬 [WorkflowChat] user_decision_required event received but component is not in active tab - ignoring');
+          console.log('💬 [WorkflowChat] This decision will be handled by workflow-display instead');
+          return; // Don't handle decision if component is not visible
+        }
+        
         // Handle decision requests from WebSocket
         if (event.data) {
           console.log('💬 [WorkflowChat] ========================================');
@@ -798,6 +839,97 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
             // The workflow will send user_decision_required event with videoUrl, which will be handled below
             // We don't create a message here - let the workflow drive it
           }
+        }
+        break;
+
+      // Messaging System Events
+      case 'conversation_created':
+        if (event.data?.conversation) {
+          const conv: Conversation = event.data.conversation;
+          this.activeConversations.set(conv.conversationId, conv);
+          this.addChatMessage({
+            type: 'system',
+            content: `💬 Conversation created: ${conv.scope.type} - ${conv.scope.referenceId}`,
+            timestamp: event.timestamp || Date.now(),
+            data: { conversation: conv }
+          });
+        }
+        break;
+
+      case 'message_sent':
+        if (event.data?.message) {
+          const msg: Message = event.data.message;
+          const conversationId = msg.conversationId;
+          
+          // Add message to conversation messages map
+          if (!this.conversationMessages.has(conversationId)) {
+            this.conversationMessages.set(conversationId, []);
+          }
+          this.conversationMessages.get(conversationId)!.push(msg);
+          
+          // Display message in chat
+          const messageType = msg.senderType === 'USER' ? 'user' : 'assistant';
+          const messageContent = msg.payload.text || 
+                                (msg.payload.systemEvent ? `[System: ${msg.payload.systemEvent.eventType}]` : '[Message]');
+          
+          console.log('💬 [WorkflowChat] Adding messaging system message to chat:', {
+            messageType,
+            messageContent: messageContent.substring(0, 50),
+            conversationId,
+            chatMessagesLength: this.chatMessages.length,
+            activeExecutionId: this.activeExecutionId
+          });
+          this.addChatMessage({
+            type: messageType,
+            content: messageContent,
+            timestamp: msg.timestamp || event.timestamp || Date.now(),
+            data: { message: msg, conversationId }
+          });
+          // Force change detection to ensure message appears in canvas
+          console.log('💬 [WorkflowChat] After adding message, chatMessages.length:', this.chatMessages.length);
+          this.cdr.detectChanges();
+        }
+        break;
+
+      case 'message_forgiven':
+        if (event.data?.message) {
+          const msg: Message = event.data.message;
+          this.addChatMessage({
+            type: 'system',
+            content: `🔓 Message forgiven: ${msg.messageId.substring(0, 8)}...`,
+            timestamp: event.timestamp || Date.now(),
+            data: { message: msg }
+          });
+          this.cdr.detectChanges();
+        }
+        break;
+
+      case 'conversation_state_changed':
+        if (event.data?.conversation) {
+          const conv: Conversation = event.data.conversation;
+          this.activeConversations.set(conv.conversationId, conv);
+          const stateEmoji = conv.state === 'FROZEN' ? '❄️' : conv.state === 'CLOSED' ? '🔒' : '💬';
+          this.addChatMessage({
+            type: 'system',
+            content: `${stateEmoji} Conversation ${conv.conversationId.substring(0, 8)}... state changed to ${conv.state}`,
+            timestamp: event.timestamp || Date.now(),
+            data: { conversation: conv }
+          });
+          this.cdr.detectChanges();
+        }
+        break;
+
+      case 'conversation_escalated':
+        if (event.data?.conversation) {
+          const conv: Conversation = event.data.conversation;
+          this.activeConversations.set(conv.conversationId, conv);
+          this.addChatMessage({
+            type: 'system',
+            content: `📢 Conversation escalated: ${conv.conversationId.substring(0, 8)}...`,
+            timestamp: event.timestamp || Date.now(),
+            data: { conversation: conv }
+          });
+          this.cdr.detectChanges();
         }
         break;
 
@@ -1335,14 +1467,27 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
   get renderedThreads(): ChatThread[] {
     const currentTitle = this.buildThreadTitle(this.chatMessages) || 'New chat';
+    const currentThread = {
+      id: 'current',
+      title: currentTitle,
+      startedAt: this.currentThreadStartedAt,
+      executionId: this.currentThreadExecutionId,
+      messages: this.chatMessages
+    };
+    
+    // Debug logging to track message visibility
+    if (this.chatMessages.length > 0) {
+      console.log('💬 [WorkflowChat] renderedThreads - Current thread:', {
+        id: currentThread.id,
+        title: currentThread.title,
+        messageCount: currentThread.messages.length,
+        messageTypes: currentThread.messages.map(m => m.type),
+        archivedThreadsCount: this.archivedThreads.length
+      });
+    }
+    
     return [
-      {
-        id: 'current',
-        title: currentTitle,
-        startedAt: this.currentThreadStartedAt,
-        executionId: this.currentThreadExecutionId,
-        messages: this.chatMessages
-      },
+      currentThread,
       ...this.archivedThreads
     ];
   }
@@ -1372,7 +1517,13 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
   private startNewChatThread() {
     // Archive current thread if it has any messages
-    if (this.chatMessages.length > 0) {
+    // BUT: Don't archive if the thread only has messaging system messages (keep them visible)
+    const hasWorkflowMessages = this.chatMessages.some(m => 
+      m.data?.executionId || m.data?.workflowId || m.type === 'ledger' || 
+      (m.data?.conversationId && !m.data?.message) // workflow-related, not pure messaging
+    );
+    
+    if (this.chatMessages.length > 0 && hasWorkflowMessages) {
       const title = this.buildThreadTitle(this.chatMessages) || 'Chat';
       const bounded = this.chatMessages.length > this.MAX_MESSAGES_PER_THREAD
         ? this.chatMessages.slice(-this.MAX_MESSAGES_PER_THREAD)
@@ -1388,12 +1539,22 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       if (this.archivedThreads.length > this.MAX_THREADS - 1) {
         this.archivedThreads = this.archivedThreads.slice(0, this.MAX_THREADS - 1);
       }
+      
+      // Start fresh current thread
+      this.chatMessages = [];
+      this.currentThreadStartedAt = Date.now();
+      this.currentThreadExecutionId = null;
+    } else if (this.chatMessages.length > 0 && !hasWorkflowMessages) {
+      // Messaging-only thread - keep messages visible, just update executionId
+      console.log('💬 [WorkflowChat] Keeping messaging-only messages in current thread');
+      this.currentThreadExecutionId = null;
+    } else {
+      // Empty thread - just reset
+      this.chatMessages = [];
+      this.currentThreadStartedAt = Date.now();
+      this.currentThreadExecutionId = null;
     }
-
-    // Start fresh current thread
-    this.chatMessages = [];
-    this.currentThreadStartedAt = Date.now();
-    this.currentThreadExecutionId = null;
+    
     // Collapse all archived threads by default (keeps UI responsive)
     this.expandedArchivedThreadIds.clear();
     this.cdr.detectChanges();

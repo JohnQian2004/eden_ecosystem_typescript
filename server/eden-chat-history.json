@@ -5528,6 +5528,151 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769186765629_6a3c6ff6e43a9",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769186765629,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769186775176_248235dcdab0d",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769186775176,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769186775981_facefb392ea47",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Here are some sci-fi movie options available for an evening show in Baltimore, Maryland. The top recommendation is 'The Matrix', showing at AMC Theatres at 8:00 PM. It has a stellar rating of 4.9 based on 150 reviews, and the ticket price is $2.",
+        "timestamp": 1769186775981,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769186786152_a85936979a6fd8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Looking for a sci-fi movie to watch in the evening? Check out 'The Matrix' at AMC Theatres in Baltimore, Maryland. Showtime is at 8:00 PM, and tickets are just $2. With a high rating of 4.9 from 150 reviews, it's a great choice for your evening entertainment.",
+        "timestamp": 1769186786152,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769188123291_09425f514f7328",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769188123291,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769188139113_c142faee54a6e",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769188139113,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769188147207_fe7972ef61325",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Looking for a sci-fi movie to enjoy in the evening? Check out 'The Matrix' showing at 8:00 PM at AMC Theatres in Baltimore, Maryland. Priced at just $2, this movie has an impressive rating of 4.9 based on 150 reviews. Don't miss the chance to see this classic film!",
+        "timestamp": 1769188147207,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769188164336_e6edb595338ce",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769188164336,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769189172216_b0530747ab9c98",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769189172216,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769189176872_68bc0ce3ad7868",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "For a sci-fi movie experience this evening, I recommend 'The Matrix' at AMC Theatres in Baltimore, Maryland. It starts at 8:00 PM and has an excellent rating of 4.9 based on 150 reviews. The ticket price is $2.",
+        "timestamp": 1769189176872,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769189188872_569b6cb73e6a88",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769189188872,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191056501_ee3f68d2c56f08",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769191056501,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191063412_c544eca77245b8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Looking for a sci-fi movie to enjoy this evening? Consider watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM, perfect for an evening plan. With a rating of 4.9 and 150 reviews, it's a popular choice. Tickets are priced at just $2.",
+        "timestamp": 1769191063412,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191079378_01fc23d4aaafd8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769191079378,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [
@@ -6079,6 +6224,119 @@
         "timestamp": 1769050846848,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "priest",
+        "status": "active"
+      }
+    ],
+    "conv:service:chat:user": [
+      {
+        "id": "c_1769181861868_dd3a77943cd9b8",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "hwo to messaging",
+        "timestamp": 1769181861868,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769181861871_5e9a7c6d1869",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769181861871,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769182373825_d08e9c9107918",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who eden works",
+        "timestamp": 1769182373825,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769182373827_8d449d63cb7e58",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769182373827,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769182801130_47e3795191c2a8",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "hwo eden works",
+        "timestamp": 1769182801130,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769182801132_3e4f81ecea4b38",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769182801132,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769183146877_a9088d47c89818",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769183146878,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769183146880_b39dbc1421b7",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769183146880,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-13:user": [
+      {
+        "id": "c_1769186718453_b4a6d15c67dad",
+        "conversationId": "conv:garden:garden-13:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769186718453,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769186728854_64c2c3a307e8a",
+        "conversationId": "conv:garden:garden-13:user",
+        "role": "ASSISTANT",
+        "content": "For an exciting sci-fi evening, you can catch 'The Matrix' at AMC Theatres in Baltimore, Maryland. The show starts at 8:00 PM, and tickets are priced at $2. With a high rating of 4.9 based on 150 reviews, it's a great choice for a thrilling night out.",
+        "timestamp": 1769186728854,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
         "status": "active"
       }
     ]

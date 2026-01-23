@@ -1464,6 +1464,16 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
         break;
 
       case 'user_decision_required':
+        // CRITICAL: Only handle decisions if this component is in the active tab
+        // This prevents decisions from appearing in the wrong tab
+        const isComponentVisible = this.isComponentInActiveTab();
+        
+        if (!isComponentVisible) {
+          console.log('🤔 [WorkflowDisplay] user_decision_required event received but component is not in active tab - ignoring');
+          console.log('🤔 [WorkflowDisplay] This decision will be handled by workflow-chat-display instead');
+          return; // Don't handle decision if component is not visible
+        }
+        
         console.log('🤔 [WorkflowDisplay] ========================================');
         console.log('🤔 [WorkflowDisplay] user_decision_required EVENT RECEIVED');
         console.log('🤔 [WorkflowDisplay] Event data:', event.data);
@@ -1497,30 +1507,52 @@ export class WorkflowDisplayComponent implements OnInit, OnDestroy {
           console.log('🎬 [WorkflowDisplay] view_movie step - extracted movieTitle:', movieTitle);
         }
         
-        // Update pendingDecision with videoUrl if we have it
-        if (videoUrl && this.pendingDecision) {
-          this.pendingDecision.videoUrl = videoUrl;
-          this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
-          console.log('🎬 [WorkflowDisplay] Updated pendingDecision with videoUrl from WebSocket event');
-          // Open video modal
-          this.openVideoModal(videoUrl, movieTitle);
-        } else if (videoUrl && !this.pendingDecision) {
-          // Create pendingDecision if it doesn't exist yet (shouldn't happen, but just in case)
-          this.pendingDecision = {
-            executionId: event.data?.executionId || event.data?.workflowId || this.activeExecutionId || '',
-            stepId: event.data?.stepId || 'view_movie',
-            prompt: event.data?.prompt || 'Please watch the movie and click "Done Watching" when finished.',
-            options: event.data?.options || [
-              { value: 'DONE_WATCHING', label: 'Done Watching', action: 'Mark movie as watched' }
-            ],
-            timeout: event.data?.timeout || 300000,
-            videoUrl: videoUrl,
-            movieTitle: movieTitle
-          };
+        // CRITICAL: Always create/update pendingDecision from WebSocket event (not just when videoUrl exists)
+        // This ensures confirmation steps and other decision steps are displayed
+        if (event.data?.prompt || event.data?.options) {
+          // Update existing pendingDecision or create new one
+          if (this.pendingDecision) {
+            // Update existing decision with new data
+            this.pendingDecision.executionId = event.data?.executionId || event.data?.workflowId || this.activeExecutionId || this.pendingDecision.executionId;
+            this.pendingDecision.stepId = event.data?.stepId || this.pendingDecision.stepId;
+            this.pendingDecision.prompt = event.data?.prompt || this.pendingDecision.prompt;
+            this.pendingDecision.options = event.data?.options || this.pendingDecision.options;
+            this.pendingDecision.timeout = event.data?.timeout || this.pendingDecision.timeout;
+            if (videoUrl) {
+              this.pendingDecision.videoUrl = videoUrl;
+              this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
+            }
+            console.log('🤔 [WorkflowDisplay] Updated existing pendingDecision from WebSocket event');
+          } else {
+            // Create new pendingDecision from WebSocket event
+            this.pendingDecision = {
+              executionId: event.data?.executionId || event.data?.workflowId || this.activeExecutionId || '',
+              stepId: event.data?.stepId || '',
+              prompt: event.data?.prompt || 'Please confirm your choice.',
+              options: event.data?.options || [
+                { value: 'YES', label: 'Yes' },
+                { value: 'NO', label: 'No' }
+              ],
+              timeout: event.data?.timeout || 30000,
+              videoUrl: videoUrl || undefined,
+              movieTitle: movieTitle || undefined
+            };
+            console.log('🤔 [WorkflowDisplay] Created new pendingDecision from WebSocket event');
+            console.log('🤔 [WorkflowDisplay] Decision prompt:', this.pendingDecision.prompt);
+            console.log('🤔 [WorkflowDisplay] Decision options:', this.pendingDecision.options);
+          }
+          
+          // Always show the decision prompt
           this.showDecisionPrompt = true;
-          console.log('🎬 [WorkflowDisplay] Created pendingDecision from WebSocket event with videoUrl');
-          // Open video modal
-          this.openVideoModal(videoUrl, movieTitle);
+          console.log('🤔 [WorkflowDisplay] Set showDecisionPrompt=true');
+          
+          // Open video modal if videoUrl is available
+          if (videoUrl) {
+            this.openVideoModal(videoUrl, movieTitle);
+          }
+          
+          // Force change detection
+          this.cdr.detectChanges();
         }
         
         // Also update selectedListing if we have videoUrl

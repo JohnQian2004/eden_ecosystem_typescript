@@ -8,6 +8,7 @@ import * as http from "http";
 import { URL } from "url";
 import type { MovieListing, TokenListing, LLMQueryResult, LLMResponse, ServiceRegistryQuery } from "./types";
 import { MOCKED_LLM, ENABLE_OPENAI } from "./config";
+import { getMessagingSystemPrompt } from "./messaging/llmMessagingPrompt";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -406,18 +407,30 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
 // LLM Response Formatting Prompt
 export const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
-Format service listings into a user-friendly message.
-Return JSON only with: message (string), selectedListing (object), selectedListing2 (object), listings (array).
+Format service listings into a user-friendly message, OR answer informational questions about Eden.
 
-CRITICAL REQUIREMENTS:
-1. selectedListing is REQUIRED and MUST NOT be null or undefined
-2. selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
-3. selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
-4. selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
-5. If you cannot find a better match, pick the FIRST listing from the provided listings array
+IMPORTANT: There are TWO types of queries you need to handle:
+
+1. **SERVICE QUERIES** (when listings are provided):
+   - Format service listings into a user-friendly message
+   - Return JSON with: message (string), selectedListing (object), selectedListing2 (object), listings (array)
+   - CRITICAL REQUIREMENTS:
+     * selectedListing is REQUIRED and MUST NOT be null or undefined
+     * selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
+     * selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
+     * selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
+     * If you cannot find a better match, pick the FIRST listing from the provided listings array
+
+2. **INFORMATIONAL QUERIES** (when NO listings are provided OR user asks about Eden/messaging):
+   - Examples: "how to messaging", "how eden works", "what is the garden of eden", "how do I use this"
+   - Answer the question using your knowledge of Eden's architecture and messaging system
+   - Return JSON with: message (string), selectedListing (null), selectedListing2 (null), listings (empty array)
+   - The message should be helpful and explain Eden's features, philosophy, or how to use the interface
+   - Reference the Universal Messaging System when relevant
+   - Guide users on how to use the UI interface (Workflow Display Component)
 
 CRITICAL: Never output "service type not supported" or similar errors.
-Always format the response for ANY service type provided.
+Always format the response for ANY service type provided, OR provide helpful informational answers.
 
 For ANY OTHER SERVICE TYPE (not movie or dex):
 - Extract key information from listings (name, price, location, rating, etc.)
@@ -425,6 +438,22 @@ For ANY OTHER SERVICE TYPE (not movie or dex):
 - Select the best option based on user query
 - Return the selected listing and all listings
 - selectedListing2 MUST be set to the same value as selectedListing
+
+## About Eden and Messaging System
+
+When users ask questions about Eden, the messaging system, or how to use the interface, you should:
+
+1. **Explain Eden**: Describe Eden as a garden-first economic and intelligence system that replaces blockchain with LLM-governed intelligence fees, federated gardens, and ROOT CA governance.
+
+2. **Explain Messaging**: Mention that Eden has a Universal Messaging System for governed, auditable communication. Conversations are scoped to contexts (ORDER, TRADE, SERVICE, DISPUTE, SYSTEM) and messages are never deleted (only state changes).
+
+3. **Guide UI Usage**: Explain that users can:
+   - Type natural language requests in the chat input
+   - Follow workflow prompts and make decisions
+   - View transactions in the ledger display
+   - Watch videos (for movie services) in the video player modal
+
+4. **Suggest Conversations**: If users need ongoing help, suggest creating a conversation via the messaging system.
 
 Service type: {serviceType}
 
@@ -549,22 +578,45 @@ export async function formatResponseWithOpenAI(
   userQuery: string,
   queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
+  console.log(`🤖 [LLM] ========================================`);
+  console.log(`🤖 [LLM] formatResponseWithOpenAI called`);
+  console.log(`🤖 [LLM] User Query: "${userQuery}"`);
+  console.log(`🤖 [LLM] Service Type: ${queryFilters?.serviceType || 'unknown'}`);
+  console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
+  console.log(`🤖 [LLM] ========================================`);
+  
   if (MOCKED_LLM) {
-    return {
+    const mockResponse = {
       message: "Mock LLM response",
       listings: listings.slice(0, 1),
       selectedListing: listings[0] || null,
       iGasCost: 0.001
     };
+    console.log(`🤖 [LLM] Mock LLM Response: "${mockResponse.message}"`);
+    return mockResponse;
   }
 
   const serviceType = queryFilters?.serviceType || "movie";
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  
+  // Check if this is an informational query (no listings or user asking about Eden/messaging)
+  const isInformationalQuery = listings.length === 0 || 
+    /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+  
+  let systemPrompt = LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType);
+  
+  // For informational queries, include messaging system prompt
+  if (isInformationalQuery) {
+    systemPrompt += `\n\n${getMessagingSystemPrompt()}`;
+  }
+  
+  const userMessage = isInformationalQuery
+    ? `User query: ${userQuery}\n\nThis is an informational query. Please answer the user's question about Eden, the messaging system, or how to use the interface. Provide a helpful, clear explanation.`
+    : `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
 
   const messages = [
-    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType) },
+    { role: "system", content: systemPrompt },
     { role: "user", content: userMessage }
   ];
 
@@ -600,12 +652,26 @@ export async function formatResponseWithOpenAI(
             }
             if (parsed.choices?.[0]?.message?.content) {
               const content = JSON.parse(parsed.choices[0].message.content);
-              resolve({
+              
+              // For informational queries, selectedListing can be null
+              const isInformational = listings.length === 0 || 
+                /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+              
+              const response: LLMResponse = {
                 message: content.message || "No response",
-                listings: content.listings || listings,
-                selectedListing: content.selectedListing || listings[0] || null,
+                listings: content.listings || (isInformational ? [] : listings),
+                selectedListing: isInformational ? null : (content.selectedListing || listings[0] || null),
+                selectedListing2: isInformational ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
                 iGasCost: content.iGasCost || 0.001
-              });
+              };
+              console.log(`🤖 [LLM] ========================================`);
+              console.log(`🤖 [LLM] OpenAI Response received`);
+              console.log(`🤖 [LLM] Is Informational Query: ${isInformational}`);
+              console.log(`🤖 [LLM] Response Message: "${response.message.substring(0, 200)}${response.message.length > 200 ? '...' : ''}"`);
+              console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
+              console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
+              console.log(`🤖 [LLM] ========================================`);
+              resolve(response);
             } else {
               reject(new Error("Invalid OpenAI response format"));
             }
@@ -633,15 +699,48 @@ export async function formatResponseWithDeepSeek(
   userQuery: string,
   queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
+  console.log(`🤖 [LLM] ========================================`);
+  console.log(`🤖 [LLM] formatResponseWithDeepSeek called`);
+  console.log(`🤖 [LLM] User Query: "${userQuery}"`);
+  console.log(`🤖 [LLM] Service Type: ${queryFilters?.serviceType || 'unknown'}`);
+  console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
+  console.log(`🤖 [LLM] ========================================`);
+  
+  // Check if this is an informational query
+  const isInformationalQuery = listings.length === 0 || 
+    /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+  
   // Stub implementation - can be filled in later
-  const selectedListing = listings[0] || null;
-  return {
-    message: "DeepSeek response (stub)",
-    listings: listings.slice(0, 5),
+  // For informational queries, provide a helpful response
+  let message = "DeepSeek response (stub)";
+  if (isInformationalQuery) {
+    if (/messaging/i.test(userQuery)) {
+      message = "The Universal Messaging System in Eden provides governed, auditable, real-time communication for all Eden entities. You can create conversations for orders, trades, services, disputes, or system questions. Would you like me to explain more about how to use messaging in Eden?";
+    } else if (/eden|garden/i.test(userQuery)) {
+      message = "The Garden of Eden (Eden) is a garden-first economic and intelligence system that replaces traditional blockchain with LLM-governed intelligence fees. Eden features gas-free transactions, garden-driven architecture, and self-governing federated gardens. Would you like me to explain more about Eden's architecture?";
+    } else {
+      message = "I can help you with Eden! Eden is a garden-first economic system where intelligence is the new gas (iGas). You can use the chat interface to request services, trade tokens, or ask questions. How can I help you today?";
+    }
+  }
+  
+  const selectedListing = isInformationalQuery ? null : (listings[0] || null);
+  const response: LLMResponse = {
+    message: message,
+    listings: isInformationalQuery ? [] : listings.slice(0, 5),
     selectedListing: selectedListing,
     selectedListing2: selectedListing, // CRITICAL: Must return selectedListing2
     iGasCost: 0.001
   };
+  
+  console.log(`🤖 [LLM] ========================================`);
+  console.log(`🤖 [LLM] DeepSeek Response (stub) generated`);
+  console.log(`🤖 [LLM] Is Informational Query: ${isInformationalQuery}`);
+  console.log(`🤖 [LLM] Response Message: "${response.message}"`);
+  console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
+  console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
+  console.log(`🤖 [LLM] ========================================`);
+  
+  return response;
 }
 
 // SQL Parameterization Prompt

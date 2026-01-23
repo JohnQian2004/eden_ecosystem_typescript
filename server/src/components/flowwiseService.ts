@@ -1515,6 +1515,19 @@ async function executeStepActions(
           
           console.log(`🔍 [FlowWiseService] formatFn returned, llmResponse received`);
           
+          // REGULAR CHAT LOGGING: Console out user input and LLM response
+          console.log(`\n💬 [Chat] ========================================`);
+          console.log(`💬 [Chat] REGULAR CHAT MESSAGE`);
+          console.log(`💬 [Chat] User Input: "${context.userInput || 'N/A'}"`);
+          console.log(`💬 [Chat] ─────────────────────────────────────────`);
+          console.log(`💬 [Chat] LLM Response:`);
+          console.log(`💬 [Chat] "${llmResponse.message}"`);
+          console.log(`💬 [Chat] ─────────────────────────────────────────`);
+          console.log(`💬 [Chat] iGas Cost: ${llmResponse.iGasCost}`);
+          console.log(`💬 [Chat] Service Type: ${context.serviceType || 'unknown'}`);
+          console.log(`💬 [Chat] Has Selected Listing: ${!!llmResponse.selectedListing}`);
+          console.log(`💬 [Chat] ========================================\n`);
+          
           // DEBUG: Log what we got from LLM function - CRITICAL DIAGNOSTIC
           console.log(`🔍 [FlowWiseService] ========================================`);
           console.log(`🔍 [FlowWiseService] llmResponse received from formatFn:`);
@@ -1539,6 +1552,23 @@ async function executeStepActions(
           // This ensures we preserve the original llmResponse object
           context.llmResponse = llmResponse;
           context.iGasCost = llmResponse.iGasCost;
+          
+          // Broadcast LLM response as WebSocket event so frontend can display it
+          broadcastEvent({
+            type: "llm_response",
+            component: "llm",
+            message: llmResponse.message,
+            timestamp: Date.now(),
+            data: {
+              response: llmResponse,
+              executionId: executionId,
+              workflowId: executionId,
+              stepId: step.id,
+              userInput: context.userInput,
+              serviceType: context.serviceType
+            }
+          });
+          console.log(`📡 [FlowWiseService] Broadcasted llm_response event to frontend`);
           
           // CRITICAL: Preserve listings from llmResponse back to context.listings
           // This ensures the user_select_listing step has access to listings
