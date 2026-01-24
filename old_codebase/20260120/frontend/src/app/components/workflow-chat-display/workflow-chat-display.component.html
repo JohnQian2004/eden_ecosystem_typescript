@@ -18,6 +18,36 @@
       </div>
     </div>
     
+    <!-- Chat Input Box (Above Chat History) -->
+    <!-- Available in all modes: USER, PRIEST, and GOD -->
+    <!-- CRITICAL: This input box must always be visible, regardless of message count or view mode -->
+    <div class="card-body border-bottom p-3 bg-light">
+      <div class="d-flex gap-2">
+        <input 
+          type="text" 
+          class="form-control" 
+          placeholder="Type your message here (e.g., 'how to messaging', 'how eden works', 'book a movie')..."
+          [(ngModel)]="chatInput"
+          (keyup.enter)="sendChatMessage()"
+          [disabled]="isSendingChat"
+          name="chatInput">
+        <button 
+          class="btn btn-primary" 
+          type="button"
+          (click)="sendChatMessage()"
+          [disabled]="!chatInput?.trim() || isSendingChat">
+          <span *ngIf="!isSendingChat">📤 Send</span>
+          <span *ngIf="isSendingChat">
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            Sending...
+          </span>
+        </button>
+      </div>
+      <small class="text-muted d-block mt-2">
+        💡 Ask questions about Eden, request services, or start workflows
+      </small>
+    </div>
+    
     <!-- Chat Messages -->
     <div class="card-body p-0">
       <div class="chat-messages-container" style="padding: 20px;">
