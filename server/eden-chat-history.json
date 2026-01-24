@@ -6315,6 +6315,50 @@
         "mode": "user",
         "serviceType": "chat",
         "status": "active"
+      },
+      {
+        "id": "c_1769194670299_ab2efcd3a498d8",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769194670299,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769194670305_dc49535ce7e8e8",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769194670305,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769194678978_399c049df72128",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "how eden works",
+        "timestamp": 1769194678978,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769194678979_f33d482dd0da1",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769194678979,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
       }
     ],
     "conv:garden:garden-13:user": [
@@ -6337,6 +6381,118 @@
         "timestamp": 1769186728854,
         "userEmail": "rashardgarcia@gmail.com",
         "mode": "user",
+        "status": "active"
+      },
+      {
+        "id": "c_1769194697685_e6e60a588e4708",
+        "conversationId": "conv:garden:garden-13:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769194697685,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769202286389_b0401baffc2658",
+        "conversationId": "conv:garden:garden-13:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769202286389,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "movie",
+        "status": "active"
+      }
+    ],
+    "conv:service:chat:god": [
+      {
+        "id": "c_1769191109670_d425beb7d8082",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "what is Eden",
+        "timestamp": 1769191109670,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191109674_4df17d3051151",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769191109674,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191123942_d3ee49e3a3287",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769191123942,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191123950_04d1cf71e2d2b",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769191123950,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191417957_4f2f0beac176",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769191417957,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769191417966_87c6022634671",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769191417966,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769193077544_98886241432588",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
+        "timestamp": 1769193077544,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769193077536_19e9eadc8af21",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769193077536,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
         "status": "active"
       }
     ]

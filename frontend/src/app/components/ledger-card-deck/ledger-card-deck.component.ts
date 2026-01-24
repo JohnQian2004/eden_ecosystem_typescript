@@ -16,7 +16,7 @@ interface LedgerEntry {
   amount: number;
   iGasCost: number;
   fees: Record<string, number>;
-  status: 'pending' | 'processed' | 'completed' | 'failed';
+  status: 'pending' | 'processed' | 'completed' | 'failed'; 
   cashierId: string;
   bookingDetails?: {
     movieTitle?: string;

@@ -1322,9 +1322,22 @@ httpServer.on("request", async (req, res) => {
                 console.log(`🔍 [LLM] formatResponseWithOpenAI_CLONED FUNCTION ENTRY - CLONED DIRECTLY IN EDEN-SIM-REDIS`);
                 console.log(`🔍 [LLM] This is the CLONED function - NOT imported`);
                 console.log(`🔍 [LLM] listings count: ${listings.length}`);
-                console.log(`🔍 [LLM] userQuery: ${userQuery.substring(0, 100)}`);
+                console.log(`🔍 [LLM] userQuery: ${userQuery ? userQuery.substring(0, 100) : '(empty)'}`);
                 console.log(`🔍 [LLM] queryFilters:`, JSON.stringify(queryFilters));
                 console.log(`🔍 [LLM] ========================================`);
+                
+                // 🚨 CRITICAL: Validate userQuery is not empty
+                if (!userQuery || userQuery.trim().length === 0) {
+                  const serviceType = queryFilters?.serviceType || 'movie';
+                  // Generate a fallback query based on service type and filters
+                  const fallbackQuery = serviceType === 'dex' 
+                    ? `Find ${queryFilters?.tokenSymbol || 'TOKEN'} token trading options`
+                    : serviceType === 'movie'
+                    ? `Find ${queryFilters?.genre || ''} ${queryFilters?.time || ''} movies`.trim()
+                    : `Find ${serviceType} service options`;
+                  userQuery = fallbackQuery;
+                  console.warn(`⚠️ [LLM] userQuery was empty, using fallback: "${userQuery}"`);
+                }
                 
                 const listingsJson = JSON.stringify(listings);
                 const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
@@ -1337,12 +1350,25 @@ httpServer.on("request", async (req, res) => {
                 
                 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
                 
-                const payload = JSON.stringify({
+                const payloadObj = {
                   model: "gpt-4o",
                   messages,
                   response_format: { type: "json_object" },
                   temperature: 0.7,
-                });
+                };
+                
+                let payload: string;
+                try {
+                  payload = JSON.stringify(payloadObj);
+                  // Validate payload is valid JSON
+                  JSON.parse(payload);
+                } catch (err: any) {
+                  console.error(`❌ [LLM] Failed to stringify payload:`, err);
+                  return Promise.reject(new Error(`Failed to create valid JSON payload: ${err.message}`));
+                }
+                
+                const payloadBuffer = Buffer.from(payload, 'utf8');
+                const contentLength = payloadBuffer.length;
 
                 return new Promise<LLMResponse>((resolve, reject) => {
                   const req = https.request(
@@ -1354,7 +1380,7 @@ httpServer.on("request", async (req, res) => {
                       headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                        "Content-Length": payload.length,
+                        "Content-Length": contentLength,
                       },
                     },
                     (res) => {
@@ -1584,7 +1610,7 @@ httpServer.on("request", async (req, res) => {
                   req.on("error", (err) => {
                     reject(new Error(`OpenAI request failed: ${err.message}`));
                   });
-                  req.write(payload);
+                  req.write(payloadBuffer);
                   req.end();
                 });
               }
@@ -3006,9 +3032,18 @@ httpServer.on("request", async (req, res) => {
                       filters: updatedContext.queryResult?.query?.filters
                     });
                     
+                    // Ensure userInput is not empty - use fallback if needed
+                    const userInputForFormatting = updatedContext.userInput?.trim() || 
+                      updatedContext.input?.trim() || 
+                      `Find ${processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie'} service options`;
+                    
+                    if (!updatedContext.userInput?.trim() && !updatedContext.input?.trim()) {
+                      console.warn(`⚠️ [${requestId}] userInput is empty, using fallback: "${userInputForFormatting}"`);
+                    }
+                    
                     const llmResponse = await formatFn(
                       availableListings,
-                      updatedContext.userInput || "",
+                      userInputForFormatting,
                       {
                         ...(updatedContext.queryResult?.query?.filters || {}),
                         serviceType: processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie'
@@ -4350,7 +4385,6 @@ httpServer.on("request", async (req, res) => {
         console.log(`📨 [Chat] User Input: "${input.trim()}"`);
         console.log(`📨 [Chat] ========================================`);
         
-        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // Find or create user
         let user = USERS_STATE.find(u => u.email === email);
         if (!user) {
@@ -4368,6 +4402,59 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
+        // 🚨 CRITICAL: Check if this is an informational query (REGULAR TEXT CHAT) vs workflow query (EDEN CHAT)
+        // Informational queries should NOT trigger workflows - they should be answered directly
+        const isInformationalQuery = /how (to|does|do|can|will|eden|who)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will|eden)|explain|tell me about|help|guide/i.test(input.trim());
+        
+        if (isInformationalQuery) {
+          console.log(`💬 [Chat] Detected REGULAR TEXT CHAT (informational query) - answering directly without workflow`);
+          
+          // Handle informational query directly with LLM response formatter
+          const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
+          const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
+          
+          try {
+            const llmResponse = await formatFn(
+              [], // No listings for informational queries
+              input.trim(),
+              { serviceType: "informational" }
+            );
+            
+            // Broadcast LLM response as regular chat (not workflow)
+            broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: llmResponse.message,
+              timestamp: Date.now(),
+              data: {
+                query: input.trim(),
+                response: llmResponse.message,
+                isInformational: true
+              }
+            });
+            
+            // Send response
+            sendResponse(200, {
+              success: true,
+              message: llmResponse.message,
+              isInformational: true
+            });
+            console.log(`✅ Informational query answered directly for ${email}`);
+            return;
+          } catch (error: any) {
+            console.error(`❌ Error processing informational query:`, error);
+            sendResponse(500, { 
+              success: false, 
+              error: error.message || "Failed to process informational query"
+            });
+            return;
+          }
+        }
+        
+        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
+        console.log(`🔄 [Chat] Detected EDEN CHAT (workflow/service query) - starting workflow`);
+        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
         // This eliminates the need for pre-canned prompts and manual serviceType detection
         // The LLM will analyze user input and select the best matching services from the registry
@@ -4470,7 +4557,6 @@ httpServer.on("request", async (req, res) => {
         console.log(`📨 [Chat] User Input: "${input.trim()}"`);
         console.log(`📨 [Chat] ========================================`);
         
-        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // Find or create user
         let user = USERS_STATE.find(u => u.email === email);
         if (!user) {
@@ -4488,6 +4574,62 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
+        // 🚨 CRITICAL: Check if this is an informational query (REGULAR TEXT CHAT) vs workflow query (EDEN CHAT)
+        // Informational queries should NOT trigger workflows - they should be answered directly
+        const isInformationalQuery = /how (to|does|do|can|will|eden|who)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will|eden)|explain|tell me about|help|guide/i.test(input.trim());
+        
+        if (isInformationalQuery) {
+          console.log(`💬 [Chat] Detected REGULAR TEXT CHAT (informational query) - answering directly without workflow`);
+          
+          // Handle informational query directly with LLM response formatter
+          const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
+          const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
+          
+          try {
+            const llmResponse = await formatFn(
+              [], // No listings for informational queries
+              input.trim(),
+              { serviceType: "informational" }
+            );
+            
+            // Broadcast LLM response as regular chat (not workflow)
+            broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: llmResponse.message,
+              timestamp: Date.now(),
+              data: {
+                query: input.trim(),
+                response: llmResponse.message,
+                isInformational: true
+              }
+            });
+            
+            // Send response
+            if (!res.headersSent) {
+              sendResponse(200, { 
+                success: true, 
+                message: llmResponse.message,
+                isInformational: true
+              });
+              console.log(`✅ Informational query answered directly for ${email}`);
+            }
+          } catch (error: any) {
+            console.error(`❌ Error processing informational query:`, error);
+            if (!res.headersSent) {
+              sendResponse(500, { 
+                success: false, 
+                error: error.message || "Failed to process informational query"
+              });
+            }
+          }
+          return; // Don't proceed to workflow
+        }
+        
+        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
+        console.log(`🔄 [Chat] Detected EDEN CHAT (workflow/service query) - starting workflow`);
+        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
         // This eliminates the need for pre-canned prompts and manual serviceType detection
         // The LLM will analyze user input and select the best matching services from the registry

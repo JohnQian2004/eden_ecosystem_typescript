@@ -3525,7 +3525,17 @@ export class AppComponent implements OnInit, OnDestroy {
   resolveGardenOwnerUsernames(gardens: Array<{ownerEmail?: string, ownerUsername?: string | null}>): void {
     const emailsToResolve = new Set<string>();
     
-    // Collect unique owner emails
+    // First, update gardens with cached usernames
+    gardens.forEach(garden => {
+      if (garden.ownerEmail && this.ownerUsernameCache.has(garden.ownerEmail)) {
+        const cachedUsername = this.ownerUsernameCache.get(garden.ownerEmail);
+        if (cachedUsername && !garden.ownerUsername) {
+          (garden as any).ownerUsername = cachedUsername;
+        }
+      }
+    });
+    
+    // Collect unique owner emails that need resolution
     gardens.forEach(garden => {
       if (garden.ownerEmail && !this.ownerUsernameCache.has(garden.ownerEmail)) {
         emailsToResolve.add(garden.ownerEmail);
@@ -3551,6 +3561,12 @@ export class AppComponent implements OnInit, OnDestroy {
         }
       });
     });
+    
+    // Trigger change detection after initial cache updates
+    if (emailsToResolve.size === 0) {
+      // All usernames were in cache, update UI immediately
+      this.cdr.detectChanges();
+    }
   }
 
   /**
@@ -3588,16 +3604,37 @@ export class AppComponent implements OnInit, OnDestroy {
    * Get display name for garden owner (username or email fallback)
    */
   getGardenOwnerDisplayName(garden: {ownerEmail?: string, ownerUsername?: string | null}): string {
+    // If garden already has username, use it
     if (garden.ownerUsername) {
       return `@${garden.ownerUsername}`;
     }
+    
+    // If we have the email, check cache first
     if (garden.ownerEmail) {
-      // Show email as fallback, but try to resolve username
-      if (!this.ownerUsernameCache.has(garden.ownerEmail)) {
-        this.resolveUsernameForEmail(garden.ownerEmail);
+      // Check if cache has username for this email
+      if (this.ownerUsernameCache.has(garden.ownerEmail)) {
+        const cachedUsername = this.ownerUsernameCache.get(garden.ownerEmail);
+        if (cachedUsername) {
+          // Update garden object with cached username
+          (garden as any).ownerUsername = cachedUsername;
+          return `@${cachedUsername}`;
+        }
       }
+      
+      // Cache doesn't have it, try to resolve (async, will update later)
+      if (!this.ownerUsernameCache.has(garden.ownerEmail)) {
+        this.resolveUsernameForEmail(garden.ownerEmail).then(username => {
+          if (username) {
+            (garden as any).ownerUsername = username;
+            this.cdr.detectChanges();
+          }
+        });
+      }
+      
+      // Show email as fallback while resolving
       return garden.ownerEmail;
     }
+    
     return 'N/A';
   }
 

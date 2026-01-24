@@ -1,6 +1,6 @@
 # 🌳 The Garden of Eden (Eden)
 
-**Whitepaper v1.23 – Garden‑First, Intelligence‑Native Marketplace**
+**Whitepaper v1.27 – Garden‑First, Intelligence‑Native Marketplace**
 
 Author: Bill Draper (CTO)  
 Date: 2026
@@ -485,15 +485,102 @@ Eden messaging is designed to meet enterprise, financial, and regulatory require
 
 ---
 
-### 6.12 Summary
+### 6.12 User Interaction: Eden Chat vs Regular Text Chat
+
+Eden distinguishes between two types of user interactions in the chat interface:
+
+#### 6.12.1 Eden Chat (Workflow/Service Queries)
+
+**Eden Chat** refers to user queries that trigger workflows and service transactions. These are **action-oriented queries** that request services, initiate trades, or perform operations.
+
+**Characteristics:**
+- Triggers workflow execution through FlowWiseService
+- Requires service type detection and routing
+- Results in service transactions, payments, or state changes
+- Examples:
+  - "I want to watch a sci-fi movie tonight in Baltimore"
+  - "Trade 2 SOL with TOKEN"
+  - "Buy TOKENA"
+  - "Find a pharmacy near me"
+  - "Book a flight from New York to Los Angeles"
+
+**Processing Flow:**
+1. User submits query via chat input
+2. LLM extracts service type and filters
+3. System queries ROOT CA ServiceRegistry
+4. Workflow is initiated with appropriate service/garden
+5. User follows workflow prompts and makes decisions
+6. Transaction is executed and settled
+
+#### 6.12.2 Regular Text Chat (Informational Queries)
+
+**Regular Text Chat** refers to user queries that request information or explanations. These are **information-oriented queries** that do not trigger workflows.
+
+**Characteristics:**
+- Answered directly by LLM without workflow execution
+- Provides explanations, guidance, or information
+- No service transactions or state changes
+- Examples:
+  - "What is the Garden of Eden?"
+  - "How does Eden work?"
+  - "How to messaging?"
+  - "Who eden works?"
+  - "How do I use this interface?"
+
+**Processing Flow:**
+1. User submits query via chat input
+2. System detects informational intent (no service keywords)
+3. LLM responds directly with explanation
+4. Response is broadcast as `llm_response` event (not workflow event)
+5. No workflow is initiated
+
+#### 6.12.3 Classification Logic
+
+The system uses pattern recognition and LLM analysis to distinguish between the two types:
+
+**Eden Chat Indicators:**
+- Service keywords: "movie", "ticket", "trade", "buy", "sell", "TOKEN", "SOL", "DEX", "pool"
+- Action verbs: "book", "find", "trade", "buy", "sell", "swap"
+- Specific service requests with parameters
+
+**Regular Text Chat Indicators:**
+- Question words: "how", "what", "who", "why", "when", "where"
+- Explanatory requests: "explain", "tell me about", "help", "guide"
+- General inquiries about Eden's architecture or usage
+
+**LLM Classification:**
+- Query extraction LLM analyzes user input
+- Returns `serviceType: "informational"` for Regular Text Chat
+- Returns specific service type (e.g., "movie", "dex") for Eden Chat
+- System routes accordingly based on classification
+
+#### 6.12.4 User Experience
+
+Users interact with Eden through a unified chat interface that handles both types of queries seamlessly:
+
+1. **Single Input Box**: One chat input field accepts both workflow and informational queries
+2. **Automatic Routing**: System automatically detects query type and routes appropriately
+3. **Clear Feedback**: Users receive appropriate responses (workflow steps for Eden Chat, direct answers for Regular Text Chat)
+4. **No Confusion**: System clearly distinguishes between requesting services and asking questions
+
+This dual-mode chat system enables users to:
+- Request services naturally (Eden Chat)
+- Learn about Eden and get help (Regular Text Chat)
+- Use a single interface for all interactions
+
+---
+
+### 6.13 Summary
 
 The Eden Universal Messaging System transforms communication from an informal side channel into a **governed, auditable, and behavior-aware coordination fabric**.
 
 By grounding all interaction in structured conversations, Eden enables scalable commerce, labor, governance, and trust—without censorship, erasure, or centralized control.
 
+The system's dual-mode chat interface (Eden Chat for workflows, Regular Text Chat for information) provides a seamless user experience that supports both transactional and informational interactions through a single, unified interface.
+
 ---
 
-**Version Note:** This section supersedes messaging descriptions in v1.14–v1.22 and reflects the finalized architecture as of **White Paper v1.23**.
+**Version Note:** This section supersedes messaging descriptions in v1.14–v1.22 and reflects the finalized architecture as of **White Paper v1.23**. Section 6.12 (User Interaction: Eden Chat vs Regular Text Chat) was added in **White Paper v1.27**.
 
 ---
 

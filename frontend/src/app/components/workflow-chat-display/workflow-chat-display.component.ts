@@ -68,6 +68,10 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   // Messaging system
   activeConversations: Map<string, Conversation> = new Map();
   conversationMessages: Map<string, Message[]> = new Map();
+  
+  // Chat input for regular messages
+  chatInput: string = '';
+  isSendingChat: boolean = false;
 
   constructor(
     private http: HttpClient,
@@ -434,7 +438,6 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
     const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
     const isChatScopedEvent =
-      event.type === 'llm_response' ||
       event.type === 'user_decision_required' ||
       event.type === 'user_selection_required' ||
       event.type === 'eden_chat_input' ||
@@ -443,6 +446,10 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       event.type === 'igas' ||
       event.type === 'ledger_entry_added' ||
       event.type === 'ledger_booking_completed';
+    
+    // LLM responses should ALWAYS be shown (not filtered by executionId)
+    // This includes regular chat responses and informational queries
+    const isLLMResponseEvent = event.type === 'llm_response';
     
     // Messaging system events should ALWAYS be processed (not scoped to executionId)
     const isMessagingEvent =
@@ -454,7 +461,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
     // IMPORTANT: Always process workflow events - they run on backend regardless of tab visibility
     // Only filter by executionId to avoid mixing events from different workflows
-    // BUT: Messaging events are NOT scoped to executionId - they should always be shown
+    // BUT: LLM responses and messaging events are NOT scoped to executionId - they should always be shown
     if (isChatScopedEvent && this.activeExecutionId) {
       // During pending reset, ignore everything until we know the new execution id.
       if (this.activeExecutionId === '__pending__') {
@@ -469,19 +476,34 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       }
     }
     
-    // Messaging events are always processed (not filtered by executionId)
-    // They represent general conversations, not workflow-specific events
+    // LLM responses and messaging events are always processed (not filtered by executionId)
+    // They represent general conversations and informational queries, not just workflow-specific events
 
     // Filter events to only show user-facing ones (hide technical details)
     switch (event.type) {
       case 'llm_response':
         // Add LLM response as assistant message (filtered to show only user-facing content)
         // BUT ensure it comes AFTER user input
+        // CRITICAL: LLM responses should ALWAYS be shown (not filtered by executionId)
+        // This includes regular chat responses and informational queries
+        console.log('💬 [WorkflowChat] ========================================');
+        console.log('💬 [WorkflowChat] Received llm_response event');
+        console.log('💬 [WorkflowChat] Event data:', event.data);
+        console.log('💬 [WorkflowChat] Has message:', !!(event.data?.response?.message || event.data?.message));
+        console.log('💬 [WorkflowChat] ========================================');
+        
         // CRITICAL: For view_movie step, the workflow sends both llm_response and user_decision_required.
         // We should only show the user_decision_required (which includes the video player and decision prompt).
         // Skip llm_response if it's for view_movie step to avoid duplicates.
         if (event.data?.response?.message || event.data?.message) {
           const llmMessage = event.data?.response?.message || event.data?.message;
+          
+          console.log('💬 [WorkflowChat] Processing LLM response:', {
+            message: llmMessage.substring(0, 100),
+            hasExecutionId: !!evExecId,
+            activeExecutionId: this.activeExecutionId,
+            stepId: event.data?.stepId || event.data?.response?.stepId
+          });
           
           // Check if this is for view_movie step - if so, skip it and let user_decision_required handle it
           const stepId = event.data?.stepId || event.data?.response?.stepId;
@@ -572,8 +594,13 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
             }
             // Sort messages by timestamp to ensure correct order
             this.chatMessages.sort((a, b) => a.timestamp - b.timestamp);
+            console.log('💬 [WorkflowChat] Added LLM response to chat messages. Total messages:', this.chatMessages.length);
             this.cdr.detectChanges();
+          } else {
+            console.log('💬 [WorkflowChat] LLM response already exists in chat messages, skipping duplicate');
           }
+        } else {
+          console.warn('💬 [WorkflowChat] llm_response event has no message content:', event.data);
         }
         break;
 
@@ -1457,6 +1484,54 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     try {
       window.dispatchEvent(new CustomEvent('eden_send', { detail: { source: 'workflow_chat_new_chat' } }));
     } catch {}
+  }
+
+  /**
+   * Send regular chat message from the input box above chat history
+   */
+  async sendChatMessage(): Promise<void> {
+    if (!this.chatInput?.trim() || this.isSendingChat) {
+      return;
+    }
+
+    const message = this.chatInput.trim();
+    this.isSendingChat = true;
+
+    try {
+      console.log('💬 [WorkflowChat] Sending regular chat message:', message);
+      
+      // Add user message to chat immediately
+      this.addChatMessage({
+        type: 'user',
+        content: message,
+        timestamp: Date.now()
+      });
+
+      // Clear input
+      const messageToSend = message;
+      this.chatInput = '';
+
+      // Send to backend
+      const response = await this.http.post<any>(`${this.apiUrl}/api/chat`, {
+        input: messageToSend,
+        email: this.userEmail || 'guest@example.com'
+      }).toPromise();
+
+      console.log('💬 [WorkflowChat] Chat message sent, response:', response);
+
+      // The LLM response will come via WebSocket as llm_response event
+      // No need to manually add it here - it will be handled by the WebSocket handler
+    } catch (error: any) {
+      console.error('❌ [WorkflowChat] Failed to send chat message:', error);
+      this.addChatMessage({
+        type: 'system',
+        content: `❌ Failed to send message: ${error.message || 'Unknown error'}`,
+        timestamp: Date.now()
+      });
+    } finally {
+      this.isSendingChat = false;
+      this.cdr.detectChanges();
+    }
   }
 
   // Public method to reset chat (called from app component on send)
