@@ -57,7 +57,9 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "eden-sim-frontend:build"
+            "browserTarget": "eden-sim-frontend:build",
+            "port": 4200,
+            "host": "0.0.0.0"
           },
           "configurations": {
             "production": {

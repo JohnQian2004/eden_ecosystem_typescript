@@ -14444,6 +14444,12 @@ async function main() {
   initializeMessaging();
   console.log("✅ [Messaging] Universal Messaging System initialized");
   
+  // Initialize Rule-Based Governance System (v1.24)
+  const { initializeGovernance } = require("./src/governance/governanceService");
+  const dataPath = path.join(__dirname, "data");
+  initializeGovernance(dataPath);
+  console.log("✅ [Governance] Rule-Based Governance System (v1.24) initialized");
+  
   // Initialize logger FIRST (needed for tracing garden lifecycle)
   initializeLogger();
   

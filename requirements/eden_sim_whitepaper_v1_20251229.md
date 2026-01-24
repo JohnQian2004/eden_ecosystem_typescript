@@ -1,6 +1,6 @@
 # 🌳 The Garden of Eden (Eden)
 
-**Whitepaper v1.27 – Garden‑First, Intelligence‑Native Marketplace**
+**Whitepaper v1.28 – Garden‑First, Intelligence‑Native Marketplace**
 
 Author: Bill Draper (CTO)  
 Date: 2026
@@ -255,7 +255,223 @@ That's Eden.
 
 ---
 
-## 4. Garden‑First Architecture
+## 4. Rule-Based Governance System (v1.24)
+
+### 4.1 Overview
+
+Eden v1.24 introduces a **deterministic rule-based governance system** that ensures visible, auditable governance without LLM authority creep. This system is built on three foundational principles:
+
+1. **RAG in the Front**: Governance rules are retrieved and displayed before any action (non-negotiable, visible governance)
+2. **Deterministic Rule Engine**: All governance decisions are rule-based, not LLM-generated (no LLM authority creep)
+3. **Symbolic Roles**: Roles (God/ROOT CA, Priests/Gardens, Garden Owners) are symbolic permissions, not god-mode access
+
+### 4.2 RAG-Based Rule Retrieval
+
+**Retrieval-Augmented Generation (RAG)** is the primary mechanism for governance rule access:
+
+- **Rule Index**: All governance rules are indexed in a searchable knowledge base
+- **Pre-Action Retrieval**: Before any action, relevant rules are retrieved and displayed
+- **Visible Governance**: Users and system actors can see which rules apply to their actions
+- **Non-Negotiable**: Rules retrieved from RAG are authoritative—they cannot be overridden by LLM interpretation
+
+**Rule Index Structure:**
+```
+- Rule ID: Unique identifier
+- Rule Type: PERMISSION, CONSTRAINT, ESCALATION, SETTLEMENT
+- Scope: GLOBAL, GARDEN, SERVICE, USER
+- Conditions: When the rule applies
+- Actions: What the rule permits/prohibits
+- Time-Decay: Optional time-based decay parameters
+- Version: Rule version for tracking changes
+```
+
+### 4.3 Deterministic Rule Engine
+
+The rule engine processes rules **deterministically**:
+
+- **No LLM Interpretation**: Rules are evaluated using pattern matching and logical operators, not LLM reasoning
+- **Predictable Outcomes**: Same input + same rules = same output (deterministic)
+- **Audit Trail**: Every rule evaluation is logged with input, rules applied, and output
+- **Rule Priority**: Rules have explicit priority ordering (no ambiguity)
+
+**Rule Evaluation Flow:**
+1. Action request received
+2. RAG retrieves relevant rules for the action context
+3. Rule engine evaluates rules deterministically (pattern matching, logical operators)
+4. Decision returned (ALLOW, DENY, ESCALATE)
+5. Decision logged with full audit trail
+
+### 4.4 Symbolic Roles (Without God-Mode)
+
+Roles in Eden v1.24 are **symbolic permissions**, not absolute power:
+
+**ROOT CA (God):**
+- Settlement authority (only ROOT CA can settle transactions)
+- Rule creation and modification (governance rules)
+- Certificate issuance (garden and service certification)
+- **NOT god-mode**: ROOT CA actions are still governed by rules and audit trails
+
+**Priests (Gardens):**
+- Rule enforcement (apply rules to transactions)
+- Service routing and intelligence
+- Transaction execution (but not settlement)
+- **NOT god-mode**: Gardens cannot override rules or bypass governance
+
+**Garden Owners:**
+- Garden configuration and management
+- Service provider integration
+- Local rule customization (within global rule constraints)
+- **NOT god-mode**: Garden owners cannot override global rules or settlement authority
+
+**Key Principle:** No role has absolute power. All actions are governed by rules, and all rules are visible and auditable.
+
+### 4.5 Time-Decay Trust & Permissions
+
+Eden v1.24 implements **time-decay** for trust and permissions:
+
+**Trust Decay:**
+- Trust scores decay over time if not actively maintained
+- Decay rate is configurable per trust type (transaction trust, identity trust, service trust)
+- Trust can be restored through positive actions (transactions, certifications, good behavior)
+
+**Permission Decay:**
+- Permissions granted to entities decay over time
+- Decay rate is configurable per permission type
+- Permissions must be renewed through re-certification or re-authorization
+
+**Time-Decay Formula:**
+```
+current_trust = initial_trust × e^(-decay_rate × time_elapsed)
+```
+
+Where:
+- `initial_trust`: Trust score at grant time
+- `decay_rate`: Configurable decay rate (per trust/permission type)
+- `time_elapsed`: Time since trust/permission was granted
+
+**Benefits:**
+- Prevents stale permissions from accumulating
+- Encourages active participation and good behavior
+- Reduces attack surface from compromised long-term permissions
+- Enables automatic permission cleanup
+
+### 4.6 QR-Code Device Binding (v1.24 Default)
+
+Eden v1.24 uses **QR-code device binding** as the default authentication mechanism:
+
+**Device Binding Process:**
+1. User scans QR code displayed in Eden UI
+2. Device generates cryptographic key pair
+3. Public key is registered with Eden identity system
+4. Device is bound to user identity (ENCERT)
+5. Subsequent authentication uses device-bound keys
+
+**Security Properties:**
+- **Device-Specific**: Keys are bound to specific device (cannot be transferred)
+- **QR-Code Verification**: QR code contains cryptographic challenge for device verification
+- **No Password Storage**: No passwords stored—authentication is key-based
+- **Revocable**: Device bindings can be revoked if device is compromised
+
+**QR-Code Structure:**
+```json
+{
+  "challenge": "cryptographic-challenge-string",
+  "timestamp": "2026-01-20T10:00:00Z",
+  "identity_hint": "user-email-hint",
+  "binding_url": "https://eden.example.com/bind-device"
+}
+```
+
+**Benefits:**
+- Simple user experience (scan QR code)
+- Strong security (cryptographic keys)
+- No password management overhead
+- Device-specific authentication prevents key sharing
+
+### 4.7 Rule Schema (JSON/YAML)
+
+Rules are defined in a structured schema:
+
+**JSON Schema Example:**
+```json
+{
+  "ruleId": "rule-settlement-authority-001",
+  "ruleType": "PERMISSION",
+  "scope": "GLOBAL",
+  "conditions": {
+    "action": "SETTLE_TRANSACTION",
+    "actorRole": "ROOT_CA"
+  },
+  "actions": {
+    "allow": true,
+    "requireAudit": true,
+    "requireLedgerEntry": true
+  },
+  "timeDecay": {
+    "enabled": false
+  },
+  "version": 1,
+  "createdAt": "2026-01-20T10:00:00Z",
+  "createdBy": "ROOT_CA"
+}
+```
+
+**YAML Schema Example:**
+```yaml
+ruleId: rule-garden-execution-001
+ruleType: PERMISSION
+scope: GARDEN
+conditions:
+  action: EXECUTE_TRANSACTION
+  actorRole: GARDEN
+  hasValidCertificate: true
+actions:
+  allow: true
+  requireAudit: true
+  prohibitSettlement: true
+timeDecay:
+  enabled: true
+  decayRate: 0.001
+  renewalPeriod: 86400
+version: 1
+```
+
+### 4.8 Implementation Requirements
+
+**RAG Index:**
+- Vector database for rule retrieval (e.g., Pinecone, Weaviate, or local vector store)
+- Rule embeddings generated from rule conditions and actions
+- Semantic search for rule retrieval based on action context
+
+**Rule Engine:**
+- Deterministic pattern matching engine
+- Logical operator evaluation (AND, OR, NOT)
+- Rule priority resolution
+- Audit logging for all rule evaluations
+
+**Device Binding:**
+- QR code generation service
+- Cryptographic key pair generation (client-side)
+- Device registration API
+- Device authentication middleware
+
+**Time-Decay System:**
+- Time-based decay calculation service
+- Trust/permission renewal workflows
+- Decay rate configuration management
+
+### 4.9 Benefits
+
+1. **Visible Governance**: All rules are visible and auditable (RAG retrieval)
+2. **Deterministic Decisions**: No LLM authority creep—all decisions are rule-based
+3. **Symbolic Roles**: Roles are permissions, not absolute power
+4. **Time-Decay Security**: Stale permissions automatically decay
+5. **Simple Authentication**: QR-code device binding is user-friendly and secure
+6. **CTO-Grade Clarity**: Technical specification, not marketing fluff
+
+---
+
+## 5. Garden‑First Architecture
 
 ```
 User (Chat API)
@@ -296,7 +512,7 @@ Key rules:
 
 ---
 
-## 5. Event‑Driven Replication Bus
+## 6. Event‑Driven Replication Bus
 
 Eden uses a **database‑level replication model** instead of consensus mining.
 
@@ -315,9 +531,9 @@ Gardens replicate state, not blocks.
 
 ---
 
-## 6. Universal Messaging System
+## 7. Universal Messaging System
 
-### 6.1 Purpose
+### 7.1 Purpose
 
 The Eden Universal Messaging System provides a **governed, auditable, real-time communication layer** enabling interaction among all entities in the Eden ecosystem, including Users, Service Providers (Gardens), Priests (Governance Operators), and the Root Authority.
 
@@ -325,7 +541,7 @@ Messaging is treated as a **first-class system primitive**, not a side feature. 
 
 ---
 
-### 6.2 Design Principles
+### 7.2 Design Principles
 
 The messaging system is governed by the following principles:
 
@@ -346,7 +562,7 @@ The messaging system is governed by the following principles:
 
 ---
 
-### 6.3 Messaging Entities
+### 7.3 Messaging Entities
 
 Messaging participants are modeled as **entities**, not accounts.
 
@@ -361,7 +577,7 @@ Each entity is addressed through a canonical identity reference, allowing messag
 
 ---
 
-### 6.4 Conversations
+### 7.4 Conversations
 
 A **Conversation** is the primary container for messaging.
 
@@ -383,7 +599,7 @@ Conversations cannot be reused across unrelated contexts.
 
 ---
 
-### 6.5 Message Events
+### 7.5 Message Events
 
 Messages are represented as **immutable events** appended to a conversation.
 
@@ -405,7 +621,7 @@ This event-based model aligns messaging with Eden's ledger and settlement archit
 
 ---
 
-### 6.6 Governance & Permissions
+### 7.6 Governance & Permissions
 
 Messaging permissions are enforced through **Conversation Policies**, which specify:
 
@@ -419,7 +635,7 @@ Policies are evaluated dynamically and may vary by Garden, role, and context.
 
 ---
 
-### 6.7 Forgiveness Model
+### 7.7 Forgiveness Model
 
 Forgiveness is a **first-class governance action**.
 
@@ -433,7 +649,7 @@ Forgiveness never deletes data and is fully auditable.
 
 ---
 
-### 6.8 Behavioral Integration (Attitude & AttiJuice)
+### 7.8 Behavioral Integration (Attitude & AttiJuice)
 
 Messaging activity feeds into Eden's behavioral layer.
 
@@ -448,7 +664,7 @@ Forgiveness resets behavioral impact without rewriting history.
 
 ---
 
-### 6.9 Escalation & Dispute Messaging
+### 7.9 Escalation & Dispute Messaging
 
 Conversations may be escalated to governance operators (Priests) when:
 
@@ -460,7 +676,7 @@ Escalation does not create a new conversation; it **extends the existing scope**
 
 ---
 
-### 6.10 Federation & Cross-Garden Messaging
+### 7.10 Federation & Cross-Garden Messaging
 
 The messaging system supports:
 
@@ -472,7 +688,7 @@ No central message broker is required. Governance rules travel with the conversa
 
 ---
 
-### 6.11 Security & Compliance
+### 7.11 Security & Compliance
 
 Messaging provides:
 
@@ -485,7 +701,7 @@ Eden messaging is designed to meet enterprise, financial, and regulatory require
 
 ---
 
-### 6.12 User Interaction: Eden Chat vs Regular Text Chat
+### 7.12 User Interaction: Eden Chat vs Regular Text Chat
 
 Eden distinguishes between two types of user interactions in the chat interface:
 
@@ -570,7 +786,7 @@ This dual-mode chat system enables users to:
 
 ---
 
-### 6.13 Summary
+### 7.13 Summary
 
 The Eden Universal Messaging System transforms communication from an informal side channel into a **governed, auditable, and behavior-aware coordination fabric**.
 
@@ -580,11 +796,11 @@ The system's dual-mode chat interface (Eden Chat for workflows, Regular Text Cha
 
 ---
 
-**Version Note:** This section supersedes messaging descriptions in v1.14–v1.22 and reflects the finalized architecture as of **White Paper v1.23**. Section 6.12 (User Interaction: Eden Chat vs Regular Text Chat) was added in **White Paper v1.27**.
+**Version Note:** This section supersedes messaging descriptions in v1.14–v1.22 and reflects the finalized architecture as of **White Paper v1.23**. Section 7.12 (User Interaction: Eden Chat vs Regular Text Chat) was added in **White Paper v1.27**. Section 4 (Rule-Based Governance System) was added in **White Paper v1.28**.
 
 ---
 
-## 7. Intelligence Gas (iGas)
+## 8. Intelligence Gas (iGas)
 
 - No blockchain gas
 - No native token
@@ -615,7 +831,7 @@ This creates a **positive‑sum economy** where all participants benefit from sy
 
 ---
 
-## 8. Service Registry & Routing
+## 9. Service Registry & Routing
 
 ### 8.1 ROOT CA Service Registry (Centralized Management)
 
@@ -1422,7 +1638,7 @@ if __name__ == '__main__':
 
 ---
 
-## 9. Dynamic Bonds & Pricing
+## 10. Dynamic Bonds & Pricing
 
 - Every successful transaction:
   - Increases service bond
@@ -1437,7 +1653,7 @@ This replaces ratings with **economic truth**.
 
 ---
 
-## 10. No‑Rug DEX Model (Optional Layer)
+## 11. No‑Rug DEX Model (Optional Layer)
 
 - Pools must be ROOT‑certified
 - Creator cannot rug without losing bond
@@ -1518,7 +1734,7 @@ Distribution:
 
 ---
 
-## 11. SaaS & Legacy Integration
+## 12. SaaS & Legacy Integration
 
 Eden integrates via **API plugins**:
 - AMC
@@ -1531,7 +1747,7 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 
 ---
 
-## 12. Security & Identity
+## 13. Security & Identity
 
 - Google identity only
 - Email‑based trust
@@ -1540,7 +1756,7 @@ Legacy systems keep control; Eden handles intelligence, trust, and settlement.
 
 ---
 
-## 13. Deployment Model
+## 14. Deployment Model
 
 ### 12.1 Initial Bootstrap
 
@@ -2601,7 +2817,7 @@ npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false
 
 ---
 
-## 14. Sample Service Providers
+## 15. Sample Service Providers
 
 Eden provides **sample service provider implementations** in the codebase that demonstrate how to build standalone service providers using LLM-generated system prompts and notification code. These samples eliminate the need for hardcoded service providers and serve as templates for creating new service providers.
 

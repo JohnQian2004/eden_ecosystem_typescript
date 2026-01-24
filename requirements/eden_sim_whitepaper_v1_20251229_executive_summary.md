@@ -52,14 +52,25 @@ Eden replaces blockchain gas with **Intelligence Gas (iGas)**, calculated from L
 
 ---
 
+## Rule-Based Governance System (v1.24)
+
+Eden v1.24 introduces **deterministic rule-based governance** with:
+
+- **RAG in the Front**: Governance rules retrieved and displayed before actions (visible governance)
+- **Deterministic Rule Engine**: All decisions are rule-based, not LLM-generated (no LLM authority creep)
+- **Symbolic Roles**: Roles (God/ROOT CA, Priests/Gardens, Garden Owners) are permissions, not god-mode
+- **Time-Decay Trust**: Trust and permissions decay over time, requiring renewal
+- **QR-Code Device Binding**: Default authentication via QR-code device binding (v1.24)
+
 ## Key Differentiators
 
 1. **Garden-First Architecture**: Gardens primary, blockchain subordinate
 2. **Intelligence as Currency**: iGas prices intelligence, not compute
 3. **Governed Messaging**: First-class primitive with governed conversations
 4. **Dual-Mode Chat**: Unified interface for workflows and information
-5. **Centralized Service Registry**: Single source of truth for all services
-6. **Settlement Authority**: Only ROOT CA can settle, preventing double-spending
+5. **Rule-Based Governance**: Deterministic rules with RAG retrieval (v1.24)
+6. **Centralized Service Registry**: Single source of truth for all services
+7. **Settlement Authority**: Only ROOT CA can settle, preventing double-spending
 
 ---
 
@@ -79,5 +90,5 @@ Eden shifts from blockchain-first to garden-first architecture, where intelligen
 
 ---
 
-**Version:** Whitepaper v1.27 Executive Summary (300 words)  
+**Version:** Whitepaper v1.28 Executive Summary (300 words)  
 **Full Document:** See `eden_sim_whitepaper_v1_20251229.md` for complete technical specifications
