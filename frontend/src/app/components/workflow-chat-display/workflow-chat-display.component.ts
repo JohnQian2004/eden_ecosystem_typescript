@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, SecurityContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FlowWiseService, WorkflowExecution } from '../../services/flowwise.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 import { getApiBaseUrl } from '../../services/api-base';
 import { MessagingService, Conversation, Message } from '../../services/messaging.service';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 interface ChatMessage {
   id: string;
@@ -78,9 +79,88 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     private flowWiseService: FlowWiseService,
     private webSocketService: WebSocketService,
     private messagingService: MessagingService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer
   ) {
     this.apiUrl = getApiBaseUrl();
+  }
+  
+  // Convert markdown to HTML
+  renderMarkdown(text: string): SafeHtml {
+    if (!text) return '';
+    
+    let html = text;
+    
+    // Code blocks first (before other processing)
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    
+    // Process lists (bullet and numbered)
+    const lines = html.split('\n');
+    let inList = false;
+    let listType = '';
+    let processedLines: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const bulletMatch = line.match(/^[\-\*] (.*)$/);
+      const numberedMatch = line.match(/^(\d+)\. (.*)$/);
+      
+      if (bulletMatch || numberedMatch) {
+        const itemText = bulletMatch ? bulletMatch[1] : numberedMatch![2];
+        const currentListType = bulletMatch ? 'ul' : 'ol';
+        
+        if (!inList || listType !== currentListType) {
+          if (inList) {
+            processedLines.push(`</${listType}>`);
+          }
+          processedLines.push(`<${currentListType}>`);
+          inList = true;
+          listType = currentListType;
+        }
+        processedLines.push(`<li>${itemText}</li>`);
+      } else {
+        if (inList) {
+          processedLines.push(`</${listType}>`);
+          inList = false;
+        }
+        processedLines.push(line);
+      }
+    }
+    if (inList) {
+      processedLines.push(`</${listType}>`);
+    }
+    html = processedLines.join('\n');
+    
+    // Bold and italic (after lists to avoid conflicts)
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Line breaks - convert double newlines to paragraph breaks
+    html = html.split('\n\n').map(para => {
+      para = para.trim();
+      if (!para) return '';
+      if (para.startsWith('<h') || para.startsWith('<ul') || para.startsWith('<ol') || para.startsWith('<pre')) {
+        return para;
+      }
+      return `<p>${para}</p>`;
+    }).join('\n');
+    
+    // Single newlines to br (but not inside pre/code)
+    html = html.replace(/\n/g, '<br>');
+    
+    const sanitized = this.sanitizer.sanitize(SecurityContext.HTML, html) || '';
+    return this.sanitizer.bypassSecurityTrustHtml(sanitized);
   }
 
   ngOnInit() {
@@ -1488,9 +1568,10 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
 
   /**
    * Send regular chat message from the input box above chat history
+   * The LLM will determine if it's Eden-related and respond appropriately
    */
   async sendChatMessage(): Promise<void> {
-    if (!this.chatInput?.trim() || this.isSendingChat) {
+    if (!this.chatInput.trim() || this.isSendingChat) {
       return;
     }
 

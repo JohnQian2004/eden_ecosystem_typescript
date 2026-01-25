@@ -10020,7 +10020,39 @@
         "reviewCount": 150,
         "rating": 4.9
       }
+    },
+    {
+      "entryId": "4a6d4415-a974-4018-955c-8e3fe4611d31",
+      "txId": "fceefdf8-a94a-4fd4-8080-a568cf6d2eb5",
+      "timestamp": 1769294158869,
+      "payer": "rashardgarcia@gmail.com",
+      "payerId": "rashardgarcia@gmail.com",
+      "merchant": "Token 1 Pool (T1)",
+      "providerUuid": "81132417-f923-4852-bd53-fc2a652f4138",
+      "serviceType": "dex",
+      "amount": 0.0020030200602006018,
+      "iGasCost": 0.001,
+      "fees": {
+        "tradeFee": 0.000003000060000600006,
+        "iTax": 5.000100001000011e-9,
+        "iGas": 0.001
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "tokenSymbol": "TOKEN",
+        "baseToken": "SOL",
+        "action": "BUY",
+        "tokenAmount": 1,
+        "baseAmount": 0.001000020000200002,
+        "totalAmount": 0.0020030200602006018,
+        "tradeFee": 0.000003000060000600006,
+        "iTax": 5.000100001000011e-9,
+        "iGas": 0.001,
+        "pair": "TOKEN/SOL",
+        "tradeId": "fceefdf8-a94a-4fd4-8080-a568cf6d2eb5"
+      }
     }
   ],
-  "lastSaved": "2026-01-23T17:57:46.994Z"
+  "lastSaved": "2026-01-24T22:35:59.128Z"
 }

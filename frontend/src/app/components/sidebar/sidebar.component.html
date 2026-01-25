@@ -1,8 +1,139 @@
 <div class="sidebar-content">
-  <!-- Chat History Section (ChatGPT-style) -->
-  <div class="chat-history-section">
+  <!-- Floating Chat Window (when floated) -->
+  <div *ngIf="isChatFloating" 
+       class="floating-chat-window"
+       [style.left.px]="floatingPosition.x"
+       [style.top.px]="floatingPosition.y"
+       [class.dragging]="isDragging">
+    <div class="floating-chat-header" 
+         (mousedown)="onDragStart($event)"
+         style="cursor: move;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">💬 Chat History</h6>
+        <div class="d-flex gap-1">
+          <button 
+            class="btn btn-sm btn-outline-secondary" 
+            type="button" 
+            (click)="clearChatHistory.emit()"
+            [disabled]="chatHistoryMessages.length === 0 && !isLoadingChatHistory"
+            title="Clear chat history">
+            🗑️
+          </button>
+          <button 
+            class="btn btn-sm btn-outline-secondary" 
+            type="button" 
+            (click)="dockChat()"
+            title="Dock back to sidebar">
+            📌 Dock
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Chat Input (Floating Window) - At the top -->
+    <div class="p-2 border-bottom" style="background: white;">
+      <form (ngSubmit)="onEdenChatSubmit()" class="d-flex gap-2">
+        <input 
+          type="text" 
+          class="form-control form-control-sm" 
+          [(ngModel)]="edenChatInput"
+          name="edenChatInputFloating"
+          placeholder="Type your message..."
+          [disabled]="isProcessingEdenChat"
+          (keydown.enter)="onEdenChatSubmit()">
+        <button 
+          type="submit" 
+          class="btn btn-primary btn-sm"
+          [disabled]="!edenChatInput.trim() || isProcessingEdenChat">
+          <span *ngIf="!isProcessingEdenChat">Send</span>
+          <span *ngIf="isProcessingEdenChat" class="spinner-border spinner-border-sm"></span>
+        </button>
+      </form>
+    </div>
+    
+    <div class="floating-chat-body">
+      <!-- Chat Content Template -->
+      <ng-template #chatContentTemplate>
+        <!-- Conversation Info -->
+        <div class="conversation-info mb-2" *ngIf="activeConversationId">
+          <small class="text-muted">
+            <strong>Conversation:</strong> 
+            <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ activeConversationId }}">
+              {{ activeConversationId }}
+            </span>
+          </small>
+        </div>
+        
+        <!-- Chat Messages -->
+        <div class="chat-messages-container" [class.loading]="isLoadingChatHistory">
+          <div *ngIf="chatHistoryMessages.length === 0 && !isLoadingChatHistory" class="text-center text-muted py-3">
+            <small>No messages yet</small>
+          </div>
+          <div *ngIf="isLoadingChatHistory" class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          <div class="chat-messages-list">
+            <div *ngFor="let m of getReversedChatMessages()" class="chat-message-item mb-2 p-2 rounded" 
+                 [ngClass]="{
+                   'user-message': m.role === 'USER',
+                   'assistant-message': m.role === 'ASSISTANT',
+                   'system-message': m.role === 'SYSTEM'
+                 }">
+              <div class="d-flex align-items-start gap-2">
+                <span class="message-role-icon">{{ getRoleIcon(m.role) }}</span>
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="message-role-label small fw-semibold" 
+                          [ngClass]="{
+                            'text-primary': m.role === 'USER',
+                            'text-success': m.role === 'ASSISTANT',
+                            'text-secondary': m.role === 'SYSTEM'
+                          }">
+                      {{ m.role === 'USER' ? 'You' : m.role === 'ASSISTANT' ? 'Eden' : 'System' }}
+                    </span>
+                    <small class="text-muted">{{ formatTimestamp(m.timestamp) }}</small>
+                  </div>
+                  <div class="message-content" [innerHTML]="renderMarkdown(m.content)"></div>
+                  <!-- Video Player for Movie Messages -->
+                  <div *ngIf="m.videoUrl && getVideoUrl" class="mt-2">
+                    <div class="card">
+                      <div class="card-body p-2">
+                        <h6 class="card-title small mb-1" *ngIf="m.movieTitle">🎬 {{ m.movieTitle }}</h6>
+                        <video 
+                          controls 
+                          class="w-100" 
+                          style="max-height: 200px;"
+                          [src]="safeGetVideoUrl(m.videoUrl)">
+                          Your browser does not support the video tag.
+                        </video>
+                        <small class="text-muted d-block mt-1">Video URL: {{ m.videoUrl }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
+      
+      <ng-container *ngTemplateOutlet="chatContentTemplate"></ng-container>
+    </div>
+  </div>
+  
+  <!-- Chat History Section (ChatGPT-style) - Docked in sidebar -->
+  <div class="chat-history-section" [class.hidden]="isChatFloating">
     <div class="chat-history-header d-flex justify-content-between align-items-center mb-2">
       <h6 class="mb-0">💬 Chat History</h6>
+      <button 
+        class="btn btn-sm btn-outline-primary" 
+        type="button" 
+        (click)="toggleChatFloat()"
+        title="Float chat window">
+        🔲 Float
+      </button>
       <div class="d-flex gap-1">
         <button 
           class="btn btn-sm btn-outline-secondary" 
@@ -32,6 +163,27 @@
       </div>
     </div>
     
+    <!-- Chat Input (Docked Sidebar) - At the top -->
+    <div class="mb-3 pb-3 border-bottom">
+      <form (ngSubmit)="onEdenChatSubmit()" class="d-flex gap-2">
+        <input 
+          type="text" 
+          class="form-control form-control-sm" 
+          [(ngModel)]="edenChatInput"
+          name="edenChatInputDocked"
+          placeholder="Type your message..."
+          [disabled]="isProcessingEdenChat"
+          (keydown.enter)="onEdenChatSubmit()">
+        <button 
+          type="submit" 
+          class="btn btn-primary btn-sm"
+          [disabled]="!edenChatInput.trim() || isProcessingEdenChat">
+          <span *ngIf="!isProcessingEdenChat">Send</span>
+          <span *ngIf="isProcessingEdenChat" class="spinner-border spinner-border-sm"></span>
+        </button>
+      </form>
+    </div>
+    
     <!-- Conversation Info -->
     <div class="conversation-info mb-2" *ngIf="activeConversationId">
       <small class="text-muted">
@@ -53,24 +205,27 @@
         </div>
       </div>
       <div class="chat-messages-list">
-        <div *ngFor="let m of chatHistoryMessages" class="chat-message-item mb-2 p-2 rounded" 
+        <div *ngFor="let m of getReversedChatMessages()" class="chat-message-item mb-2 p-2 rounded" 
              [ngClass]="{
                'user-message': m.role === 'USER',
                'assistant-message': m.role === 'ASSISTANT',
                'system-message': m.role === 'SYSTEM'
              }">
           <div class="d-flex align-items-start gap-2">
-            <span class="message-role-badge" 
-                  [ngClass]="{
-                    'badge-primary': m.role === 'USER',
-                    'badge-success': m.role === 'ASSISTANT',
-                    'badge-secondary': m.role === 'SYSTEM'
-                  }">
-              {{ m.role }}
-            </span>
+            <span class="message-role-icon">{{ getRoleIcon(m.role) }}</span>
             <div class="flex-grow-1">
-              <small class="text-muted d-block mb-1">{{ m.timestamp | date:'shortTime' }}</small>
-              <div class="message-content small">{{ m.content }}</div>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="message-role-label small fw-semibold" 
+                      [ngClass]="{
+                        'text-primary': m.role === 'USER',
+                        'text-success': m.role === 'ASSISTANT',
+                        'text-secondary': m.role === 'SYSTEM'
+                      }">
+                  {{ m.role === 'USER' ? 'You' : m.role === 'ASSISTANT' ? 'Eden' : 'System' }}
+                </span>
+                <small class="text-muted">{{ formatTimestamp(m.timestamp) }}</small>
+              </div>
+              <div class="message-content" [innerHTML]="renderMarkdown(m.content)"></div>
               <!-- Video Player for Movie Messages -->
               <div *ngIf="m.videoUrl && getVideoUrl" class="mt-2">
                 <div class="card">

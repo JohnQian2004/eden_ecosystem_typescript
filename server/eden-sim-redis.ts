@@ -3867,6 +3867,43 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  if ((pathname === "/api/chat-history/delete" || pathname === "/api/chat-history/delete/") && req.method === "DELETE") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk.toString()));
+    req.on("end", () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const conversationId = String(parsed.conversationId || "").trim();
+        
+        if (!conversationId || !conversationId.startsWith("conv:")) {
+          sendChatHistoryResponse(400, { success: false, error: "Valid conversationId required" });
+          return;
+        }
+        
+        const { deleteConversation } = require("./src/chatHistory");
+        const deleted = deleteConversation(conversationId);
+        
+        if (deleted) {
+          // Broadcast deletion event
+          broadcastEvent({
+            type: "chat_history_deleted",
+            component: "chatHistory",
+            message: "Chat history deleted",
+            timestamp: Date.now(),
+            data: { conversationId }
+          });
+          
+          sendChatHistoryResponse(200, { success: true, conversationId, deleted: true });
+        } else {
+          sendChatHistoryResponse(404, { success: false, error: "Conversation not found" });
+        }
+      } catch (e: any) {
+        sendChatHistoryResponse(500, { success: false, error: e?.message || "Failed to delete chat history" });
+      }
+    });
+    return;
+  }
+
   // ============================================
   // Identity API Endpoints
   // ============================================
@@ -4324,6 +4361,8 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // 🚨 REGULAR CHAT ENDPOINT: Only handles informational queries (RAG + general knowledge)
+  // Eden workflow queries should use /api/eden-chat instead
   if (pathname === "/api/chat" && req.method === "POST") {
     console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
     let body = "";
@@ -4402,25 +4441,47 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // 🚨 CRITICAL: Check if this is an informational query (REGULAR TEXT CHAT) vs workflow query (EDEN CHAT)
-        // Informational queries should NOT trigger workflows - they should be answered directly
-        const isInformationalQuery = /how (to|does|do|can|will|eden|who)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will|eden)|explain|tell me about|help|guide/i.test(input.trim());
+        // 🚨 REGULAR CHAT ENDPOINT: Only handles informational queries (RAG + general knowledge)
+        // This endpoint is for REGULAR TEXT CHAT only - no workflows
+        console.log(`💬 [Chat] Processing REGULAR TEXT CHAT (informational query only)`);
         
-        if (isInformationalQuery) {
-          console.log(`💬 [Chat] Detected REGULAR TEXT CHAT (informational query) - answering directly without workflow`);
-          
-          // Handle informational query directly with LLM response formatter
-          const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
-          const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
-          
+        // Build conversation ID for chat history (matches frontend pattern: conv:service:chat:user)
+        const { buildConversationId } = await import("./src/chatHistory");
+        const conversationId = buildConversationId('service', 'chat', 'user');
+        
+        // Append user message to chat history
+        const { appendChatMessage } = await import("./src/chatHistory");
+        appendChatMessage({
+          conversationId: conversationId,
+          role: 'USER',
+          content: input.trim(),
+          userEmail: email,
+          serviceType: 'chat'
+        });
+        
+        // Step 1: Check if it's a RAG query (Eden-related informational query)
+        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
+        const queryLower = input.trim().toLowerCase();
+        const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
+          /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
+        const isRAGQuery = hasQuestionPattern && isEdenRelated;
+        
+        if (isRAGQuery) {
+          console.log(`📚 [Chat] Detected RAG query (Eden-related informational) - using RAG knowledge base`);
           try {
-            const llmResponse = await formatFn(
-              [], // No listings for informational queries
-              input.trim(),
-              { serviceType: "informational" }
-            );
+            const { formatResponseWithOpenAI } = await import("./src/llm");
+            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { serviceType: 'informational' });
             
-            // Broadcast LLM response as regular chat (not workflow)
+            // Append assistant response to chat history
+            appendChatMessage({
+              conversationId: conversationId,
+              role: 'ASSISTANT',
+              content: llmResponse.message,
+              userEmail: email,
+              serviceType: 'chat'
+            });
+            
+            // Broadcast LLM response
             broadcastEvent({
               type: "llm_response",
               component: "llm",
@@ -4428,275 +4489,78 @@ httpServer.on("request", async (req, res) => {
               timestamp: Date.now(),
               data: {
                 query: input.trim(),
-                response: llmResponse.message,
-                isInformational: true
+                response: llmResponse,
+                isRAG: true
               }
             });
             
-            // Send response
             sendResponse(200, {
               success: true,
               message: llmResponse.message,
-              isInformational: true
+              isRAG: true
             });
-            console.log(`✅ Informational query answered directly for ${email}`);
+            console.log(`✅ [Chat] RAG query answered for ${email}`);
             return;
           } catch (error: any) {
-            console.error(`❌ Error processing informational query:`, error);
-            sendResponse(500, { 
-              success: false, 
-              error: error.message || "Failed to process informational query"
+            console.error(`❌ [Chat] Error processing RAG query:`, error);
+            sendResponse(500, {
+              success: false,
+              error: error.message || 'Failed to process RAG query'
             });
             return;
           }
         }
         
-        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
-        console.log(`🔄 [Chat] Detected EDEN CHAT (workflow/service query) - starting workflow`);
+        // Step 2: Not RAG → Give to LLM to handle (general knowledge or other informational queries)
+        console.log(`💬 [Chat] Processing as LLM query (general knowledge or informational) - letting LLM handle it`);
         
-        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
-        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
-        // This eliminates the need for pre-canned prompts and manual serviceType detection
-        // The LLM will analyze user input and select the best matching services from the registry
-        // No need to detect serviceType manually - LLM handles it
-        const workflowResult = await startWorkflowFromUserInput(
-          input.trim(),
-          user
-          // serviceType is now optional - LLM service mapper will determine it from user input
-        );
+        // Handle with LLM - LLM will determine if it's general knowledge or needs rejection
+        const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
+        const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
         
-        // Broadcast workflow started event with LLM service selection
-        broadcastEvent({
-          type: "workflow_started",
-          component: "workflow",
-          message: `Workflow started: ${workflowResult.executionId}`,
-          timestamp: Date.now(),
-          data: {
-            executionId: workflowResult.executionId,
-            currentStep: workflowResult.currentStep,
-            instruction: workflowResult.instruction,
-            workflowProcessingGas: workflowResult.workflowProcessingGas,
-            serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
-          }
-        });
-        
-        // Send response with workflow execution details
-        sendResponse(200, {
-          success: true,
-          executionId: workflowResult.executionId,
-          currentStep: workflowResult.currentStep,
-          instruction: workflowResult.instruction,
-          workflowProcessingGas: workflowResult.workflowProcessingGas
-        });
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error processing chat request:`, error.message);
-        sendResponse(500, { success: false, error: error.message });
-      }
-    });
-    return;
-  }
-
-  if (pathname === "/api/chat" && req.method === "POST") {
-    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
-    let body = "";
-    let bodyReceived = false;
-    
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    
-    req.on("end", async () => {
-      if (bodyReceived) {
-        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
-        return;
-      }
-      bodyReceived = true;
-      // Ensure response is sent even if there's an unhandled error
-      const sendResponse = (statusCode: number, data: any) => {
-        if (!res.headersSent) {
-          res.writeHead(statusCode, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(data));
-        } else {
-          console.warn(`⚠️  Response already sent, cannot send:`, data);
-        }
-      };
-
-      let email = 'unknown';
-      
-      try {
-        // Parse and validate request body
-        if (!body || body.trim().length === 0) {
-          sendResponse(400, { success: false, error: "Request body is required" });
-          return;
-        }
-        
-        let parsedBody;
         try {
-          parsedBody = JSON.parse(body);
-        } catch (parseError: any) {
-          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
-          return;
-        }
-        
-        const { input, email: requestEmail } = parsedBody;
-        email = requestEmail || 'unknown';
-        
-        // Validate input
-        if (!input || typeof input !== 'string' || input.trim().length === 0) {
-          sendResponse(400, { success: false, error: "Valid input message required" });
-          return;
-        }
-        
-        if (!email || typeof email !== 'string' || !email.includes('@')) {
-          sendResponse(400, { success: false, error: "Valid email address required" });
-          return;
-        }
-        
-        console.log(`📨 [Chat] ========================================`);
-        console.log(`📨 [Chat] Processing chat request from ${email}`);
-        console.log(`📨 [Chat] User Input: "${input.trim()}"`);
-        console.log(`📨 [Chat] ========================================`);
-        
-        // Find or create user
-        let user = USERS_STATE.find(u => u.email === email);
-        if (!user) {
-          const nextId = `u${USERS_STATE.length + 1}`;
-          user = {
-            id: nextId,
-            email: email,
-            balance: 0,
-          };
-          USERS_STATE.push(user);
-          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
-        }
-        
-        // Sync user balance with wallet (wallet is source of truth)
-        const currentWalletBalance = await getWalletBalance(email);
-        user.balance = currentWalletBalance;
-        
-        // 🚨 CRITICAL: Check if this is an informational query (REGULAR TEXT CHAT) vs workflow query (EDEN CHAT)
-        // Informational queries should NOT trigger workflows - they should be answered directly
-        const isInformationalQuery = /how (to|does|do|can|will|eden|who)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will|eden)|explain|tell me about|help|guide/i.test(input.trim());
-        
-        if (isInformationalQuery) {
-          console.log(`💬 [Chat] Detected REGULAR TEXT CHAT (informational query) - answering directly without workflow`);
-          
-          // Handle informational query directly with LLM response formatter
-          const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
-          const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
-          
-          try {
-            const llmResponse = await formatFn(
-              [], // No listings for informational queries
-              input.trim(),
-              { serviceType: "informational" }
-            );
-            
-            // Broadcast LLM response as regular chat (not workflow)
-            broadcastEvent({
-              type: "llm_response",
-              component: "llm",
-              message: llmResponse.message,
-              timestamp: Date.now(),
-              data: {
-                query: input.trim(),
-                response: llmResponse.message,
-                isInformational: true
-              }
-            });
-            
-            // Send response
-            if (!res.headersSent) {
-              sendResponse(200, { 
-                success: true, 
-                message: llmResponse.message,
-                isInformational: true
-              });
-              console.log(`✅ Informational query answered directly for ${email}`);
-            }
-          } catch (error: any) {
-            console.error(`❌ Error processing informational query:`, error);
-            if (!res.headersSent) {
-              sendResponse(500, { 
-                success: false, 
-                error: error.message || "Failed to process informational query"
-              });
-            }
-          }
-          return; // Don't proceed to workflow
-        }
-        
-        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
-        console.log(`🔄 [Chat] Detected EDEN CHAT (workflow/service query) - starting workflow`);
-        
-        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
-        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
-        // This eliminates the need for pre-canned prompts and manual serviceType detection
-        // The LLM will analyze user input and select the best matching services from the registry
-        try {
-          const workflowResult = await startWorkflowFromUserInput(
+          const llmResponse = await formatFn(
+            [], // No listings for informational queries
             input.trim(),
-            user
-            // serviceType is now optional - LLM service mapper will determine it from user input
+            { serviceType: "informational" }
           );
           
-          // Broadcast workflow started event with LLM service selection
+          // Append assistant response to chat history
+          appendChatMessage({
+            conversationId: conversationId,
+            role: 'ASSISTANT',
+            content: llmResponse.message,
+            userEmail: email,
+            serviceType: 'chat'
+          });
+          
+          // Broadcast LLM response
           broadcastEvent({
-            type: "workflow_started",
-            component: "workflow",
-            message: `Workflow started: ${workflowResult.executionId}`,
+            type: "llm_response",
+            component: "llm",
+            message: llmResponse.message,
             timestamp: Date.now(),
             data: {
-              executionId: workflowResult.executionId,
-              currentStep: workflowResult.currentStep,
-              instruction: workflowResult.instruction,
-              workflowProcessingGas: workflowResult.workflowProcessingGas,
-              serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+              query: input.trim(),
+              response: llmResponse,
+              isLLM: true
             }
           });
           
-          // Success response with workflow execution ID
-          if (!res.headersSent) {
-            sendResponse(200, { 
-              success: true, 
-              message: "Chat processed successfully",
-              executionId: workflowResult.executionId,
-              instruction: workflowResult.instruction
-            });
-            console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
-          } else {
-            console.warn(`⚠️  Response already sent, skipping success response`);
-          }
+          // Send response
+          sendResponse(200, {
+            success: true,
+            message: llmResponse.message,
+            isLLM: true
+          });
+          console.log(`✅ [Chat] LLM query handled for ${email}`);
+          console.log(`💬 [Chat] Response: "${llmResponse.message.substring(0, 100)}${llmResponse.message.length > 100 ? '...' : ''}"`);
         } catch (error: any) {
-          // Log error for debugging
-          console.error(`❌ Error processing chat input:`, error);
-          console.error(`   Error stack:`, error.stack);
-          
-          // Send appropriate error response - ensure it's sent
-          if (!res.headersSent) {
-            const statusCode = error.message?.includes('Payment failed') ? 402 : 
-                              error.message?.includes('No listing') ? 404 : 
-                              error.message?.includes('timeout') ? 408 : 500;
-            sendResponse(statusCode, { 
-              success: false, 
-              error: error.message || "Internal server error",
-              timestamp: Date.now()
-            });
-          } else {
-            console.warn(`⚠️  Response already sent, cannot send error response`);
-          }
-        } finally {
-          // Ensure response is always sent
-          if (!res.headersSent) {
-            console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
-            sendResponse(500, { 
-              success: false, 
-              error: "Unexpected server error - no response was sent",
-              timestamp: Date.now()
-            });
-          } else {
-            console.log(`✅ Response sent for request from ${email}`);
-          }
+          console.error(`❌ [Chat] Error processing chat query:`, error);
+          sendResponse(500, { 
+            success: false, 
+            error: error.message || "Failed to process chat query"
+          });
         }
       } catch (outerError: any) {
         // Catch any errors from the outer try block (request parsing, validation, etc.)
@@ -4723,6 +4587,192 @@ httpServer.on("request", async (req, res) => {
     // Handle request timeout
     req.setTimeout(60000, () => {
       console.error(`❌ Request timeout`);
+      if (!res.headersSent) {
+        res.writeHead(408, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request timeout" }));
+      }
+      req.destroy();
+    });
+    return;
+  }
+
+  // 🚨 EDEN CHAT ENDPOINT: Handles Eden workflow/service queries only
+  if (pathname === "/api/eden-chat" && req.method === "POST") {
+    console.log(`   🔄 [${requestId}] POST /api/eden-chat - Processing Eden workflow chat request`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) {
+        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
+        return;
+      }
+      bodyReceived = true;
+      // Ensure response is sent even if there's an unhandled error
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send:`, data);
+        }
+      };
+
+      let email = 'unknown';
+      
+      try {
+        // Parse and validate request body
+        if (!body || body.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Request body is required" });
+          return;
+        }
+        
+        let parsedBody;
+        try {
+          parsedBody = JSON.parse(body);
+        } catch (parseError: any) {
+          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
+          return;
+        }
+        
+        const { input, email: requestEmail } = parsedBody;
+        email = requestEmail || 'unknown';
+        
+        // Validate input
+        if (!input || typeof input !== 'string' || input.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Valid input message required" });
+          return;
+        }
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          sendResponse(400, { success: false, error: "Valid email address required" });
+          return;
+        }
+        
+        console.log(`🔄 [Eden Chat] ========================================`);
+        console.log(`🔄 [Eden Chat] Processing Eden workflow chat request from ${email}`);
+        console.log(`🔄 [Eden Chat] User Input: "${input.trim()}"`);
+        console.log(`🔄 [Eden Chat] ========================================`);
+        
+        // Find or create user
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          const nextId = `u${USERS_STATE.length + 1}`;
+          user = {
+            id: nextId,
+            email: email,
+            balance: 0,
+          };
+          USERS_STATE.push(user);
+          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+        }
+        
+        // Sync user balance with wallet (wallet is source of truth)
+        const currentWalletBalance = await getWalletBalance(email);
+        user.balance = currentWalletBalance;
+        
+        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
+        console.log(`🔄 [Eden Chat] Processing EDEN CHAT (workflow/service query) - starting workflow`);
+        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
+        try {
+          const { startWorkflowFromUserInput } = await import("./src/components/flowwiseService");
+          const workflowResult = await startWorkflowFromUserInput(
+            input.trim(),
+            user
+            // serviceType is now optional - LLM service mapper will determine it from user input
+          );
+          
+          // Broadcast workflow started event with LLM service selection
+          broadcastEvent({
+            type: "workflow_started",
+            component: "workflow",
+            message: `Workflow started: ${workflowResult.executionId}`,
+            timestamp: Date.now(),
+            data: {
+              executionId: workflowResult.executionId,
+              currentStep: workflowResult.currentStep,
+              instruction: workflowResult.instruction,
+              workflowProcessingGas: workflowResult.workflowProcessingGas,
+              serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+            }
+          });
+          
+          // Success response with workflow execution ID
+          if (!res.headersSent) {
+            sendResponse(200, { 
+              success: true, 
+              message: "Eden chat processed successfully",
+              executionId: workflowResult.executionId,
+              instruction: workflowResult.instruction
+            });
+            console.log(`✅ Eden chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
+          } else {
+            console.warn(`⚠️  Response already sent, skipping success response`);
+          }
+        } catch (error: any) {
+          // Log error for debugging
+          console.error(`❌ Error processing Eden chat input:`, error);
+          console.error(`   Error stack:`, error.stack);
+          
+          // Send appropriate error response - ensure it's sent
+          if (!res.headersSent) {
+            const statusCode = error.message?.includes('Payment failed') ? 402 : 
+                              error.message?.includes('No listing') ? 404 : 
+                              error.message?.includes('timeout') ? 408 : 500;
+            sendResponse(statusCode, { 
+              success: false, 
+              error: error.message || "Internal server error",
+              timestamp: Date.now()
+            });
+          } else {
+            console.warn(`⚠️  Response already sent, cannot send error response`);
+          }
+        } finally {
+          // Ensure response is always sent
+          if (!res.headersSent) {
+            console.error(`❌ CRITICAL: No response sent for Eden chat request from ${email}!`);
+            sendResponse(500, { 
+              success: false, 
+              error: "Unexpected server error - no response was sent",
+              timestamp: Date.now()
+            });
+          } else {
+            console.log(`✅ Response sent for Eden chat request from ${email}`);
+          }
+        }
+      } catch (outerError: any) {
+        // Catch any errors from the outer try block (request parsing, validation, etc.)
+        console.error(`❌ Outer error processing Eden chat request:`, outerError);
+        if (!res.headersSent) {
+          sendResponse(500, { 
+            success: false, 
+            error: outerError.message || "Internal server error",
+            timestamp: Date.now()
+          });
+        }
+      }
+    });
+    
+    // Handle request errors
+    req.on("error", (error: Error) => {
+      console.error(`❌ Eden chat request error:`, error);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request processing error" }));
+      }
+    });
+    
+    // Handle request timeout
+    req.setTimeout(60000, () => {
+      console.error(`❌ Eden chat request timeout`);
       if (!res.headersSent) {
         res.writeHead(408, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Request timeout" }));
@@ -7194,6 +7244,33 @@ httpServer.on("request", async (req, res) => {
         error: error.message
       }));
     }
+    return;
+  }
+
+  // ============================================
+  // RAG KNOWLEDGE GENERATION (LLM-based)
+  // ============================================
+  if (pathname === "/api/rag/generate" && req.method === "POST") {
+    console.log(`   📚 [${requestId}] POST /api/rag/generate - Generating RAG knowledge from white paper`);
+    req.on("end", async () => {
+      try {
+        const { generateAndSaveRAGKnowledge } = await import("./src/rag/ragGenerator");
+        await generateAndSaveRAGKnowledge();
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: "RAG knowledge base generated successfully from white paper" 
+        }));
+      } catch (err: any) {
+        console.error(`   ❌ [${requestId}] Failed to generate RAG knowledge:`, err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: err.message || 'Failed to generate RAG knowledge base'
+        }));
+      }
+    });
     return;
   }
 

@@ -596,13 +596,49 @@ export class AppComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  clearChatHistoryPanel() {
-    // UI-only clear. Does not delete persisted history.
+  async clearChatHistoryPanel() {
+    console.log(`🗑️ [App] clearChatHistoryPanel called, activeConversationId: ${this.activeConversationId}`);
+    
+    // Clear both UI cache and persisted history
+    if (!this.activeConversationId) {
+      // No active conversation, just clear UI
+      console.log(`🗑️ [App] No active conversation, clearing UI only`);
+      this.chatHistoryLoadSeq++; // cancel any in-flight load
+      this.chatHistoryMessages = [];
+      this.isLoadingChatHistory = false;
+      this.lastAppendBySig.clear();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Delete persisted history from server
+    try {
+      console.log(`🗑️ [App] Deleting persisted history for conversation: ${this.activeConversationId}`);
+      const response = await this.http.request<any>('DELETE', `${this.apiUrl}/api/chat-history/delete`, {
+        body: JSON.stringify({ conversationId: this.activeConversationId }),
+        headers: { 'Content-Type': 'application/json' }
+      }).toPromise();
+      
+      console.log(`🗑️ [App] Delete response:`, response);
+      
+      if (response && response.success) {
+        console.log(`✅ [App] Chat history deleted for conversation: ${this.activeConversationId}`);
+      } else {
+        console.warn(`⚠️ [App] Failed to delete persisted history:`, response?.error || 'Unknown error');
+      }
+    } catch (error: any) {
+      console.error(`❌ [App] Error deleting persisted chat history:`, error);
+      // Continue with UI clear even if server delete fails
+    }
+
+    // Clear UI cache
+    console.log(`🗑️ [App] Clearing UI cache, current messages count: ${this.chatHistoryMessages.length}`);
     this.chatHistoryLoadSeq++; // cancel any in-flight load
     this.chatHistoryMessages = [];
     this.isLoadingChatHistory = false;
     this.lastAppendBySig.clear();
     this.cdr.detectChanges();
+    console.log(`✅ [App] UI cache cleared, messages count: ${this.chatHistoryMessages.length}`);
   }
 
   private appendChatHistory(role: 'USER' | 'ASSISTANT' | 'SYSTEM', content: string, extra?: any, conversationIdOverride?: string) {
@@ -907,6 +943,17 @@ export class AppComponent implements OnInit, OnDestroy {
           if (videoUrl) {
             console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', videoUrl);
           }
+        }
+      }
+
+      // Handle chat history deletion event
+      if (event.type === 'chat_history_deleted' && (event as any).data?.conversationId) {
+        const deletedConvId = (event as any).data.conversationId;
+        if (deletedConvId === this.activeConversationId) {
+          console.log(`🗑️ [App] Received deletion event for active conversation, clearing UI`);
+          this.chatHistoryMessages = [];
+          this.lastAppendBySig.clear();
+          this.cdr.detectChanges();
         }
       }
 
@@ -1392,8 +1439,9 @@ export class AppComponent implements OnInit, OnDestroy {
     
     // Use service-specific sample query from catalog instead of hardcoded movie query
     const servicePrompt = this.getServiceTypePrompt(inferred);
-    this.userInput = servicePrompt.sampleQuery;
-    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here...";
+    
+    // Set the input placeholder to the sample query
+    this.inputPlaceholder = servicePrompt.sampleQuery || `Show me ${inferred} options`;
     
     // Note: No need to pre-load workflow - LLM will determine serviceType from user input
     console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Using sample query: ${servicePrompt.sampleQuery}`);
@@ -1401,13 +1449,20 @@ export class AppComponent implements OnInit, OnDestroy {
     // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));
 
+    // Switch to workflow-chat tab and set the input
+    this.activeTab = 'workflow-chat';
+    
     setTimeout(() => {
-      const input = document.querySelector('input[name=\"userInput\"]') as HTMLInputElement;
+      // Focus on the workflow-chat-display input
+      const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
       if (input) {
+        input.value = servicePrompt.sampleQuery || '';
         input.focus();
         input.select();
+        // Trigger input event to update ngModel
+        input.dispatchEvent(new Event('input', { bubbles: true }));
       }
-    }, 50);
+    }, 100);
 
     this.cdr.detectChanges();
   }
@@ -1423,8 +1478,9 @@ export class AppComponent implements OnInit, OnDestroy {
     
     // Use DEX-specific sample query from catalog instead of hardcoded movie query
     const servicePrompt = this.getServiceTypePrompt('dex');
-    this.userInput = servicePrompt.sampleQuery;
-    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here (e.g., Trade 2 SOL with TOKEN)";
+    
+    // Set the input placeholder to the sample query
+    this.inputPlaceholder = servicePrompt.sampleQuery || 'Trade tokens';
     
     // Note: No need to pre-load workflow - LLM will determine serviceType from user input
     console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Using DEX sample query: ${servicePrompt.sampleQuery}`);
@@ -1432,14 +1488,21 @@ export class AppComponent implements OnInit, OnDestroy {
     // Garden-scoped chat history for DEX gardens (single switch)
     this.setActiveConversation(this.buildConversationId('garden', garden.id));
 
+    // Switch to workflow-chat tab and set the input
+    this.activeTab = 'workflow-chat';
+    
     // Focus input quickly (non-blocking)
     setTimeout(() => {
-      const input = document.querySelector('input[name="userInput"]') as HTMLInputElement;
+      // Focus on the workflow-chat-display input
+      const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
       if (input) {
+        input.value = servicePrompt.sampleQuery || '';
         input.focus();
         input.select();
+        // Trigger input event to update ngModel
+        input.dispatchEvent(new Event('input', { bubbles: true }));
       }
-    }, 50);
+    }, 100);
 
     // Future: can be used to filter DEX pools/providers by garden in backend
     (this as any).selectedDexGardenId = garden.id;
@@ -2773,6 +2836,50 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   // Context sensing - detect service type from user input
+  /**
+   * Check if a query is an Eden workflow query (action-oriented) vs regular informational query
+   * Eden workflow queries trigger workflows, while informational queries are answered directly
+   */
+  isEdenWorkflowQuery(input: string): boolean {
+    const lowerInput = input.toLowerCase().trim();
+    
+    // Action verbs that indicate workflow queries
+    const actionVerbs = ['buy', 'sell', 'book', 'find', 'order', 'trade', 'swap', 'watch', 'get', 'purchase', 'reserve'];
+    const hasActionVerb = actionVerbs.some(verb => {
+      // Check if verb appears as a word (not part of another word)
+      const regex = new RegExp(`\\b${verb}\\b`, 'i');
+      return regex.test(lowerInput);
+    });
+    
+    // Service-related keywords that indicate workflow queries
+    const serviceKeywords = ['movie', 'ticket', 'token', 'movie', 'pharmacy', 'flight', 'hotel', 'restaurant', 'autopart', 'dex', 'pool'];
+    const hasServiceKeyword = serviceKeywords.some(keyword => lowerInput.includes(keyword));
+    
+    // Question patterns that indicate informational queries (NOT workflow)
+    const questionPattern = /^(how|what|who|why|when|where|explain|tell me about|help|guide)/i;
+    const isQuestion = questionPattern.test(lowerInput);
+    
+    // If it's a question, it's NOT a workflow query (it's informational)
+    if (isQuestion) {
+      return false;
+    }
+    
+    // If it has action verbs AND service keywords, it's likely a workflow query
+    if (hasActionVerb && hasServiceKeyword) {
+      return true;
+    }
+    
+    // If it has action verbs with service context, it's likely a workflow query
+    if (hasActionVerb && (lowerInput.includes('movie') || lowerInput.includes('ticket') || lowerInput.includes('token') || 
+        lowerInput.includes('pharmacy') || lowerInput.includes('flight') || lowerInput.includes('hotel') ||
+        lowerInput.includes('restaurant') || lowerInput.includes('autopart'))) {
+      return true;
+    }
+    
+    // Otherwise, it's likely an informational query
+    return false;
+  }
+
   detectServiceType(input: string): string | null {
     const lowerInput = input.toLowerCase();
     
@@ -3128,6 +3235,13 @@ export class AppComponent implements OnInit, OnDestroy {
     return this.walletBalance >= minimumBalance;
   }
 
+  // Handle Eden chat submission from sidebar
+  onEdenChatFromSidebar(message: string): void {
+    // Set the user input and trigger the same onSubmit logic
+    this.userInput = message;
+    this.onSubmit();
+  }
+
   async onSubmit() {
     if (!this.userInput.trim() || this.isProcessing) {
       console.log('⚠️ Submit blocked:', { 
@@ -3149,29 +3263,111 @@ export class AppComponent implements OnInit, OnDestroy {
       console.log(`🔍 Detected service type from input: ${this.selectedServiceType || 'unknown'}`);
     }
 
-    // If no service type detected, treat this as a regular chat message (no workflow, no iGas).
-    if (!this.selectedServiceType) {
-      const input = this.userInput.trim();
-      const regularConversationId = this.buildConversationId('service', 'chat');
-      if (this.activeConversationId !== regularConversationId) {
-        this.setActiveConversation(regularConversationId);
+    // Check if this is an Eden workflow query (action-oriented) vs regular informational query
+    const input = this.userInput.trim();
+    const isEdenWorkflowQuery = this.isEdenWorkflowQuery(input);
+    
+    // If service type is detected OR it's an Eden workflow query, route to /api/eden-chat
+    if (this.selectedServiceType || isEdenWorkflowQuery) {
+      // This is an Eden workflow query - route to /api/eden-chat
+      console.log(`🔄 Routing to /api/eden-chat (Eden workflow query)`);
+      
+      // Check balance before submitting workflow
+      if (!this.hasSufficientBalance()) {
+        console.log('⚠️ Submit blocked: Insufficient balance', { 
+          balance: this.walletBalance,
+          required: 0.01
+        });
+        alert(`Insufficient wallet balance. Your balance is ${this.walletBalance.toFixed(2)} 🍎 APPLES. You need at least 0.01 🍎 APPLES (for iGas) to send messages. Please purchase 🍎 APPLES first.`);
+        return;
       }
 
-      this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
-      const help = `I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.`;
-      this.appendChatHistory('ASSISTANT', help, { serviceType: 'chat' }, regularConversationId);
+      const serviceType = this.selectedServiceType || 'unknown';
+      const desiredConversationId =
+        serviceType === 'dex' && this.selectedDexGarden?.id
+          ? this.buildConversationId('garden', this.selectedDexGarden.id)
+          : (this.selectedAppleGarden?.id
+              ? this.buildConversationId('garden', this.selectedAppleGarden.id)
+              : this.buildConversationId('service', serviceType));
+      if (this.activeConversationId !== desiredConversationId) {
+        this.setActiveConversation(desiredConversationId);
+      }
+      this.appendChatHistory('USER', input, { serviceType });
 
-      // Clear input and reset selection back to "service provider" state
-      this.userInput = '';
-      this.selectedServiceType = null;
-      this.selectedDexGarden = null;
-      this.selectedAppleGarden = null;
-      this.inputPlaceholder = 'Select a service type above or type your query...';
+      this.isProcessing = true;
+      const inputToSend = input;
+      this.userInput = ''; // Clear input immediately
+      
+      try {
+        const response = await this.http.post<any>(`${this.apiUrl}/api/eden-chat`, {
+          input: inputToSend,
+          email: this.userEmail || 'guest@example.com'
+        }).toPromise();
+        
+        if (response && response.success) {
+          console.log(`✅ Eden workflow chat processed: ${response.executionId || 'N/A'}`);
+          // Workflow events will come through WebSocket
+        } else {
+          this.appendChatHistory('ASSISTANT', 'I received your message but got an unexpected response format.', { serviceType }, desiredConversationId);
+        }
+      } catch (error: any) {
+        console.error('❌ Error calling /api/eden-chat:', error);
+        this.appendChatHistory('ASSISTANT', `Sorry, I encountered an error: ${error.message || 'Unknown error'}. Please try again.`, { serviceType }, desiredConversationId);
+      } finally {
+        this.isProcessing = false;
+        // DON'T clear selectedServiceType, selectedDexGarden, selectedAppleGarden here
+        // They should persist so user can continue chatting with the same garden/service
+        // Only clear input placeholder if no service/garden is selected
+        if (!this.selectedServiceType && !this.selectedDexGarden && !this.selectedAppleGarden) {
+          this.inputPlaceholder = 'Select a service type above or type your query...';
+        }
+        this.cdr.detectChanges();
+      }
+      return;
+    }
+
+    // If no service type detected and not an Eden workflow query, treat this as a regular chat message (informational query).
+    // Call the /api/chat endpoint which handles informational queries with LLM + RAG
+    console.log(`💬 Routing to /api/chat (regular informational query)`);
+    const regularConversationId = this.buildConversationId('service', 'chat');
+    if (this.activeConversationId !== regularConversationId) {
+      this.setActiveConversation(regularConversationId);
+    }
+
+    this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
+    
+    // Call server API for informational queries (LLM will handle Eden vs general knowledge)
+    this.isProcessing = true;
+    const inputToSend = input;
+    this.userInput = ''; // Clear input immediately
+    
+    try {
+      const response = await this.http.post<any>(`${this.apiUrl}/api/chat`, {
+        input: inputToSend,
+        email: this.userEmail || 'guest@example.com'
+      }).toPromise();
+      
+      if (response && response.message) {
+        this.appendChatHistory('ASSISTANT', response.message, { serviceType: 'chat' }, regularConversationId);
+      } else {
+        this.appendChatHistory('ASSISTANT', 'I received your message but got an unexpected response format.', { serviceType: 'chat' }, regularConversationId);
+      }
+    } catch (error: any) {
+      console.error('❌ Error calling /api/chat:', error);
+      this.appendChatHistory('ASSISTANT', `Sorry, I encountered an error: ${error.message || 'Unknown error'}. Please try again.`, { serviceType: 'chat' }, regularConversationId);
+    } finally {
+      this.isProcessing = false;
+      // DON'T clear selectedServiceType, selectedDexGarden, selectedAppleGarden here
+      // They should persist so user can continue chatting with the same garden/service
+      // Only clear input placeholder if no service/garden is selected
+      if (!this.selectedServiceType && !this.selectedDexGarden && !this.selectedAppleGarden) {
+        this.inputPlaceholder = 'Select a service type above or type your query...';
+      }
       this.amcWorkflowActive = false;
       this.activeWorkflowExecutionId = null;
       this.cdr.detectChanges();
-      return;
     }
+    return;
 
     // From here: workflow path (requires iGas)
     const serviceType = this.selectedServiceType;
@@ -3210,6 +3406,8 @@ export class AppComponent implements OnInit, OnDestroy {
       window.dispatchEvent(new CustomEvent('eden_chat_reset', { detail: { reason: 'new_chat' } }));
     } catch {}
     this.userInput = ''; // Clear input after submission
+    // Save serviceType before resetting (needed for finally block)
+    const workflowServiceType = this.selectedServiceType;
     this.selectedServiceType = null; // Reset context
     this.inputPlaceholder = 'Select a service type above or type your query...';
     
@@ -3259,6 +3457,8 @@ export class AppComponent implements OnInit, OnDestroy {
         console.error(`❌ [Workflow] Failed to load ${serviceType} workflow after ${maxRetries} attempts`);
         alert(`Failed to load ${serviceType} workflow. Please try again.`);
         this.amcWorkflowActive = false;
+        this.isProcessing = false;
+        this.cdr.detectChanges();
         return;
       }
 
@@ -3284,6 +3484,8 @@ export class AppComponent implements OnInit, OnDestroy {
         console.error(`❌ [Workflow] Failed to start ${serviceType} workflow even though it's loaded`);
         alert(`Failed to start ${serviceType} workflow. Please try again.`);
         this.amcWorkflowActive = false;
+        this.isProcessing = false;
+        this.cdr.detectChanges();
         return;
       }
 
@@ -3339,17 +3541,20 @@ export class AppComponent implements OnInit, OnDestroy {
         // Even for Solana errors, log and continue
         console.log('⚠️ Solana extension error ignored');
       }
+      
+      // Reset processing state on error
+      this.isProcessing = false;
+      this.cdr.detectChanges();
     } finally {
       // Clear safety timeout
       clearTimeout(safetyTimeout);
       
-    // Always reset processing state to allow next request
-    console.log('🔄 Entering finally block, resetting isProcessing...');
-    this.isProcessing = false;
-    console.log('✅ Reset isProcessing flag, ready for next request');
-
-    // Force change detection to update UI immediately
-    this.cdr.detectChanges();
+      // Always reset processing state for workflow path (workflows run asynchronously)
+      // Note: For chat path, isProcessing is reset in its own finally block at line 3247
+      // For workflow path, reset immediately after workflow starts
+      console.log('🔄 [Workflow] Resetting isProcessing after workflow start');
+      this.isProcessing = false;
+      this.cdr.detectChanges();
       
       // Double-check that isProcessing is false after a brief delay
       setTimeout(() => {

@@ -1,8 +1,8 @@
 {
-  "totalIGas": 0.4342000000000006,
-  "totalITax": 1.4500640027551323e-7,
-  "totalRootCAFees": 3.2804200144006943,
-  "totalIndexerFees": 0.000035000000000000004,
+  "totalIGas": 0.4362000000000006,
+  "totalITax": 1.5500660027751323e-7,
+  "totalRootCAFees": 3.2804600144006946,
+  "totalIndexerFees": 0.000045,
   "totalProviderFees": 207.3634000550002,
   "totalCashierFees": 36.70000000000025,
   "revenueByServiceType": {
@@ -71,12 +71,12 @@
       "totalCashierFees": null
     },
     "dex": {
-      "count": 31,
+      "count": 33,
       "totalAmount": 0,
-      "totalIGas": 0.11379999999999997,
-      "totalITax": 1.4500640027551323e-7,
-      "totalRootCAFees": 0.0008870196007800366,
-      "totalIndexerFees": 0.00010174999999999999,
+      "totalIGas": 0.11579999999999997,
+      "totalITax": 1.5500660027751323e-7,
+      "totalRootCAFees": 0.0009270196007800367,
+      "totalIndexerFees": 0.00011174999999999999,
       "totalProviderFees": 0.0011000460018900896,
       "totalCashierFees": 2.0000000000000004
     },
@@ -151,7 +151,7 @@
       "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1769293309970,
+  "lastUpdated": 1769300070926,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-24T22:21:49.971Z"
+  "lastSaved": "2026-01-25T00:14:30.926Z"
 }

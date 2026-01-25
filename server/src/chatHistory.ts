@@ -111,4 +111,22 @@ export function listConversations(prefix?: string): string[] {
   return pfx ? ids.filter(id => id.startsWith(pfx)) : ids;
 }
 
+export function deleteConversation(conversationId: string): boolean {
+  const cid = String(conversationId || "").trim();
+  if (!cid.startsWith("conv:")) {
+    throw new Error("conversationId must start with 'conv:'");
+  }
+  if (state.conversations[cid]) {
+    delete state.conversations[cid];
+    scheduleSave();
+    return true;
+  }
+  return false;
+}
+
+export function buildConversationId(scope: 'garden' | 'service', id: string, mode: string = 'user'): string {
+  const safeId = String(id || '').trim().replace(/\s+/g, '-');
+  return `conv:${scope}:${safeId}:${mode}`;
+}
+
 

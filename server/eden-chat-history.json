@@ -6227,140 +6227,6 @@
         "status": "active"
       }
     ],
-    "conv:service:chat:user": [
-      {
-        "id": "c_1769181861868_dd3a77943cd9b8",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "hwo to messaging",
-        "timestamp": 1769181861868,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769181861871_5e9a7c6d1869",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769181861871,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769182373825_d08e9c9107918",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "who eden works",
-        "timestamp": 1769182373825,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769182373827_8d449d63cb7e58",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769182373827,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769182801130_47e3795191c2a8",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "hwo eden works",
-        "timestamp": 1769182801130,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769182801132_3e4f81ecea4b38",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769182801132,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769183146877_a9088d47c89818",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "what is eden",
-        "timestamp": 1769183146878,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769183146880_b39dbc1421b7",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769183146880,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769194670299_ab2efcd3a498d8",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "what is eden",
-        "timestamp": 1769194670299,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769194670305_dc49535ce7e8e8",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769194670305,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769194678978_399c049df72128",
-        "conversationId": "conv:service:chat:user",
-        "role": "USER",
-        "content": "how eden works",
-        "timestamp": 1769194678978,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      },
-      {
-        "id": "c_1769194678979_f33d482dd0da1",
-        "conversationId": "conv:service:chat:user",
-        "role": "ASSISTANT",
-        "content": "I got you. To run Eden workflows, ask a service query (e.g. “book a flight…”, “find a pharmacy…”, “buy TOKENA…”), or click a garden card first.",
-        "timestamp": 1769194678979,
-        "userEmail": "rashardgarcia@gmail.com",
-        "mode": "user",
-        "serviceType": "chat",
-        "status": "active"
-      }
-    ],
     "conv:garden:garden-13:user": [
       {
         "id": "c_1769186718453_b4a6d15c67dad",
@@ -6403,6 +6269,16 @@
         "userEmail": "rashardgarcia@gmail.com",
         "mode": "user",
         "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769297524865_470d9e74e26a68",
+        "conversationId": "conv:garden:garden-13:user",
+        "role": "ASSISTANT",
+        "content": "It seems like you're interested in creating an auto repair shop simulator. While there are no specific listings available for this service type, I can guide you on how to proceed with creating such a simulator.\n\n1. **Define Your Objectives**: Determine what aspects of auto repair you want to simulate. This could include diagnosing car issues, fixing problems, managing inventory, or handling customer service.\n\n2. **Choose a Development Platform**: Decide on the platform you want to use for development. Game engines like Unity or Unreal Engine are popular choices for creating simulators.\n\n3. **Design the Gameplay**: Plan the gameplay mechanics, including the tasks players will perform, how they will interact with the shop environment, and any challenges they might face.\n\n4. **Create or Source Assets**: Develop or source the necessary 3D models, textures, and sounds for your simulator. There are many online resources where you can purchase or download free assets.\n\n5. **Develop the Simulator**: Start building your simulator by scripting the game logic, integrating assets, and testing the gameplay.\n\n6. **Test and Iterate**: Conduct thorough testing to ensure everything works as intended and make improvements based on feedback.\n\n7. **Release and Promote**: Once your simulator is complete, you can release it on platforms like Steam or the App Store, and promote it through social media and gaming communities.\n\nIf you need more detailed guidance or resources, consider reaching out to online communities or forums dedicated to game development. They can offer valuable advice and support during your project.",
+        "timestamp": 1769297524865,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
         "status": "active"
       }
     ],
@@ -6493,6 +6369,209 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "serviceType": "chat",
+        "status": "active"
+      }
+    ],
+    "conv:service:dex:user": [
+      {
+        "id": "c_1769294147176_24a410de633108",
+        "conversationId": "conv:service:dex:user",
+        "role": "USER",
+        "content": "create a DEX simulator",
+        "timestamp": 1769294147176,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "dex",
+        "status": "active"
+      }
+    ],
+    "conv:garden:garden-8:user": [
+      {
+        "id": "c_1769297600585_45f35c3a13af28",
+        "conversationId": "conv:garden:garden-8:user",
+        "role": "ASSISTANT",
+        "content": "It seems there are no specific listings available for creating a bank simulator. However, if you're looking to simulate banking processes, you might want to start by defining the key features you'd like to include, such as account management, transaction processing, and interest calculation. You could use programming languages like Python or Java and frameworks such as Django or Spring to build the backend. For a more visual simulation, consider using game development platforms like Unity or Unreal Engine. If you have more specific requirements or need further assistance, feel free to ask!",
+        "timestamp": 1769297600585,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "status": "active"
+      }
+    ],
+    "conv:service:chat:user": [
+      {
+        "id": "c_1769299552818_7a5b10c632c208",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299552818,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299552940_4775390ff9e72",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299552940,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299555995_84ff12ab7869a",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It looks like you're testing the system with an informational query. If you have questions about how Eden works or how to use its features, feel free to ask! Eden is designed to facilitate seamless interactions through a Universal Messaging System where you can request services or ask questions directly. For service requests, use the chat input to trigger workflows, and for questions about how Eden works, type your queries here for direct answers.",
+        "timestamp": 1769299555995,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299570128_45bb309a02c848",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It looks like you're testing the system with an informational query. If you have questions about how Eden works or how to use its features, feel free to ask! Eden is designed to facilitate seamless interactions through a Universal Messaging System where you can request services or ask questions directly. For service requests, use the chat input to trigger workflows, and for questions about how Eden works, type your queries here for direct answers.",
+        "timestamp": 1769299570128,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299577594_860187c933207",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299577594,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299581313_6bcfd3ed9d069",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It seems like you're conducting a test. If you have any specific questions about Eden or need assistance with our services, feel free to ask! Eden is designed to help you easily access various services and information through our Universal Messaging System. Whether you're looking to book a service, trade tokens, or simply learn more about how Eden works, our interface is here to assist you.",
+        "timestamp": 1769299581313,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299654468_0c72d9769569",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299654468,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299654477_115517794c568",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299654477,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299658039_5c9adf314ef3c",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It looks like you're trying to learn more about Eden or have an informational query. Eden is an advanced platform that integrates economic and intelligence systems, utilizing a garden-first approach. It replaces traditional blockchain mechanisms with LLM-governed intelligence fees, federated gardens, and ROOT CA governance. Eden also features a Universal Messaging System for secure and auditable communication, allowing users to engage in scoped contexts like ORDER, TRADE, and SERVICE. If you have further questions or need guidance on using Eden, feel free to ask!",
+        "timestamp": 1769299658039,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299683768_bbda46f7be434",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It looks like you're trying to learn more about Eden or have an informational query. Eden is an advanced platform that integrates economic and intelligence systems, utilizing a garden-first approach. It replaces traditional blockchain mechanisms with LLM-governed intelligence fees, federated gardens, and ROOT CA governance. Eden also features a Universal Messaging System for secure and auditable communication, allowing users to engage in scoped contexts like ORDER, TRADE, and SERVICE. If you have further questions or need guidance on using Eden, feel free to ask!",
+        "timestamp": 1769299683768,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299736217_1e306dce5294b8",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299736217,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299736227_54ca6daee96e4",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299736227,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299740722_22c9fe268dfb7",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It seems like you're testing the informational query function. If you have any questions about how Eden works or need assistance with its features, feel free to ask! Eden provides a seamless experience for both service requests and informational queries. You can request services like booking a movie or trading tokens using the chat input, or ask questions about Eden's architecture and capabilities. Let me know how I can assist you further!",
+        "timestamp": 1769299740722,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299752744_500c4a9001d64",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299752744,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299752754_f76e9a0f0610a",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "test",
+        "timestamp": 1769299752754,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769299756157_2b7c04a271fbc",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It seems like you're looking for information. If your question is about Eden, feel free to ask about how it works or its features. Eden offers a unique garden-first economic and intelligence system with a Universal Messaging System for governed communications. If you have a specific query or need assistance with using the Eden interface, I'm here to help!",
+        "timestamp": 1769299756157,
+        "userEmail": "rashardgarcia@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769299807935_0635b26e7bbc",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "It seems like you're looking for information. If your question is about Eden, feel free to ask about how it works or its features. Eden offers a unique garden-first economic and intelligence system with a Universal Messaging System for governed communications. If you have a specific query or need assistance with using the Eden interface, I'm here to help!",
+        "timestamp": 1769299807935,
+        "userEmail": "rashardgarcia@gmail.com",
+        "mode": "user",
         "status": "active"
       }
     ]

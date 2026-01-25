@@ -1290,8 +1290,8 @@ async function executeStepActions(
             // Fallback: Use query-based lookup (legacy behavior)
             console.log(`🔍 [FlowWiseService] No LLM service selection - using query-based lookup`);
             console.log(`🔍 [FlowWiseService] Querying service registry with query:`, JSON.stringify(context.queryResult.query, null, 2));
+            const { queryROOTCAServiceRegistry, queryServiceProviders } = await import("../serviceProvider");
             const providers = queryROOTCAServiceRegistry(context.queryResult.query);
-            const { queryServiceProviders } = await import("../serviceProvider");
             const listings = await queryServiceProviders(providers, context.queryResult.query.filters || {});
             console.log(`🔍 [FlowWiseService] Service registry returned ${listings.length} listings`);
             if (listings.length > 0) {
@@ -1587,9 +1587,9 @@ async function executeStepActions(
           const currentServiceType = context.serviceType || 'movie';
           if ((currentServiceType === 'movie' || currentServiceType === 'amc') && context.listings && context.listings.length > 0) {
             // Try to get videoUrl from garden config
-            // Import GARDENS to find the current garden
-            const { GARDENS } = await import("../garden");
-            const currentGarden = GARDENS.find((g: any) => (g as any).serviceType === currentServiceType);
+            // Import GARDENS from state to find the current garden
+            const { GARDENS } = await import("../state");
+            const currentGarden = Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : undefined;
             const videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
             
             console.log(`🎬 [FlowWiseService] Injecting videoUrl into movie listings: ${videoUrl}`);
@@ -2233,9 +2233,9 @@ async function executeStepActions(
           // If still not found, try to get from GARDENS
           if (!videoUrl) {
             try {
-              const { GARDENS } = await import("../garden");
+              const { GARDENS } = await import("../state");
               const currentServiceType = context.serviceType || 'movie';
-              const currentGarden = GARDENS.find((g: any) => (g as any).serviceType === currentServiceType);
+              const currentGarden = Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : undefined;
               videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
               console.log(`🎬 [FlowWiseService] Retrieved videoUrl from GARDENS: ${videoUrl}`);
             } catch (err) {

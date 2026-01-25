@@ -9,6 +9,7 @@ import { URL } from "url";
 import type { MovieListing, TokenListing, LLMQueryResult, LLMResponse, ServiceRegistryQuery } from "./types";
 import { MOCKED_LLM, ENABLE_OPENAI } from "./config";
 import { getMessagingSystemPrompt } from "./messaging/llmMessagingPrompt";
+import { getKnowledgeContext } from "./rag/edenKnowledgeBase";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -250,8 +251,13 @@ export type GetDataParamsResult = {
 };
 
 export async function extractGetDataParamsWithOpenAI(userInput: string): Promise<GetDataParamsResult> {
-  // Use mock if MOCKED_LLM is enabled OR if OpenAI API key is not available
-  if (MOCKED_LLM || !process.env.OPENAI_API_KEY) {
+  // Require OpenAI API key - no mock fallbacks
+  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
+    throw new Error("OpenAI API key is required for extractGetDataParamsWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  }
+  
+  // Only use mock mode if explicitly enabled (for testing)
+  if (MOCKED_LLM) {
     // Mock response for testing - extract basic info from user query
     const queryLower = userInput.toLowerCase();
     let serviceType = "autoparts";
@@ -371,6 +377,9 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
     max_tokens: 1000
   };
 
+  const requestBodyJson = JSON.stringify(requestBody);
+  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
+
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -381,7 +390,7 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
-          "Content-Length": JSON.stringify(requestBody).length
+          "Content-Length": requestBodyBuffer.length.toString()
         }
       },
       (res) => {
@@ -411,7 +420,7 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
       reject(new Error(`LLM API request failed: ${err.message}`));
     });
 
-    req.write(JSON.stringify(requestBody));
+    req.write(requestBodyBuffer);
     req.end();
   });
 }
@@ -437,21 +446,31 @@ Format service listings into a user-friendly message, OR answer informational qu
      * If you cannot find a better match, pick the FIRST listing from the provided listings array
 
 2. **REGULAR TEXT CHAT (Informational Queries)** - These are answered directly:
+   
+   A. **EDEN-RELATED INFORMATIONAL QUERIES** (about Eden itself):
    - Examples: "how to messaging", "how eden works", "what is the garden of eden", "how do I use this", "who eden works"
-   - These are INFORMATION queries that should be answered directly WITHOUT triggering workflows
-   - When NO listings are provided OR user asks about Eden/messaging/UI, these are INFORMATIONAL QUERIES
-   - Answer the question using your knowledge of Eden's architecture and messaging system
+   - These are INFORMATION queries about Eden that should be answered directly WITHOUT triggering workflows
+   - Answer using your knowledge of Eden's architecture and messaging system
    - Return JSON with: message (string), selectedListing (null), selectedListing2 (null), listings (empty array)
    - The message should be helpful and explain Eden's features, philosophy, or how to use the interface
    - Reference the Universal Messaging System when relevant
    - Guide users on how to use the UI interface (Workflow Display Component)
    - DO NOT suggest triggering workflows for informational queries
+   
+   B. **GENERAL KNOWLEDGE QUERIES** (NOT about Eden):
+   - Examples: "what is GOD in Bible", "what is today", "what is the weather", "who is the president", "explain quantum physics"
+   - These are general knowledge questions that are NOT related to Eden services or workflows
+   - Answer these questions naturally and helpfully
+   - Return JSON with: message (string with the answer), selectedListing (null), selectedListing2 (null), listings (empty array)
+   - Provide clear, accurate answers to general knowledge questions
 
 CRITICAL CLASSIFICATION RULES:
-- If user asks "how to messaging", "how eden works", "what is eden", "who eden works" → REGULAR TEXT CHAT (informational)
+- If user asks "how to messaging", "how eden works", "what is eden", "who eden works" → EDEN-RELATED INFORMATIONAL QUERY
+- If user asks "what is GOD in Bible", "what is the weather", "who is the president" (NOT about Eden) → GENERAL KNOWLEDGE QUERY
 - If user asks "book a movie", "trade tokens", "buy TOKEN" → EDEN CHAT (workflow/service query)
 - If listings are provided → EDEN CHAT (service query)
-- If NO listings AND user asks informational question → REGULAR TEXT CHAT (informational)
+- If NO listings AND user asks question about Eden → EDEN-RELATED INFORMATIONAL QUERY
+- If NO listings AND user asks general knowledge question (NOT about Eden) → GENERAL KNOWLEDGE QUERY
 
 CRITICAL: Never output "service type not supported" or similar errors.
 Always format the response for ANY service type provided, OR provide helpful informational answers.
@@ -483,6 +502,41 @@ When users ask questions about Eden, the messaging system, or how to use the int
 
 5. **Suggest Conversations**: If users need ongoing help, suggest creating a conversation via the messaging system.
 
+## Response Formatting Requirements
+
+**CRITICAL**: Always format responses in a structured, readable way using:
+- **Clear sections with headers** (use ## or ### for markdown)
+- **Bullet points** for lists (use - or *)
+- **Numbered lists** for step-by-step instructions
+- **Bold text** for important terms or concepts
+- **Line breaks** between sections for readability
+- **Short paragraphs** (2-3 sentences max per paragraph)
+- **Avoid long walls of text** - break information into digestible chunks
+
+Example of good formatting:
+\`\`\`
+## Eden Overview
+
+Eden is a garden-first economic and intelligence system that:
+- Uses LLM-governed intelligence fees
+- Operates through federated gardens
+- Maintains governance through ROOT CA
+
+## Universal Messaging System
+
+Eden includes a messaging system that:
+- Organizes conversations into contexts (ORDER, TRADE, SERVICE, DISPUTE, SYSTEM)
+- Never deletes messages (only state changes)
+- Ensures transparent communication history
+
+## How to Use Eden
+
+1. **EDEN CHAT**: Request services (movies, tokens, etc.) - triggers workflows
+2. **REGULAR TEXT CHAT**: Ask questions - receives direct answers
+\`\`\`
+
+**NEVER** return long paragraphs without structure. Always use markdown formatting to make responses readable.
+
 Service type: {serviceType}
 
 Return JSON format:
@@ -498,8 +552,13 @@ Return JSON format:
  * Extract query from user input using OpenAI
  */
 export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult> {
-  // Use mock if MOCKED_LLM is enabled OR if OpenAI API key is not available
-  if (MOCKED_LLM || !process.env.OPENAI_API_KEY) {
+  // Require OpenAI API key - no mock fallbacks
+  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
+    throw new Error("OpenAI API key is required for extractQueryWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  }
+  
+  // Only use mock mode if explicitly enabled (for testing)
+  if (MOCKED_LLM) {
     // Try to extract service type from input for better mock response
     const inputLower = userInput.toLowerCase();
     let mockServiceType = "movie";
@@ -549,6 +608,9 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
     temperature: 0.7
   };
 
+  const requestBodyJson = JSON.stringify(requestBody);
+  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
+
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -559,7 +621,7 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Length": JSON.stringify(requestBody).length.toString()
+          "Content-Length": requestBodyBuffer.length.toString()
         }
       },
       (res) => {
@@ -593,7 +655,7 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
       reject(new Error(`OpenAI request failed: ${err.message}`));
     });
 
-    req.write(JSON.stringify(requestBody));
+    req.write(requestBodyBuffer);
     req.end();
   });
 }
@@ -613,14 +675,30 @@ export async function formatResponseWithOpenAI(
   console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
   console.log(`🤖 [LLM] ========================================`);
   
+  // If OpenAI API key is not available, return a helpful error message
+  // The LLM should handle all logic, not regex parsing and hardcoded answers
+  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
+    const errorResponse: LLMResponse = {
+      message: "I apologize, but I'm unable to process your query right now. The OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable to enable LLM responses. Once configured, I'll be able to answer your questions using AI.",
+      listings: [],
+      selectedListing: null,
+      selectedListing2: null,
+      iGasCost: 0
+    };
+    console.log(`⚠️ [LLM] OpenAI API key not configured - returning error message`);
+    return errorResponse;
+  }
+  
+  // Only use mock mode if explicitly enabled (for testing)
   if (MOCKED_LLM) {
-    const mockResponse = {
-      message: "Mock LLM response",
+    const mockResponse: LLMResponse = {
+      message: "Mock LLM response (MOCKED_LLM enabled for testing)",
       listings: listings.slice(0, 1),
       selectedListing: listings[0] || null,
+      selectedListing2: listings[0] || null,
       iGasCost: 0.001
     };
-    console.log(`🤖 [LLM] Mock LLM Response: "${mockResponse.message}"`);
+    console.log(`🤖 [LLM] Mock LLM Response (MOCKED_LLM): "${mockResponse.message}"`);
     return mockResponse;
   }
 
@@ -628,19 +706,45 @@ export async function formatResponseWithOpenAI(
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
   
-  // Check if this is an informational query (no listings or user asking about Eden/messaging)
-  const isInformationalQuery = listings.length === 0 || 
-    /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+  // Check if this is an informational query
+  // Must be: (no listings) AND (question pattern) AND (NOT about Eden services/workflows)
+  const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+  const queryLower = userQuery.toLowerCase();
+  // More specific Eden-related keywords - must be clearly about Eden services/workflows
+  // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
+  const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
+    /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
+  const isInformationalQuery = listings.length === 0 && hasQuestionPattern;
+  const isEdenInfoQuery = isInformationalQuery && isEdenRelated;
+  const isGeneralKnowledgeQuery = isInformationalQuery && !isEdenRelated;
   
   let systemPrompt = LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType);
   
-  // For informational queries, include messaging system prompt
+  // For informational queries, include messaging system prompt and RAG context
   if (isInformationalQuery) {
+    console.log(`📚 [LLM] Informational query detected - adding messaging system prompt`);
     systemPrompt += `\n\n${getMessagingSystemPrompt()}`;
+    
+    // Add RAG context for Eden-related queries
+    if (isEdenInfoQuery) {
+      console.log(`📚 [LLM] Eden-related informational query - retrieving RAG knowledge context`);
+      const knowledgeContext = getKnowledgeContext(userQuery);
+      if (knowledgeContext) {
+        console.log(`📚 [LLM] RAG knowledge context retrieved (${knowledgeContext.length} characters)`);
+        systemPrompt += knowledgeContext;
+        systemPrompt += `\n\n**IMPORTANT**: Use the relevant Eden knowledge above to provide accurate, detailed answers. Reference specific concepts, architecture, and features when answering the user's question.`;
+      } else {
+        console.log(`⚠️ [LLM] No RAG knowledge context found for query: "${userQuery}"`);
+      }
+    } else {
+      console.log(`📚 [LLM] General knowledge query (not Eden-related) - no RAG context needed`);
+    }
   }
   
   const userMessage = isInformationalQuery
-    ? `User query: ${userQuery}\n\nThis is an informational query. Please answer the user's question about Eden, the messaging system, or how to use the interface. Provide a helpful, clear explanation.`
+    ? isEdenInfoQuery
+      ? `User query: ${userQuery}\n\nThis is an Eden-related informational query. Please answer the user's question about Eden, the messaging system, or how to use the interface. Provide a helpful, clear explanation about Eden using the knowledge provided above.\n\n**CRITICAL FORMATTING REQUIREMENTS**:\n- Use structured markdown formatting with clear sections (## headers)\n- Use bullet points (- or *) for lists\n- Use numbered lists for step-by-step instructions\n- Use bold text (**text**) for important terms\n- Add line breaks between sections\n- Keep paragraphs short (2-3 sentences max)\n- NEVER write long walls of text - break information into digestible chunks\n- Make the response readable and scannable`
+      : `User query: ${userQuery}\n\nThis is a GENERAL KNOWLEDGE question (NOT about Eden). Please answer the user's question naturally and helpfully.\n\n**CRITICAL FORMATTING REQUIREMENTS**:\n- Use structured markdown formatting with clear sections (## headers)\n- Use bullet points (- or *) for lists\n- Use numbered lists for step-by-step instructions\n- Use bold text (**text**) for important terms\n- Add line breaks between sections\n- Keep paragraphs short (2-3 sentences max)\n- NEVER write long walls of text - break information into digestible chunks\n- Make the response readable and scannable`
     : `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
 
   const messages = [
@@ -655,6 +759,9 @@ export async function formatResponseWithOpenAI(
     temperature: 0.7
   };
 
+  const requestBodyJson = JSON.stringify(requestBody);
+  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
+
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -665,7 +772,7 @@ export async function formatResponseWithOpenAI(
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Length": JSON.stringify(requestBody).length.toString()
+          "Content-Length": requestBodyBuffer.length.toString()
         }
       },
       (res) => {
@@ -682,19 +789,26 @@ export async function formatResponseWithOpenAI(
               const content = JSON.parse(parsed.choices[0].message.content);
               
               // For informational queries, selectedListing can be null
-              const isInformational = listings.length === 0 || 
-                /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+              const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+              const queryLower = userQuery.toLowerCase();
+              // More specific Eden-related keywords - must be clearly about Eden services/workflows
+              // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
+              const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
+                /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
+              const isInformational = listings.length === 0 && hasQuestionPattern && !isEdenRelated;
+              const isEdenInfo = listings.length === 0 && hasQuestionPattern && isEdenRelated;
               
               const response: LLMResponse = {
                 message: content.message || "No response",
-                listings: content.listings || (isInformational ? [] : listings),
-                selectedListing: isInformational ? null : (content.selectedListing || listings[0] || null),
-                selectedListing2: isInformational ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
+                listings: content.listings || ((isInformational || isEdenInfo) ? [] : listings),
+                selectedListing: (isInformational || isEdenInfo) ? null : (content.selectedListing || listings[0] || null),
+                selectedListing2: (isInformational || isEdenInfo) ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
                 iGasCost: content.iGasCost || 0.001
               };
               console.log(`🤖 [LLM] ========================================`);
               console.log(`🤖 [LLM] OpenAI Response received`);
-              console.log(`🤖 [LLM] Is Informational Query: ${isInformational}`);
+              console.log(`🤖 [LLM] Is General Knowledge Query: ${isInformational}`);
+              console.log(`🤖 [LLM] Is Eden Info Query: ${isEdenInfo}`);
               console.log(`🤖 [LLM] Response Message: "${response.message.substring(0, 200)}${response.message.length > 200 ? '...' : ''}"`);
               console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
               console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
@@ -714,7 +828,7 @@ export async function formatResponseWithOpenAI(
       reject(new Error(`OpenAI request failed: ${err.message}`));
     });
 
-    req.write(JSON.stringify(requestBody));
+    req.write(requestBodyBuffer);
     req.end();
   });
 }
@@ -831,8 +945,13 @@ export type SQLParameterizationResult = {
  * Convert SQL query with hardcoded values to parameterized query using LLM
  */
 export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParameterizationResult> {
-  // Use mock if MOCKED_LLM is enabled OR if OpenAI API key is not available
-  if (MOCKED_LLM || !process.env.OPENAI_API_KEY) {
+  // Require OpenAI API key - no mock fallbacks
+  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
+    throw new Error("OpenAI API key is required for parameterizeSQLWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  }
+  
+  // Only use mock mode if explicitly enabled (for testing)
+  if (MOCKED_LLM) {
     // Mock response: Extract values from SQL and create parameterized version
     const params: any[] = [];
     const paramOrder: string[] = [];

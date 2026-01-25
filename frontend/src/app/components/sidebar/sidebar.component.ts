@@ -1,8 +1,9 @@
-import { Component, OnInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, AfterViewChecked, ViewChild, ElementRef, ChangeDetectorRef, SecurityContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { WebSocketService } from '../../services/websocket.service';
 import { SimulatorEvent } from '../../app.component';
 import { getApiBaseUrl } from '../../services/api-base';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 interface ComponentStatus {
   name: string;
@@ -57,17 +58,217 @@ export class SidebarComponent implements OnInit, OnDestroy {
   @Output() loadChatHistory = new EventEmitter<void>();
   @Output() clearChatHistory = new EventEmitter<void>();
   @Output() stopChatHistoryLoading = new EventEmitter<void>();
+  @Output() edenChatSubmit = new EventEmitter<string>();
   @Input() getVideoUrl: ((url: string | undefined) => string) | null = null;
+  @Input() isProcessingEdenChat: boolean = false;
+  
+  // Eden chat input
+  edenChatInput: string = '';
+  
+  // Floating window state
+  isChatFloating: boolean = false;
+  floatingPosition = { x: 100, y: 100 };
+  isDragging: boolean = false;
+  dragOffset = { x: 0, y: 0 };
   
   // Helper method to safely call getVideoUrl
   safeGetVideoUrl(url: string | undefined): string {
     if (!this.getVideoUrl || !url) return url || '';
     return this.getVideoUrl(url);
   }
-
+  
+  // Get chat messages in normal order (oldest first, at top; newest at bottom)
+  getReversedChatMessages() {
+    // Return messages in normal chronological order (oldest to newest)
+    // Auto-scroll to bottom after messages are rendered
+    setTimeout(() => this.scrollChatToBottom(), 50);
+    return this.chatHistoryMessages;
+  }
+  
+  // Scroll chat container to bottom
+  scrollChatToBottom(): void {
+    const containers = document.querySelectorAll('.chat-messages-container');
+    containers.forEach((container: any) => {
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  }
+  
+  // Get role icon/emoji
+  getRoleIcon(role: string): string {
+    switch(role) {
+      case 'USER': return '👤';
+      case 'ASSISTANT': return '🤖';
+      case 'SYSTEM': return '⚙️';
+      default: return '💬';
+    }
+  }
+  
+  // Convert markdown to HTML
+  renderMarkdown(text: string): SafeHtml {
+    if (!text) return '';
+    
+    let html = text;
+    
+    // Code blocks first (before other processing)
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    
+    // Process lists (bullet and numbered)
+    const lines = html.split('\n');
+    let inList = false;
+    let listType = '';
+    let processedLines: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const bulletMatch = line.match(/^[\-\*] (.*)$/);
+      const numberedMatch = line.match(/^(\d+)\. (.*)$/);
+      
+      if (bulletMatch || numberedMatch) {
+        const itemText = bulletMatch ? bulletMatch[1] : numberedMatch![2];
+        const currentListType = bulletMatch ? 'ul' : 'ol';
+        
+        if (!inList || listType !== currentListType) {
+          if (inList) {
+            processedLines.push(`</${listType}>`);
+          }
+          processedLines.push(`<${currentListType}>`);
+          inList = true;
+          listType = currentListType;
+        }
+        processedLines.push(`<li>${itemText}</li>`);
+      } else {
+        if (inList) {
+          processedLines.push(`</${listType}>`);
+          inList = false;
+        }
+        processedLines.push(line);
+      }
+    }
+    if (inList) {
+      processedLines.push(`</${listType}>`);
+    }
+    html = processedLines.join('\n');
+    
+    // Bold and italic (after lists to avoid conflicts)
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Line breaks - convert double newlines to paragraph breaks
+    html = html.split('\n\n').map(para => {
+      para = para.trim();
+      if (!para) return '';
+      if (para.startsWith('<h') || para.startsWith('<ul') || para.startsWith('<ol') || para.startsWith('<pre')) {
+        return para;
+      }
+      return `<p>${para}</p>`;
+    }).join('\n');
+    
+    // Single newlines to br (but not inside pre/code)
+    html = html.replace(/\n/g, '<br>');
+    
+    const sanitized = this.sanitizer.sanitize(SecurityContext.HTML, html) || '';
+    return this.sanitizer.bypassSecurityTrustHtml(sanitized);
+  }
+  
+  // Format timestamp nicely
+  formatTimestamp(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  
+  // Handle Eden chat submission (workflows only)
+  onEdenChatSubmit(): void {
+    if (!this.edenChatInput.trim() || this.isProcessingEdenChat) {
+      return;
+    }
+    
+    const message = this.edenChatInput.trim();
+    
+    // Emit the message to parent component (app.component) which will handle it via onSubmit
+    this.edenChatSubmit.emit(message);
+    
+    // Clear input immediately - parent will handle processing state
+    this.edenChatInput = '';
+  }
+  
+  // Floating window methods
+  toggleChatFloat(): void {
+    this.isChatFloating = !this.isChatFloating;
+    if (this.isChatFloating) {
+      // Center the floating window on screen (50% of viewport)
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const windowWidth = viewportWidth * 0.5;
+      const windowHeight = viewportHeight * 0.5;
+      this.floatingPosition = {
+        x: (viewportWidth - windowWidth) / 2,
+        y: (viewportHeight - windowHeight) / 2
+      };
+    }
+  }
+  
+  dockChat(): void {
+    this.isChatFloating = false;
+  }
+  
+  onDragStart(event: MouseEvent): void {
+    if (!this.isChatFloating) return;
+    this.isDragging = true;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.dragOffset = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    event.preventDefault();
+  }
+  
+  onDrag(event: MouseEvent): void {
+    if (!this.isDragging || !this.isChatFloating) return;
+    this.floatingPosition = {
+      x: event.clientX - this.dragOffset.x,
+      y: event.clientY - this.dragOffset.y
+    };
+    // Keep window within viewport bounds (50% of viewport)
+    const windowWidth = window.innerWidth * 0.5;
+    const windowHeight = window.innerHeight * 0.5;
+    const maxX = window.innerWidth - windowWidth;
+    const maxY = window.innerHeight - windowHeight;
+    this.floatingPosition.x = Math.max(0, Math.min(this.floatingPosition.x, maxX));
+    this.floatingPosition.y = Math.max(0, Math.min(this.floatingPosition.y, maxY));
+  }
+  
+  onDragEnd(): void {
+    this.isDragging = false;
+  }
+  
   constructor(
     private wsService: WebSocketService,
-    private http: HttpClient
+    private http: HttpClient,
+    private sanitizer: DomSanitizer
   ) {}
 
   private readonly serviceTypeIconMap: Record<string, string> = {
@@ -103,6 +304,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Add global mouse event listeners for dragging floating window
+    this.dragMoveHandler = (e: MouseEvent) => this.onDrag(e);
+    this.dragEndHandler = () => this.onDragEnd();
+    document.addEventListener('mousemove', this.dragMoveHandler);
+    document.addEventListener('mouseup', this.dragEndHandler);
+    
     // Set view mode based on user email:
     // - Non-admin users: Force USER mode (sidebar hidden)
     // - Admin users: Default to GOD mode, but allow PRIEST if explicitly chosen
@@ -461,7 +668,17 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (this.emailCheckInterval) {
       clearInterval(this.emailCheckInterval);
     }
+    // Remove drag event listeners
+    if (this.dragMoveHandler) {
+      document.removeEventListener('mousemove', this.dragMoveHandler);
+    }
+    if (this.dragEndHandler) {
+      document.removeEventListener('mouseup', this.dragEndHandler);
+    }
   }
+  
+  private dragMoveHandler?: (e: MouseEvent) => void;
+  private dragEndHandler?: () => void;
 
   updateComponentStatus(event: SimulatorEvent) {
     // Handle null or undefined component

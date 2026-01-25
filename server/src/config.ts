@@ -89,3 +89,20 @@ export const STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"; // Update
 // Provider webhook demo behavior (default off for real deployments)
 export const EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS = String(process.env.EDEN_ENABLE_MOCK_PROVIDER_WEBHOOKS || "").toLowerCase() === "true";
 
+// OpenAI API Key (hardcoded)
+// Parse --openai-api-key flag and set it in process.env if provided, otherwise use hardcoded value
+const openaiApiKeyArg = args.find(arg => arg.startsWith("--openai-api-key"));
+if (openaiApiKeyArg) {
+  const apiKey = openaiApiKeyArg.split("=")[1];
+  if (apiKey) {
+    process.env.OPENAI_API_KEY = apiKey;
+    console.log(`✅ [Config] OpenAI API key set from command line argument`);
+  } else {
+    console.warn(`⚠️ [Config] --openai-api-key flag provided but no value specified`);
+  }
+} else if (!process.env.OPENAI_API_KEY) {
+  // Hardcoded API key
+  process.env.OPENAI_API_KEY = "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";
+  console.log(`✅ [Config] Using hardcoded OpenAI API key`);
+}
+

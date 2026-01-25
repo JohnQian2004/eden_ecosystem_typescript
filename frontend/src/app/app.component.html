@@ -21,10 +21,12 @@
         [activeConversationId]="activeConversationId"
         [chatHistoryMessages]="chatHistoryMessages"
         [isLoadingChatHistory]="isLoadingChatHistory"
+        [isProcessingEdenChat]="isProcessing"
         [getVideoUrl]="getVideoUrl.bind(this)"
         (loadChatHistory)="loadChatHistory()"
         (clearChatHistory)="clearChatHistoryPanel()"
-        (stopChatHistoryLoading)="stopChatHistoryLoading()">
+        (stopChatHistoryLoading)="stopChatHistoryLoading()"
+        (edenChatSubmit)="onEdenChatFromSidebar($event)">
       </app-sidebar>
     </div>
     
@@ -587,104 +589,8 @@
           </div>
         </div>
         
-        <!-- Unified Chat Input with Context Sensing -->
-        <!-- Only show chat input if there are service gardens available and user is signed in -->
-        <div class="row mb-4" *ngIf="hasServiceIndexers && isUserSignedIn">
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header" [ngClass]="{'bg-primary': selectedServiceType === 'movie', 'bg-info': selectedServiceType === 'dex', 'bg-secondary': !selectedServiceType}">
-                <h5 class="mb-0">
-                  <span *ngIf="selectedServiceType === 'movie'">🎬 Movie Query</span>
-                  <span *ngIf="selectedServiceType === 'dex'">💰 DEX Query</span>
-                  <span *ngIf="!selectedServiceType">💬 Eden Chat</span>
-                  <span *ngIf="selectedServiceType" class="badge bg-light text-dark ms-2">{{ selectedServiceType.toUpperCase() }}</span>
-                </h5>
-              </div>
-              <div class="card-body">
-                <form (ngSubmit)="onSubmit(); $event.preventDefault()" #chatForm="ngForm" autocomplete="off">
-                  <div class="input-group input-group-lg">
-                    <span class="input-group-text" *ngIf="selectedServiceType">
-                      <span *ngIf="selectedServiceType === 'movie'">🎬</span>
-                      <span *ngIf="selectedServiceType === 'dex'">💰</span>
-                      <span *ngIf="selectedServiceType === 'airline'">✈️</span>
-                      <span *ngIf="selectedServiceType === 'autoparts'">🔧</span>
-                      <span *ngIf="selectedServiceType === 'hotel'">🏨</span>
-                      <span *ngIf="selectedServiceType === 'restaurant'">🍽️</span>
-                    </span>
-                    <input 
-                      type="text" 
-                      class="form-control" 
-                      [placeholder]="inputPlaceholder"
-                      [(ngModel)]="userInput"
-                      name="userInput"
-                      required
-                      autocomplete="off"
-                      [disabled]="isProcessing"
-                      (keydown.enter)="!isProcessing && userInput.trim() && onSubmit(); $event.preventDefault()"
-                      (input)="selectedServiceType = detectServiceType(userInput) || selectedServiceType">
-                    <button 
-                      class="btn" 
-                      [ngClass]="{
-                        'btn-primary': selectedServiceType === 'movie', 
-                        'btn-info': selectedServiceType === 'dex',
-                        'btn-success': selectedServiceType === 'airline',
-                        'btn-warning': selectedServiceType === 'autoparts',
-                        'btn-danger': selectedServiceType === 'hotel',
-                        'btn-secondary': selectedServiceType === 'restaurant' || !selectedServiceType
-                      }"
-                      type="button"
-                      (click)="onSubmit(); $event.preventDefault()"
-                      [disabled]="isProcessing || !userInput.trim()"
-                      [title]="!hasSufficientBalance() ? 'Insufficient wallet balance. Send will be blocked until you purchase 🍎 APPLES.' : ''">
-                      <span *ngIf="!isProcessing">Send</span>
-                      <span *ngIf="isProcessing">
-                        <span class="spinner-border spinner-border-sm me-2"></span>Processing...
-                      </span>
-                    </button>
-                  </div>
-                  <!-- Insufficient Balance Warning -->
-                  <div *ngIf="!hasSufficientBalance() && !isLoadingBalance" class="alert alert-warning mt-2 mb-2" role="alert">
-                    <div class="d-flex align-items-center">
-                      <span class="me-2">⚠️</span>
-                      <div class="flex-grow-1">
-                        <strong>Insufficient Balance:</strong> Your wallet balance is {{ walletBalance.toFixed(2) }} 🍎 APPLES. 
-                        You need at least 0.01 🍎 APPLES (for iGas) to send messages.
-                        <div class="mt-2">
-                          <button class="btn btn-sm btn-primary" (click)="buyJesusCoin(500)">
-                            💳 Buy 500 🍎 APPLES ($500 USD) via Stripe
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- Zero Balance - Stripe Payment Rail -->
-                  <div *ngIf="walletBalance === 0 && !isLoadingBalance" class="alert alert-danger mt-2 mb-2" role="alert">
-                    <div class="d-flex align-items-center">
-                      <span class="me-2">💳</span>
-                      <div class="flex-grow-1">
-                        <strong>Stripe Payment Rail:</strong> Your wallet balance is 0.00 🍎 APPLES. 
-                        Purchase 🍎 APPLES to continue using Eden Simulator services.
-                        <div class="mt-2">
-                          <button class="btn btn-sm btn-success" (click)="buyJesusCoin(500)">
-                            💳 Buy 500 🍎 APPLES = $500 USD
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <small class="text-muted mt-2 d-block" *ngIf="selectedServiceType">
-                    <span *ngIf="selectedServiceType === 'movie'">🎬 Context: Movie service - ROOT CA ServiceRegistry will find the best movie providers</span>
-                    <span *ngIf="selectedServiceType === 'dex'">💰 Context: DEX service - ROOT CA ServiceRegistry will find the best token pools</span>
-                    <span *ngIf="selectedServiceType === 'airline'">✈️ Context: Airline service - ROOT CA ServiceRegistry will find the best flight providers</span>
-                    <span *ngIf="selectedServiceType === 'autoparts'">🔧 Context: Auto parts service - ROOT CA ServiceRegistry will find the best parts providers</span>
-                    <span *ngIf="selectedServiceType === 'hotel'">🏨 Context: Hotel service - ROOT CA ServiceRegistry will find the best hotel providers</span>
-                    <span *ngIf="selectedServiceType === 'restaurant'">🍽️ Context: Restaurant service - ROOT CA ServiceRegistry will find the best restaurant providers</span>
-                  </small>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Regular Chat Display (No Input - Input moved to sidebar) -->
+        <!-- Chat history is shown in sidebar, input is in sidebar for Eden workflows -->
         
         <!-- Tabbed Interface -->
         <div class="row">

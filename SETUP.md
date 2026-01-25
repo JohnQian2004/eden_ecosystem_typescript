@@ -1,6 +1,6 @@
 npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run build
 npm --prefix C:\Projects\JohnQian2003\eden_ecosystem_typescript\desktop run dev
-npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
+npx tsx .\eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true --openai-api-key=YOUR_API_KEY_HERE
 
 npm run start:http
 
