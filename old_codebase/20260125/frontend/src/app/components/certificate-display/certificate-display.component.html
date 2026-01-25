@@ -1,0 +1,117 @@
+<div class="certificate-display">
+  <div class="header">
+    <h5>📜 Certificates</h5>
+    <small class="text-muted">ENCERT v1 - Eden Native Certificates</small>
+  </div>
+  
+  <div class="certificate-list">
+    <div 
+      *ngFor="let cert of certificates" 
+      class="certificate-item"
+      [class.selected]="selectedCertificate?.uuid === cert.uuid"
+      (click)="selectCertificate(cert)">
+      <div class="cert-header">
+        <div class="cert-info">
+          <span class="status-icon">{{ getStatusIcon(cert) }}</span>
+          <span class="cert-name">{{ cert.name }}</span>
+          <span class="badge" [ngClass]="'bg-' + (getStatusClass(cert) === 'valid' ? 'success' : getStatusClass(cert) === 'revoked' ? 'danger' : 'warning')">
+            {{ getStatusText(cert) }}
+          </span>
+        </div>
+        <span class="cert-uuid">{{ cert.uuid }}</span>
+      </div>
+      <div *ngIf="cert.certificate" class="cert-details-mini">
+        <small class="text-muted">
+          Capabilities: {{ cert.certificate.capabilities.join(", ") }} | 
+          Expires: {{ formatDate(cert.certificate.expiresAt) }}
+        </small>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Certificate Details Modal -->
+  <div *ngIf="selectedCertificate" class="certificate-details-overlay" (click)="closeDetails()">
+    <div class="certificate-details" (click)="$event.stopPropagation()">
+      <div class="details-header">
+        <h5>Certificate Details</h5>
+        <div class="header-actions">
+          <button 
+            *ngIf="canRevoke(selectedCertificate)" 
+            class="btn btn-sm btn-danger me-2" 
+            (click)="revokeCertificate()"
+            title="Revoke this certificate">
+            🚫 Revoke
+          </button>
+          <button 
+            *ngIf="canReinstate(selectedCertificate)" 
+            class="btn btn-sm btn-success me-2" 
+            (click)="reinstateCertificate()"
+            title="Reinstate this certificate">
+            ✅ Reinstate
+          </button>
+          <button class="btn-close" (click)="closeDetails()">×</button>
+        </div>
+      </div>
+      
+      <div *ngIf="selectedCertificate.certificate" class="details-content">
+        <div class="detail-row">
+          <strong>Subject:</strong>
+          <code>{{ selectedCertificate.certificate.subject }}</code>
+        </div>
+        <div class="detail-row">
+          <strong>Issuer:</strong>
+          <code>{{ selectedCertificate.certificate.issuer }}</code>
+        </div>
+        <div class="detail-row">
+          <strong>Status:</strong>
+          <span class="badge" [ngClass]="'bg-' + (getStatusClass(selectedCertificate) === 'valid' ? 'success' : getStatusClass(selectedCertificate) === 'revoked' ? 'danger' : 'warning')">
+            {{ getStatusIcon(selectedCertificate) }} {{ getStatusText(selectedCertificate) }}
+          </span>
+        </div>
+        <div class="detail-row">
+          <strong>Capabilities:</strong>
+          <div class="capabilities">
+            <span *ngFor="let cap of selectedCertificate.certificate.capabilities" class="capability-badge">
+              {{ cap }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-row">
+          <strong>Issued:</strong>
+          {{ formatDate(selectedCertificate.certificate.issuedAt) }}
+        </div>
+        <div class="detail-row">
+          <strong>Expires:</strong>
+          {{ formatDate(selectedCertificate.certificate.expiresAt) }}
+        </div>
+        <div *ngIf="selectedCertificate.certificate.constraints" class="detail-row">
+          <strong>Constraints:</strong>
+          <pre>{{ stringify(selectedCertificate.certificate.constraints) }}</pre>
+        </div>
+        <div *ngIf="selectedCertificate.revocation" class="detail-row revoked-info">
+          <strong>Revocation:</strong>
+          <div>
+            <div>Reason: {{ selectedCertificate.revocation.reason }}</div>
+            <div>Revoked by: {{ selectedCertificate.revocation.issuer_uuid || selectedCertificate.revocation.by }}</div>
+            <div>Type: {{ selectedCertificate.revocation.revoked_type || 'provider' }}</div>
+            <div>Severity: {{ selectedCertificate.revocation.severity || 'hard' }}</div>
+            <div>Revoked at: {{ formatDate(selectedCertificate.revocation.issued_at || selectedCertificate.revocation.timestamp || 0) }}</div>
+          </div>
+        </div>
+        <div *ngIf="!selectedCertificate.revocation && selectedCertificate.certificate" class="detail-row">
+          <strong>Type:</strong>
+          <span class="badge bg-info">{{ getRevokedType(selectedCertificate.uuid).toUpperCase() }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>Signature:</strong>
+          <code class="signature">{{ selectedCertificate.certificate.signature.substring(0, 50) }}...</code>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div *ngIf="certificates.length === 0" class="empty-state">
+    <small class="text-muted">No certificates found</small>
+  </div>
+</div>
+

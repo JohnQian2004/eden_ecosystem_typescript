@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Eden Server Logs</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --text: #c9d1d9;
+        --muted: #8b949e;
+        --border: #30363d;
+        --stderr: #ff7b72;
+        --stdout: #79c0ff;
+      }
+      body { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background: var(--bg); color: var(--text); font-size: 12px; line-height: 1.25; }
+      header { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; }
+      input[type="text"] { flex: 1; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
+      button { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: #21262d; color: var(--text); cursor: pointer; font-size: 12px; }
+      button:hover { border-color: #58a6ff; }
+      .meta { color: var(--muted); font-size: 12px; }
+      #log { padding: 8px; }
+      .line { white-space: pre-wrap; word-break: break-word; padding: 1px 0; border-bottom: 1px dashed rgba(48,54,61,0.35); }
+      .stdout .tag { color: var(--stdout); }
+      .stderr .tag { color: var(--stderr); }
+      .tag { display: inline-block; min-width: 64px; }
+      mark { background: rgba(255, 223, 0, 0.25); color: var(--text); padding: 0 2px; border-radius: 2px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <input id="q" type="text" placeholder="Search logs (type to filter)..." />
+      <button id="clear">Clear</button>
+      <div class="meta" id="count">0 lines</div>
+    </header>
+    <div id="log"></div>
+
+    <script>
+      const q = document.getElementById('q');
+      const logEl = document.getElementById('log');
+      const countEl = document.getElementById('count');
+      const clearBtn = document.getElementById('clear');
+
+      /** @type {Array<{ts:number, stream:'stdout'|'stderr', line:string}>} */
+      let lines = [];
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      function highlight(text, needle) {
+        if (!needle) return escapeHtml(text);
+        const safe = escapeHtml(text);
+        const n = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return safe.replace(new RegExp(n, 'gi'), (m) => `<mark>${m}</mark>`);
+      }
+
+      function render() {
+        const needle = (q.value || '').trim().toLowerCase();
+        const filtered = needle
+          ? lines.filter(l => (l.line || '').toLowerCase().includes(needle))
+          : lines;
+
+        countEl.textContent = `${filtered.length} line(s)`;
+
+        // Render last 3000 lines for perf
+        const view = filtered.slice(-3000);
+        logEl.innerHTML = view.map(l => {
+          const ts = new Date(l.ts).toLocaleTimeString();
+          const tag = l.stream === 'stderr' ? 'STDERR' : 'STDOUT';
+          const cls = l.stream === 'stderr' ? 'stderr' : 'stdout';
+          return `<div class="line ${cls}"><span class="tag">[${tag}]</span> <span class="meta">${ts}</span> ${highlight(l.line, needle)}</div>`;
+        }).join('');
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      q.addEventListener('input', () => render());
+      clearBtn.addEventListener('click', async () => {
+        lines = [];
+        await window.edenLogs.clear();
+        render();
+      });
+
+      (async () => {
+        lines = await window.edenLogs.getSnapshot();
+        render();
+        window.edenLogs.onLogLine((l) => {
+          lines.push(l);
+          if (lines.length > 20000) lines.splice(0, lines.length - 20000);
+          render();
+        });
+      })();
+    </script>
+  </body>
+</html>
+
+
