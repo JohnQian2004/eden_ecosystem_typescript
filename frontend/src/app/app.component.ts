@@ -281,6 +281,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Username cache for garden owners (email -> username)
   ownerUsernameCache: Map<string, string> = new Map();
+  private pendingUsernameResolutions = new Map<string, Promise<string | null>>();
 
   // Global UX: full-screen loading overlay (especially useful in GOD mode boot)
   private viewTransitionUntilMs: number = 0;
@@ -529,7 +530,8 @@ export class AppComponent implements OnInit, OnDestroy {
     this.lastAppendBySig.clear();
     this.chatHistoryClearedAt = 0; // Reset cleared timestamp when switching conversations
     this.cdr.detectChanges();
-    this.loadChatHistory();
+    // Load chat history asynchronously - don't block UI
+    setTimeout(() => this.loadChatHistory(), 0);
   }
 
   loadChatHistory(limit: number = 50) {
@@ -551,12 +553,23 @@ export class AppComponent implements OnInit, OnDestroy {
     const cid = this.activeConversationId;
     const seq = ++this.chatHistoryLoadSeq;
     this.isLoadingChatHistory = true;
-    const url = `${this.apiUrl}/api/chat-history/history?conversationId=${encodeURIComponent(cid)}&limit=${encodeURIComponent(String(limit))}`;
+    
+    // Use a smaller limit for faster loading - only load recent messages
+    const optimizedLimit = Math.min(limit, 30);
+    const url = `${this.apiUrl}/api/chat-history/history?conversationId=${encodeURIComponent(cid)}&limit=${encodeURIComponent(String(optimizedLimit))}`;
+    
+    console.log(`[App] Loading chat history: ${cid}, limit: ${optimizedLimit}`);
+    const startTime = Date.now();
+    
     this.http.get<{ success: boolean; messages?: any[] }>(url)
       .pipe(
-        // Safety: avoid indefinite spinners if the backend is slow/hung.
-        timeout(8000),
+        // Reduced timeout for faster failure detection
+        timeout(5000),
         finalize(() => {
+          const loadTime = Date.now() - startTime;
+          if (loadTime > 100) {
+            console.log(`[App] Chat history load took ${loadTime}ms`);
+          }
           // Only clear loading for the latest active request
           if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
           this.isLoadingChatHistory = false;
@@ -565,17 +578,20 @@ export class AppComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (resp) => {
-        // Ignore stale responses (switching conversations quickly)
-        if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
-        
-        // Don't reload if we just cleared (within cooldown period)
-        const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
-        if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN) {
-          console.log(`🚫 [App] Ignoring loadChatHistory response - chat history was just cleared ${timeSinceClear}ms ago`);
-          return;
-        }
-        
-        const serverMessages = (resp.messages || []).map((m: any) => ({
+          const loadTime = Date.now() - startTime;
+          console.log(`[App] Chat history loaded in ${loadTime}ms, messages: ${(resp.messages || []).length}`);
+          
+          // Ignore stale responses (switching conversations quickly)
+          if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
+          
+          // Don't reload if we just cleared (within cooldown period)
+          const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
+          if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN) {
+            console.log(`🚫 [App] Ignoring loadChatHistory response - chat history was just cleared ${timeSinceClear}ms ago`);
+            return;
+          }
+          
+          const serverMessages = (resp.messages || []).map((m: any) => ({
           id: m.id,
           role: (m.role || 'SYSTEM') as 'USER' | 'ASSISTANT' | 'SYSTEM',
           content: m.content,
@@ -3926,36 +3942,54 @@ export class AppComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }
-
+  
   /**
-   * Resolve username for an email address
+   * Resolve username for an email address (with request deduplication)
    */
   async resolveUsernameForEmail(email: string): Promise<string | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    
     // Check cache first
-    if (this.ownerUsernameCache.has(email)) {
-      return this.ownerUsernameCache.get(email) || null;
+    if (this.ownerUsernameCache.has(normalizedEmail)) {
+      return this.ownerUsernameCache.get(normalizedEmail) || null;
     }
     
-    // Check if it's the current user first (fast path)
-    if (this.currentEdenUser && this.currentEdenUser.primaryEmail === email) {
-      const resolved = this.identityService.resolveDisplayName(undefined, this.currentEdenUser);
-      this.ownerUsernameCache.set(email, resolved.displayName);
-      return resolved.displayName;
+    // Check if there's already a pending resolution for this email
+    if (this.pendingUsernameResolutions.has(normalizedEmail)) {
+      return this.pendingUsernameResolutions.get(normalizedEmail)!;
     }
     
-    // Query server for user by email
-    try {
-      const user = await firstValueFrom(this.identityService.getUserByEmail(email));
-      if (user) {
-        const resolved = this.identityService.resolveDisplayName(undefined, user);
-        this.ownerUsernameCache.set(email, resolved.displayName);
-        return resolved.displayName;
+    // Create new resolution promise
+    const resolutionPromise = (async () => {
+      try {
+        // Check if it's the current user first (fast path)
+        if (this.currentEdenUser && this.currentEdenUser.primaryEmail?.toLowerCase() === normalizedEmail) {
+          const resolved = this.identityService.resolveDisplayName(undefined, this.currentEdenUser);
+          this.ownerUsernameCache.set(normalizedEmail, resolved.displayName);
+          this.pendingUsernameResolutions.delete(normalizedEmail);
+          return resolved.displayName;
+        }
+        
+        // Query server for user by email (now with caching in identity service)
+        const user = await firstValueFrom(this.identityService.getUserByEmail(normalizedEmail));
+        if (user) {
+          const resolved = this.identityService.resolveDisplayName(undefined, user);
+          this.ownerUsernameCache.set(normalizedEmail, resolved.displayName);
+          this.pendingUsernameResolutions.delete(normalizedEmail);
+          return resolved.displayName;
+        }
+      } catch (error) {
+        console.error(`❌ [Identity] Failed to resolve username for email ${normalizedEmail}:`, error);
+        this.pendingUsernameResolutions.delete(normalizedEmail);
       }
-    } catch (error) {
-      console.error(`❌ [Identity] Failed to resolve username for email ${email}:`, error);
-    }
+      
+      return null;
+    })();
     
-    return null;
+    // Store pending resolution
+    this.pendingUsernameResolutions.set(normalizedEmail, resolutionPromise);
+    
+    return resolutionPromise;
   }
 
   /**
@@ -3980,7 +4014,8 @@ export class AppComponent implements OnInit, OnDestroy {
       }
       
       // Cache doesn't have it, try to resolve (async, will update later)
-      if (!this.ownerUsernameCache.has(garden.ownerEmail)) {
+      // Only trigger resolution if not already pending
+      if (!this.ownerUsernameCache.has(garden.ownerEmail) && !this.pendingUsernameResolutions.has(garden.ownerEmail.toLowerCase().trim())) {
         this.resolveUsernameForEmail(garden.ownerEmail).then(username => {
           if (username) {
             (garden as any).ownerUsername = username;

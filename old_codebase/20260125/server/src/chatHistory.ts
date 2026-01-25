@@ -101,7 +101,15 @@ export function appendChatMessage(msg: Omit<ChatMessage, "id" | "timestamp"> & {
 export function getConversationMessages(conversationId: string, limit: number = 50, beforeTs?: number): ChatMessage[] {
   const cid = String(conversationId || "").trim();
   const all = state.conversations[cid] || [];
-  const filtered = typeof beforeTs === "number" ? all.filter(m => m.timestamp < beforeTs) : all;
+  
+  // Optimize: If no beforeTs, just take the last N messages directly (faster than filtering)
+  if (typeof beforeTs !== "number") {
+    const maxLimit = Math.max(1, Math.min(500, limit));
+    return all.slice(-maxLimit);
+  }
+  
+  // Only filter if beforeTs is provided
+  const filtered = all.filter(m => m.timestamp < beforeTs);
   return filtered.slice(-Math.max(1, Math.min(500, limit)));
 }
 

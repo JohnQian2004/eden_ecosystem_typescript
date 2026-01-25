@@ -91,39 +91,23 @@ export function createConversation(
         payload: request.initialMessage.payload,
         replyTo: request.initialMessage.replyTo
       }, request.initialMessage.senderId, request.initialMessage.senderType, request.initialMessage.senderRole);
-      console.log(`✅ [Messaging] Initial message created: ${initialMsg.messageId} for conversation ${conversationId}`);
-      console.log(`✅ [Messaging] Initial message sender: ${initialMsg.senderId} (${initialMsg.senderType})`);
       
       // Verify message was stored
       const storedMsg = MESSAGES.get(initialMsg.messageId);
-      if (storedMsg) {
-        console.log(`✅ [Messaging] Verified: Initial message ${initialMsg.messageId} is stored in MESSAGES map`);
-      } else {
-        console.error(`❌ [Messaging] CRITICAL: Initial message ${initialMsg.messageId} was not stored in MESSAGES map!`);
-        // Try to store it again
+      if (!storedMsg) {
+        console.error(`❌ [Messaging] CRITICAL: Initial message ${initialMsg.messageId} was not stored!`);
         MESSAGES.set(initialMsg.messageId, initialMsg);
-        console.log(`✅ [Messaging] Re-stored initial message ${initialMsg.messageId}`);
       }
       
       // Verify message is in conversation's message list
       const convMessages = CONVERSATION_MESSAGES.get(conversationId) || [];
-      if (convMessages.includes(initialMsg.messageId)) {
-        console.log(`✅ [Messaging] Verified: Initial message ${initialMsg.messageId} is in conversation's message list`);
-      } else {
+      if (!convMessages.includes(initialMsg.messageId)) {
         console.error(`❌ [Messaging] CRITICAL: Initial message ${initialMsg.messageId} is NOT in conversation's message list!`);
         convMessages.push(initialMsg.messageId);
         CONVERSATION_MESSAGES.set(conversationId, convMessages);
-        console.log(`✅ [Messaging] Added initial message ${initialMsg.messageId} to conversation's message list`);
       }
     } catch (error: any) {
-      console.error(`❌ [Messaging] Failed to create initial message:`, error);
-      console.error(`❌ [Messaging] Error details:`, {
-        conversationId,
-        senderId: request.initialMessage.senderId,
-        senderType: request.initialMessage.senderType,
-        errorMessage: error.message,
-        errorStack: error.stack
-      });
+      console.error(`❌ [Messaging] Failed to create initial message:`, error.message);
       // Don't fail the conversation creation, but log the error
     }
   }
@@ -143,32 +127,58 @@ export function getConversation(conversationId: string): Conversation | null {
 }
 
 /**
- * Get conversations by filters
+ * Get conversations by filters (optimized)
  */
 export function getConversations(filters: ConversationFilters): Conversation[] {
-  let results = Array.from(CONVERSATIONS.values());
-
-  if (filters.scopeType) {
-    results = results.filter(c => c.scope.type === filters.scopeType);
+  const startTime = Date.now();
+  const totalConversations = CONVERSATIONS.size;
+  
+  // Optimize: Apply all filters in a single pass instead of multiple filter() calls
+  let results: Conversation[] = [];
+  
+  // If no filters, return all (but still need to convert to array for sorting)
+  if (!filters.scopeType && !filters.referenceId && !filters.participantId && !filters.state && !filters.gardenId) {
+    results = Array.from(CONVERSATIONS.values());
+  } else {
+    // Single pass filtering
+    for (const conversation of CONVERSATIONS.values()) {
+      let matches = true;
+      
+      if (filters.scopeType && conversation.scope.type !== filters.scopeType) {
+        matches = false;
+      }
+      
+      if (matches && filters.referenceId && conversation.scope.referenceId !== filters.referenceId) {
+        matches = false;
+      }
+      
+      if (matches && filters.participantId && !conversation.participants.includes(filters.participantId)) {
+        matches = false;
+      }
+      
+      if (matches && filters.state && conversation.state !== filters.state) {
+        matches = false;
+      }
+      
+      if (matches && filters.gardenId && conversation.scope.gardenId !== filters.gardenId) {
+        matches = false;
+      }
+      
+      if (matches) {
+        results.push(conversation);
+      }
+    }
   }
 
-  if (filters.referenceId) {
-    results = results.filter(c => c.scope.referenceId === filters.referenceId);
+  // Sort by updatedAt (newest first)
+  results.sort((a, b) => b.updatedAt - a.updatedAt);
+  
+  const duration = Date.now() - startTime;
+  if (duration > 50 || totalConversations > 100) {
+    console.log(`[Messaging] getConversations: ${results.length} results from ${totalConversations} total conversations in ${duration}ms`);
   }
-
-  if (filters.participantId) {
-    results = results.filter(c => c.participants.includes(filters.participantId!));
-  }
-
-  if (filters.state) {
-    results = results.filter(c => c.state === filters.state);
-  }
-
-  if (filters.gardenId) {
-    results = results.filter(c => c.scope.gardenId === filters.gardenId);
-  }
-
-  return results.sort((a, b) => b.updatedAt - a.updatedAt);
+  
+  return results;
 }
 
 /**
@@ -237,8 +247,21 @@ export function sendMessage(
   }
 
   // Check write permission
-  if (!hasPermission(conversation, senderId, senderType, 'write', senderRole)) {
+  // For ROOT_AUTHORITY, always allow write access to GOVERNANCE conversations
+  const isRootAuthority = senderType === 'ROOT_AUTHORITY';
+  const isGovernanceConversation = conversation.scope.type === 'GOVERNANCE';
+  const isRootWriteAccess = isRootAuthority && isGovernanceConversation;
+  
+  const hasWritePermission = hasPermission(conversation, senderId, senderType, 'write', senderRole);
+  
+  if (!hasWritePermission && !isRootWriteAccess) {
+    console.warn(`[Messaging] Entity ${senderId} (${senderType}) attempted to write to conversation ${request.conversationId} without permission.`);
+    console.warn(`[Messaging] Has write permission: ${hasWritePermission}, Is ROOT write access: ${isRootWriteAccess}`);
     throw new Error(`Entity ${senderId} does not have write permission for conversation ${request.conversationId}`);
+  }
+  
+  if (isRootWriteAccess) {
+    console.log(`[Messaging] ROOT_AUTHORITY writing to GOVERNANCE conversation ${request.conversationId} (bypassing permission check)`);
   }
 
   // Check conversation state
@@ -266,20 +289,17 @@ export function sendMessage(
   };
 
   MESSAGES.set(messageId, message);
-  console.log(`[Messaging] Stored message ${messageId} in MESSAGES map. Total messages: ${MESSAGES.size}`);
   
   // Add to conversation's message list
   const messageList = CONVERSATION_MESSAGES.get(request.conversationId) || [];
   messageList.push(messageId);
   CONVERSATION_MESSAGES.set(request.conversationId, messageList);
-  console.log(`[Messaging] Added message ${messageId} to conversation ${request.conversationId}. Total messages in conversation: ${messageList.length}`);
 
   // Update conversation timestamp
   conversation.updatedAt = Date.now();
   CONVERSATIONS.set(request.conversationId, conversation);
 
   saveMessagingPersistence();
-  console.log(`✅ [Messaging] Message sent: ${messageId} in conversation ${request.conversationId}`);
 
   return message;
 }
@@ -293,7 +313,7 @@ export function getConversationMessages(
   entityType: MessagingEntityType,
   entityRole?: string
 ): Message[] {
-  console.log(`[Messaging] getConversationMessages called: conversationId=${conversationId}, entityId=${entityId}, entityType=${entityType}`);
+  const startTime = Date.now();
   
   const conversation = CONVERSATIONS.get(conversationId);
   if (!conversation) {
@@ -301,38 +321,38 @@ export function getConversationMessages(
     throw new Error(`Conversation not found: ${conversationId}`);
   }
 
-  console.log(`[Messaging] Conversation found: ${conversationId}, participants: ${conversation.participants.join(', ')}, state: ${conversation.state}`);
-
   // Check if entity is a participant (basic requirement)
   const isParticipant = conversation.participants.includes(entityId);
-  console.log(`[Messaging] Entity ${entityId} is participant: ${isParticipant}`);
+  
+  // For ROOT_AUTHORITY, always allow access to GOVERNANCE conversations
+  const isRootAuthority = entityType === 'ROOT_AUTHORITY';
+  const isGovernanceConversation = conversation.scope.type === 'GOVERNANCE';
+  const isRootAccess = isRootAuthority && isGovernanceConversation;
   
   // Check read permission
   const hasReadPermission = hasPermission(conversation, entityId, entityType, 'read', entityRole);
-  console.log(`[Messaging] Entity ${entityId} has read permission: ${hasReadPermission}`);
   
-  // Allow access if entity is a participant OR has explicit read permission
-  // This is a safety measure - participants should generally be able to read their conversations
-  if (!isParticipant && !hasReadPermission) {
-    console.warn(`[Messaging] Entity ${entityId} (${entityType}) attempted to read conversation ${conversationId} without permission. Is participant: ${isParticipant}, Has permission: ${hasReadPermission}`);
+  // Allow access if:
+  // 1. Entity is a participant, OR
+  // 2. Entity has explicit read permission, OR
+  // 3. Entity is ROOT_AUTHORITY accessing a GOVERNANCE conversation
+  if (!isParticipant && !hasReadPermission && !isRootAccess) {
+    console.warn(`[Messaging] Entity ${entityId} (${entityType}) attempted to read conversation ${conversationId} without permission.`);
     throw new Error(`Entity ${entityId} does not have read permission for conversation ${conversationId}`);
   }
 
   const messageIds = CONVERSATION_MESSAGES.get(conversationId) || [];
-  console.log(`[Messaging] Found ${messageIds.length} message IDs for conversation ${conversationId}`);
-  console.log(`[Messaging] Message IDs: ${messageIds.join(', ')}`);
-  console.log(`[Messaging] Total messages in MESSAGES map: ${MESSAGES.size}`);
+  
+  if (messageIds.length === 0) {
+    console.warn(`[Messaging] WARNING: Conversation ${conversationId} has NO message IDs`);
+  }
   
   const missingMessageIds: string[] = [];
   const messages = messageIds
     .map(id => {
       const msg = MESSAGES.get(id);
       if (!msg) {
-        console.warn(`[Messaging] Message ${id} not found in MESSAGES map`);
-        console.warn(`[Messaging] This message ID exists in CONVERSATION_MESSAGES but not in MESSAGES`);
         missingMessageIds.push(id);
-      } else {
-        console.log(`[Messaging] Found message ${id}: ${msg.messageType} from ${msg.senderId} (${msg.senderType})`);
       }
       return msg;
     })
@@ -345,13 +365,16 @@ export function getConversationMessages(
     const cleanedMessageIds = messageIds.filter(id => !missingMessageIds.includes(id));
     CONVERSATION_MESSAGES.set(conversationId, cleanedMessageIds);
     saveMessagingPersistence();
-    console.log(`[Messaging] Cleaned up conversation ${conversationId}. Remaining messages: ${cleanedMessageIds.length}`);
   }
 
-  console.log(`[Messaging] Retrieved ${messages.length} messages for conversation ${conversationId} (entity: ${entityId}, isParticipant: ${isParticipant}, hasPermission: ${hasReadPermission})`);
-  if (missingMessageIds.length > 0) {
-    console.warn(`[Messaging] Missing ${missingMessageIds.length} messages that were in CONVERSATION_MESSAGES but not in MESSAGES`);
+  const duration = Date.now() - startTime;
+  if (duration > 50 || messages.length === 0 && messageIds.length > 0) {
+    console.log(`[Messaging] Retrieved ${messages.length} messages for conversation ${conversationId} in ${duration}ms`);
+    if (messages.length === 0 && messageIds.length > 0) {
+      console.error(`[Messaging] WARNING: ${messageIds.length} message IDs but 0 messages retrieved!`);
+    }
   }
+  
   return messages;
 }
 

@@ -3842,8 +3842,17 @@ httpServer.on("request", async (req, res) => {
         sendChatHistoryResponse(200, { success: true, conversationId, messages: [] });
         return;
       }
+      
+      // Use dynamic import for faster startup, but cache the module
       const { getConversationMessages } = require("./src/chatHistory");
+      const startTime = Date.now();
       const messages = getConversationMessages(conversationId, limit, before);
+      const loadTime = Date.now() - startTime;
+      
+      if (loadTime > 100) {
+        console.log(`⚠️ [Chat History] Slow load: ${loadTime}ms for ${conversationId} (${messages.length} messages)`);
+      }
+      
       sendChatHistoryResponse(200, { success: true, conversationId, messages });
     } catch (e: any) {
       sendChatHistoryResponse(500, { success: false, error: e?.message || "Failed to load chat history" });

@@ -52,7 +52,7 @@
       },
       "state": "OPEN",
       "createdAt": 1769335784472,
-      "updatedAt": 1769338707906
+      "updatedAt": 1769344491253
     }
   ],
   "messages": [
@@ -127,6 +127,54 @@
       },
       "timestamp": 1769338707906,
       "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769340095816_5c9aace2",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god, please bless me"
+      },
+      "timestamp": 1769340095817,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769340379318_ee14fbd4",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god, please bless me"
+      },
+      "timestamp": 1769340379318,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769342651676_e9a00262",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "ROOT_AUTHORITY",
+      "senderType": "ROOT_AUTHORITY",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "I will bless you"
+      },
+      "timestamp": 1769342651676,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769344491252_ca6b0d48",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "ROOT_AUTHORITY",
+      "senderType": "ROOT_AUTHORITY",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "I will bless you"
+      },
+      "timestamp": 1769344491252,
+      "state": "ACTIVE"
     }
   ],
   "conversationMessages": {
@@ -136,7 +184,11 @@
       "msg_1769336619655_6301a1d0",
       "msg_1769337632409_fb9197aa",
       "msg_1769338498995_13b5925a",
-      "msg_1769338707906_79294c0b"
+      "msg_1769338707906_79294c0b",
+      "msg_1769340095816_5c9aace2",
+      "msg_1769340379318_ee14fbd4",
+      "msg_1769342651676_e9a00262",
+      "msg_1769344491252_ca6b0d48"
     ]
   },
   "entityConversations": {
@@ -147,5 +199,5 @@
       "conv_1769335784471_63d0a144"
     ]
   },
-  "savedAt": 1769338707906
+  "savedAt": 1769344491253
 }

@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { MessagingService, Conversation, Message } from '../../services/messaging.service';
 import { IdentityService } from '../../services/identity.service';
+import { getApiBaseUrl } from '../../services/api-base';
 
 @Component({
   selector: 'app-god-inbox',
@@ -18,8 +20,15 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   isGod: boolean = false; // Whether current user is GOD (ROOT_AUTHORITY)
   replyMessage: string = ''; // Message input for GOD to respond
   isSendingMessage: boolean = false;
+  showModal: boolean = false; // Control modal visibility
+
+  private apiUrl = getApiBaseUrl();
+  private lastLoadTime: number = 0;
+  private readonly LOAD_COOLDOWN = 2000; // 2 seconds cooldown between loads
+  private loadTimeout: any = null;
 
   constructor(
+    private http: HttpClient,
     private messagingService: MessagingService,
     private identityService: IdentityService,
     private cdr: ChangeDetectorRef
@@ -64,54 +73,60 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    if (this.loadTimeout) {
+      clearTimeout(this.loadTimeout);
+    }
   }
 
-  loadConversations(): void {
+  loadConversations(force: boolean = false): void {
     if (!this.userEmail) {
       console.warn('No user email available');
       this.isLoadingConversations = false;
       return;
     }
     
+    // Throttle: prevent rapid successive calls
+    const now = Date.now();
+    if (!force && now - this.lastLoadTime < this.LOAD_COOLDOWN) {
+      // Clear existing timeout and set a new one
+      if (this.loadTimeout) {
+        clearTimeout(this.loadTimeout);
+      }
+      this.loadTimeout = setTimeout(() => this.loadConversations(true), this.LOAD_COOLDOWN - (now - this.lastLoadTime));
+      return;
+    }
+    
+    this.lastLoadTime = now;
+    if (this.loadTimeout) {
+      clearTimeout(this.loadTimeout);
+      this.loadTimeout = null;
+    }
+    
     this.isLoadingConversations = true;
     
-    // Load GOVERNANCE conversations
-    // If user is GOD (ROOT_AUTHORITY), load all GOVERNANCE conversations
-    // Otherwise, load only conversations where user is a participant
+    // Optimize: Use backend filters more effectively
+    // If user is GOD, load all GOVERNANCE conversations
+    // Otherwise, filter by participantId on backend to reduce data transfer
     const filters: any = {
       scopeType: 'GOVERNANCE',
       state: 'OPEN'
     };
     
-    // Only filter by participant if not GOD
-    // For now, we'll load all GOVERNANCE conversations and filter client-side
-    // This allows users to see their own conversations with GOD
+    // For non-GOD users, filter by participant on backend to reduce data transfer
+    if (!this.isGod) {
+      filters.participantId = this.userEmail;
+    }
+    
     this.messagingService.getConversations(filters).subscribe({
       next: (response) => {
         if (response.success) {
           // Filter to only conversations with ROOT_AUTHORITY
-          // If user is GOD, show all GOVERNANCE conversations with ROOT_AUTHORITY
-          // Otherwise, show only conversations where user is a participant
-          this.conversations = response.conversations.filter(conv => {
-            const hasRootAuthority = conv.participants.includes('ROOT_AUTHORITY');
-            if (this.isGod) {
-              // GOD can see all GOVERNANCE conversations with ROOT_AUTHORITY
-              return hasRootAuthority;
-            } else {
-              // Regular users can only see their own conversations
-              const actualUserEmail = this.identityService.getCurrentUser()?.primaryEmail || '';
-              const isParticipant = conv.participants.includes(actualUserEmail);
-              return hasRootAuthority && isParticipant;
-            }
-          });
+          // Backend filtering already handled participant filtering for non-GOD users
+          this.conversations = response.conversations.filter(conv => 
+            conv.participants.includes('ROOT_AUTHORITY')
+          );
           // Sort by updatedAt (newest first)
           this.conversations.sort((a, b) => b.updatedAt - a.updatedAt);
-          
-          // Auto-select first conversation if available
-          if (this.conversations.length > 0 && !this.selectedConversation) {
-            this.selectConversation(this.conversations[0]);
-          }
         }
         this.isLoadingConversations = false;
         this.cdr.detectChanges();
@@ -127,6 +142,25 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   selectConversation(conversation: Conversation): void {
     this.selectedConversation = conversation;
     this.loadMessages(conversation.conversationId);
+  }
+  
+  openConversationModal(conversation: Conversation): void {
+    this.selectedConversation = conversation;
+    this.showModal = true;
+    this.loadMessages(conversation.conversationId);
+  }
+  
+  closeModal(): void {
+    this.showModal = false;
+    // Optionally clear selected conversation when closing
+    // this.selectedConversation = null;
+  }
+  
+  closeModalOnBackdrop(event: Event): void {
+    const target = event.target as HTMLElement;
+    if (target.classList.contains('modal') || target.classList.contains('modal-backdrop')) {
+      this.closeModal();
+    }
   }
 
   loadMessages(conversationId: string): void {
@@ -216,22 +250,57 @@ export class GodInboxComponent implements OnInit, OnDestroy {
     }
     
     this.isSendingMessage = true;
+    const messageText = this.replyMessage.trim();
+    
+    // Get the user's email from conversation participants (the one that's not ROOT_AUTHORITY)
+    const userEmail = this.selectedConversation.participants.find(p => p !== 'ROOT_AUTHORITY') || '';
     
     this.messagingService.sendMessage({
       conversationId: this.selectedConversation.conversationId,
       messageType: 'TEXT',
-      payload: { text: this.replyMessage.trim() },
+      payload: { text: messageText },
       senderId: 'ROOT_AUTHORITY',
       senderType: 'ROOT_AUTHORITY'
     }).subscribe({
       next: (response) => {
         if (response.success) {
           console.log('[GOD Inbox] Message sent successfully:', response.message);
+          
+          // Also append to user's chat history so it appears in their chat
+          if (userEmail) {
+            const chatHistoryConversationId = `conv:service:god:user`;
+            const clientId = `c_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+            const clientTs = Date.now();
+            
+            this.http.post<{ success: boolean; message?: any }>(`${this.apiUrl}/api/chat-history/append`, {
+              conversationId: chatHistoryConversationId,
+              id: clientId,
+              role: 'ASSISTANT',
+              content: messageText,
+              timestamp: clientTs,
+              userEmail: userEmail
+            }).subscribe({
+              next: () => {
+                console.log('[GOD Inbox] Message also appended to user chat history');
+              },
+              error: (err) => {
+                console.error('[GOD Inbox] Failed to append to chat history:', err);
+              }
+            });
+          }
+          
           this.replyMessage = '';
-          // Reload messages to show the new one
-          this.loadMessages(this.selectedConversation!.conversationId);
-          // Reload conversations to update the updatedAt timestamp
-          this.loadConversations();
+          // Add the new message to the messages array immediately (optimistic update)
+          if (response.message) {
+            this.messages.push(response.message);
+            this.messages.sort((a, b) => a.timestamp - b.timestamp);
+          }
+          // Reload messages to ensure we have the latest (but don't reload conversations immediately)
+          if (this.selectedConversation) {
+            this.loadMessages(this.selectedConversation.conversationId);
+          }
+          // Reload conversations after a delay to update the updatedAt timestamp (throttled)
+          setTimeout(() => this.loadConversations(), 1000);
         }
         this.isSendingMessage = false;
         this.cdr.detectChanges();

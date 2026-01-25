@@ -5,30 +5,36 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
   
-  .list-group-item {
-    border-left: none;
-    border-right: none;
-    
-    &:first-child {
-      border-top: none;
-    }
-    
-    &.active {
-      background-color: #0d6efd;
-      color: white;
-      border-color: #0d6efd;
-      
-      .text-muted {
-        color: rgba(255, 255, 255, 0.75) !important;
+  .table {
+    tbody tr {
+      &:hover {
+        background-color: #f8f9fa;
       }
-    }
-    
-    &:hover:not(.active) {
-      background-color: #f8f9fa;
     }
   }
   
-  .card-body {
+  // Modal styles
+  .modal {
+    &.show {
+      display: block;
+    }
+  }
+  
+  .modal-dialog-scrollable {
+    max-height: 90vh;
+    
+    .modal-body {
+      max-height: calc(90vh - 200px);
+      overflow-y: auto;
+    }
+  }
+  
+  .messages-section {
+    .messages-list {
+      display: flex;
+      flex-direction: column;
+    }
+    
     .card {
       border: 1px solid #dee2e6;
       
@@ -42,45 +48,23 @@
     }
   }
   
-  // Messages container with scrolling
-  .messages-container {
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 15px;
-    flex: 1;
-    min-height: 0; // Important for flex scrolling
-    max-height: 100%; // Ensure it doesn't exceed parent
-    
-    .messages-list {
-      display: flex;
-      flex-direction: column;
-    }
-  }
-  
-  // Scrollbar styling
-  .messages-container::-webkit-scrollbar {
+  // Scrollbar styling for modal
+  .modal-body::-webkit-scrollbar {
     width: 8px;
   }
   
-  .messages-container::-webkit-scrollbar-track {
+  .modal-body::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 4px;
   }
   
-  .messages-container::-webkit-scrollbar-thumb {
+  .modal-body::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
     
     &:hover {
       background: #555;
     }
-  }
-  
-  // Ensure the right column has proper height constraints
-  .col-md-8 {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
   }
 }
 

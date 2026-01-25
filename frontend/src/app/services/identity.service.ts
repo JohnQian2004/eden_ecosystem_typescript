@@ -23,6 +23,12 @@ export class IdentityService {
   
   // Garden users cache (gardenId -> GardenUser)
   private gardenUsersCache = new Map<string, GardenUser>();
+  
+  // User by email cache (email -> EdenUser)
+  private userByEmailCache = new Map<string, EdenUser>();
+  
+  // Pending requests cache (email -> Observable) to prevent duplicate requests
+  private pendingUserByEmailRequests = new Map<string, Observable<EdenUser | null>>();
 
   constructor(private http: HttpClient) {
     // Load current user from localStorage on init
@@ -152,15 +158,46 @@ export class IdentityService {
   }
 
   /**
-   * Get Eden user by email
+   * Get Eden user by email (with caching and request deduplication)
    */
   getUserByEmail(email: string): Observable<EdenUser | null> {
-    return this.http.get<{ success: boolean; user?: EdenUser }>(
-      `${this.apiUrl}/api/identity/user-by-email/${encodeURIComponent(email)}`
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check cache first
+    if (this.userByEmailCache.has(normalizedEmail)) {
+      return of(this.userByEmailCache.get(normalizedEmail)!);
+    }
+    
+    // Check if there's already a pending request for this email
+    if (this.pendingUserByEmailRequests.has(normalizedEmail)) {
+      return this.pendingUserByEmailRequests.get(normalizedEmail)!;
+    }
+    
+    // Create new request
+    const request = this.http.get<{ success: boolean; user?: EdenUser }>(
+      `${this.apiUrl}/api/identity/user-by-email/${encodeURIComponent(normalizedEmail)}`
     ).pipe(
-      map(response => response.user || null),
-      catchError(() => of(null))
+      map(response => {
+        const user = response.user || null;
+        if (user) {
+          this.userByEmailCache.set(normalizedEmail, user);
+        }
+        // Remove from pending requests
+        this.pendingUserByEmailRequests.delete(normalizedEmail);
+        return user;
+      }),
+      catchError((error) => {
+        // Remove from pending requests on error
+        this.pendingUserByEmailRequests.delete(normalizedEmail);
+        console.error(`[IdentityService] Failed to get user by email ${normalizedEmail}:`, error);
+        return of(null);
+      })
     );
+    
+    // Store pending request
+    this.pendingUserByEmailRequests.set(normalizedEmail, request);
+    
+    return request;
   }
 
   /**
@@ -278,6 +315,22 @@ export class IdentityService {
   clearCurrentUser(): void {
     this.setCurrentUser(null);
     this.gardenUsersCache.clear();
+    this.userByEmailCache.clear();
+    this.pendingUserByEmailRequests.clear();
+  }
+  
+  /**
+   * Clear user by email cache (useful when user data might have changed)
+   */
+  clearUserByEmailCache(email?: string): void {
+    if (email) {
+      const normalizedEmail = email.toLowerCase().trim();
+      this.userByEmailCache.delete(normalizedEmail);
+      this.pendingUserByEmailRequests.delete(normalizedEmail);
+    } else {
+      this.userByEmailCache.clear();
+      this.pendingUserByEmailRequests.clear();
+    }
   }
 
   /**
