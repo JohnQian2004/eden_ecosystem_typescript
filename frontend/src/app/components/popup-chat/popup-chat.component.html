@@ -1,0 +1,196 @@
+<div class="popup-chat-overlay">
+  <div class="popup-chat-container">
+    <div class="popup-chat-header">
+      <h5 class="mb-0">⚡ GOD inbox with Mercy</h5>
+      <div class="d-flex gap-2">
+        <button 
+          *ngIf="activeTab === 'chat'"
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="clearChat()"
+          [disabled]="chatMessages.length === 0"
+          title="Clear chat">
+          🗑️
+        </button>
+        <button 
+          *ngIf="activeTab === 'inbox'"
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="refreshInbox()"
+          title="Refresh inbox">
+          🔄
+        </button>
+        <button 
+          class="btn btn-sm btn-outline-secondary" 
+          type="button" 
+          (click)="closePopup()"
+          title="Close">
+          ✕
+        </button>
+      </div>
+    </div>
+    
+    <!-- Tabs -->
+    <div class="popup-chat-tabs">
+      <button 
+        class="tab-button"
+        [class.active]="activeTab === 'chat'"
+        (click)="activeTab = 'chat'">
+        💬 Chat
+      </button>
+      <button 
+        class="tab-button"
+        [class.active]="activeTab === 'inbox'"
+        (click)="activeTab = 'inbox'">
+        📥 Inbox
+      </button>
+    </div>
+    
+    <!-- Chat Tab Content -->
+    <div *ngIf="activeTab === 'chat'" class="popup-chat-messages">
+      <div *ngIf="chatMessages.length === 0" class="text-center text-muted py-3">
+        <small>No messages yet. Start a conversation with GOD.</small>
+      </div>
+      <div *ngFor="let m of chatMessages" class="popup-chat-message mb-2 p-2 rounded" 
+           [ngClass]="{
+             'user-message': m.role === 'USER',
+             'assistant-message': m.role === 'ASSISTANT',
+             'system-message': m.role === 'SYSTEM'
+           }">
+        <div class="d-flex align-items-start gap-2">
+          <span class="message-role-icon">{{ m.role === 'USER' ? '👤' : m.role === 'ASSISTANT' ? '⚡' : '🔧' }}</span>
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="message-role-label small fw-semibold" 
+                    [ngClass]="{
+                      'text-primary': m.role === 'USER',
+                      'text-success': m.role === 'ASSISTANT',
+                      'text-secondary': m.role === 'SYSTEM'
+                    }">
+                {{ getRoleLabel(m.role) }}
+              </span>
+              <small class="text-muted">{{ formatTimestamp(m.timestamp) }}</small>
+            </div>
+            <!-- Plain text content (no markdown formatting) -->
+            <div class="message-content-plain">{{ m.content }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Chat Input (only for chat tab) -->
+    <div *ngIf="activeTab === 'chat'" class="popup-chat-input">
+      <form (ngSubmit)="onSubmit()" class="d-flex gap-2">
+        <input 
+          type="text" 
+          class="form-control form-control-sm" 
+          [(ngModel)]="chatInput"
+          name="popupChatInput"
+          placeholder="Type your message..."
+          [disabled]="isProcessing"
+          (keydown.enter)="onSubmit()">
+        <button 
+          type="submit" 
+          class="btn btn-primary btn-sm"
+          [disabled]="!chatInput.trim() || isProcessing">
+          <span *ngIf="!isProcessing">Send</span>
+          <span *ngIf="isProcessing" class="spinner-border spinner-border-sm"></span>
+        </button>
+      </form>
+    </div>
+    
+    <!-- Inbox Tab Content -->
+    <div *ngIf="activeTab === 'inbox'" class="popup-chat-inbox">
+      <div class="inbox-layout">
+        <!-- Conversations List (Left) -->
+        <div class="inbox-conversations">
+          <div class="inbox-header">
+            <h6 class="mb-0">Conversations</h6>
+            <small class="text-muted">{{ inboxConversations.length }} · Read-only</small>
+          </div>
+          
+          <div *ngIf="isLoadingInboxConversations" class="text-center p-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          
+          <div *ngIf="!isLoadingInboxConversations && inboxConversations.length === 0" class="text-center p-3 text-muted">
+            <small>No conversations yet.</small>
+          </div>
+          
+          <div *ngIf="!isLoadingInboxConversations" class="inbox-conversation-list">
+            <button
+              *ngFor="let conv of inboxConversations"
+              type="button"
+              class="inbox-conversation-item"
+              [class.active]="selectedInboxConversation?.conversationId === conv.conversationId"
+              (click)="selectInboxConversation(conv)">
+              <div class="conversation-preview">
+                <div class="conversation-participants">
+                  <span *ngIf="conv.participants.length > 2">
+                    {{ getOtherParticipants(conv.participants) }}
+                  </span>
+                  <span *ngIf="conv.participants.length === 2">
+                    {{ getFirstNonRootParticipant(conv.participants) }}
+                  </span>
+                </div>
+                <small class="text-muted">{{ formatInboxTimestamp(conv.updatedAt) }}</small>
+              </div>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Messages Display (Right) -->
+        <div class="inbox-messages">
+          <div *ngIf="!selectedInboxConversation" class="text-center p-4 text-muted">
+            <small>Select a conversation to view messages.</small>
+          </div>
+          
+          <div *ngIf="selectedInboxConversation">
+            <div class="inbox-messages-header">
+              <small class="text-muted">
+                {{ selectedInboxConversation.conversationId }}
+              </small>
+            </div>
+            
+            <div class="inbox-messages-content">
+              <div *ngIf="isLoadingInboxMessages" class="text-center p-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+              
+              <div *ngIf="!isLoadingInboxMessages && inboxMessages.length === 0" class="text-center p-3 text-muted">
+                <small>No messages in this conversation.</small>
+              </div>
+              
+              <div *ngIf="!isLoadingInboxMessages && inboxMessages.length > 0">
+                <div *ngFor="let message of inboxMessages" class="inbox-message-item">
+                  <div class="d-flex align-items-start gap-2">
+                    <span class="message-icon">{{ message.senderType === 'ROOT_AUTHORITY' ? '⚡' : '👤' }}</span>
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="fw-semibold small">{{ getInboxSenderLabel(message) }}</span>
+                        <small class="text-muted">{{ formatInboxTimestamp(message.timestamp) }}</small>
+                      </div>
+                      <div class="message-content" style="white-space: pre-wrap;">
+                        <span *ngIf="message.messageType === 'TEXT' && message.payload.text">
+                          {{ message.payload.text }}
+                        </span>
+                        <span *ngIf="message.messageType === 'MEDIA' && message.payload.mediaUrl">
+                          Media: <a [href]="message.payload.mediaUrl" target="_blank">{{ message.payload.mediaUrl }}</a>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

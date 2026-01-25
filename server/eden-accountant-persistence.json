@@ -81,14 +81,14 @@
       "totalCashierFees": 2.0000000000000004
     },
     "priesthood": {
-      "count": 4,
+      "count": 6,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
       "totalRootCAFees": 0,
       "totalIndexerFees": 0,
-      "totalProviderFees": null,
-      "totalCashierFees": null
+      "totalProviderFees": 0,
+      "totalCashierFees": 0
     },
     "airline": {
       "count": 10,
@@ -151,7 +151,7 @@
       "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1769300070926,
+  "lastUpdated": 1769337481040,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-25T00:14:30.926Z"
+  "lastSaved": "2026-01-25T10:38:01.040Z"
 }

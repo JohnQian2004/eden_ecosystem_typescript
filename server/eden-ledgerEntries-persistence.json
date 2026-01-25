@@ -10052,7 +10052,27 @@
         "pair": "TOKEN/SOL",
         "tradeId": "fceefdf8-a94a-4fd4-8080-a568cf6d2eb5"
       }
+    },
+    {
+      "entryId": "e028ada4-28a3-4ba4-a945-35c60744c424",
+      "txId": "priesthood_app_fee_1769302195216_35f00016c4929221",
+      "timestamp": 1769302195216,
+      "payer": "billdraper25@gmail.com",
+      "payerId": "billdraper25@gmail.com",
+      "merchant": "Eden Treasury",
+      "providerUuid": "eden:root:ca:priesthood",
+      "serviceType": "priesthood",
+      "amount": 1,
+      "iGasCost": 0,
+      "fees": {},
+      "status": "pending",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "type": "application_fee",
+        "description": "Priesthood Application Fee (Non-refundable)",
+        "price": 1
+      }
     }
   ],
-  "lastSaved": "2026-01-24T22:35:59.128Z"
+  "lastSaved": "2026-01-25T00:49:56.277Z"
 }

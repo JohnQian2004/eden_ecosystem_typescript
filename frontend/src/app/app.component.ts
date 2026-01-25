@@ -60,6 +60,7 @@ export class AppComponent implements OnInit, OnDestroy {
   userEmail: string = ''; // Will be set from localStorage or default
   showSignInModal: boolean = false; // Control modal visibility
   showStripePaymentModal: boolean = false; // Control Stripe Payment Rail modal visibility
+  showPopupChat: boolean = false; // Control popup chat visibility
   checkBalanceAfterSignIn: boolean = false; // Flag to check balance after sign-in
   signInEmail: string = ''; // Email for sign-in form
   signInPassword: string = 'Qweasdzxc1!'; // Password for sign-in form
@@ -207,7 +208,7 @@ export class AppComponent implements OnInit, OnDestroy {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' = 'workflow';
+  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' = 'workflow';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -505,7 +506,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private chatHistoryLoadSeq: number = 0;
   private lastAppendBySig: Map<string, number> = new Map();
   private conversationIdByExecutionId = new Map<string, string>();
+  private chatHistoryClearedAt: number = 0; // Timestamp when chat history was last cleared
   private readonly MAX_CHAT_HISTORY_MESSAGES = 200; // UI render cap (history is still persisted on server)
+  private readonly CHAT_HISTORY_CLEAR_COOLDOWN = 1000; // Ignore messages for 1 second after clearing
 
   private buildConversationId(scope: 'garden' | 'service', id: string): string {
     const mode = (this.currentViewMode || 'user').toLowerCase();
@@ -524,6 +527,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.chatHistoryMessages = [];
     this.isLoadingChatHistory = true;
     this.lastAppendBySig.clear();
+    this.chatHistoryClearedAt = 0; // Reset cleared timestamp when switching conversations
     this.cdr.detectChanges();
     this.loadChatHistory();
   }
@@ -534,6 +538,16 @@ export class AppComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
       return;
     }
+    
+    // Don't reload if we just cleared (within cooldown period)
+    const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
+    if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN) {
+      console.log(`🚫 [App] Preventing loadChatHistory - chat history was just cleared ${timeSinceClear}ms ago`);
+      this.isLoadingChatHistory = false;
+      this.cdr.detectChanges();
+      return;
+    }
+    
     const cid = this.activeConversationId;
     const seq = ++this.chatHistoryLoadSeq;
     this.isLoadingChatHistory = true;
@@ -553,6 +567,14 @@ export class AppComponent implements OnInit, OnDestroy {
         next: (resp) => {
         // Ignore stale responses (switching conversations quickly)
         if (seq !== this.chatHistoryLoadSeq || this.activeConversationId !== cid) return;
+        
+        // Don't reload if we just cleared (within cooldown period)
+        const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
+        if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN) {
+          console.log(`🚫 [App] Ignoring loadChatHistory response - chat history was just cleared ${timeSinceClear}ms ago`);
+          return;
+        }
+        
         const serverMessages = (resp.messages || []).map((m: any) => ({
           id: m.id,
           role: (m.role || 'SYSTEM') as 'USER' | 'ASSISTANT' | 'SYSTEM',
@@ -599,19 +621,37 @@ export class AppComponent implements OnInit, OnDestroy {
   async clearChatHistoryPanel() {
     console.log(`🗑️ [App] clearChatHistoryPanel called, activeConversationId: ${this.activeConversationId}`);
     
+    // Set flag to prevent messages from being re-added immediately after clearing
+    this.chatHistoryClearedAt = Date.now();
+    
+    // Cancel any in-flight load FIRST to prevent reloading
+    this.chatHistoryLoadSeq++; // cancel any in-flight load
+    
     // Clear both UI cache and persisted history
     if (!this.activeConversationId) {
       // No active conversation, just clear UI
       console.log(`🗑️ [App] No active conversation, clearing UI only`);
-      this.chatHistoryLoadSeq++; // cancel any in-flight load
-      this.chatHistoryMessages = [];
+      // Use splice to ensure Angular detects the change
+      this.chatHistoryMessages.splice(0, this.chatHistoryMessages.length);
       this.isLoadingChatHistory = false;
       this.lastAppendBySig.clear();
+      this.cdr.markForCheck();
       this.cdr.detectChanges();
+      console.log(`✅ [App] UI cache cleared (no conversation), messages count: ${this.chatHistoryMessages.length}`);
       return;
     }
 
-    // Delete persisted history from server
+    // Clear UI cache IMMEDIATELY (before server delete) so user sees instant feedback
+    console.log(`🗑️ [App] Clearing UI cache immediately, current messages count: ${this.chatHistoryMessages.length}`);
+    // Use splice to ensure Angular detects the change
+    this.chatHistoryMessages.splice(0, this.chatHistoryMessages.length);
+    this.isLoadingChatHistory = false;
+    this.lastAppendBySig.clear();
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    console.log(`✅ [App] UI cache cleared, messages count: ${this.chatHistoryMessages.length}`);
+
+    // Delete persisted history from server (async, but UI is already cleared)
     try {
       console.log(`🗑️ [App] Deleting persisted history for conversation: ${this.activeConversationId}`);
       const response = await this.http.request<any>('DELETE', `${this.apiUrl}/api/chat-history/delete`, {
@@ -628,17 +668,8 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     } catch (error: any) {
       console.error(`❌ [App] Error deleting persisted chat history:`, error);
-      // Continue with UI clear even if server delete fails
+      // Continue - UI is already cleared
     }
-
-    // Clear UI cache
-    console.log(`🗑️ [App] Clearing UI cache, current messages count: ${this.chatHistoryMessages.length}`);
-    this.chatHistoryLoadSeq++; // cancel any in-flight load
-    this.chatHistoryMessages = [];
-    this.isLoadingChatHistory = false;
-    this.lastAppendBySig.clear();
-    this.cdr.detectChanges();
-    console.log(`✅ [App] UI cache cleared, messages count: ${this.chatHistoryMessages.length}`);
   }
 
   private appendChatHistory(role: 'USER' | 'ASSISTANT' | 'SYSTEM', content: string, extra?: any, conversationIdOverride?: string) {
@@ -646,6 +677,13 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!targetConversationId) return;
     const trimmed = String(content || '').trim();
     if (!trimmed) return;
+
+    // Ignore messages added shortly after clearing (prevent re-adding from delayed WebSocket events)
+    const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
+    if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN && targetConversationId === this.activeConversationId) {
+      console.log(`🚫 [App] Ignoring message append - chat history was just cleared ${timeSinceClear}ms ago`);
+      return;
+    }
 
     // Dedupe only for non-USER messages (USER should always append, even if repeated)
     const sig = `${role}|${targetConversationId}|${trimmed}`;
@@ -821,10 +859,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
       // Garden-level chat history: append assistant messages from LLM responses
       if (event.type === 'llm_response') {
+        // Extract message from multiple possible locations (backend may send it differently)
         const llmMsg =
+          (event as any).message ||  // Top-level message (from broadcast)
           (event as any).data?.response?.message ||
           (event as any).data?.message ||
-          (event as any).message;
+          '';
         const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
         const stepId = (event as any).data?.stepId;
         const conv = evExecId ? this.conversationIdByExecutionId.get(String(evExecId)) : null;
@@ -838,6 +878,9 @@ export class AppComponent implements OnInit, OnDestroy {
         
         console.log('🎬 [App] ========================================');
         console.log('🎬 [App] llm_response event received');
+        console.log('🎬 [App] event.message:', (event as any).message);
+        console.log('🎬 [App] event.data?.message:', (event as any).data?.message);
+        console.log('🎬 [App] event.data?.response?.message:', (event as any).data?.response?.message);
         console.log('🎬 [App] hasMessage:', !!llmMsg);
         console.log('🎬 [App] message:', llmMsg?.substring(0, 100));
         console.log('🎬 [App] hasVideoUrl:', !!videoUrl);
@@ -846,7 +889,9 @@ export class AppComponent implements OnInit, OnDestroy {
         console.log('🎬 [App] movieTitle:', movieTitle);
         console.log('🎬 [App] stepId:', stepId);
         console.log('🎬 [App] executionId:', evExecId);
-        console.log('🎬 [App] Full event.data:', JSON.stringify((event as any).data, null, 2));
+        console.log('🎬 [App] conversationId from map:', conv);
+        console.log('🎬 [App] activeConversationId:', this.activeConversationId);
+        console.log('🎬 [App] Full event:', JSON.stringify(event, null, 2));
         console.log('🎬 [App] ========================================');
         
         // CRITICAL: If we have videoUrl and movieTitle, create/update a decision request
@@ -933,16 +978,36 @@ export class AppComponent implements OnInit, OnDestroy {
           console.log('🎬 [App] ========================================');
         }
         
-        if (llmMsg && typeof llmMsg === 'string') {
-          this.appendChatHistory('ASSISTANT', llmMsg, { 
-            executionId: evExecId,
-            videoUrl: videoUrl,
-            movieTitle: movieTitle
-          }, conv || undefined);
+        if (llmMsg && typeof llmMsg === 'string' && llmMsg.trim()) {
+          // Determine conversationId: use mapped one if available, otherwise use activeConversationId
+          // For regular chat (no executionId), use activeConversationId
+          const targetConversationId = conv || this.activeConversationId;
           
-          if (videoUrl) {
-            console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', videoUrl);
+          console.log('🎬 [App] Calling appendChatHistory with:');
+          console.log('🎬 [App]   - message length:', llmMsg.length);
+          console.log('🎬 [App]   - targetConversationId:', targetConversationId);
+          console.log('🎬 [App]   - activeConversationId:', this.activeConversationId);
+          
+          if (!targetConversationId) {
+            console.warn('⚠️ [App] No targetConversationId available, cannot append message to chat history');
+          } else {
+            this.appendChatHistory('ASSISTANT', llmMsg, { 
+              executionId: evExecId,
+              videoUrl: videoUrl,
+              movieTitle: movieTitle
+            }, targetConversationId);
+            
+            console.log('🎬 [App] ✅ Called appendChatHistory for llm_response');
+            if (videoUrl) {
+              console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', videoUrl);
+            }
           }
+        } else {
+          console.warn('⚠️ [App] llm_response event has no valid message:', {
+            hasMessage: !!llmMsg,
+            messageType: typeof llmMsg,
+            messageValue: llmMsg
+          });
         }
       }
 
@@ -951,6 +1016,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const deletedConvId = (event as any).data.conversationId;
         if (deletedConvId === this.activeConversationId) {
           console.log(`🗑️ [App] Received deletion event for active conversation, clearing UI`);
+          this.chatHistoryClearedAt = Date.now(); // Set flag to prevent re-adding messages
           this.chatHistoryMessages = [];
           this.lastAppendBySig.clear();
           this.cdr.detectChanges();
@@ -961,6 +1027,13 @@ export class AppComponent implements OnInit, OnDestroy {
       if (event.type === 'chat_history_message' && (event as any).data?.message) {
         const m = (event as any).data.message;
         if (m?.conversationId && m.conversationId === this.activeConversationId) {
+          // Ignore messages added shortly after clearing (prevent re-adding from delayed WebSocket events)
+          const timeSinceClear = Date.now() - this.chatHistoryClearedAt;
+          if (timeSinceClear < this.CHAT_HISTORY_CLEAR_COOLDOWN) {
+            console.log(`🚫 [App] Ignoring chat_history_message event - chat history was just cleared ${timeSinceClear}ms ago`);
+            return;
+          }
+          
           const exists = this.chatHistoryMessages.some(x => (x as any).id && (x as any).id === m.id);
           if (!exists) {
             const next = [...this.chatHistoryMessages, {
@@ -1428,85 +1501,118 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
-    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
-    // The LLM service mapper will determine the actual service/garden from user input
-    this.selectedAppleGarden = { id: garden.id, name: garden.name };
-    this.selectedDexGarden = null;
-
-    // Keep serviceType for context, but LLM will determine actual selection from user input
-    const inferred = this.inferServiceTypeFromGarden(garden as any);
-    this.selectedServiceType = inferred;
-    
-    // Use service-specific sample query from catalog instead of hardcoded movie query
-    const servicePrompt = this.getServiceTypePrompt(inferred);
-    
-    // Set the input placeholder to the sample query
-    this.inputPlaceholder = servicePrompt.sampleQuery || `Show me ${inferred} options`;
-    
-    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
-    console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Using sample query: ${servicePrompt.sampleQuery}`);
-
-    // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
-    this.setActiveConversation(this.buildConversationId('garden', garden.id));
-
-    // Switch to workflow-chat tab and set the input
-    this.activeTab = 'workflow-chat';
-    
-    setTimeout(() => {
-      // Focus on the workflow-chat-display input
-      const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
-      if (input) {
-        input.value = servicePrompt.sampleQuery || '';
-        input.focus();
-        input.select();
-        // Trigger input event to update ngModel
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+    try {
+      console.log(`🔄 [App] selectAppleGarden called for garden: ${garden.name} (${garden.id})`);
+      
+      // Don't allow garden selection if processing (but allow if just stuck)
+      if (this.isProcessing) {
+        console.warn('⚠️ Garden click blocked: isProcessing is true. Forcing reset...');
+        this.isProcessing = false;
+        this.cdr.detectChanges();
       }
-    }, 100);
+      
+      // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+      // The LLM service mapper will determine the actual service/garden from user input
+      this.selectedAppleGarden = { id: garden.id, name: garden.name };
+      this.selectedDexGarden = null;
 
-    this.cdr.detectChanges();
+      // Keep serviceType for context, but LLM will determine actual selection from user input
+      const inferred = this.inferServiceTypeFromGarden(garden as any);
+      this.selectedServiceType = inferred;
+      
+      // Use service-specific sample query from catalog instead of hardcoded movie query
+      const servicePrompt = this.getServiceTypePrompt(inferred);
+      
+      // Set the input placeholder to the sample query
+      this.inputPlaceholder = servicePrompt.sampleQuery || `Show me ${inferred} options`;
+      
+      // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+      console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Using sample query: ${servicePrompt.sampleQuery}`);
+
+      // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
+      this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+      // Switch to workflow-chat tab and set the input
+      this.activeTab = 'workflow-chat';
+      
+      setTimeout(() => {
+        // Focus on the workflow-chat-display input
+        const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
+        if (input) {
+          input.value = servicePrompt.sampleQuery || '';
+          input.focus();
+          input.select();
+          // Trigger input event to update ngModel
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          console.warn(`⚠️ [App] Could not find input[name="chatInput"] after garden click`);
+        }
+      }, 100);
+
+      this.cdr.detectChanges();
+    } catch (error: any) {
+      console.error(`❌ [App] Error in selectAppleGarden:`, error);
+      alert(`Error selecting garden: ${error.message}`);
+    }
   }
 
   selectDexGarden(garden: {id: string, name: string}) {
-    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
-    // The LLM service mapper will determine the actual service/garden from user input
-    this.selectedDexGarden = garden;
-
-    // Keep serviceType for context, but LLM will determine actual selection from user input
-    const dexServiceType = this.getDexServiceType();
-    this.selectedServiceType = dexServiceType.type;
-    
-    // Use DEX-specific sample query from catalog instead of hardcoded movie query
-    const servicePrompt = this.getServiceTypePrompt('dex');
-    
-    // Set the input placeholder to the sample query
-    this.inputPlaceholder = servicePrompt.sampleQuery || 'Trade tokens';
-    
-    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
-    console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Using DEX sample query: ${servicePrompt.sampleQuery}`);
-
-    // Garden-scoped chat history for DEX gardens (single switch)
-    this.setActiveConversation(this.buildConversationId('garden', garden.id));
-
-    // Switch to workflow-chat tab and set the input
-    this.activeTab = 'workflow-chat';
-    
-    // Focus input quickly (non-blocking)
-    setTimeout(() => {
-      // Focus on the workflow-chat-display input
-      const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
-      if (input) {
-        input.value = servicePrompt.sampleQuery || '';
-        input.focus();
-        input.select();
-        // Trigger input event to update ngModel
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+    try {
+      console.log(`🔄 [App] selectDexGarden called for garden: ${garden.name} (${garden.id})`);
+      
+      // Don't allow garden selection if processing (but allow if just stuck)
+      if (this.isProcessing) {
+        console.warn('⚠️ DEX Garden click blocked: isProcessing is true. Forcing reset...');
+        this.isProcessing = false;
+        this.cdr.detectChanges();
       }
-    }, 100);
+      
+      // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+      // The LLM service mapper will determine the actual service/garden from user input
+      this.selectedDexGarden = garden;
+      this.selectedAppleGarden = null;
 
-    // Future: can be used to filter DEX pools/providers by garden in backend
-    (this as any).selectedDexGardenId = garden.id;
-    this.cdr.detectChanges();
+      // Keep serviceType for context, but LLM will determine actual selection from user input
+      const dexServiceType = this.getDexServiceType();
+      this.selectedServiceType = dexServiceType.type;
+      
+      // Use DEX-specific sample query from catalog instead of hardcoded movie query
+      const servicePrompt = this.getServiceTypePrompt('dex');
+      
+      // Set the input placeholder to the sample query
+      this.inputPlaceholder = servicePrompt.sampleQuery || 'Trade tokens';
+      
+      // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+      console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Using DEX sample query: ${servicePrompt.sampleQuery}`);
+
+      // Garden-scoped chat history for DEX gardens (single switch)
+      this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+      // Switch to workflow-chat tab and set the input
+      this.activeTab = 'workflow-chat';
+      
+      // Focus input quickly (non-blocking)
+      setTimeout(() => {
+        // Focus on the workflow-chat-display input
+        const input = document.querySelector('input[name="chatInput"]') as HTMLInputElement;
+        if (input) {
+          input.value = servicePrompt.sampleQuery || '';
+          input.focus();
+          input.select();
+          // Trigger input event to update ngModel
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          console.warn(`⚠️ [App] Could not find input[name="chatInput"] after DEX garden click`);
+        }
+      }, 100);
+
+      // Future: can be used to filter DEX pools/providers by garden in backend
+      (this as any).selectedDexGardenId = garden.id;
+      this.cdr.detectChanges();
+    } catch (error: any) {
+      console.error(`❌ [App] Error in selectDexGarden:`, error);
+      alert(`Error selecting DEX garden: ${error.message}`);
+    }
   }
   
   checkServiceGardens() {
@@ -1902,6 +2008,16 @@ export class AppComponent implements OnInit, OnDestroy {
 
   closeStripePaymentModal() {
     this.showStripePaymentModal = false;
+    this.cdr.detectChanges();
+  }
+
+  openPopupChat() {
+    this.showPopupChat = true;
+    this.cdr.detectChanges();
+  }
+
+  closePopupChat() {
+    this.showPopupChat = false;
     this.cdr.detectChanges();
   }
 
@@ -3370,7 +3486,7 @@ export class AppComponent implements OnInit, OnDestroy {
     return;
 
     // From here: workflow path (requires iGas)
-    const serviceType = this.selectedServiceType;
+    const serviceType = this.selectedServiceType || 'unknown';
 
     // Check balance before submitting workflow
     if (!this.hasSufficientBalance()) {
@@ -3384,12 +3500,32 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // Ensure chat history conversation is aligned to the service we're about to run.
     // NOTE: activeConversationId can be left over from a previous tile; don't rely on "null" checks.
-    const desiredConversationId =
-      serviceType === 'dex' && this.selectedDexGarden?.id
-        ? this.buildConversationId('garden', this.selectedDexGarden.id)
-        : (this.selectedAppleGarden?.id
-            ? this.buildConversationId('garden', this.selectedAppleGarden.id)
-            : this.buildConversationId('service', serviceType));
+    let desiredConversationId: string;
+    if (serviceType === 'dex') {
+      const dexGarden = this.selectedDexGarden;
+      if (dexGarden !== null && dexGarden !== undefined) {
+        const gardenId = (dexGarden as NonNullable<typeof dexGarden>).id;
+        if (gardenId) {
+          desiredConversationId = this.buildConversationId('garden', gardenId);
+        } else {
+          desiredConversationId = this.buildConversationId('service', serviceType);
+        }
+      } else {
+        desiredConversationId = this.buildConversationId('service', serviceType);
+      }
+    } else {
+      const appleGarden = this.selectedAppleGarden;
+      if (appleGarden !== null && appleGarden !== undefined) {
+        const gardenId = (appleGarden as NonNullable<typeof appleGarden>).id;
+        if (gardenId) {
+          desiredConversationId = this.buildConversationId('garden', gardenId);
+        } else {
+          desiredConversationId = this.buildConversationId('service', serviceType);
+        }
+      } else {
+        desiredConversationId = this.buildConversationId('service', serviceType);
+      }
+    }
     if (this.activeConversationId !== desiredConversationId) {
       this.setActiveConversation(desiredConversationId);
     }
@@ -3399,7 +3535,7 @@ export class AppComponent implements OnInit, OnDestroy {
     console.log(`📋 Context: Service Type = ${serviceType}`);
     
     this.isProcessing = true;
-    const input = this.userInput.trim();
+    const chatInput = this.userInput.trim();
 
     // New chat started: tell all panels to clear immediately (before workflow/execution id exists).
     try {
@@ -3407,33 +3543,33 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {}
     this.userInput = ''; // Clear input after submission
     // Save serviceType before resetting (needed for finally block)
-    const workflowServiceType = this.selectedServiceType;
+    const workflowServiceType = serviceType;
     this.selectedServiceType = null; // Reset context
     this.inputPlaceholder = 'Select a service type above or type your query...';
     
     // Force change detection to update UI
     this.cdr.detectChanges();
 
-    // Set a safety timeout to ensure isProcessing is always reset
+    // Set a safety timeout to ensure isProcessing is always reset (reduced to 30 seconds)
     const safetyTimeout = setTimeout(() => {
       if (this.isProcessing) {
-        console.warn('⚠️ Safety timeout: Resetting isProcessing flag');
+        console.warn('⚠️ Safety timeout: Resetting isProcessing flag after 30 seconds');
         this.isProcessing = false;
         this.cdr.detectChanges();
       }
-    }, 180000); // 3 minutes safety timeout
+    }, 30000); // 30 seconds safety timeout
 
     try {
       // Automatically start workflow for the selected service type
-      console.log(`🎬 [Workflow] Automatically starting ${serviceType} workflow for chat input:`, input);
+      console.log(`🎬 [Workflow] Automatically starting ${workflowServiceType} workflow for chat input:`, chatInput);
       // New chat = new execution. Clear the chat console immediately and ignore any late events from the prior run.
       this.activeWorkflowExecutionId = null;
       this.amcWorkflowActive = true;
       this.workflowMessages = [];
 
       // Ensure workflow is loaded before starting
-      console.log(`🔄 [Workflow] Ensuring ${serviceType} workflow is loaded...`);
-      this.flowWiseService.loadWorkflowIfNeeded(serviceType);
+      console.log(`🔄 [Workflow] Ensuring ${workflowServiceType} workflow is loaded...`);
+      this.flowWiseService.loadWorkflowIfNeeded(workflowServiceType);
       
       // Wait a bit for workflow to load if it was just requested
       // Check if workflow is loaded, if not wait and retry
@@ -3441,21 +3577,24 @@ export class AppComponent implements OnInit, OnDestroy {
       let retries = 0;
       const maxRetries = 10; // Wait up to 5 seconds (10 * 500ms)
       
+      let loadedWorkflow: any = null;
       while (!workflowLoaded && retries < maxRetries) {
-        const workflow = this.flowWiseService.getWorkflow(serviceType);
+        const workflow = this.flowWiseService.getWorkflow(workflowServiceType);
         if (workflow) {
-          console.log(`✅ [Workflow] ${serviceType} workflow is loaded: ${workflow.name}`);
+          loadedWorkflow = workflow;
+          console.log(`✅ [Workflow] ${workflowServiceType} workflow is loaded: ${loadedWorkflow.name}`);
           workflowLoaded = true;
+          break; // Exit loop once workflow is loaded
         } else {
-          console.log(`⏳ [Workflow] Waiting for ${serviceType} workflow to load... (attempt ${retries + 1}/${maxRetries})`);
+          console.log(`⏳ [Workflow] Waiting for ${workflowServiceType} workflow to load... (attempt ${retries + 1}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, 500));
           retries++;
         }
       }
       
       if (!workflowLoaded) {
-        console.error(`❌ [Workflow] Failed to load ${serviceType} workflow after ${maxRetries} attempts`);
-        alert(`Failed to load ${serviceType} workflow. Please try again.`);
+        console.error(`❌ [Workflow] Failed to load ${workflowServiceType} workflow after ${maxRetries} attempts`);
+        alert(`Failed to load ${workflowServiceType} workflow. Please try again.`);
         this.amcWorkflowActive = false;
         this.isProcessing = false;
         this.cdr.detectChanges();
@@ -3463,11 +3602,11 @@ export class AppComponent implements OnInit, OnDestroy {
       }
 
       // Create service-type-agnostic mock data based on serviceType
-      const mockData = this.createMockDataForServiceType(serviceType);
+      const mockData = this.createMockDataForServiceType(workflowServiceType);
       
-      console.log(`🚀 [Workflow] Starting ${serviceType} workflow execution...`);
-      let execution = this.flowWiseService.startWorkflow(serviceType, {
-        input: input,
+      console.log(`🚀 [Workflow] Starting ${workflowServiceType} workflow execution...`);
+      let execution = this.flowWiseService.startWorkflow(workflowServiceType, {
+        input: chatInput,
         email: this.userEmail,
         user: { email: this.userEmail, id: this.userEmail },
         edenChatSession: {
@@ -3481,38 +3620,43 @@ export class AppComponent implements OnInit, OnDestroy {
 
       // If workflow not started (shouldn't happen if loaded), log error
       if (!execution) {
-        console.error(`❌ [Workflow] Failed to start ${serviceType} workflow even though it's loaded`);
-        alert(`Failed to start ${serviceType} workflow. Please try again.`);
+        console.error(`❌ [Workflow] Failed to start ${workflowServiceType} workflow even though it's loaded`);
+        alert(`Failed to start ${workflowServiceType} workflow. Please try again.`);
         this.amcWorkflowActive = false;
         this.isProcessing = false;
         this.cdr.detectChanges();
         return;
       }
 
-      console.log(`🚀 [Workflow] ${serviceType} workflow started successfully:`, execution.executionId);
+      // At this point, execution is guaranteed to be non-null (we checked above)
+      // TypeScript needs explicit type assertion since control flow analysis doesn't work here
+      const workflowExecution = execution as NonNullable<typeof execution>;
+      console.log(`🚀 [Workflow] ${workflowServiceType} workflow started successfully:`, workflowExecution.executionId);
       console.log(`🚀 [Workflow] Execution details:`, {
-        executionId: execution.executionId,
-        serviceType: execution.serviceType,
-        currentStep: execution.currentStep,
-        workflowId: execution.workflowId
+        executionId: workflowExecution.executionId,
+        serviceType: workflowExecution.serviceType,
+        currentStep: workflowExecution.currentStep,
+        workflowId: workflowExecution.workflowId
       });
 
       // Scope the "chat console output" to this execution so starting a new chat always clears it.
-      this.activeWorkflowExecutionId = String(execution.executionId);
+      this.activeWorkflowExecutionId = String(workflowExecution.executionId);
       // Notify WorkflowChatDisplay tab (separate component) to clear immediately.
       try {
         window.dispatchEvent(new CustomEvent('eden_workflow_started', { detail: { executionId: this.activeWorkflowExecutionId } }));
       } catch {}
 
       // Bind this execution to the current chat history conversation so assistant replies cannot leak across tiles.
-      if (this.activeConversationId) {
-        this.conversationIdByExecutionId.set(String(execution.executionId), this.activeConversationId);
+      const conversationId = this.activeConversationId;
+      if (conversationId !== null && conversationId !== undefined) {
+        const validConversationId = conversationId as string;
+        this.conversationIdByExecutionId.set(String(workflowExecution.executionId), validConversationId);
       }
       
       // Add user message to workflow chat
       this.workflowMessages.push({
         type: 'user_message',
-        message: input,
+        message: chatInput,
         timestamp: Date.now(),
         data: { user: this.userEmail }
       });
@@ -3566,6 +3710,15 @@ export class AppComponent implements OnInit, OnDestroy {
           console.log('✅ Verified: isProcessing is false');
         }
       }, 100);
+      
+      // Additional safety check after 1 second
+      setTimeout(() => {
+        if (this.isProcessing) {
+          console.error('❌ CRITICAL: isProcessing still true after 1 second! Force resetting...');
+          this.isProcessing = false;
+          this.cdr.detectChanges();
+        }
+      }, 1000);
     }
   }
 

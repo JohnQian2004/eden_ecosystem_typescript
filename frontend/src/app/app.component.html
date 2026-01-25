@@ -412,11 +412,31 @@
                 Loading Apple gardens...
               </div>
               <div class="row g-2">
+                <!-- GOD inbox with Mercy Button (First Element) -->
+                <div class="col-6 col-md-4 col-lg-2">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    (click)="openPopupChat()" 
+                    style="cursor: pointer; border: 2px solid #ffd700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="card-body text-center p-2" style="color: white;">
+                      <div class="small mb-1">
+                        <span class="badge bg-warning text-dark">#0</span>
+                      </div>
+                      <div class="small fw-bold mb-1" style="font-size: 0.9rem;">
+                        ⚡ GOD inbox with Mercy
+                      </div>
+                      <div class="small mt-1" style="opacity: 0.9;">
+                        <span>💬 Direct Access</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of appleGardens; let idx = index; trackBy: trackByGardenId">
                   <div 
                     class="card service-card-compact h-100" 
                     (click)="selectAppleGarden(garden)" 
-                    style="cursor: pointer;">
+                    style="cursor: pointer;"
+                    [attr.data-garden-id]="garden.id">
                     <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle(garden.serviceType)" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
@@ -460,7 +480,8 @@
                       'dex-service': true
                     }"
                     (click)="selectDexGarden(garden)" 
-                    style="cursor: pointer;">
+                    style="cursor: pointer;"
+                    [attr.data-garden-id]="garden.id">
                     <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
                       <div class="small mb-1">
                         <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
@@ -686,6 +707,28 @@
                       ⚙️ System Configuration
                     </button>
                   </li>
+                  <li class="nav-item" role="presentation" *ngIf="currentViewMode !== 'user'">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'governance'}"
+                      id="governance-tab" 
+                      type="button"
+                      (click)="activeTab = 'governance'"
+                      role="tab">
+                      🜂 LLM Governess
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'god-inbox'}"
+                      id="god-inbox-tab" 
+                      type="button"
+                      (click)="activeTab = 'god-inbox'"
+                      role="tab">
+                      ⚡ GOD's Inbox
+                    </button>
+                  </li>
             </ul>
             
             <!-- Tab Content - Only show when user is signed in -->
@@ -861,6 +904,25 @@
                 role="tabpanel"
                 *ngIf="currentViewMode !== 'user'">
                 <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
+              </div>
+              
+              <!-- LLM Governess Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'governance'}"
+                id="governance-pane" 
+                role="tabpanel"
+                *ngIf="currentViewMode !== 'user'">
+                <app-llm-governance *ngIf="activeTab === 'governance'"></app-llm-governance>
+              </div>
+              
+              <!-- GOD Inbox Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'god-inbox'}"
+                id="god-inbox-pane" 
+                role="tabpanel">
+                <app-god-inbox *ngIf="activeTab === 'god-inbox'"></app-god-inbox>
               </div>
             </div>
           </div>
@@ -1123,5 +1185,12 @@
     </div>
   </div>
   <div *ngIf="showPriesthoodManagementPanel" class="modal-backdrop fade show" (click)="showPriesthoodManagementPanel = false"></div>
+  
+  <!-- Popup Chat Component -->
+  <app-popup-chat 
+    *ngIf="showPopupChat"
+    [userEmail]="userEmail"
+    (close)="closePopupChat()">
+  </app-popup-chat>
 </div>
 

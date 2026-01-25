@@ -14,10 +14,21 @@ import type {
   ActorRole
 } from './types';
 
+// Evaluation history storage (in-memory, for monitoring dashboard)
+interface EvaluationHistoryEntry {
+  timestamp: number;
+  context: RuleEvaluationContext;
+  result: RuleEvaluationResult;
+}
+
 export class GovernanceService {
+  private evaluationHistory: EvaluationHistoryEntry[] = [];
+  private readonly MAX_HISTORY = 1000; // Keep last 1000 evaluations
+
   /**
    * Evaluate action against governance rules
    * This is the main entry point for rule evaluation
+   * AUTOMATED - No human intervention required
    */
   evaluateAction(context: RuleEvaluationContext): RuleEvaluationResult {
     console.log(`🔍 [Governance] Evaluating action: ${context.action} by ${context.actorRole}`);
@@ -48,7 +59,62 @@ export class GovernanceService {
       console.log(`⚠️ [Governance] Denied by rules: ${result.deniedRules.join(', ')}`);
     }
     
+    // Step 6: Store in history for monitoring dashboard
+    this.evaluationHistory.push({
+      timestamp: Date.now(),
+      context: { ...context },
+      result: { ...result }
+    });
+    
+    // Keep only last MAX_HISTORY entries
+    if (this.evaluationHistory.length > this.MAX_HISTORY) {
+      this.evaluationHistory.shift();
+    }
+    
     return result;
+  }
+  
+  /**
+   * Get evaluation history (for monitoring dashboard)
+   */
+  getEvaluationHistory(limit: number = 100): EvaluationHistoryEntry[] {
+    return this.evaluationHistory.slice(-limit).reverse(); // Most recent first
+  }
+  
+  /**
+   * Get evaluation statistics (self-scoring metrics)
+   */
+  getEvaluationStats(): {
+    totalEvaluations: number;
+    allowedCount: number;
+    deniedCount: number;
+    escalatedCount: number;
+    complianceRate: number;
+    averageTrustScore: number;
+    recentEvaluations: number;
+  } {
+    const recent = this.evaluationHistory.slice(-100); // Last 100 evaluations
+    const allowed = recent.filter(e => e.result.decision === 'ALLOW').length;
+    const denied = recent.filter(e => e.result.decision === 'DENY').length;
+    const escalated = recent.filter(e => e.result.decision === 'ESCALATE').length;
+    const total = recent.length;
+    
+    const trustScores = recent
+      .map(e => e.context.trustScore)
+      .filter((score): score is number => score !== undefined && score !== null);
+    const avgTrustScore = trustScores.length > 0
+      ? trustScores.reduce((sum, score) => sum + score, 0) / trustScores.length
+      : 0;
+    
+    return {
+      totalEvaluations: this.evaluationHistory.length,
+      allowedCount: allowed,
+      deniedCount: denied,
+      escalatedCount: escalated,
+      complianceRate: total > 0 ? (allowed / total) * 100 : 0,
+      averageTrustScore: avgTrustScore,
+      recentEvaluations: recent.length
+    };
   }
   
   /**

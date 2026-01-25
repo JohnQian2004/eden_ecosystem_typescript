@@ -1,0 +1,53 @@
+.god-inbox-container {
+  padding: 20px;
+  
+  .card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .list-group-item {
+    border-left: none;
+    border-right: none;
+    
+    &:first-child {
+      border-top: none;
+    }
+    
+    &.active {
+      background-color: #0d6efd;
+      color: white;
+      border-color: #0d6efd;
+      
+      .text-muted {
+        color: rgba(255, 255, 255, 0.75) !important;
+      }
+    }
+    
+    &:hover:not(.active) {
+      background-color: #f8f9fa;
+    }
+  }
+  
+  .card-body {
+    .card {
+      border: 1px solid #dee2e6;
+      
+      &.border-primary {
+        border-color: #0d6efd;
+      }
+      
+      &.border-secondary {
+        border-color: #6c757d;
+      }
+    }
+  }
+}
+
+// Simple nl2br pipe replacement (inline)
+::ng-deep {
+  .god-inbox-container {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+}
+

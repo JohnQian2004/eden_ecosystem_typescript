@@ -1,0 +1,161 @@
+<div class="god-inbox-container">
+  <div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        ⚡ GOD's Inbox
+        <small class="ms-2 text-white-50">Messages to GOD</small>
+      </h5>
+      <button class="btn btn-sm btn-outline-light" (click)="refresh()" title="Refresh">
+        <span>🔄</span>
+      </button>
+    </div>
+    
+    <div class="card-body p-0">
+      <div class="row g-0" style="min-height: 500px;">
+        <!-- Conversations List (Left Sidebar) -->
+        <div class="col-md-4 border-end" style="max-height: 600px; overflow-y: auto;">
+          <div class="p-3 border-bottom bg-light">
+            <h6 class="mb-0">Conversations</h6>
+            <small class="text-muted">{{ conversations.length }} conversation(s)</small>
+          </div>
+          
+          <div *ngIf="isLoadingConversations" class="text-center p-4">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          
+          <div *ngIf="!isLoadingConversations && conversations.length === 0" class="text-center p-4 text-muted">
+            <p>No conversations yet.</p>
+            <small>Messages sent to GOD will appear here.</small>
+          </div>
+          
+          <div *ngIf="!isLoadingConversations" class="list-group list-group-flush">
+            <button
+              *ngFor="let conv of conversations"
+              type="button"
+              class="list-group-item list-group-item-action"
+              [class.active]="selectedConversation?.conversationId === conv.conversationId"
+              (click)="selectConversation(conv)"
+              style="cursor: pointer;">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">
+                    <span *ngIf="conv.participants.length > 2">
+                      {{ getOtherParticipants(conv.participants) }}
+                    </span>
+                    <span *ngIf="conv.participants.length === 2">
+                      {{ getFirstNonRootParticipant(conv.participants) }}
+                    </span>
+                  </div>
+                  <small class="text-muted d-block">
+                    {{ formatTimestamp(conv.createdAt) }}
+                  </small>
+                  <span class="badge bg-secondary ms-1" [ngClass]="{
+                    'bg-success': conv.state === 'OPEN',
+                    'bg-warning': conv.state === 'FROZEN',
+                    'bg-danger': conv.state === 'CLOSED'
+                  }">
+                    {{ conv.state }}
+                  </span>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Messages Display (Right Side) -->
+        <div class="col-md-8" style="max-height: 600px; overflow-y: auto;">
+          <div *ngIf="!selectedConversation" class="text-center p-5 text-muted">
+            <h6>Select a conversation</h6>
+            <p class="small">Choose a conversation from the list to view messages.</p>
+          </div>
+          
+          <div *ngIf="selectedConversation">
+            <!-- Conversation Header -->
+            <div class="p-3 border-bottom bg-light">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h6 class="mb-1">Conversation: {{ selectedConversation.conversationId }}</h6>
+                  <small class="text-muted">
+                    Created: {{ formatTimestamp(selectedConversation.createdAt) }}
+                    <span *ngIf="selectedConversation.updatedAt !== selectedConversation.createdAt">
+                      · Updated: {{ formatTimestamp(selectedConversation.updatedAt) }}
+                    </span>
+                  </small>
+                </div>
+                <span class="badge" [ngClass]="{
+                  'bg-success': selectedConversation.state === 'OPEN',
+                  'bg-warning': selectedConversation.state === 'FROZEN',
+                  'bg-danger': selectedConversation.state === 'CLOSED'
+                }">
+                  {{ selectedConversation.state }}
+                </span>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted">
+                  <strong>Participants:</strong> {{ selectedConversation.participants.join(', ') }}
+                </small>
+              </div>
+            </div>
+            
+            <!-- Messages -->
+            <div class="p-3">
+              <div *ngIf="isLoadingMessages" class="text-center p-4">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+              
+              <div *ngIf="!isLoadingMessages && messages.length === 0" class="text-center p-4 text-muted">
+                <p>No messages in this conversation.</p>
+              </div>
+              
+              <div *ngIf="!isLoadingMessages && messages.length > 0">
+                <div *ngFor="let message of messages" class="mb-3">
+                  <div class="card" [ngClass]="{
+                    'border-primary': message.senderType === 'ROOT_AUTHORITY',
+                    'border-secondary': message.senderType === 'USER'
+                  }">
+                    <div class="card-body p-2">
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <span class="fw-semibold">{{ getSenderLabel(message) }}</span>
+                          <small class="text-muted ms-2">{{ formatTimestamp(message.timestamp) }}</small>
+                        </div>
+                        <span class="badge bg-secondary" [ngClass]="{
+                          'bg-success': message.state === 'ACTIVE',
+                          'bg-warning': message.state === 'FORGIVEN',
+                          'bg-danger': message.state === 'REDACTED'
+                        }">
+                          {{ message.state }}
+                        </span>
+                      </div>
+                      
+                      <div [ngClass]="getMessageStateClass(message)">
+                        <div *ngIf="message.messageType === 'TEXT' && message.payload.text">
+                          <div style="white-space: pre-wrap;">{{ message.payload.text }}</div>
+                        </div>
+                        <div *ngIf="message.messageType === 'MEDIA' && message.payload.mediaUrl">
+                          <p><strong>Media:</strong> <a [href]="message.payload.mediaUrl" target="_blank">{{ message.payload.mediaUrl }}</a></p>
+                        </div>
+                        <div *ngIf="message.messageType === 'SYSTEM' && message.payload.systemEvent">
+                          <p class="text-muted"><em>System Event: {{ message.payload.systemEvent | json }}</em></p>
+                        </div>
+                      </div>
+                      
+                      <div *ngIf="message.replyTo" class="mt-2">
+                        <small class="text-muted">Reply to: {{ message.replyTo }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

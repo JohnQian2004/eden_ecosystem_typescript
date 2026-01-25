@@ -257,8 +257,16 @@ export function getConversationMessages(
     throw new Error(`Conversation not found: ${conversationId}`);
   }
 
+  // Check if entity is a participant (basic requirement)
+  const isParticipant = conversation.participants.includes(entityId);
+  
   // Check read permission
-  if (!hasPermission(conversation, entityId, entityType, 'read', entityRole)) {
+  const hasReadPermission = hasPermission(conversation, entityId, entityType, 'read', entityRole);
+  
+  // Allow access if entity is a participant OR has explicit read permission
+  // This is a safety measure - participants should generally be able to read their conversations
+  if (!isParticipant && !hasReadPermission) {
+    console.warn(`[Messaging] Entity ${entityId} (${entityType}) attempted to read conversation ${conversationId} without permission. Is participant: ${isParticipant}, Has permission: ${hasReadPermission}`);
     throw new Error(`Entity ${entityId} does not have read permission for conversation ${conversationId}`);
   }
 
@@ -268,6 +276,7 @@ export function getConversationMessages(
     .filter((msg): msg is Message => msg !== undefined)
     .sort((a, b) => a.timestamp - b.timestamp);
 
+  console.log(`[Messaging] Retrieved ${messages.length} messages for conversation ${conversationId} (entity: ${entityId}, isParticipant: ${isParticipant}, hasPermission: ${hasReadPermission})`);
   return messages;
 }
 

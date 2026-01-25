@@ -252,6 +252,7 @@ export type LLMResponse = {
   selectedListing2?: MovieListing | TokenListing | GenericServiceListing | null; // DEBUG: Track lifecycle separately
   iGasCost: number;
   tradeDetails?: DEXTrade; // For DEX trades
+  shouldRouteToGodInbox?: boolean; // If true, route message to GOD's inbox
 };
 
 // Wallet Types

@@ -463,6 +463,13 @@ Format service listings into a user-friendly message, OR answer informational qu
    - Answer these questions naturally and helpfully
    - Return JSON with: message (string with the answer), selectedListing (null), selectedListing2 (null), listings (empty array)
    - Provide clear, accurate answers to general knowledge questions
+   
+   C. **MESSAGES TO GOD** (Personal/Spiritual messages to GOD):
+   - Examples: "message to GOD: can you bless me", "send to GOD: I need help", "tell GOD: thank you", "GOD please help", "bless me GOD"
+   - These are personal messages directly addressed to GOD that should be routed to GOD's inbox
+   - Return JSON with: message (string indicating message was sent to GOD's inbox), selectedListing (null), selectedListing2 (null), listings (empty array), shouldRouteToGodInbox: true
+   - The message should confirm that the user's message has been sent to GOD's inbox
+   - Format: "✅ Your message has been sent to GOD's inbox. GOD will review it and respond when appropriate."
 
 CRITICAL CLASSIFICATION RULES:
 - If user asks "how to messaging", "how eden works", "what is eden", "who eden works" → EDEN-RELATED INFORMATIONAL QUERY
@@ -544,7 +551,8 @@ Return JSON format:
   "message": "...",
   "listings": [...],
   "selectedListing": { /* complete listing object with ALL fields */ },
-  "selectedListing2": { /* MUST be the same as selectedListing */ }
+  "selectedListing2": { /* MUST be the same as selectedListing */ },
+  "shouldRouteToGodInbox": false /* Set to true if this is a message to GOD that should be routed to inbox */
 }
 `;
 

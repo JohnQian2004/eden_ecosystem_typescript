@@ -1406,8 +1406,45 @@ async function executeStepActions(
           console.log(`🔍 [FlowWiseService] ENABLE_OPENAI: ${ENABLE_OPENAI}`);
           console.log(`🔍 [FlowWiseService] ========================================`);
           
+          // Handle case when there are no listings - return a helpful "no results" message
           if (!context.listings || context.listings.length === 0) {
-            throw new Error("Listings required for LLM formatting");
+            console.log(`⚠️ [FlowWiseService] No listings found - creating "no results" response`);
+            const userInput = context.userInput || "your request";
+            const serviceType = context.serviceType || context.queryResult?.query?.serviceType || "service";
+            
+            // Create a helpful "no results" response
+            const noResultsResponse = {
+              message: `I couldn't find any ${serviceType} options matching "${userInput}". Please try a different search term or check back later.`,
+              listings: [],
+              selectedListing: null,
+              iGasCost: 0 // No LLM cost for no-results response
+            };
+            
+            // Store response in context
+            context.llmResponse = noResultsResponse;
+            context.iGasCost = 0;
+            
+            // Broadcast to frontend
+            const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+            const execution = workflowExecutions?.get(executionId);
+            const { broadcastEvent } = await import("../broadcast");
+            broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: noResultsResponse.message,
+              timestamp: Date.now(),
+              data: {
+                response: noResultsResponse,
+                executionId: executionId,
+                workflowId: executionId,
+                stepId: step.id,
+                userInput: context.userInput,
+                serviceType: context.serviceType
+              }
+            });
+            
+            console.log(`✅ [FlowWiseService] Created "no results" response and broadcasted to frontend`);
+            break; // Exit the case statement - no need to process further
           }
           
           // Check if this is autoparts data - skip LLM processing for autoparts

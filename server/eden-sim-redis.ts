@@ -3000,8 +3000,31 @@ httpServer.on("request", async (req, res) => {
                       }
                       
                       // If we get here, we have no listings and no existing selectedListing
-                      console.error(`❌ [${requestId}] No listings available and no existing selectedListing/selectedListing2 to use`);
-                      throw new Error("Listings required for LLM formatting");
+                      // Create a helpful "no results" response instead of throwing an error
+                      console.warn(`⚠️ [${requestId}] No listings available and no existing selectedListing/selectedListing2 to use - creating "no results" response`);
+                      const userInput = updatedContext.userInput || "your request";
+                      const serviceType = formatServiceType || updatedContext.serviceType || updatedContext.queryResult?.query?.serviceType || "service";
+                      
+                      const noResultsResponse: LLMResponse = {
+                        message: `I couldn't find any ${serviceType} options matching "${userInput}". Please try a different search term or check back later.`,
+                        listings: [],
+                        selectedListing: null,
+                        selectedListing2: null,
+                        iGasCost: 0 // No LLM cost for no-results response
+                      };
+                      
+                      updatedContext.llmResponse = noResultsResponse;
+                      updatedContext.iGasCost = 0;
+                      
+                      actionResult = {
+                        llmResponse: noResultsResponse,
+                        listings: [],
+                        iGasCost: 0,
+                        currentIGas: 0
+                      };
+                      
+                      console.log(`✅ [${requestId}] Created "no results" response for empty listings`);
+                      break; // Exit the block instead of throwing
                     }
                     
                     // Use CLONED formatResponseWithOpenAI function directly (not imported)
@@ -4214,17 +4237,27 @@ httpServer.on("request", async (req, res) => {
     const entityRole = parsed.query.entityRole as string | undefined;
 
     if (!entityId || !entityType) {
+      console.error(`   ❌ [${requestId}] Missing required params: entityId=${entityId}, entityType=${entityType}`);
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: "entityId and entityType required" }));
       return;
     }
 
     try {
+      console.log(`   💬 [${requestId}] Getting messages for conversation ${conversationId}, entity: ${entityId} (${entityType})`);
       const messages = getConversationMessages(conversationId, entityId, entityType as any, entityRole);
+      console.log(`   ✅ [${requestId}] Retrieved ${messages.length} messages`);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: true, messages }));
     } catch (error: any) {
       console.error(`   ❌ [${requestId}] Get messages error:`, error);
+      console.error(`   ❌ [${requestId}] Error details:`, {
+        conversationId,
+        entityId,
+        entityType,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: error.message || "Failed to get messages" }));
     }
@@ -4443,11 +4476,14 @@ httpServer.on("request", async (req, res) => {
         
         // 🚨 REGULAR CHAT ENDPOINT: Only handles informational queries (RAG + general knowledge)
         // This endpoint is for REGULAR TEXT CHAT only - no workflows
-        console.log(`💬 [Chat] Processing REGULAR TEXT CHAT (informational query only)`);
+        const isGodChat = (body as any).isGodChat === true;
+        console.log(`💬 [Chat] Processing REGULAR TEXT CHAT (informational query only)${isGodChat ? ' - GOD CHAT MODE' : ''}`);
         
-        // Build conversation ID for chat history (matches frontend pattern: conv:service:chat:user)
+        // Build conversation ID for chat history (matches frontend pattern: conv:service:chat:user or conv:service:god)
         const { buildConversationId } = await import("./src/chatHistory");
-        const conversationId = buildConversationId('service', 'chat', 'user');
+        const conversationId = isGodChat 
+          ? buildConversationId('service', 'god')
+          : buildConversationId('service', 'chat', 'user');
         
         // Append user message to chat history
         const { appendChatMessage } = await import("./src/chatHistory");
@@ -4514,16 +4550,116 @@ httpServer.on("request", async (req, res) => {
         // Step 2: Not RAG → Give to LLM to handle (general knowledge or other informational queries)
         console.log(`💬 [Chat] Processing as LLM query (general knowledge or informational) - letting LLM handle it`);
         
+        // Detect if this is a message to GOD (pattern-based detection as fallback)
+        const inputLower = input.trim().toLowerCase();
+        const isMessageToGod = isGodChat || 
+          /message\s+to\s+god|send\s+to\s+god|tell\s+god|god\s+please|bless\s+me|prayer|pray\s+to|message\s+god|god\s+help|god\s+i\s+need/i.test(inputLower) ||
+          (inputLower.includes('god') && (inputLower.includes('bless') || inputLower.includes('help') || inputLower.includes('thank')));
+        
         // Handle with LLM - LLM will determine if it's general knowledge or needs rejection
+        // For GOD chat, use a special prompt that allows personal/spiritual responses
         const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
         const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
         
         try {
+          // For GOD chat, prepend a special context to allow personal/spiritual responses
+          const processedInput = isMessageToGod 
+            ? `[GOD CHAT MODE] You are GOD in the Eden ecosystem. The user is directly addressing you. Respond as GOD would - with wisdom, compassion, and understanding. This is a personal message, not a system query. User message: ${input.trim()}`
+            : input.trim();
+          
           const llmResponse = await formatFn(
             [], // No listings for informational queries
-            input.trim(),
-            { serviceType: "informational" }
+            processedInput,
+            { serviceType: isMessageToGod ? "god_chat" : "informational" }
           );
+          
+          // Check if LLM detected this should go to GOD's inbox (or pattern-based detection)
+          if (llmResponse.shouldRouteToGodInbox || isMessageToGod) {
+            console.log(`⚡ [Chat] Routing message to GOD's inbox for ${email}`);
+            
+            try {
+              // Create GOVERNANCE conversation with ROOT_AUTHORITY (GOD)
+              const { createConversation, sendMessage, getConversations } = await import("./src/messaging/conversationService");
+              
+              // Find existing GOD inbox conversation for this user
+              const existingConversations = getConversations({
+                scopeType: 'GOVERNANCE',
+                participantId: email
+              });
+              
+              // Look for conversation with ROOT_AUTHORITY as participant
+              let godConversation = existingConversations.find(conv => 
+                conv.participants.includes('ROOT_AUTHORITY') && 
+                conv.state === 'OPEN'
+              );
+              
+              if (!godConversation) {
+                // Create new GOVERNANCE conversation with ROOT_AUTHORITY
+                // Ensure both user and ROOT_AUTHORITY have read/write permissions
+                godConversation = createConversation(
+                  {
+                    scope: {
+                      type: 'GOVERNANCE',
+                      referenceId: `god_inbox_${Date.now()}`,
+                    },
+                    participants: [email, 'ROOT_AUTHORITY'],
+                    policy: {
+                      readPermissions: [
+                        { entityType: 'USER', entityId: email },
+                        { entityType: 'ROOT_AUTHORITY' }
+                      ],
+                      writePermissions: [
+                        { entityType: 'USER', entityId: email },
+                        { entityType: 'ROOT_AUTHORITY' }
+                      ],
+                      invitePermissions: [
+                        { entityType: 'USER', entityId: email },
+                        { entityType: 'ROOT_AUTHORITY' }
+                      ],
+                      escalatePermissions: [
+                        { entityType: 'PRIEST' },
+                        { entityType: 'ROOT_AUTHORITY' }
+                      ],
+                      closePermissions: [
+                        { entityType: 'USER', entityId: email },
+                        { entityType: 'PRIEST' },
+                        { entityType: 'ROOT_AUTHORITY' }
+                      ]
+                    },
+                    initialMessage: {
+                      messageType: 'TEXT',
+                      payload: { text: input.trim() },
+                      senderId: email,
+                      senderType: 'USER'
+                    }
+                  },
+                  email,
+                  'USER'
+                );
+                console.log(`✅ [Chat] Created GOD inbox conversation: ${godConversation.conversationId}`);
+              } else {
+                // Send message to existing conversation
+                sendMessage(
+                  {
+                    conversationId: godConversation.conversationId,
+                    messageType: 'TEXT',
+                    payload: { text: input.trim() },
+                    replyTo: undefined
+                  },
+                  email,
+                  'USER',
+                  undefined // senderRole
+                );
+                console.log(`✅ [Chat] Sent message to existing GOD inbox conversation: ${godConversation.conversationId}`);
+              }
+              
+              // Update response message to confirm routing
+              llmResponse.message = `✅ Your message has been sent to GOD's inbox. GOD will review it and respond when appropriate.\n\nYour message: "${input.trim()}"`;
+            } catch (godInboxError: any) {
+              console.error(`❌ [Chat] Error routing to GOD inbox:`, godInboxError);
+              // Continue with normal response even if inbox routing fails
+            }
+          }
           
           // Append assistant response to chat history
           appendChatMessage({
@@ -4543,7 +4679,8 @@ httpServer.on("request", async (req, res) => {
             data: {
               query: input.trim(),
               response: llmResponse,
-              isLLM: true
+              isLLM: true,
+              routedToGodInbox: llmResponse.shouldRouteToGodInbox || isGodChat
             }
           });
           
@@ -4551,7 +4688,8 @@ httpServer.on("request", async (req, res) => {
           sendResponse(200, {
             success: true,
             message: llmResponse.message,
-            isLLM: true
+            isLLM: true,
+            routedToGodInbox: llmResponse.shouldRouteToGodInbox || isGodChat
           });
           console.log(`✅ [Chat] LLM query handled for ${email}`);
           console.log(`💬 [Chat] Response: "${llmResponse.message.substring(0, 100)}${llmResponse.message.length > 100 ? '...' : ''}"`);
@@ -10346,6 +10484,256 @@ httpServer.on("request", async (req, res) => {
   }
   
   // GET /api/priesthood/stats - Get statistics for dashboard
+  // 🜂 Governance API Endpoints
+  if (pathname === "/api/governance/evaluate" && req.method === "POST") {
+    console.log(`   🜂 [${requestId}] POST /api/governance/evaluate - Evaluating action against governance rules`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) return;
+      bodyReceived = true;
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { getGovernanceService } = await import("./src/governance/governanceService");
+        const governanceService = getGovernanceService();
+        
+        const result = governanceService.evaluateAction(parsedBody);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          result: result
+        }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error evaluating governance action:`, error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: error.message || "Failed to evaluate action"
+        }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/governance/rules" && req.method === "GET") {
+    console.log(`   🜂 [${requestId}] GET /api/governance/rules - Getting all governance rules`);
+    try {
+      const { getGovernanceService } = await import("./src/governance/governanceService");
+      const governanceService = getGovernanceService();
+      const rules = governanceService.getAllRules();
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        rules: rules
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting governance rules:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message || "Failed to get rules"
+      }));
+    }
+    return;
+  }
+
+  if (pathname.startsWith("/api/governance/rules/") && req.method === "GET") {
+    const ruleId = pathname.split("/").pop();
+    console.log(`   🜂 [${requestId}] GET /api/governance/rules/${ruleId} - Getting rule by ID`);
+    try {
+      const { getGovernanceService } = await import("./src/governance/governanceService");
+      const governanceService = getGovernanceService();
+      const rule = governanceService.getRule(ruleId || "");
+      
+      if (!rule) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: "Rule not found"
+        }));
+        return;
+      }
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        rule: rule
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting governance rule:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message || "Failed to get rule"
+      }));
+    }
+    return;
+  }
+
+  if (pathname === "/api/governance/rules" && req.method === "POST") {
+    console.log(`   🜂 [${requestId}] POST /api/governance/rules - Creating/updating governance rule`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) return;
+      bodyReceived = true;
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { rule, actorRole } = parsedBody;
+        
+        if (!rule || !actorRole) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Rule and actorRole are required"
+          }));
+          return;
+        }
+        
+        const { getGovernanceService } = await import("./src/governance/governanceService");
+        const { ActorRole } = await import("./src/governance/types");
+        const governanceService = getGovernanceService();
+        
+        governanceService.upsertRule(rule, actorRole as any);
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: "Rule created/updated successfully"
+        }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error creating/updating governance rule:`, error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: error.message || "Failed to create/update rule"
+        }));
+      }
+    });
+    return;
+  }
+
+  if (pathname.startsWith("/api/governance/rules/") && req.method === "DELETE") {
+    const ruleId = pathname.split("/").pop();
+    console.log(`   🜂 [${requestId}] DELETE /api/governance/rules/${ruleId} - Deleting governance rule`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) return;
+      bodyReceived = true;
+      
+      try {
+        const parsedBody = body ? JSON.parse(body) : {};
+        const { actorRole } = parsedBody;
+        
+        if (!actorRole) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "actorRole is required"
+          }));
+          return;
+        }
+        
+        const { getGovernanceService } = await import("./src/governance/governanceService");
+        const governanceService = getGovernanceService();
+        const deleted = governanceService.deleteRule(ruleId || "", actorRole);
+        
+        if (!deleted) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Rule not found"
+          }));
+          return;
+        }
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: true,
+          message: "Rule deleted successfully"
+        }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error deleting governance rule:`, error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: error.message || "Failed to delete rule"
+        }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/governance/history - Get evaluation history (for automated monitoring)
+  if (pathname === "/api/governance/history" && req.method === "GET") {
+    console.log(`   🜂 [${requestId}] GET /api/governance/history - Getting evaluation history`);
+    try {
+      const { getGovernanceService } = await import("./src/governance/governanceService");
+      const governanceService = getGovernanceService();
+      const url = new URL(req.url || "", `http://${req.headers.host}`);
+      const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+      const history = governanceService.getEvaluationHistory(limit);
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        history: history
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting evaluation history:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message || "Failed to get evaluation history"
+      }));
+    }
+    return;
+  }
+
+  // GET /api/governance/stats - Get evaluation statistics (self-scoring metrics)
+  if (pathname === "/api/governance/stats" && req.method === "GET") {
+    console.log(`   🜂 [${requestId}] GET /api/governance/stats - Getting evaluation statistics`);
+    try {
+      const { getGovernanceService } = await import("./src/governance/governanceService");
+      const governanceService = getGovernanceService();
+      const stats = governanceService.getEvaluationStats();
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        stats: stats
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting evaluation stats:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message || "Failed to get evaluation stats"
+      }));
+    }
+    return;
+  }
+
   if (pathname === "/api/priesthood/stats" && req.method === "GET") {
     console.log(`   📜 [${requestId}] GET /api/priesthood/stats - Getting certification statistics`);
     try {
@@ -10833,6 +11221,7 @@ type LLMResponse = {
   selectedListing: MovieListing | TokenListing | null;
   iGasCost: number;
   tradeDetails?: DEXTrade; // For DEX trades
+  shouldRouteToGodInbox?: boolean; // If true, route message to GOD's inbox
 };
 
 // Constants

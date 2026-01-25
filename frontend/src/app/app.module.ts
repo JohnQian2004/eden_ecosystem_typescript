@@ -21,6 +21,9 @@ import { MovieTheaterComponent } from './movie-theater/movie-theater.component';
 import { LedgerCardDeckComponent } from './components/ledger-card-deck/ledger-card-deck.component';
 import { DexGardenWizardComponent } from './components/dex-garden-wizard/dex-garden-wizard.component';
 import { UsernameRegistrationComponent } from './components/username-registration/username-registration.component';
+import { LlmGovernanceComponent } from './components/llm-governance/llm-governance.component';
+import { PopupChatComponent } from './components/popup-chat/popup-chat.component';
+import { GodInboxComponent } from './components/god-inbox/god-inbox.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -47,7 +50,10 @@ const routes: Routes = [
     MovieTheaterComponent,
     LedgerCardDeckComponent,
     DexGardenWizardComponent,
-    UsernameRegistrationComponent
+    UsernameRegistrationComponent,
+    LlmGovernanceComponent,
+    PopupChatComponent,
+    GodInboxComponent
   ],
   imports: [
     BrowserModule,

@@ -124,7 +124,8 @@
   </div>
   
   <!-- Chat History Section (ChatGPT-style) - Docked in sidebar -->
-  <div class="chat-history-section" [class.hidden]="isChatFloating">
+  <!-- REMOVED: Chat history moved to main chat, sidebar chat disabled -->
+  <div class="chat-history-section" [class.hidden]="true" style="display: none !important;">
     <div class="chat-history-header d-flex justify-content-between align-items-center mb-2">
       <h6 class="mb-0">💬 Chat History</h6>
       <button 
