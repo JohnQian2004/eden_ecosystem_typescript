@@ -3343,6 +3343,38 @@
         "mode": "god",
         "serviceType": "movie",
         "status": "active"
+      },
+      {
+        "id": "c_1769473176965_07bb16148dc8a",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769473176965,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769473186763_24e96f79fa928",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "### Sci-Fi Movie Options for Tonight\n\nHere are some great sci-fi movies available at AMC Theatres in Baltimore, Maryland:\n\n1. **Back to the Future**\n   - **Showtime**: 10:30 PM\n   - **Price**: $2\n   - **Rating**: 5 stars from 100 reviews\n\n2. **The Matrix**\n   - **Showtime**: 8:00 PM\n   - **Price**: $2\n   - **Rating**: 4.9 stars from 150 reviews\n\nBased on your preference for the best price, I recommend **Back to the Future** for its excellent rating.\n\nEnjoy your movie night!",
+        "timestamp": 1769473186763,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769473190106_35040134b3515",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "YES",
+        "timestamp": 1769473190106,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
       }
     ]
   }

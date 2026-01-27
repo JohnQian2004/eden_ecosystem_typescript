@@ -55,7 +55,10 @@ import {
   HOLY_GHOST_GARDEN,
   LEDGER,
   USERS as USERS_STATE,
-  TOTAL_IGAS
+  TOTAL_IGAS,
+  setTOTAL_IGAS,
+  addTOTAL_IGAS,
+  getTOTAL_IGAS
 } from "./src/state";
 import { ROOT_CA_UUID, REVOCATION_STREAM, WALLET_BALANCE_PREFIX, WALLET_HOLD_PREFIX, WALLET_AUDIT_PREFIX } from "./src/constants";
 import {
@@ -557,7 +560,7 @@ httpServer.on("request", async (req, res) => {
       totalIGas = getAccountantState().totalIGas || 0;
     } catch (err: any) {
       console.warn(`⚠️  [${requestId}] Failed to load Accountant totalIGas, falling back to TOTAL_IGAS: ${err.message}`);
-      totalIGas = TOTAL_IGAS || 0;
+      totalIGas = getTOTAL_IGAS() || 0;
     }
     res.writeHead(200, {
       "Content-Type": "application/json",
@@ -12101,9 +12104,6 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
 // COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
 // that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
 /*
-// COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
-// that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
-/*
 async function resolveLLM(userInput: string): Promise<LLMResponse> {
   if (MOCKED_LLM) {
     // Mock response for testing
@@ -14210,11 +14210,11 @@ async function processChatInput(input: string, email: string) {
   // COMMENTED OUT: resolveLLM is disabled - this code path should not be used for workflows
   // Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions instead
   throw new Error("resolveLLM is disabled - use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions");
-  /*
+  
+  /* DEAD CODE - All code below is unreachable due to throw above
   const llmResponse: LLMResponse = await resolveLLM(input);
   console.log("📨 LLM Response:", llmResponse.message);
   console.log("⛽ iGas Cost:", llmResponse.iGasCost.toFixed(6));
-  */
   
   broadcastEvent({
     type: "llm_response",
@@ -14225,7 +14225,7 @@ async function processChatInput(input: string, email: string) {
   });
   
   // Accumulate total iGas
-  TOTAL_IGAS += llmResponse.iGasCost;
+  addTOTAL_IGAS(llmResponse.iGasCost);
   
   broadcastEvent({
     type: "igas",
@@ -14234,7 +14234,7 @@ async function processChatInput(input: string, email: string) {
     timestamp: Date.now(),
     data: { 
       igas: llmResponse.iGasCost,
-      totalIGas: TOTAL_IGAS
+      totalIGas: getTOTAL_IGAS()
     }
   });
   
@@ -14708,6 +14708,7 @@ async function processChatInput(input: string, email: string) {
   
   const duration = Date.now() - startTime;
   console.log(`✅ processChatInput completed in ${duration}ms for ${email}`);
+  */
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(`❌ processChatInput failed after ${duration}ms for ${email}:`, error);
@@ -15478,8 +15479,8 @@ async function main() {
         const fileContent = fs.readFileSync(igasPersistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
         if (persisted.totalIGas !== undefined && typeof persisted.totalIGas === 'number') {
-          TOTAL_IGAS = persisted.totalIGas;
-          console.log(`⛽ [iGas Persistence] Loaded total iGas: ${TOTAL_IGAS.toFixed(6)}`);
+          setTOTAL_IGAS(persisted.totalIGas);
+          console.log(`⛽ [iGas Persistence] Loaded total iGas: ${getTOTAL_IGAS().toFixed(6)}`);
         }
       }
     } catch (err: any) {
@@ -15744,7 +15745,7 @@ async function main() {
     console.log(`\n   🔍 [Startup] Checking for gardens without providers...`);
     
     // First, check gardens loaded from eden-wallet-persistence.json
-    const allGardens = [...GARDENS, ...TOKEN_GARDENS];
+    let allGardens = [...GARDENS, ...TOKEN_GARDENS];
     console.log(`   🔍 [Startup] Checking ${allGardens.length} garden(s) from memory: ${allGardens.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
     
     // Also check eden-gardens-persistence.json (separate file)
@@ -15996,7 +15997,7 @@ async function main() {
     // Periodic total iGas save (every 5 minutes)
     setInterval(() => {
       try {
-        let totalIGasToSave = TOTAL_IGAS || 0;
+        let totalIGasToSave = getTOTAL_IGAS() || 0;
         try {
           const { getAccountantState } = require("./src/accountant");
           totalIGasToSave = (getAccountantState()?.totalIGas ?? totalIGasToSave) || 0;

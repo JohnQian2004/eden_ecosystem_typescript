@@ -112,3 +112,16 @@ export function addRootCALiquidity(amount: number): void {
   rootCALiquidity += amount;
 }
 
+// Total iGas setter functions
+export function setTOTAL_IGAS(amount: number): void {
+  TOTAL_IGAS = amount;
+}
+
+export function addTOTAL_IGAS(amount: number): void {
+  TOTAL_IGAS += amount;
+}
+
+export function getTOTAL_IGAS(): number {
+  return TOTAL_IGAS;
+}
+
