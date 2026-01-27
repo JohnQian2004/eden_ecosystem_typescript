@@ -5,12 +5,35 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   min-height: 64px;
-  background-color: var(--bs-body-bg);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: var(--bs-body-color);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(3px);
+    border-radius: 7px;
+    z-index: 0;
+  }
+  
+  > * {
+    position: relative;
+    z-index: 1;
+  }
 
   .card-body {
     // Override Bootstrap spacing utilities to make cards denser
     padding: 0.35rem !important;
+    background-color: transparent !important;
   }
 
   .service-icon-compact {
@@ -108,9 +131,18 @@
 
 // Movie service cards
 .service-card-compact.movie-service {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: white;
   border-color: #667eea;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: white;
@@ -124,9 +156,18 @@
 
 // DEX service cards
 .service-card-compact.dex-service {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: white;
   border-color: #f093fb;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(240, 147, 251, 0.8) 0%, rgba(245, 87, 108, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: white;
@@ -140,9 +181,18 @@
 
 // Airline service cards
 .service-card-compact.airline-service {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: white;
   border-color: #4facfe;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(79, 172, 254, 0.8) 0%, rgba(0, 242, 254, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: white;
@@ -156,9 +206,18 @@
 
 // Auto parts service cards
 .service-card-compact.autoparts-service {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: white;
   border-color: #fa709a;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(250, 112, 154, 0.8) 0%, rgba(254, 225, 64, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: white;
@@ -172,9 +231,18 @@
 
 // Hotel service cards
 .service-card-compact.hotel-service {
-  background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: white;
   border-color: #30cfd0;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(48, 207, 208, 0.8) 0%, rgba(51, 8, 103, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: white;
@@ -188,9 +256,18 @@
 
 // Restaurant service cards
 .service-card-compact.restaurant-service {
-  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
   color: #333;
   border-color: #a8edea;
+  
+  &::before {
+    background: linear-gradient(135deg, rgba(168, 237, 234, 0.8) 0%, rgba(254, 214, 227, 0.8) 100%);
+    backdrop-filter: blur(3px);
+  }
   
   .card-title {
     color: #333;

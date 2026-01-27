@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { timeout, finalize } from 'rxjs/operators';
@@ -48,12 +48,12 @@ export interface SimulatorEvent {
 }
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss']
+  selector: 'app-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.scss']
 })
-export class AppComponent implements OnInit, OnDestroy {
-  title = 'Eden Simulator Dashboard';
+export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
+  title = 'Eden Home - Garden-First Intelligence Marketplace';
   theme: 'dark' | 'light' = 'dark';
   userInput: string = '';
   isProcessing: boolean = false;
@@ -319,6 +319,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
+  @ViewChild('chatMessagesContainer', { static: false }) chatMessagesContainer!: ElementRef<HTMLDivElement>;
+  
+  private shouldScrollToBottom: boolean = true;
   
   showSidebar: boolean = true; // Control sidebar visibility (hidden in USER and PRIEST modes)
 
@@ -481,14 +484,14 @@ export class AppComponent implements OnInit, OnDestroy {
     ).subscribe((event: any) => {
       const url = event.urlAfterRedirects || event.url;
       this.isDexWizardRoute = url === '/dex-garden-wizard' || url.startsWith('/dex-garden-wizard');
-      console.log('[AppComponent] Route changed:', url, 'isDexWizardRoute:', this.isDexWizardRoute);
+      console.log('[HomeComponent] Route changed:', url, 'isDexWizardRoute:', this.isDexWizardRoute);
       this.cdr.detectChanges();
     });
     
     // Check initial route
     const currentUrl = this.router.url;
     this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
-    console.log('[AppComponent] Initial route:', currentUrl, 'isDexWizardRoute:', this.isDexWizardRoute);}
+    console.log('[HomeComponent] Initial route:', currentUrl, 'isDexWizardRoute:', this.isDexWizardRoute);}
 
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
@@ -527,6 +530,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Make UI feel instant: clear immediately, then async load.
     this.chatHistoryMessages = [];
     this.isLoadingChatHistory = true;
+    this.shouldScrollToBottom = true;
     this.lastAppendBySig.clear();
     this.chatHistoryClearedAt = 0; // Reset cleared timestamp when switching conversations
     this.cdr.detectChanges();
@@ -617,6 +621,8 @@ export class AppComponent implements OnInit, OnDestroy {
             ? deduped.slice(-this.MAX_CHAT_HISTORY_MESSAGES)
             : deduped;
 
+        // Trigger auto-scroll after loading history
+        this.shouldScrollToBottom = true;
         this.cdr.detectChanges();
         },
         error: (err) => {
@@ -632,6 +638,28 @@ export class AppComponent implements OnInit, OnDestroy {
     this.chatHistoryLoadSeq++;
     this.isLoadingChatHistory = false;
     this.cdr.detectChanges();
+  }
+
+  ngAfterViewChecked() {
+    // Auto-scroll to bottom when new messages are added
+    if (this.shouldScrollToBottom && this.chatMessagesContainer) {
+      setTimeout(() => {
+        const container = this.chatMessagesContainer.nativeElement;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+          this.shouldScrollToBottom = false;
+        }
+      }, 0);
+    }
+  }
+
+  clearChat() {
+    // Clear the current chat messages in the main chat window
+    this.chatHistoryMessages = [];
+    this.userInput = '';
+    this.isProcessing = false;
+    this.cdr.markForCheck();
+    console.log('✅ [App] Chat cleared');
   }
 
   async clearChatHistoryPanel() {
@@ -736,6 +764,8 @@ export class AppComponent implements OnInit, OnDestroy {
       const next = [...this.chatHistoryMessages, local];
       this.chatHistoryMessages =
         next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
+      // Trigger auto-scroll after message is added
+      this.shouldScrollToBottom = true;
     }
     this.cdr.detectChanges();
 
@@ -763,7 +793,7 @@ export class AppComponent implements OnInit, OnDestroy {
       const locationUrl = typeof window !== 'undefined' ? window.location.pathname : '';
       const currentUrl = routerUrl || locationUrl;
       this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
-      console.log('[AppComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
+      console.log('[HomeComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
       // Use markForCheck instead of detectChanges to prevent duplicate renders
       this.cdr.markForCheck();
     };
@@ -891,6 +921,11 @@ export class AppComponent implements OnInit, OnDestroy {
         const movieTitle = (event as any).data?.response?.movieTitle ||
                           (event as any).data?.response?.selectedListing?.movieTitle ||
                           (event as any).data?.movieTitle;
+        
+        // Note: Do NOT create pendingDecision from llm_resolution listings
+        // The workflow should handle this via user_select_listing -> user_confirm_listing steps
+        // The workflow will send a user_decision_required event when it reaches user_confirm_listing step
+        // The Angular client should only respond to explicit workflow decision prompts, not intercept user input
         
         console.log('🎬 [App] ========================================');
         console.log('🎬 [App] llm_response event received');
@@ -1215,10 +1250,17 @@ export class AppComponent implements OnInit, OnDestroy {
     // This is async and won't block balance loading
     this.initializeGoogleSignIn();
     
-    // Initialize tab visibility handling before connecting
-    // This ensures WebSocket is only active in the visible tab
-    this.wsService.initializeTabVisibilityHandling();
-    this.wsService.connect();
+    // WebSocket auto-connects via service constructor
+    // If not already connected, ensure connection is established
+    // (This is a fallback in case service was instantiated before DOM was ready)
+    if (typeof window !== 'undefined' && !this.wsService.isConnected()) {
+      // Check if tab visibility handling is already initialized
+      // If not, initialize it (service constructor might have already done this)
+      if (!document.hidden) {
+        // Only connect if tab is visible
+        this.wsService.connect();
+      }
+    }
     
     // Listen for service provider creation events to refresh service types
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
@@ -1836,6 +1878,21 @@ export class AppComponent implements OnInit, OnDestroy {
         const pendingMode = localStorage.getItem('pendingViewMode');
         localStorage.removeItem('pendingViewMode');
         
+        // Route GOD users to app.component (check after pending mode is retrieved)
+        if (email === this.adminEmail) {
+          // Determine admin mode
+          const adminMode = pendingMode === 'god' || pendingMode === 'priest' 
+            ? pendingMode 
+            : (localStorage.getItem('edenViewMode') || 'god');
+          
+          if (adminMode === 'god') {
+            console.log('🔀 [Home] GOD user signed in via Google - routing to app.component');
+            this.selectedAdminMode = 'god';
+            this.router.navigate(['/app']);
+            return;
+          }
+        }
+        
         if (email !== this.adminEmail) {
           console.log(`👤 [App] Non-admin user detected (${email})`);
           
@@ -2227,6 +2284,15 @@ export class AppComponent implements OnInit, OnDestroy {
       // Check for pending mode selection (selected before login)
       const pendingMode = localStorage.getItem('pendingViewMode');
       localStorage.removeItem('pendingViewMode');
+      
+      // Route GOD users to app.component
+      if (this.userEmail === this.adminEmail && this.selectedAdminMode === 'god') {
+        console.log('🔀 [Home] GOD user signed in - routing to app.component');
+        this.isSigningIn = false;
+        this.closeSignInModal();
+        this.router.navigate(['/app']);
+        return;
+      }
       
       // Set view mode
       if (this.userEmail !== this.adminEmail) {
@@ -3384,13 +3450,13 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // CRITICAL: Check if user is responding to a pending decision
-    // If there's a pending decision and the input looks like a confirmation, submit it as a decision
+    // CRITICAL: Check if user is responding to a pending decision from the workflow
+    // Only handle decisions when there's an explicit pendingDecision from the workflow (user_decision_required event)
+    // The workflow (LLM/workflow engine) is responsible for prompting the user, not the Angular client
     if (this.pendingDecision) {
-      const input = this.userInput.trim().toLowerCase();
-      const normalizedInput = input.replace(/[.,!?]/g, '').trim();
-      
-      // Check if input matches common confirmation words
+      // Normalize input for comparison
+      const userInputLower = this.userInput.trim().toLowerCase();
+      const normalizedInput = userInputLower.replace(/[.,!?]/g, '').trim();
       const confirmationWords = ['yes', 'y', 'confirmed', 'confirm', 'ok', 'okay', 'sure', 'proceed', 'continue', 'accept', 'agree'];
       const isConfirmation = confirmationWords.includes(normalizedInput);
       
@@ -3451,8 +3517,8 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Check if this is an Eden workflow query (action-oriented) vs regular informational query
-    const input = this.userInput.trim();
-    const isEdenWorkflowQuery = this.isEdenWorkflowQuery(input);
+    const userInputTrimmed = this.userInput.trim();
+    const isEdenWorkflowQuery = this.isEdenWorkflowQuery(userInputTrimmed);
     
     // If service type is detected OR it's an Eden workflow query, route to /api/eden-chat
     if (this.selectedServiceType || isEdenWorkflowQuery) {
@@ -3479,10 +3545,10 @@ export class AppComponent implements OnInit, OnDestroy {
       if (this.activeConversationId !== desiredConversationId) {
         this.setActiveConversation(desiredConversationId);
       }
-      this.appendChatHistory('USER', input, { serviceType });
+      this.appendChatHistory('USER', userInputTrimmed, { serviceType });
 
       this.isProcessing = true;
-      const inputToSend = input;
+      const inputToSend = userInputTrimmed;
       this.userInput = ''; // Clear input immediately
       
       try {
@@ -3521,11 +3587,11 @@ export class AppComponent implements OnInit, OnDestroy {
       this.setActiveConversation(regularConversationId);
     }
 
-    this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
+    this.appendChatHistory('USER', userInputTrimmed, { serviceType: 'chat' }, regularConversationId);
     
     // Call server API for informational queries (LLM will handle Eden vs general knowledge)
     this.isProcessing = true;
-    const inputToSend = input;
+    const inputToSend = userInputTrimmed;
     this.userInput = ''; // Clear input immediately
     
     try {
@@ -3751,7 +3817,7 @@ export class AppComponent implements OnInit, OnDestroy {
         });
         alert(`Error: ${errorMsg}`);
         // Restore input so user can retry
-        this.userInput = input;
+        // Note: userInput was already cleared, so we can't restore it here
       } else {
         // Even for Solana errors, log and continue
         console.log('⚠️ Solana extension error ignored');
@@ -4084,6 +4150,29 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     
     return 'N/A';
+  }
+
+  // Chat interface methods for new UI
+  onEdenChatSubmit(): void {
+    if (!this.userInput.trim() || this.isProcessing) {
+      return;
+    }
+    this.onSubmit();
+  }
+
+  onChatInputEnter(event: any): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.onEdenChatSubmit();
+    }
+  }
+
+  setActiveTab(tab: string): void {
+    this.activeTab = tab as any;
+  }
+
+  setActiveConversationPublic(conversationId: string): void {
+    this.setActiveConversation(conversationId);
   }
 
 }

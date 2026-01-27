@@ -16,6 +16,23 @@ export class WebSocketService {
   private isTabVisible: boolean = true;
   private visibilityChangeHandler: (() => void) | null = null;
   private wasConnectedBeforeHidden: boolean = false;
+  private autoConnectInitialized: boolean = false;
+
+  constructor() {
+    // Auto-connect when service is instantiated
+    // Use setTimeout to ensure DOM is ready and avoid duplicate connections
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        // Only initialize if not already connected
+        if (!this.isConnected() && !this.autoConnectInitialized) {
+          this.initializeTabVisibilityHandling();
+          this.connect();
+          this.autoConnectInitialized = true;
+          console.log('🔌 [WebSocket] Auto-connect initialized');
+        }
+      }, 100);
+    }
+  }
 
   connect() {
     // Don't connect if tab is not visible (fixes multiple tab WebSocket conflicts)

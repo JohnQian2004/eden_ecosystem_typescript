@@ -357,19 +357,83 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   // Simple condition evaluation - can be enhanced
   if (condition === "always") return true;
 
+  // CRITICAL: Handle array length checks first (e.g., {{listings.length}} > 0)
+  // This must be done before general template replacement
+  let workingCondition = condition;
+  if (workingCondition.includes('.length')) {
+    const lengthMatches = workingCondition.matchAll(/\{\{(\w+(?:\.\w+)*)\.length\}\}/g);
+    for (const match of lengthMatches) {
+      const arrayPath = match[1];
+      const arrayValue = getNestedValue(context, arrayPath);
+      const arrayLength = Array.isArray(arrayValue) ? arrayValue.length : (arrayValue?.length || 0);
+      
+      // Replace {{array.length}} with the actual number
+      workingCondition = workingCondition.replace(match[0], String(arrayLength));
+      console.log(`   🔍 [evaluateCondition] Replaced ${match[0]} with ${arrayLength}`);
+    }
+  }
+
   // First, replace template variables in the condition
-  let processedCondition = condition;
+  let processedCondition = workingCondition;
   processedCondition = processedCondition.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
     const value = getNestedValue(context, path);
     if (value === undefined || value === null) {
       return 'undefined';
     }
+    // If value is an array, evaluate as truthy (exists and has length > 0)
+    if (Array.isArray(value)) {
+      return value.length > 0 ? 'true' : 'false';
+    }
     // If value is a string, wrap it in quotes for comparison
     if (typeof value === 'string') {
       return `'${value}'`;
     }
-    return String(value);
+    // For numbers and booleans, convert to string
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    // For objects, check if they exist (truthy)
+    return value ? 'true' : 'false';
   });
+
+  // Handle comparison operators (>, <, >=, <=) - must check before ===
+  if (processedCondition.includes(' > ')) {
+    const [left, right] = processedCondition.split(' > ').map(s => s.trim());
+    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
+    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      const result = leftNum > rightNum;
+      console.log(`   🔍 [evaluateCondition] Comparison: ${leftNum} > ${rightNum} = ${result}`);
+      return result;
+    }
+  }
+  
+  if (processedCondition.includes(' < ')) {
+    const [left, right] = processedCondition.split(' < ').map(s => s.trim());
+    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
+    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum < rightNum;
+    }
+  }
+  
+  if (processedCondition.includes(' >= ')) {
+    const [left, right] = processedCondition.split(' >= ').map(s => s.trim());
+    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
+    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum >= rightNum;
+    }
+  }
+  
+  if (processedCondition.includes(' <= ')) {
+    const [left, right] = processedCondition.split(' <= ').map(s => s.trim());
+    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
+    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum <= rightNum;
+    }
+  }
 
   // Handle comparison operators (===, !==, ==, !=)
   if (processedCondition.includes(' === ')) {
@@ -389,15 +453,53 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
     return leftValue !== rightValue;
   }
 
+  // Handle boolean string literals (true/false)
+  const trimmedProcessed = processedCondition.trim();
+  if (trimmedProcessed === 'true') return true;
+  if (trimmedProcessed === 'false') return false;
+
   // Handle logical operators (&&, ||)
+  // CRITICAL: Must check for && and || AFTER handling comparison operators
+  // because conditions like "2 > 0" need to be evaluated before splitting
   if (processedCondition.includes(' && ')) {
-    const parts = processedCondition.split(' && ');
-    return parts.every(part => evaluateCondition(part.trim(), context));
+    const parts = processedCondition.split(' && ').map(p => p.trim());
+    console.log(`   🔍 [evaluateCondition] Splitting by &&: [${parts.join(', ')}]`);
+    // Evaluate each part recursively
+    const results = parts.map((part, index) => {
+      // If part is a simple boolean string, return it directly
+      if (part === 'true') {
+        console.log(`   🔍 [evaluateCondition] Part ${index} is 'true' → true`);
+        return true;
+      }
+      if (part === 'false') {
+        console.log(`   🔍 [evaluateCondition] Part ${index} is 'false' → false`);
+        return false;
+      }
+      // Otherwise, evaluate recursively
+      console.log(`   🔍 [evaluateCondition] Evaluating part ${index} recursively: "${part}"`);
+      const result = evaluateCondition(part, context);
+      console.log(`   🔍 [evaluateCondition] Part ${index} result: ${result}`);
+      return result;
+    });
+    const finalResult = results.every(r => r === true);
+    console.log(`   🔍 [evaluateCondition] && evaluation result: ${finalResult} (all parts: [${results.join(', ')}])`);
+    return finalResult;
   }
   
   if (processedCondition.includes(' || ')) {
-    const parts = processedCondition.split(' || ');
-    return parts.some(part => evaluateCondition(part.trim(), context));
+    const parts = processedCondition.split(' || ').map(p => p.trim());
+    console.log(`   🔍 [evaluateCondition] Splitting by ||: [${parts.join(', ')}]`);
+    // Evaluate each part recursively
+    const results = parts.map((part, index) => {
+      // If part is a simple boolean string, return it directly
+      if (part === 'true') return true;
+      if (part === 'false') return false;
+      // Otherwise, evaluate recursively
+      return evaluateCondition(part, context);
+    });
+    const finalResult = results.some(r => r === true);
+    console.log(`   🔍 [evaluateCondition] || evaluation result: ${finalResult} (any part: [${results.join(', ')}])`);
+    return finalResult;
   }
 
   // Handle template syntax {{variable}} (simple existence check)

@@ -4,6 +4,7 @@ import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
+import { HomeComponent } from './home.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { IgasDisplayComponent } from './components/igas-display/igas-display.component';
@@ -30,14 +31,23 @@ const routes: Routes = [
   { 
     path: 'dex-garden-wizard', 
     component: DexGardenWizardComponent 
+  },
+  {
+    path: 'old-app',
+    component: AppComponent
+  },
+  {
+    path: 'app',
+    component: AppComponent
   }
-  // Note: AppComponent is the bootstrap component, so we don't need it as a route
-  // The router-outlet in AppComponent will render DexGardenWizardComponent when on that route
+  // HomeComponent is the bootstrap component (rendered directly in index.html)
+  // It handles the default route internally and uses router-outlet for child routes
 ];
 
 @NgModule({
   declarations: [
     AppComponent,
+    HomeComponent,
     ChatBoxComponent,
     SidebarComponent,
     IgasDisplayComponent,
@@ -73,7 +83,7 @@ const routes: Routes = [
       multi: true
     }
   ],
-  bootstrap: [AppComponent]
+  bootstrap: [HomeComponent]
 })
 export class AppModule { }
 

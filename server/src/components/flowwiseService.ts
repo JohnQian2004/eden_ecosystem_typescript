@@ -474,8 +474,19 @@ export async function executeNextStep(executionId: string): Promise<{
         stepId: step.id
       };
       
-      // CRITICAL: If this is a user_decision_required event, ensure options are preserved
+      // CRITICAL: If this is a user_decision_required event, ensure options and prompt are preserved
       if (processedEvent.type === 'user_decision_required') {
+        // Ensure prompt is set - use from websocketEvent data, or fall back to step.decisionPrompt
+        if (!finalEventData.prompt && step.decisionPrompt) {
+          finalEventData.prompt = replaceTemplateVariables(step.decisionPrompt, context);
+          console.log(`   🤔 [FlowWiseService] Set prompt from step.decisionPrompt: ${finalEventData.prompt}`);
+        } else if (finalEventData.prompt) {
+          // Prompt already exists from websocketEvent, just log it
+          console.log(`   🤔 [FlowWiseService] Using prompt from websocketEvent: ${finalEventData.prompt}`);
+        } else {
+          console.warn(`   ⚠️ [FlowWiseService] No prompt found for user_decision_required event in step: ${step.id}`);
+        }
+        
         // Preserve original options if they exist and are valid
         if (originalOptions && Array.isArray(originalOptions) && originalOptions.length > 0) {
           finalEventData.options = originalOptions;
@@ -519,8 +530,16 @@ export async function executeNextStep(executionId: string): Promise<{
         console.log(`🎬 [FlowWiseService] FINAL options count:`, finalEventData.options?.length || 0);
       }
       
+      // For user_decision_required events, ensure message field is set from prompt if not already set
+      let eventMessage = processedEvent.message;
+      if (processedEvent.type === 'user_decision_required' && !eventMessage && finalEventData.prompt) {
+        eventMessage = finalEventData.prompt;
+        console.log(`   🤔 [FlowWiseService] Set event message from prompt: ${eventMessage}`);
+      }
+      
       broadcastEvent({
         ...processedEvent,
+        message: eventMessage || processedEvent.message,
         timestamp: Date.now(),
         data: finalEventData
       });
@@ -1169,7 +1188,7 @@ async function executeStepActions(
     formatResponseWithDeepSeek
   } = await import("../llm");
   const { queryROOTCAServiceRegistry } = await import("../serviceProvider");
-  const { debitWallet, getWalletBalance } = await import("../wallet");
+  const { debitWallet, creditWallet, getWalletBalance } = await import("../wallet");
   
   // Certificate functions (local to this function)
   function getCertificate(uuid: string): any {
@@ -1427,8 +1446,8 @@ async function executeStepActions(
             // Broadcast to frontend
             const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
             const execution = workflowExecutions?.get(executionId);
-            const { broadcastEvent } = await import("../broadcast");
-            broadcastEvent({
+            if (broadcastEvent) {
+              broadcastEvent({
               type: "llm_response",
               component: "llm",
               message: noResultsResponse.message,
@@ -1442,6 +1461,7 @@ async function executeStepActions(
                 serviceType: context.serviceType
               }
             });
+            }
             
             console.log(`✅ [FlowWiseService] Created "no results" response and broadcasted to frontend`);
             break; // Exit the case statement - no need to process further
@@ -1457,7 +1477,8 @@ async function executeStepActions(
           let providerServiceType: string | null = null;
           if (context.listings && context.listings.length > 0 && context.listings[0].providerId) {
             try {
-              const { serviceRegistry2 } = await import("../serviceRegistry2");
+              const { getServiceRegistry2 } = await import("../serviceRegistry2");
+              const serviceRegistry2 = getServiceRegistry2();
               const provider = serviceRegistry2.getProvider(context.listings[0].providerId);
               if (provider) {
                 providerServiceType = provider.serviceType;
@@ -2637,6 +2658,62 @@ async function executeStepActions(
           console.log(`   🏦 [FlowWiseService] transactionProcessed flag set to: ${context.transactionProcessed}`);
           break;
 
+        case "apply_review":
+          // Apply review rebate: calculate 10% of movie price and credit wallet
+          console.log(`   ⭐ [FlowWiseService] Applying review rebate`);
+          console.log(`   ⭐ [FlowWiseService] Action details:`, processedAction);
+          
+          const user = processedAction.user || context.user;
+          const moviePrice = processedAction.moviePrice || context.moviePrice || context.selectedListing?.price || 0;
+          const review = processedAction.review || { rating: 5 };
+          
+          // Calculate rebate: 10% of movie price (only if rating >= 4)
+          const rebate = review.rating >= 4 ? moviePrice * 0.1 : 0;
+          
+          if (rebate > 0 && user && user.email) {
+            console.log(`   ⭐ [FlowWiseService] Calculating rebate: ${moviePrice} * 0.1 = ${rebate} 🍎 APPLES`);
+            
+            // Credit wallet with rebate
+            const rebateResult = await creditWallet(
+              user.email,
+              rebate,
+              crypto.randomUUID(),
+              `Review rebate: ${review.rating}/5 rating`,
+              {
+                reviewRating: review.rating,
+                moviePrice,
+                rebateType: "review",
+              }
+            );
+            
+            if (rebateResult.success) {
+              // Update user balance in context
+              if (context.user) {
+                context.user.balance = rebateResult.balance;
+              }
+              // Set rebate in context for template variables
+              context.rebate = rebate;
+              console.log(`   ⭐ [FlowWiseService] ✅ Rebate credited: ${rebate} 🍎 APPLES, new balance: ${rebateResult.balance} 🍎 APPLES`);
+            } else {
+              console.error(`   ❌ [FlowWiseService] Failed to credit rebate:`, rebateResult.error);
+              context.rebate = 0;
+            }
+          } else {
+            console.log(`   ⭐ [FlowWiseService] No rebate (rating: ${review.rating}, moviePrice: ${moviePrice})`);
+            context.rebate = 0;
+          }
+          
+          context[`${processedAction.type}_completed`] = true;
+          break;
+
+        case "generate_summary":
+          // Generate transaction summary (no-op - summary is generated via websocket events)
+          console.log(`   📋 [FlowWiseService] Generating transaction summary`);
+          console.log(`   📋 [FlowWiseService] Action details:`, processedAction);
+          // Summary is generated via websocket events, no action needed here
+          context[`${processedAction.type}_completed`] = true;
+          break;
+
         default:
           console.warn(`   ⚠️ [FlowWiseService] Unknown action type: ${processedAction.type}`);
       }
@@ -3111,6 +3188,72 @@ export async function submitUserDecision(
         console.log(`   🤔 [FlowWiseService] However, since user submitted a decision, we'll evaluate transitions with the new decision value`);
       }
       
+      // CRITICAL: Check if the decision is meant for a different step
+      // For example, "DONE_WATCHING" is only valid for "view_movie" step
+      // If we're at a different step but receive this decision, we need to handle it
+      if (normalizedDecision === 'DONE_WATCHING' && currentStep !== 'view_movie') {
+        console.log(`   🎬 [FlowWiseService] ⚠️ Received DONE_WATCHING decision but current step is ${currentStep}, not view_movie`);
+        console.log(`   🎬 [FlowWiseService] Checking if view_movie step exists and can be recovered to`);
+        console.log(`   🎬 [FlowWiseService] Context state: paymentAuthorized=${context.paymentAuthorized}, paymentSuccess=${context.paymentSuccess}, movieWatched=${context.movieWatched}`);
+        console.log(`   🎬 [FlowWiseService] Workflow history:`, execution.history.map((h: any) => h.step).join(' → '));
+        
+        // Check if view_movie step exists in the workflow
+        const viewMovieStep = workflow.steps.find((s: any) => s.id === 'view_movie');
+        if (viewMovieStep) {
+          // Check if we've already been to view_movie (check history)
+          const hasBeenToViewMovie = execution.history.some((h: any) => h.step === 'view_movie');
+          
+          // Check if payment is authorized (required to watch movie)
+          const canWatchMovie = context.paymentAuthorized || context.paymentSuccess;
+          
+          // Set context for view_movie decision regardless of whether we've been there
+          context.userDecision = normalizedDecision;
+          context.movieWatched = true;
+          
+          // Try to evaluate transitions from view_movie - be more aggressive
+          const viewMovieTransitions = workflow.transitions.filter((t: any) => t.from === 'view_movie');
+          if (viewMovieTransitions.length > 0) {
+            console.log(`   🎬 [FlowWiseService] ✅ Attempting to transition from view_movie (${hasBeenToViewMovie ? 'already visited' : 'recovering to'})`);
+            
+            // Evaluate transitions from view_movie
+            for (const transition of viewMovieTransitions) {
+              try {
+                const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
+                console.log(`   🔄 [FlowWiseService] Transition: view_movie → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
+                if (conditionMet) {
+                  execution.currentStep = transition.to;
+                  currentStep = transition.to;
+                  console.log(`   🎬 [FlowWiseService] ✅ Successfully transitioned from view_movie to: ${transition.to}`);
+                  // Execute the next step
+                  const instruction = await executeNextStep(executionId);
+                  return { instruction };
+                }
+              } catch (evalError: any) {
+                console.error(`   ❌ [FlowWiseService] Error evaluating view_movie transition:`, evalError.message);
+              }
+            }
+            
+            console.log(`   🎬 [FlowWiseService] ⚠️ No valid transition from view_movie matched`);
+          } else {
+            console.log(`   🎬 [FlowWiseService] ⚠️ No transitions found from view_movie step`);
+          }
+          
+          // If we haven't been to view_movie and payment isn't authorized, try to skip directly to snapshot_persist
+          if (!hasBeenToViewMovie && !canWatchMovie) {
+            console.log(`   🎬 [FlowWiseService] ⚠️ Payment not authorized and haven't been to view_movie - attempting to skip to snapshot_persist`);
+            const snapshotStep = workflow.steps.find((s: any) => s.id === 'snapshot_persist');
+            if (snapshotStep) {
+              console.log(`   🎬 [FlowWiseService] ✅ Attempting to skip directly to snapshot_persist`);
+              execution.currentStep = 'snapshot_persist';
+              const instruction = await executeNextStep(executionId);
+              return { instruction };
+            }
+          }
+        } else {
+          console.log(`   🎬 [FlowWiseService] ⚠️ view_movie step not found in workflow - continuing with current step`);
+        }
+      }
+      
       const transitions = workflow.transitions.filter((t: any) => t.from === currentStep);
       console.log(`   🔄 [FlowWiseService] Evaluating ${transitions.length} transitions from step: ${currentStep}`);
       
@@ -3164,6 +3307,38 @@ export async function submitUserDecision(
     }
     
     if (!nextStepId) {
+      // Special handling for DONE_WATCHING when at wrong step
+      if (normalizedDecision === 'DONE_WATCHING' && currentStep !== 'view_movie') {
+        console.warn(`   ⚠️ [FlowWiseService] DONE_WATCHING decision submitted at wrong step: ${currentStep}`);
+        console.warn(`   ⚠️ [FlowWiseService] Attempting to find path to view_movie or snapshot_persist`);
+        
+        // Check if we can transition directly to snapshot_persist (the step after view_movie)
+        const snapshotPersistTransitions = workflow.transitions.filter((t: any) => t.to === 'snapshot_persist');
+        if (snapshotPersistTransitions.length > 0) {
+          // Check if any transition from current step can lead to snapshot_persist
+          const canReachSnapshot = workflow.transitions.some((t: any) => 
+            t.from === currentStep && (t.to === 'snapshot_persist' || 
+            workflow.transitions.some((t2: any) => t2.from === t.to && t2.to === 'snapshot_persist'))
+          );
+          
+          if (canReachSnapshot || context.movieWatched) {
+            // Try to go directly to snapshot_persist
+            const snapshotStep = workflow.steps.find((s: any) => s.id === 'snapshot_persist');
+            if (snapshotStep) {
+              console.log(`   🎬 [FlowWiseService] ✅ Attempting to skip to snapshot_persist since movie is watched`);
+              context.userDecision = normalizedDecision;
+              context.movieWatched = true;
+              execution.currentStep = 'snapshot_persist';
+              const instruction = await executeNextStep(executionId);
+              return { instruction };
+            }
+          }
+        }
+        
+        // If we can't recover, provide a helpful error
+        throw new Error(`Cannot process DONE_WATCHING decision at step "${currentStep}". The workflow needs to be at "view_movie" step to accept this decision. Current workflow state may be out of sync.`);
+      }
+      
       console.warn(`   ⚠️ [FlowWiseService] No valid transition found from step: ${currentStep} after user decision`);
       console.warn(`   ⚠️ [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
       throw new Error(`No valid transition found from step: ${currentStep}. User decision: ${context.userDecision}`);
