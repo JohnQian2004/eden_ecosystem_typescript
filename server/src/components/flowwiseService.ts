@@ -16,6 +16,7 @@ import type { LedgerEntry, User } from "../types";
 import { addLedgerEntry, processPayment, getCashierStatus } from "../ledger";
 import { getWalletBalance } from "../wallet";
 import { extractBookingDetails, getServiceTypeFields } from "../serviceTypeFields";
+import { DEPLOYED_AS_ROOT } from "../config";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -827,6 +828,8 @@ export async function executeNextStep(executionId: string): Promise<{
     console.log(`   🤔 [FlowWiseService] ✅ userDecision is: ${context.userDecision ? 'STILL SET (ERROR!)' : 'cleared (correct)'}`);
     console.log(`   🤔 [FlowWiseService] ========================================`);
     
+    // Always return decision instruction to show user confirmation prompt
+    // User must explicitly confirm before workflow continues
     return {
       type: "decision",
       message: decisionPrompt,
@@ -1016,6 +1019,19 @@ export async function executeNextStep(executionId: string): Promise<{
   
   if (!nextStepId) {
     console.warn(`⚠️ [FlowWiseService] No valid transition found from step: ${currentStep}`);
+  }
+
+  // CRITICAL: Check if current step is an output type step that's a final step
+  // Output steps (like summary) should complete immediately when they're final steps
+  const currentStepDef = workflow.steps.find((s: WorkflowStep) => s.id === currentStep);
+  if (currentStepDef && currentStepDef.type === "output" && workflow.finalSteps.includes(currentStep)) {
+    console.log(`📋 [FlowWiseService] Output step ${currentStep} is a final step - completing workflow`);
+    execution.currentStep = currentStep;
+    return {
+      type: "complete",
+      message: "Workflow completed successfully",
+      data: { context }
+    };
   }
 
   // Check if workflow is complete
@@ -2807,7 +2823,26 @@ export async function submitUserDecision(
   // Update context with decision
   // CRITICAL: Normalize decision value to uppercase for consistent comparison
   // This ensures "yes", "Yes", "YES" all become "YES" to match workflow conditions
+  console.log(`   🔍 [FlowWiseService] ========================================`);
+  console.log(`   🔍 [FlowWiseService] 📝 PROCESSING USER DECISION 📝`);
+  console.log(`   🔍 [FlowWiseService] Original decision value: "${decision}" (type: ${typeof decision})`);
+  console.log(`   🔍 [FlowWiseService] Current step: ${execution.currentStep}`);
+  console.log(`   🔍 [FlowWiseService] Current step definition:`, {
+    id: currentStepDef?.id,
+    type: currentStepDef?.type,
+    requiresUserDecision: currentStepDef?.requiresUserDecision,
+    name: currentStepDef?.name
+  });
+  console.log(`   🔍 [FlowWiseService] Previous userDecision in context: ${execution.context.userDecision || 'none'}`);
+  console.log(`   🔍 [FlowWiseService] SelectionData provided: ${selectionData ? 'yes' : 'no'}`);
+  if (selectionData) {
+    console.log(`   🔍 [FlowWiseService] SelectionData type: ${typeof selectionData}`);
+    console.log(`   🔍 [FlowWiseService] SelectionData keys: ${typeof selectionData === 'object' ? Object.keys(selectionData).join(', ') : 'N/A'}`);
+  }
+  
   const normalizedDecision = typeof decision === 'string' ? decision.toUpperCase().trim() : decision;
+  console.log(`   🔍 [FlowWiseService] Normalized decision: "${normalizedDecision}"`);
+  console.log(`   🔍 [FlowWiseService] ========================================`);
   
   // CRITICAL: If we're at view_movie step, REJECT any decision that isn't "DONE_WATCHING"
   // This prevents stale selections (like "AMC-001") from being submitted when the workflow is waiting for "DONE_WATCHING"
@@ -2828,12 +2863,28 @@ export async function submitUserDecision(
   // This prevents userDecision from being set prematurely
   // Note: currentStepDef is already declared above at line 2468, so we reuse it
   if (currentStepDef && currentStepDef.type === "decision" && currentStepDef.requiresUserDecision) {
+    const previousUserDecision = execution.context.userDecision;
     execution.context.userDecision = normalizedDecision;
-    console.log(`   🔄 [FlowWiseService] ✅ Set userDecision in context: ${normalizedDecision} (original: ${decision})`);
-    console.log(`   🔄 [FlowWiseService] ✅ Current step is a decision step: ${execution.currentStep}`);
+    console.log(`   ✅ [FlowWiseService] ========================================`);
+    console.log(`   ✅ [FlowWiseService] ✅ SET USER DECISION IN CONTEXT ✅`);
+    console.log(`   ✅ [FlowWiseService] Previous userDecision: ${previousUserDecision || 'none'}`);
+    console.log(`   ✅ [FlowWiseService] New userDecision: ${normalizedDecision} (original: ${decision})`);
+    console.log(`   ✅ [FlowWiseService] Current step: ${execution.currentStep}`);
+    console.log(`   ✅ [FlowWiseService] Step type: ${currentStepDef.type}`);
+    console.log(`   ✅ [FlowWiseService] Context after setting:`, {
+      userDecision: execution.context.userDecision,
+      currentStep: execution.currentStep,
+      hasSelectedListing: !!execution.context.selectedListing
+    });
+    console.log(`   ✅ [FlowWiseService] ========================================`);
   } else {
+    console.warn(`   ⚠️ [FlowWiseService] ========================================`);
     console.warn(`   ⚠️ [FlowWiseService] WARNING: Attempting to set userDecision but current step is NOT a decision step!`);
-    console.warn(`   ⚠️ [FlowWiseService] Current step: ${execution.currentStep}, type: ${currentStepDef?.type}, requiresUserDecision: ${currentStepDef?.requiresUserDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] Current step: ${execution.currentStep}`);
+    console.warn(`   ⚠️ [FlowWiseService] Step type: ${currentStepDef?.type}`);
+    console.warn(`   ⚠️ [FlowWiseService] requiresUserDecision: ${currentStepDef?.requiresUserDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] Decision being set anyway: ${normalizedDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] ========================================`);
     // Still set it, but log a warning
     execution.context.userDecision = normalizedDecision;
   }
@@ -3255,18 +3306,34 @@ export async function submitUserDecision(
       }
       
       const transitions = workflow.transitions.filter((t: any) => t.from === currentStep);
-      console.log(`   🔄 [FlowWiseService] Evaluating ${transitions.length} transitions from step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] ========================================`);
+      console.log(`   🔄 [FlowWiseService] 🔍 EVALUATING TRANSITIONS AFTER USER DECISION 🔍`);
+      console.log(`   🔄 [FlowWiseService] Current step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] User decision submitted: ${normalizedDecision} (original: ${decision})`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userSelection: ${context.userSelection ? 'exists' : 'none'}`);
+      console.log(`   🔄 [FlowWiseService] Context selectedListing: ${context.selectedListing ? 'exists' : 'none'}`);
+      console.log(`   🔄 [FlowWiseService] Found ${transitions.length} transitions from step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+      console.log(`   🔄 [FlowWiseService] ========================================`);
       
       if (currentStep === 'view_movie') {
         console.log(`   🎬 [FlowWiseService] ========================================`);
         console.log(`   🎬 [FlowWiseService] EVALUATING TRANSITIONS FROM VIEW_MOVIE`);
         console.log(`   🎬 [FlowWiseService] Submitted decision: ${normalizedDecision}`);
         console.log(`   🎬 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+        console.log(`   🎬 [FlowWiseService] Context movieWatched: ${context.movieWatched}`);
         console.log(`   🎬 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
         console.log(`   🎬 [FlowWiseService] ========================================`);
       }
       
       if (transitions.length === 0) {
+        console.error(`   ❌ [FlowWiseService] ========================================`);
+        console.error(`   ❌ [FlowWiseService] NO TRANSITIONS FOUND FROM STEP: ${currentStep}`);
+        console.error(`   ❌ [FlowWiseService] User decision: ${normalizedDecision}`);
+        console.error(`   ❌ [FlowWiseService] Context userDecision: ${context.userDecision}`);
+        console.error(`   ❌ [FlowWiseService] All workflow transitions:`, workflow.transitions.map((t: any) => `${t.from} → ${t.to}`).join(', '));
+        console.error(`   ❌ [FlowWiseService] ========================================`);
         // If still no transitions and we're at error_handler, this is a terminal error
         if (currentStep === 'error_handler') {
           throw new Error(`Workflow is in error state (error_handler) and cannot proceed. This may indicate a previous error that needs to be resolved. User attempted to submit: ${decision}`);
@@ -3280,11 +3347,28 @@ export async function submitUserDecision(
     if (currentStep === 'user_confirm_listing') {
       console.log(`   🔄 [FlowWiseService] ⚠️⚠️⚠️ EVALUATING TRANSITIONS FROM user_confirm_listing ⚠️⚠️⚠️`);
       console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision type: ${typeof context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision value: "${context.userDecision}"`);
       console.log(`   🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
     }
     
     for (const transition of transitions) {
       try {
+        console.log(`   🔍 [FlowWiseService] Evaluating transition: ${currentStep} → ${transition.to}`);
+        console.log(`   🔍 [FlowWiseService] Transition condition: ${transition.condition || 'always (no condition)'}`);
+        
+        // Log context values that might be used in condition evaluation
+        if (transition.condition) {
+          console.log(`   🔍 [FlowWiseService] Context values for condition evaluation:`, {
+            userDecision: context.userDecision,
+            userSelection: context.userSelection ? 'exists' : 'none',
+            selectedListing: context.selectedListing ? 'exists' : 'none',
+            paymentSuccess: context.paymentSuccess,
+            paymentAuthorized: context.paymentAuthorized,
+            movieWatched: context.movieWatched
+          });
+        }
+        
         const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
         
         if (currentStep === 'user_confirm_listing' && transition.to === 'root_ca_ledger_and_payment') {
@@ -3292,16 +3376,30 @@ export async function submitUserDecision(
           console.log(`   🔄 [FlowWiseService] Condition: ${transition.condition}`);
           console.log(`   🔄 [FlowWiseService] Condition met: ${conditionMet}`);
           console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+          console.log(`   🔄 [FlowWiseService] Context userDecision === 'YES': ${context.userDecision === 'YES'}`);
+          console.log(`   🔄 [FlowWiseService] Context userDecision === 'yes': ${context.userDecision === 'yes'}`);
         }
         console.log(`   🔄 [FlowWiseService] Transition: ${currentStep} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
         if (conditionMet) {
           nextStepId = transition.to;
-          console.log(`   🔄 [FlowWiseService] ✅ Selected next step: ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] ========================================`);
+          console.log(`   ✅ [FlowWiseService] ✅ TRANSITION CONDITION MET! ✅`);
+          console.log(`   ✅ [FlowWiseService] Selected next step: ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] Transition: ${currentStep} → ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] Condition: ${transition.condition || 'always'}`);
+          console.log(`   ✅ [FlowWiseService] ========================================`);
           break;
+        } else {
+          console.log(`   ⚠️ [FlowWiseService] Transition condition NOT met: ${currentStep} → ${transition.to}`);
         }
       } catch (evalError: any) {
-        console.error(`   ❌ [FlowWiseService] Error evaluating transition condition "${transition.condition}":`, evalError.message);
+        console.error(`   ❌ [FlowWiseService] ========================================`);
+        console.error(`   ❌ [FlowWiseService] ERROR EVALUATING TRANSITION CONDITION`);
+        console.error(`   ❌ [FlowWiseService] Transition: ${currentStep} → ${transition.to}`);
+        console.error(`   ❌ [FlowWiseService] Condition: ${transition.condition}`);
+        console.error(`   ❌ [FlowWiseService] Error message: ${evalError.message}`);
         console.error(`   ❌ [FlowWiseService] Error stack:`, evalError.stack);
+        console.error(`   ❌ [FlowWiseService] ========================================`);
         // Continue to next transition
       }
     }

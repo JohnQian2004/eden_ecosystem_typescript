@@ -549,6 +549,57 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // GET /api/workflow/pending-decision/:email - Check if user has pending workflow decision
+  if (pathname.startsWith("/api/workflow/pending-decision/") && req.method === "GET") {
+    const email = decodeURIComponent(pathname.split("/").pop() || "");
+    console.log(`   🤔 [${requestId}] GET /api/workflow/pending-decision/${email} - Checking for pending decisions`);
+    
+    try {
+      if (!(global as any).workflowExecutions) {
+        (global as any).workflowExecutions = new Map();
+      }
+      const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+      
+      // Find active executions waiting for user decision
+      const pendingExecutions: any[] = [];
+      for (const [executionId, execution] of workflowExecutions.entries()) {
+        if (execution.context?.user?.email === email || execution.userEmail === email) {
+          const currentStep = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
+          if (currentStep?.type === "decision" && currentStep?.requiresUserDecision) {
+            pendingExecutions.push({
+              executionId: execution.executionId,
+              stepId: execution.currentStep,
+              stepName: currentStep.name,
+              prompt: currentStep.decisionPrompt,
+              options: currentStep.decisionOptions || []
+            });
+          }
+        }
+      }
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        hasPendingDecision: pendingExecutions.length > 0,
+        pendingExecutions: pendingExecutions
+      }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error checking pending decisions:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
   // GET /api/igas/total - Get total iGas
   if (pathname === "/api/igas/total" && req.method === "GET") {
     console.log(`   ⛽ [${requestId}] GET /api/igas/total - Fetching total iGas`);
@@ -3757,6 +3808,14 @@ httpServer.on("request", async (req, res) => {
         console.log(`   ✅ [${requestId}] ========================================`);
         console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
         console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${finalDecision} for workflow ${workflowId}`);
+        console.log(`   ✅ [${requestId}] Original decision value: ${decision || 'none'}`);
+        console.log(`   ✅ [${requestId}] Final decision value: ${finalDecision}`);
+        console.log(`   ✅ [${requestId}] SelectionData provided: ${selectionData ? 'yes' : 'no'}`);
+        if (selectionData) {
+          console.log(`   ✅ [${requestId}] SelectionData type: ${typeof selectionData}`);
+          console.log(`   ✅ [${requestId}] SelectionData keys: ${typeof selectionData === 'object' ? Object.keys(selectionData).join(', ') : 'N/A'}`);
+        }
+        console.log(`   ✅ [${requestId}] StepId: ${stepId || 'not provided'}`);
         console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
@@ -4830,6 +4889,78 @@ httpServer.on("request", async (req, res) => {
         if (!email || typeof email !== 'string' || !email.includes('@')) {
           sendResponse(400, { success: false, error: "Valid email address required" });
           return;
+        }
+        
+        // CRITICAL: Check for pending workflow decisions BEFORE processing as new chat input
+        // Use LLM to determine if user input is a decision response for a pending workflow
+        if (!(global as any).workflowExecutions) {
+          (global as any).workflowExecutions = new Map();
+        }
+        const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+        
+        // Find active executions waiting for user decision
+        // Match by user email in context (execution.context.user.email)
+        for (const [executionId, execution] of workflowExecutions.entries()) {
+          const executionUserEmail = execution.context?.user?.email;
+          if (executionUserEmail === email) {
+            const currentStep = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
+            if (currentStep?.type === "decision" && currentStep?.requiresUserDecision) {
+              console.log(`   🤔 [${requestId}] Found pending decision for execution ${executionId}, using LLM to determine if input is a decision response...`);
+              
+              // Use LLM to determine if user input is a decision response
+              try {
+                // CRITICAL: Replace template variables in decision prompt and options using execution context
+                const { replaceTemplateVariables } = await import("./src/flowwise");
+                const context = execution.context || {};
+                
+                // Process decision prompt with template variables
+                let decisionPrompt = currentStep.decisionPrompt || "Please make a decision";
+                if (currentStep.decisionPrompt) {
+                  decisionPrompt = replaceTemplateVariables(currentStep.decisionPrompt, context);
+                  console.log(`   🔍 [${requestId}] Processed decision prompt: "${decisionPrompt}"`);
+                }
+                
+                // Process decision options with template variables
+                let decisionOptions: Array<{ value: string; label: string }> = [];
+                if (currentStep.decisionOptions && Array.isArray(currentStep.decisionOptions) && currentStep.decisionOptions.length > 0) {
+                  decisionOptions = currentStep.decisionOptions.map((opt: any) => ({
+                    value: opt.value,
+                    label: replaceTemplateVariables(opt.label || "", context)
+                  }));
+                  console.log(`   🔍 [${requestId}] Processed ${decisionOptions.length} decision options`);
+                }
+                
+                const { determineDecisionResponse } = await import("./src/llm");
+                const decisionResult = await determineDecisionResponse(
+                  input,
+                  decisionPrompt,
+                  decisionOptions
+                );
+                
+                if (decisionResult.isDecisionResponse) {
+                  console.log(`   ✅ [${requestId}] LLM determined input "${input}" is a decision response: ${decisionResult.decisionValue}`);
+                  
+                  // Route to workflow decision handler
+                  const { submitUserDecisionToFlowWise } = await import("./src/components/flowwiseService");
+                  const result = await submitUserDecisionToFlowWise(executionId, decisionResult.decisionValue);
+                  
+                  sendResponse(200, {
+                    success: true,
+                    message: "Decision processed successfully",
+                    decision: decisionResult.decisionValue,
+                    instruction: result.instruction
+                  });
+                  return;
+                } else {
+                  console.log(`   ℹ️  [${requestId}] LLM determined input "${input}" is NOT a decision response, continuing with normal chat processing`);
+                }
+              } catch (error: any) {
+                console.error(`   ❌ [${requestId}] Error using LLM to determine decision:`, error.message);
+                console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+                // Fall through to normal chat processing if LLM check fails
+              }
+            }
+          }
         }
         
         console.log(`🔄 [Eden Chat] ========================================`);

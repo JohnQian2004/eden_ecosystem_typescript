@@ -12,6 +12,10 @@
     "clean": "rimraf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "dev": "start-dev.bat",
+    "start": "start-full.bat",
+    "start:esbuild": "node dist/eden-sim-redis.js --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true",
+    "start:full": "start-full.bat",
+    "start:full:esbuild": "start-full-esbuild.bat",
     "generate-certs": "node scripts/generate-pki-certs.js"
   },
   "keywords": [

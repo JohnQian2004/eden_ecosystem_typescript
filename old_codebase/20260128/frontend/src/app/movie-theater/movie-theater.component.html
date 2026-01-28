@@ -1,0 +1,156 @@
+<div class="movie-theater-container" [ngClass]="[sceneBackground, isAvatarExperience ? 'avatar-experience' : '']">
+  <!-- Neural Link Indicator for Avatar -->
+  <div *ngIf="isAvatarExperience && isPlaying" class="neural-link-indicator" title="Neural Link Active"></div>
+
+  <div class="movie-header">
+    <h2 class="movie-title">
+      <span class="scene-icon">{{ getSceneIcon() }}</span>
+      {{ sceneTitle }}
+    </h2>
+    <p class="movie-description">{{ sceneDescription }}</p>
+  </div>
+
+  <div class="movie-content">
+    <div class="movie-screen" *ngIf="!isPlaying && !movieTitle">
+      <div class="screen-placeholder">
+        <h3>🎬 Movie Theater Ready</h3>
+        <p>Waiting for movie selection...</p>
+      </div>
+    </div>
+
+    <div class="movie-screen" *ngIf="movieTitle && !isPlaying">
+      <div class="screen-ready">
+        <h3 *ngIf="!isAvatarExperience">🎭 {{ movieTitle }}</h3>
+        <h3 *ngIf="isAvatarExperience" style="color: #00f2ff; text-shadow: 0 0 10px #00f2ff;">
+          🌟 {{ movieTitle }} - Neural Link Experience
+        </h3>
+        <p>Duration: {{ duration }} seconds</p>
+        <button class="btn btn-primary btn-lg" (click)="startWatching()">
+          ▶️ Start Watching
+        </button>
+      </div>
+    </div>
+
+    <div class="movie-screen movie-playing" *ngIf="isPlaying">
+      <div class="playing-content">
+        <h3>🎬 Now Playing: {{ movieTitle }}</h3>
+
+        <!-- Video Player -->
+        <div class="video-player-container" *ngIf="selectedListing?.videoUrl && !videoError">
+          <video
+            #movieVideo
+            class="movie-video"
+            [src]="getVideoUrl()"
+            crossorigin="anonymous"
+            controls
+            autoplay
+            muted
+            preload="auto"
+            (timeupdate)="onVideoTimeUpdate($event)"
+            (ended)="onVideoEnded()"
+            (error)="onVideoError($event)"
+            (loadeddata)="onVideoLoaded($event)">
+            Your browser does not support the video tag.
+          </video>
+
+          <!-- Video Error Message -->
+          <div *ngIf="videoError" class="video-error-message">
+            <p>🎬 Video not available - falling back to simulation</p>
+            <small class="text-muted">Please provide a real video file at {{ selectedListing?.videoUrl }}</small>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="progress-bar-container">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" [style.width.%]="progressPercent"></div>
+            </div>
+            <div class="progress-text">{{ progressPercent.toFixed(0) }}%</div>
+          </div>
+
+          <div class="progress-details">
+            <small class="text-muted">
+              Scene: {{ currentScene | titlecase }} |
+              Time: {{ currentSeconds }}/{{ duration }}s
+              <span *ngIf="selectedListing?.videoUrl"> | Video: {{ videoCurrentTime | number:'1.0-0' }}s</span>
+            </small>
+          </div>
+        </div>
+
+        <div class="scene-visualization">
+          <div class="scene-indicator" [ngClass]="currentScene">
+            <div class="scene-symbol">{{ getSceneIcon() }}</div>
+            <div class="scene-name">{{ sceneTitle }}</div>
+          </div>
+        </div>
+
+        <div class="movie-console">
+          <pre class="console-output">{{ getProgressText() }}</pre>
+        </div>
+
+        <!-- Avatar Photo Mode -->
+        <div *ngIf="isAvatarExperience && isPlaying" class="mt-3">
+          <div class="avatar-photo-controls text-center">
+            <button type="button" class="btn btn-avatar me-2" (click)="captureAvatarMoment()">
+              📷 Capture Neural Moment
+            </button>
+            <button type="button" class="btn btn-outline-info btn-sm" (click)="viewAvatarMemories()">
+              🖼️ View Memories ({{ getAvatarMemories().length }})
+            </button>
+          </div>
+
+          <!-- Memory Gallery (shown when viewing memories) -->
+          <div *ngIf="showMemoryGallery" class="memory-gallery mt-3">
+            <h6 class="text-info">🌟 Neural Memory Gallery</h6>
+            <div class="memory-list">
+              <div *ngFor="let memory of getAvatarMemories(); let i = index"
+                   class="memory-item card mb-2">
+                <div class="card-body p-2">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="memory-preview">
+                      <small class="text-muted">{{ memory.timestamp }}</small>
+                      <div class="memory-stats">
+                        <span class="badge bg-primary me-1">{{ memory.connectionDepth }}%</span>
+                        <span class="badge bg-info">{{ memory.visionColor }}</span>
+                      </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" (click)="deleteMemory(i)">
+                      🗑️
+                    </button>
+                  </div>
+                  <button class="btn btn-sm btn-outline-primary mt-1 w-100"
+                          (click)="viewFullMemory(memory.photo)">
+                    👁️ View Memory
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="text-center mt-2" *ngIf="getAvatarMemories().length > 0">
+              <button class="btn btn-sm btn-outline-warning" (click)="clearAvatarMemories()">
+                🗑️ Clear All Memories
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="movie-screen movie-finished" *ngIf="!isPlaying && progressPercent === 100">
+      <div class="finished-content">
+        <h3>🎉 Movie Complete!</h3>
+        <p>{{ movieTitle }} has finished playing.</p>
+        <div class="final-scene">
+          <h4>{{ sceneTitle }}</h4>
+          <p>{{ sceneDescription }}</p>
+        </div>
+        <p class="text-muted">Returning to Genesis Garden state...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="movie-footer" *ngIf="isPlaying">
+    <button class="btn btn-secondary" (click)="stopMovie()">
+      ⏹️ Stop Movie
+    </button>
+  </div>
+</div>

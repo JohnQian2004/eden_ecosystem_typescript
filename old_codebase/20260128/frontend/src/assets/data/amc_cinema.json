@@ -1,0 +1,598 @@
+{
+  "serviceType": "AMC Cinema",
+  "flowwiseWorkflow": {
+    "name": "Movie Garden Chat Lifecycle",
+    "version": "1.0.0",
+    "description": "Complete FlowWise workflow for movie garden chat interactions with ledger, cashier, LLM, payment, and notification control",
+    "steps": [
+      {
+        "id": "user_input",
+        "name": "1️⃣ User Input",
+        "type": "input",
+        "component": "user",
+        "description": "Receive and validate user chat input",
+        "actions": [
+          {
+            "type": "validate",
+            "field": "input",
+            "required": true
+          },
+          {
+            "type": "validate",
+            "field": "email",
+            "required": true,
+            "format": "email"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_input",
+            "component": "user",
+            "message": "User query received",
+            "data": {
+              "input": "{{input}}",
+              "email": "{{email}}"
+            }
+          }
+        ],
+        "outputs": {
+          "input": "{{input}}",
+          "email": "{{email}}",
+          "user": "{{user}}"
+        }
+      },
+      {
+        "id": "llm_resolution",
+        "name": "2️⃣ LLM Resolution",
+        "type": "process",
+        "component": "llm",
+        "description": "Extract query, query service registry, get providers, format response",
+        "actions": [
+          {
+            "type": "llm_extract_query",
+            "provider": "openai",
+            "input": "{{input}}"
+          },
+          {
+            "type": "query_service_registry",
+            "serviceType": "{{queryResult.serviceType}}",
+            "filters": "{{queryResult.query.filters}}"
+          },
+          {
+            "type": "llm_format_response",
+            "provider": "openai",
+            "listings": "{{listings}}",
+            "userQuery": "{{input}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "llm_start",
+            "component": "llm",
+            "message": "Starting LLM query extraction...",
+            "data": {}
+          },
+          {
+            "type": "llm_response",
+            "component": "llm",
+            "message": "{{llmResponse.message}}",
+            "data": {
+              "response": "{{llmResponse}}"
+            }
+          },
+          {
+            "type": "igas",
+            "component": "igas",
+            "message": "iGas Cost: {{llmResponse.iGasCost}}",
+            "data": {
+              "igas": "{{llmResponse.iGasCost}}"
+            }
+          }
+        ],
+        "outputs": {
+          "llmResponse": "{{llmResponse}}",
+          "selectedListing": "{{llmResponse.selectedListing}}",
+          "iGasCost": "{{llmResponse.iGasCost}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "error",
+              "component": "llm",
+              "message": "{{error.message}}"
+            }
+          ]
+        }
+      },
+      {
+        "id": "user_confirm_listing",
+        "name": "🤔 User Decision: Confirm Selection",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm the selected movie listing",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Would you like to proceed with {{selectedListing.movieTitle}} at {{selectedListing.showtime}} for {{selectedListing.price}} JSC?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, proceed",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm your selection",
+            "data": {
+              "decisionId": "confirm_listing",
+              "prompt": "Would you like to proceed with {{selectedListing.movieTitle}} at {{selectedListing.showtime}} for {{selectedListing.price}} JSC?",
+              "options": [
+                {"value": "YES", "label": "Yes, proceed"},
+                {"value": "NO", "label": "No, cancel"}
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
+        "id": "ledger_create_entry",
+        "name": "3️⃣ Ledger: Create Booking Entry",
+        "type": "process",
+        "component": "ledger",
+        "description": "Create ledger entry for booking",
+        "conditions": [
+          {
+            "if": "{{selectedListing}}",
+            "then": "continue"
+          }
+        ],
+        "actions": [
+          {
+            "type": "create_snapshot",
+            "payer": "{{user.email}}",
+            "amount": "{{moviePrice}}",
+            "providerId": "{{selectedListing.providerId}}"
+          },
+          {
+            "type": "validate_certificate",
+            "providerUuid": "{{providerUuid}}"
+          },
+          {
+            "type": "add_ledger_entry",
+            "snapshot": "{{snapshot}}",
+            "serviceType": "movie",
+            "iGasCost": "{{iGasCost}}",
+            "payerId": "{{user.email}}",
+            "merchantName": "{{selectedListing.providerName}}",
+            "providerUuid": "{{providerUuid}}",
+            "bookingDetails": {
+              "movieTitle": "{{selectedListing.movieTitle}}",
+              "showtime": "{{selectedListing.showtime}}",
+              "location": "{{selectedListing.location}}"
+            }
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "ledger_entry_created",
+            "component": "ledger",
+            "message": "Ledger entry created for booking: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "ledger_entry_added",
+            "component": "ledger",
+            "message": "Ledger entry created: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          },
+          {
+            "type": "certificate_validated",
+            "component": "root-ca",
+            "message": "Certificate validated for {{provider.name}}",
+            "data": {
+              "providerUuid": "{{providerUuid}}",
+              "providerName": "{{provider.name}}"
+            }
+          }
+        ],
+        "outputs": {
+          "ledgerEntry": "{{ledgerEntry}}",
+          "snapshot": "{{snapshot}}",
+          "providerUuid": "{{providerUuid}}"
+        }
+      },
+      {
+        "id": "user_confirm_payment",
+        "name": "🤔 User Decision: Confirm Payment",
+        "type": "decision",
+        "component": "user",
+        "description": "Ask user to confirm payment before processing",
+        "requiresUserDecision": true,
+        "decisionPrompt": "Your balance is {{user.balance}} JSC. Total cost: {{totalCost}} JSC ({{moviePrice}} + {{iGasCost}} iGas). Proceed with payment?",
+        "decisionOptions": [
+          {
+            "value": "YES",
+            "label": "Yes, pay now",
+            "action": "continue"
+          },
+          {
+            "value": "NO",
+            "label": "No, cancel",
+            "action": "cancel"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "user_decision_required",
+            "component": "user",
+            "message": "Please confirm payment",
+            "data": {
+              "decisionId": "confirm_payment",
+              "prompt": "Your balance is {{user.balance}} JSC. Total cost: {{totalCost}} JSC ({{moviePrice}} + {{iGasCost}} iGas). Proceed with payment?",
+              "options": [
+                {"value": "YES", "label": "Yes, pay now"},
+                {"value": "NO", "label": "No, cancel"}
+              ],
+              "timeout": 30000
+            }
+          }
+        ],
+        "outputs": {
+          "userDecision": "{{userDecision}}"
+        },
+        "timeout": 30000,
+        "onTimeout": "error_handler"
+      },
+      {
+        "id": "cashier_process_payment",
+        "name": "4️⃣ Cashier: Process Payment",
+        "type": "process",
+        "component": "cashier",
+        "description": "Process payment through cashier and wallet service",
+        "conditions": [
+          {
+            "if": "{{userDecision}} === 'YES'",
+            "then": "continue"
+          }
+        ],
+        "actions": [
+          {
+            "type": "check_balance",
+            "email": "{{user.email}}",
+            "required": "{{totalCost}}"
+          },
+          {
+            "type": "process_payment",
+            "cashier": "{{cashier}}",
+            "ledgerEntry": "{{ledgerEntry}}",
+            "user": "{{user}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "cashier_start",
+            "component": "cashier",
+            "message": "{{cashier.name}} processing payment...",
+            "data": {
+              "cashier": "{{cashier}}"
+            }
+          },
+          {
+            "type": "cashier_payment_processed",
+            "component": "cashier",
+            "message": "{{cashier.name}} processed payment: {{ledgerEntry.amount}} JSC",
+            "data": {
+              "entry": "{{ledgerEntry}}",
+              "cashier": "{{cashier}}",
+              "userBalance": "{{user.balance}}",
+              "walletService": "wallet-service-001"
+            }
+          },
+          {
+            "type": "purchase",
+            "component": "transaction",
+            "message": "Purchased {{selectedListing.movieTitle}} for {{moviePrice}} JSC",
+            "data": {
+              "listing": "{{selectedListing}}",
+              "price": "{{moviePrice}}",
+              "ledgerEntry": "{{ledgerEntry.entryId}}"
+            }
+          }
+        ],
+        "outputs": {
+          "paymentSuccess": "{{paymentSuccess}}",
+          "updatedBalance": "{{user.balance}}",
+          "updatedCashier": "{{cashier}}"
+        },
+        "errorHandling": {
+          "onError": "error_handler",
+          "errorEvents": [
+            {
+              "type": "cashier_payment_failed",
+              "component": "cashier",
+              "message": "Payment failed: {{error.message}}"
+            }
+          ]
+        }
+      },
+      {
+        "id": "snapshot_persist",
+        "name": "5️⃣ Snapshot + Persist",
+        "type": "process",
+        "component": "snapshot",
+        "description": "Create and persist transaction snapshot",
+        "actions": [
+          {
+            "type": "persist_snapshot",
+            "snapshot": "{{snapshot}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "snapshot_start",
+            "component": "snapshot",
+            "message": "Creating transaction snapshot...",
+            "data": {}
+          },
+          {
+            "type": "snapshot_success",
+            "component": "snapshot",
+            "message": "Snapshot created: {{snapshot.txId}}",
+            "data": {
+              "snapshot": "{{snapshot}}"
+            }
+          }
+        ],
+        "outputs": {
+          "snapshot": "{{snapshot}}"
+        }
+      },
+      {
+        "id": "stream_to_indexers",
+        "name": "6️⃣ Stream to Indexers",
+        "type": "process",
+        "component": "redis",
+        "description": "Stream transaction to indexers/gardens",
+        "actions": [
+          {
+            "type": "stream_to_indexers",
+            "snapshot": "{{snapshot}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "indexer_stream",
+            "component": "redis",
+            "message": "Streaming to indexers...",
+            "data": {
+              "snapshot": "{{snapshot}}"
+            }
+          }
+        ],
+        "outputs": {
+          "streamed": true
+        }
+      },
+      {
+        "id": "complete_booking",
+        "name": "7️⃣ Complete Booking",
+        "type": "process",
+        "component": "ledger",
+        "description": "Complete booking and deliver notifications",
+        "actions": [
+          {
+            "type": "complete_booking",
+            "ledgerEntry": "{{ledgerEntry}}"
+          },
+          {
+            "type": "deliver_webhook",
+            "providerId": "{{selectedListing.providerId}}",
+            "snapshot": "{{snapshot}}",
+            "ledgerEntry": "{{ledgerEntry}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "movie_watch",
+            "component": "user",
+            "message": "Watching {{selectedListing.movieTitle}}...",
+            "data": {
+              "movieTitle": "{{selectedListing.movieTitle}}"
+            }
+          },
+          {
+            "type": "ledger_booking_completed",
+            "component": "ledger",
+            "message": "Booking completed: {{ledgerEntry.entryId}}",
+            "data": {
+              "entry": "{{ledgerEntry}}"
+            }
+          }
+        ],
+        "outputs": {
+          "completed": true
+        }
+      },
+      {
+        "id": "apply_review",
+        "name": "8️⃣ Review",
+        "type": "process",
+        "component": "user",
+        "description": "Apply review rebate",
+        "actions": [
+          {
+            "type": "apply_review",
+            "user": "{{user}}",
+            "review": {
+              "userId": "{{user.id}}",
+              "movieId": "{{selectedListing.movieId}}",
+              "rating": 5
+            },
+            "moviePrice": "{{moviePrice}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "wallet_credited",
+            "component": "wallet",
+            "message": "Review rebate credited: {{rebate}} JSC",
+            "data": {
+              "email": "{{user.email}}",
+              "amount": "{{rebate}}",
+              "balance": "{{user.balance}}"
+            }
+          }
+        ],
+        "outputs": {
+          "rebate": "{{rebate}}",
+          "updatedBalance": "{{user.balance}}"
+        }
+      },
+      {
+        "id": "summary",
+        "name": "8️⃣ Summary",
+        "type": "output",
+        "component": "transaction",
+        "description": "Generate transaction summary",
+        "actions": [
+          {
+            "type": "generate_summary",
+            "balance": "{{user.balance}}",
+            "rebate": "{{rebate}}",
+            "fees": "{{snapshot.feeSplit}}",
+            "iGasCost": "{{iGasCost}}",
+            "selectedProvider": "{{selectedListing.providerName}}",
+            "movie": "{{selectedListing.movieTitle}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "summary",
+            "component": "transaction",
+            "message": "Transaction completed successfully",
+            "data": {
+              "balance": "{{user.balance}}",
+              "rebate": "{{rebate}}",
+              "fees": "{{snapshot.feeSplit}}",
+              "iGasCost": "{{iGasCost}}",
+              "selectedProvider": "{{selectedListing.providerName}}",
+              "movie": "{{selectedListing.movieTitle}}"
+            }
+          }
+        ],
+        "outputs": {
+          "summary": "{{summary}}"
+        }
+      },
+      {
+        "id": "error_handler",
+        "name": "Error Handler",
+        "type": "error",
+        "component": "system",
+        "description": "Handle errors and broadcast error events",
+        "websocketEvents": [
+          {
+            "type": "error",
+            "component": "{{error.component}}",
+            "message": "{{error.message}}",
+            "data": {
+              "error": "{{error}}"
+            }
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "from": "user_input",
+        "to": "llm_resolution",
+        "condition": "always"
+      },
+      {
+        "from": "llm_resolution",
+        "to": "user_confirm_listing",
+        "condition": "{{llmResponse.selectedListing}}"
+      },
+      {
+        "from": "llm_resolution",
+        "to": "error_handler",
+        "condition": "!{{llmResponse.selectedListing}}"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "ledger_create_entry",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_listing",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
+      },
+      {
+        "from": "ledger_create_entry",
+        "to": "user_confirm_payment",
+        "condition": "always"
+      },
+      {
+        "from": "user_confirm_payment",
+        "to": "cashier_process_payment",
+        "condition": "{{userDecision}} === 'YES'"
+      },
+      {
+        "from": "user_confirm_payment",
+        "to": "error_handler",
+        "condition": "{{userDecision}} === 'NO'"
+      },
+      {
+        "from": "cashier_process_payment",
+        "to": "snapshot_persist",
+        "condition": "{{paymentSuccess}}"
+      },
+      {
+        "from": "cashier_process_payment",
+        "to": "error_handler",
+        "condition": "!{{paymentSuccess}}"
+      },
+      {
+        "from": "snapshot_persist",
+        "to": "stream_to_indexers",
+        "condition": "always"
+      },
+      {
+        "from": "stream_to_indexers",
+        "to": "complete_booking",
+        "condition": "always"
+      },
+      {
+        "from": "complete_booking",
+        "to": "apply_review",
+        "condition": "always"
+      },
+      {
+        "from": "apply_review",
+        "to": "summary",
+        "condition": "always"
+      }
+    ],
+    "initialStep": "user_input",
+    "finalSteps": ["summary", "error_handler"]
+  }
+}
+

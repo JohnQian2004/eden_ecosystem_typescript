@@ -1103,3 +1103,215 @@ export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParamet
     req.end();
   });
 }
+
+/**
+ * Determine if user input is a decision response for a pending workflow decision
+ * Uses LLM to intelligently determine if the input is a yes/no/confirm/cancel response
+ */
+export async function determineDecisionResponse(
+  userInput: string,
+  decisionPrompt: string,
+  decisionOptions: Array<{ value: string; label: string }>
+): Promise<{
+  isDecisionResponse: boolean;
+  decisionValue: string | null;
+  confidence: number;
+}> {
+  const ENABLE_OPENAI = process.env.ENABLE_OPENAI !== 'false';
+  const MOCKED_LLM = process.env.MOCKED_LLM === 'true';
+
+  if (MOCKED_LLM) {
+    // Mock mode: simple keyword detection
+    const inputLower = userInput.toLowerCase().trim();
+    const positiveKeywords = ['yes', 'y', 'ok', 'okay', 'sure', 'confirm', 'proceed', 'preceed', 'go', 'continue', 'accept'];
+    const negativeKeywords = ['no', 'n', 'cancel', 'stop', 'abort', 'reject', 'decline'];
+    
+    if (positiveKeywords.some(kw => inputLower.includes(kw))) {
+      return { isDecisionResponse: true, decisionValue: 'YES', confidence: 0.9 };
+    }
+    if (negativeKeywords.some(kw => inputLower.includes(kw))) {
+      return { isDecisionResponse: true, decisionValue: 'NO', confidence: 0.9 };
+    }
+    return { isDecisionResponse: false, decisionValue: null, confidence: 0.1 };
+  }
+
+  const prompt = `You are analyzing user input to determine if it's a decision response for a workflow.
+
+The workflow is asking the user: "${decisionPrompt}"
+
+Available decision options:
+${decisionOptions.map((opt, i) => `${i + 1}. ${opt.label} (value: ${opt.value})`).join('\n')}
+
+User input: "${userInput}"
+
+Determine if the user input is a decision response (yes/no/confirm/cancel/etc.) for the above prompt.
+
+Return JSON only with:
+- isDecisionResponse: boolean (true if input is a decision response, false if it's a new query/request)
+- decisionValue: string | null (the decision value if isDecisionResponse is true, matching one of the option values or "YES"/"NO" for simple confirmations, null if not a decision)
+- confidence: number (0.0 to 1.0)
+
+Examples:
+- Input: "yes" → {"isDecisionResponse": true, "decisionValue": "YES", "confidence": 0.95}
+- Input: "yes, proceed" → {"isDecisionResponse": true, "decisionValue": "YES", "confidence": 0.95}
+- Input: "no" → {"isDecisionResponse": true, "decisionValue": "NO", "confidence": 0.95}
+- Input: "I want a movie" → {"isDecisionResponse": false, "decisionValue": null, "confidence": 0.9}
+- Input: "cancel" → {"isDecisionResponse": true, "decisionValue": "NO", "confidence": 0.9}
+
+CRITICAL: If the input is clearly a new service request (like "I want a movie", "book tickets", etc.), return isDecisionResponse: false.
+Only return isDecisionResponse: true if the input is clearly responding to the decision prompt.`;
+
+  if (ENABLE_OPENAI) {
+    return determineDecisionResponseWithOpenAI(userInput, prompt);
+  } else {
+    return determineDecisionResponseWithDeepSeek(userInput, prompt);
+  }
+}
+
+async function determineDecisionResponseWithOpenAI(
+  userInput: string,
+  prompt: string
+): Promise<{
+  isDecisionResponse: boolean;
+  decisionValue: string | null;
+  confidence: number;
+}> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI API key is required");
+  }
+
+  const messages = [
+    { role: "system", content: prompt },
+    { role: "user", content: userInput }
+  ];
+
+  const requestBody = {
+    model: "gpt-4o-mini",
+    messages,
+    response_format: { type: "json_object" },
+    temperature: 0.3
+  };
+
+  const requestBodyJson = JSON.stringify(requestBody);
+  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.openai.com",
+        port: 443,
+        path: "/v1/chat/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Length": requestBodyBuffer.length.toString()
+        }
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
+              return;
+            }
+            if (parsed.choices?.[0]?.message?.content) {
+              const content = JSON.parse(parsed.choices[0].message.content);
+              resolve({
+                isDecisionResponse: content.isDecisionResponse === true,
+                decisionValue: content.decisionValue || null,
+                confidence: content.confidence || 0.5
+              });
+            } else {
+              reject(new Error("Invalid OpenAI response format"));
+            }
+          } catch (err: any) {
+            reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
+          }
+        });
+      }
+    );
+
+    req.on("error", (err) => {
+      reject(new Error(`OpenAI request failed: ${err.message}`));
+    });
+
+    req.write(requestBodyBuffer);
+    req.end();
+  });
+}
+
+async function determineDecisionResponseWithDeepSeek(
+  userInput: string,
+  prompt: string
+): Promise<{
+  isDecisionResponse: boolean;
+  decisionValue: string | null;
+  confidence: number;
+}> {
+  if (!process.env.DEEPSEEK_API_KEY) {
+    throw new Error("DeepSeek API key is required");
+  }
+
+  const messages = [
+    { role: "system", content: prompt },
+    { role: "user", content: userInput }
+  ];
+
+  const requestBody = {
+    model: "deepseek-chat",
+    messages,
+    response_format: { type: "json_object" },
+    temperature: 0.3
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.deepseek.com",
+        port: 443,
+        path: "/v1/chat/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`
+        }
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              reject(new Error(`DeepSeek API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
+              return;
+            }
+            if (parsed.choices?.[0]?.message?.content) {
+              const content = JSON.parse(parsed.choices[0].message.content);
+              resolve({
+                isDecisionResponse: content.isDecisionResponse === true,
+                decisionValue: content.decisionValue || null,
+                confidence: content.confidence || 0.5
+              });
+            } else {
+              reject(new Error("Invalid DeepSeek response format"));
+            }
+          } catch (err: any) {
+            reject(new Error(`Failed to parse DeepSeek response: ${err.message}`));
+          }
+        });
+      }
+    );
+
+    req.on("error", (err) => {
+      reject(new Error(`DeepSeek request failed: ${err.message}`));
+    });
+
+    req.write(JSON.stringify(requestBody));
+    req.end();
+  });
+}

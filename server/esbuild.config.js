@@ -28,7 +28,7 @@ async function build() {
     tsconfig: './tsconfig.json',
     logLevel: 'info',
     // Preserve directory structure
-    outbase: './'
+    outbase: './',
     // Note: external option only works with bundle: true.
     // When bundle: false, esbuild just transpiles and doesn't resolve/bundle dependencies.
   };

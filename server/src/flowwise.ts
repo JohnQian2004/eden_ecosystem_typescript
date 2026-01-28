@@ -313,7 +313,14 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
       if (value !== undefined && value !== null) {
         return value; // Return the actual object/value, not stringified
       }
-      console.warn(`⚠️  [Template] Variable not found in context: ${fullMatch[1]}`);
+      // Special handling: snapshot.feeSplit should return empty object if snapshot exists but feeSplit doesn't
+      if (fullMatch[1] === "snapshot.feeSplit" && (context as any).snapshot) {
+        return {};
+      }
+      // Only warn for non-critical missing variables (suppress warning for snapshot.feeSplit as it's handled above)
+      if (fullMatch[1] !== "snapshot.feeSplit") {
+        console.warn(`⚠️  [Template] Variable not found in context: ${fullMatch[1]}`);
+      }
       return null;
     }
     // Otherwise, replace template variables within the string
@@ -326,9 +333,16 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
         }
         return String(value);
       }
+      // Special handling: snapshot.feeSplit should return empty object string if snapshot exists but feeSplit doesn't
+      if (path === "snapshot.feeSplit" && (context as any).snapshot) {
+        return '{}';
+      }
       // If template variable not found, return empty string instead of keeping the template
       // This prevents showing "{{variableName}}" in the UI
-      console.warn(`⚠️  [Template] Variable not found in context: ${path}`);
+      // Only warn for non-critical missing variables (suppress warning for snapshot.feeSplit as it's handled above)
+      if (path !== "snapshot.feeSplit") {
+        console.warn(`⚠️  [Template] Variable not found in context: ${path}`);
+      }
       return '';
     });
   } else if (Array.isArray(template)) {
@@ -347,7 +361,32 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
  * Get nested value from object using dot notation
  */
 function getNestedValue(obj: any, path: string): any {
-  return path.split(".").reduce((current, prop) => current?.[prop], obj);
+  // Special handling: if snapshot.feeSplit is requested, check if snapshot exists first
+  if (path === "snapshot.feeSplit") {
+    if (obj?.snapshot) {
+      // Snapshot exists, check if feeSplit exists
+      if (obj.snapshot.feeSplit !== undefined && obj.snapshot.feeSplit !== null) {
+        return obj.snapshot.feeSplit;
+      }
+      // Snapshot exists but feeSplit doesn't, return empty object
+      return {};
+    }
+    // Snapshot doesn't exist, return undefined
+    return undefined;
+  }
+  
+  // Normal nested property access for other paths
+  const parts = path.split(".");
+  let current = obj;
+  
+  for (const prop of parts) {
+    if (current === null || current === undefined) {
+      return undefined;
+    }
+    current = current[prop];
+  }
+  
+  return current;
 }
 
 /**
