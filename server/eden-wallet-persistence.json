@@ -1,6 +1,6 @@
 {
   "walletBalances": {
-    "wallet:balance:bill.draper.auto@gmail.com": "6639980.871657704",
+    "wallet:balance:bill.draper.auto@gmail.com": "6639978.871657704",
     "wallet:balance:billdraper2026@gmail.com": "346.151111111",
     "wallet:audit:bill.draper.auto@gmail.com:1767090872688": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"9ee15e46-b04b-4926-8565-f4656dd842df\",\"reason\":\"Stripe payment confirmed: pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767090872688}",
     "wallet:audit:bill.draper.auto@gmail.com:1767133942207": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":130,\"previousBalance\":6666438.2,\"newBalance\":6666308.2,\"txId\":\"79f18d77-976e-413e-aee9-bd311a5e7834\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133942207}",
@@ -694,7 +694,8 @@
     "wallet:audit:bill.draper.auto@gmail.com:1769573965802": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6639980.071657703,\"newBalance\":6639980.271657703,\"txId\":\"5b57fc05-a65e-49f3-85bb-88ca2d356adc\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1769573965802}",
     "wallet:audit:bill.draper.auto@gmail.com:1769579283273": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6639980.271657703,\"newBalance\":6639980.471657704,\"txId\":\"f5142282-ba45-494d-bdc2-d374a40f4d42\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1769579283273}",
     "wallet:audit:bill.draper.auto@gmail.com:1769615858892": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6639980.471657704,\"newBalance\":6639980.671657704,\"txId\":\"a802193f-e4fe-4558-8b12-0d7b3b20d9b0\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1769615858892}",
-    "wallet:audit:bill.draper.auto@gmail.com:1769631699399": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6639980.671657704,\"newBalance\":6639980.871657704,\"txId\":\"501fca72-5fd0-4e4d-a035-6979f77e7bc6\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1769631699399}"
+    "wallet:audit:bill.draper.auto@gmail.com:1769631699399": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":0.2,\"previousBalance\":6639980.671657704,\"newBalance\":6639980.871657704,\"txId\":\"501fca72-5fd0-4e4d-a035-6979f77e7bc6\",\"reason\":\"Review rebate: 5/5 rating\",\"metadata\":{\"reviewRating\":5,\"moviePrice\":2,\"rebateType\":\"review\"},\"timestamp\":1769631699399}",
+    "wallet:audit:bill.draper.auto@gmail.com:1769857896154": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6639980.871657704,\"newBalance\":6639978.871657704,\"txId\":\"tx_1769857896080\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769857896154}"
   },
-  "lastSaved": "2026-01-28T20:21:40.420Z"
+  "lastSaved": "2026-01-31T11:11:36.244Z"
 }

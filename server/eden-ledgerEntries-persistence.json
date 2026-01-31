@@ -10072,7 +10072,39 @@
         "description": "Priesthood Application Fee (Non-refundable)",
         "price": 1
       }
+    },
+    {
+      "entryId": "606f993f-d88c-423b-9ffe-de6ef16126dd",
+      "txId": "tx_1769857896080",
+      "timestamp": 1769857896080,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.001,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "Back to the Future",
+        "showtime": "10:30 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "back-to-future-1",
+        "reviewCount": 100,
+        "rating": 5,
+        "videoUrl": "/api/movie/video/2025-12-09-144801890.mp4"
+      }
     }
   ],
-  "lastSaved": "2026-01-28T20:21:40.420Z"
+  "lastSaved": "2026-01-31T11:11:36.244Z"
 }
