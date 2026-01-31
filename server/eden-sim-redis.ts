@@ -55,10 +55,7 @@ import {
   HOLY_GHOST_GARDEN,
   LEDGER,
   USERS as USERS_STATE,
-  TOTAL_IGAS,
-  setTOTAL_IGAS,
-  addTOTAL_IGAS,
-  getTOTAL_IGAS
+  TOTAL_IGAS
 } from "./src/state";
 import { ROOT_CA_UUID, REVOCATION_STREAM, WALLET_BALANCE_PREFIX, WALLET_HOLD_PREFIX, WALLET_AUDIT_PREFIX } from "./src/constants";
 import {
@@ -143,32 +140,6 @@ import {
   getCertificationStats,
   type PriesthoodCertification
 } from "./src/priesthoodCertification";
-import {
-  initializeMessaging,
-  createConversation,
-  getConversation,
-  getConversations,
-  sendMessage,
-  getConversationMessages,
-  forgiveMessage,
-  redactMessage,
-  updateConversationState,
-  escalateConversation
-} from "./src/messaging/conversationService";
-import {
-  initializeIdentity,
-  createEdenUser,
-  getEdenUser,
-  getEdenUserByGoogleId,
-  getEdenUserByUsername,
-  getEdenUserByEmail,
-  isUsernameAvailable,
-  validateUsername,
-  joinGarden,
-  getGardenUser,
-  updateGardenNickname,
-  resolveDisplayName
-} from "./src/identity";
 import {
   initializeLLM,
   extractQueryWithOpenAI,
@@ -549,57 +520,6 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
-  // GET /api/workflow/pending-decision/:email - Check if user has pending workflow decision
-  if (pathname.startsWith("/api/workflow/pending-decision/") && req.method === "GET") {
-    const email = decodeURIComponent(pathname.split("/").pop() || "");
-    console.log(`   🤔 [${requestId}] GET /api/workflow/pending-decision/${email} - Checking for pending decisions`);
-    
-    try {
-      if (!(global as any).workflowExecutions) {
-        (global as any).workflowExecutions = new Map();
-      }
-      const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
-      
-      // Find active executions waiting for user decision
-      const pendingExecutions: any[] = [];
-      for (const [executionId, execution] of workflowExecutions.entries()) {
-        if (execution.context?.user?.email === email || execution.userEmail === email) {
-          const currentStep = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
-          if (currentStep?.type === "decision" && currentStep?.requiresUserDecision) {
-            pendingExecutions.push({
-              executionId: execution.executionId,
-              stepId: execution.currentStep,
-              stepName: currentStep.name,
-              prompt: currentStep.decisionPrompt,
-              options: currentStep.decisionOptions || []
-            });
-          }
-        }
-      }
-      
-      res.writeHead(200, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      });
-      res.end(JSON.stringify({
-        success: true,
-        hasPendingDecision: pendingExecutions.length > 0,
-        pendingExecutions: pendingExecutions
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error checking pending decisions:`, error.message);
-      res.writeHead(500, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message
-      }));
-    }
-    return;
-  }
-
   // GET /api/igas/total - Get total iGas
   if (pathname === "/api/igas/total" && req.method === "GET") {
     console.log(`   ⛽ [${requestId}] GET /api/igas/total - Fetching total iGas`);
@@ -611,7 +531,7 @@ httpServer.on("request", async (req, res) => {
       totalIGas = getAccountantState().totalIGas || 0;
     } catch (err: any) {
       console.warn(`⚠️  [${requestId}] Failed to load Accountant totalIGas, falling back to TOTAL_IGAS: ${err.message}`);
-      totalIGas = getTOTAL_IGAS() || 0;
+      totalIGas = TOTAL_IGAS || 0;
     }
     res.writeHead(200, {
       "Content-Type": "application/json",
@@ -1375,23 +1295,11 @@ httpServer.on("request", async (req, res) => {
                 console.log(`🔍 [LLM] ========================================`);
                 console.log(`🔍 [LLM] formatResponseWithOpenAI_CLONED FUNCTION ENTRY - CLONED DIRECTLY IN EDEN-SIM-REDIS`);
                 console.log(`🔍 [LLM] This is the CLONED function - NOT imported`);
+                console.log(`🔍 [LLM] Using Cohere AI (switched from OpenAI)`);
                 console.log(`🔍 [LLM] listings count: ${listings.length}`);
-                console.log(`🔍 [LLM] userQuery: ${userQuery ? userQuery.substring(0, 100) : '(empty)'}`);
+                console.log(`🔍 [LLM] userQuery: ${userQuery.substring(0, 100)}`);
                 console.log(`🔍 [LLM] queryFilters:`, JSON.stringify(queryFilters));
                 console.log(`🔍 [LLM] ========================================`);
-                
-                // 🚨 CRITICAL: Validate userQuery is not empty
-                if (!userQuery || userQuery.trim().length === 0) {
-                  const serviceType = queryFilters?.serviceType || 'movie';
-                  // Generate a fallback query based on service type and filters
-                  const fallbackQuery = serviceType === 'dex' 
-                    ? `Find ${queryFilters?.tokenSymbol || 'TOKEN'} token trading options`
-                    : serviceType === 'movie'
-                    ? `Find ${queryFilters?.genre || ''} ${queryFilters?.time || ''} movies`.trim()
-                    : `Find ${serviceType} service options`;
-                  userQuery = fallbackQuery;
-                  console.warn(`⚠️ [LLM] userQuery was empty, using fallback: "${userQuery}"`);
-                }
                 
                 const listingsJson = JSON.stringify(listings);
                 const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
@@ -1402,59 +1310,91 @@ httpServer.on("request", async (req, res) => {
                   { role: "user", content: userMessage },
                 ];
                 
-                const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
+                // Cohere AI API Configuration
+                const COHERE_API_KEY = "tHJAN4gUTZ4GM1IJ25FQFbKydqBp6LCVbsAxXggB";
+                const COHERE_API_HOST = "api.cohere.ai";
+                const COHERE_CHAT_ENDPOINT = "/v1/chat";
                 
-                const payloadObj = {
-                  model: "gpt-4o",
-                  messages,
-                  response_format: { type: "json_object" },
-                  temperature: 0.7,
-                };
+                // Convert OpenAI messages format to Cohere format
+                // Cohere uses chat_history, message, and preamble format
+                const chatHistory: Array<{ role: string; message: string }> = [];
+                let currentMessage = "";
+                let preamble = "";
                 
-                let payload: string;
-                try {
-                  payload = JSON.stringify(payloadObj);
-                  // Validate payload is valid JSON
-                  JSON.parse(payload);
-                } catch (err: any) {
-                  console.error(`❌ [LLM] Failed to stringify payload:`, err);
-                  return Promise.reject(new Error(`Failed to create valid JSON payload: ${err.message}`));
+                // Process messages - Cohere expects:
+                // - preamble: system messages
+                // - chat_history: previous user/assistant messages
+                // - message: current user message
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  if (msg.role === "system") {
+                    // System messages go into preamble
+                    preamble += (preamble ? "\n\n" : "") + msg.content;
+                  } else if (i === messages.length - 1 && msg.role === "user") {
+                    // Last user message is the current message
+                    currentMessage = msg.content;
+                  } else {
+                    // Previous messages go into chat_history
+                    const role = msg.role === "assistant" ? "CHATBOT" : "USER";
+                    chatHistory.push({
+                      role: role,
+                      message: msg.content
+                    });
+                  }
                 }
                 
-                const payloadBuffer = Buffer.from(payload, 'utf8');
-                const contentLength = payloadBuffer.length;
+                const requestBody: any = {
+                  message: currentMessage,
+                  model: "command-r7b-12-2024",
+                  temperature: 0.7,
+                  max_tokens: 2000
+                };
+                
+                // Add chat_history if we have any
+                if (chatHistory.length > 0) {
+                  requestBody.chat_history = chatHistory;
+                }
+                
+                // Add preamble (system instructions + JSON mode)
+                requestBody.preamble = (preamble ? preamble + "\n\n" : "") + "You must respond with valid JSON only. No explanations, no markdown, just the JSON object.";
+                
+                const requestBodyJson = JSON.stringify(requestBody);
+                const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
 
                 return new Promise<LLMResponse>((resolve, reject) => {
                   const req = https.request(
                     {
-                      hostname: "api.openai.com",
+                      hostname: COHERE_API_HOST,
                       port: 443,
-                      path: "/v1/chat/completions",
+                      path: COHERE_CHAT_ENDPOINT,
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                        "Content-Length": contentLength,
+                        "Authorization": `Bearer ${COHERE_API_KEY}`,
+                        "Content-Length": requestBodyBuffer.length.toString()
                       },
                     },
                     (res) => {
                       let data = "";
                       res.on("data", (c) => (data += c));
                       res.on("end", () => {
-                        console.log(`🔍 [LLM] OpenAI response received, data length: ${data.length}`);
+                        console.log(`🔍 [LLM] Cohere response received, data length: ${data.length}`);
                         try {
                           const parsed = JSON.parse(data);
-                          console.log(`🔍 [LLM] OpenAI response parsed successfully`);
-                          if (parsed.error) {
-                            reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
+                          console.log(`🔍 [LLM] Cohere response parsed successfully`);
+                          if (parsed.message || parsed.error) {
+                            reject(new Error(`Cohere API error: ${parsed.message || parsed.error?.message || JSON.stringify(parsed.error)}`));
                             return;
                           }
-                          if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-                            let content: any;
-                            try {
-                              const contentStr = parsed.choices[0].message.content;
-                              console.log(`🔧 [LLM] Raw content from OpenAI: ${contentStr?.substring(0, 200)}...`);
-                              content = JSON.parse(contentStr);
+                          const contentStr = parsed.text || parsed.message;
+                          if (!contentStr) {
+                            reject(new Error("No content in Cohere response"));
+                            return;
+                          }
+                          let content: any;
+                          try {
+                            console.log(`🔧 [LLM] Raw content from Cohere: ${contentStr?.substring(0, 200)}...`);
+                            content = JSON.parse(contentStr);
                               console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
                               console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
                               console.log(`🔧 [LLM] content.selectedListing2 exists: ${!!content.selectedListing2}, type: ${typeof content.selectedListing2}`);
@@ -1498,8 +1438,8 @@ httpServer.on("request", async (req, res) => {
                                 }
                               }
                             } catch (parseError: any) {
-                              console.error(`❌ [LLM] Failed to parse OpenAI content as JSON: ${parseError.message}`);
-                              content = { message: parsed.choices[0].message.content || "Service found", selectedListing: null };
+                              console.error(`❌ [LLM] Failed to parse Cohere content as JSON: ${parseError.message}`);
+                              content = { message: contentStr || "Service found", selectedListing: null };
                             }
                             
                             // Process the content
@@ -1651,20 +1591,17 @@ httpServer.on("request", async (req, res) => {
                             console.log(`\n\n\n`);
                             
                             resolve(result);
-                          } else {
-                            reject(new Error("Invalid OpenAI response format"));
-                          }
                         } catch (err: any) {
-                          reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
+                          reject(new Error(`Failed to parse Cohere response: ${err.message}`));
                         }
                       });
                     }
                   );
                   
                   req.on("error", (err) => {
-                    reject(new Error(`OpenAI request failed: ${err.message}`));
+                    reject(new Error(`Cohere API request failed: ${err.message}`));
                   });
-                  req.write(payloadBuffer);
+                  req.write(requestBodyBuffer);
                   req.end();
                 });
               }
@@ -3054,31 +2991,8 @@ httpServer.on("request", async (req, res) => {
                       }
                       
                       // If we get here, we have no listings and no existing selectedListing
-                      // Create a helpful "no results" response instead of throwing an error
-                      console.warn(`⚠️ [${requestId}] No listings available and no existing selectedListing/selectedListing2 to use - creating "no results" response`);
-                      const userInput = updatedContext.userInput || "your request";
-                      const serviceType = formatServiceType || updatedContext.serviceType || updatedContext.queryResult?.query?.serviceType || "service";
-                      
-                      const noResultsResponse: LLMResponse = {
-                        message: `I couldn't find any ${serviceType} options matching "${userInput}". Please try a different search term or check back later.`,
-                        listings: [],
-                        selectedListing: null,
-                        selectedListing2: null,
-                        iGasCost: 0 // No LLM cost for no-results response
-                      };
-                      
-                      updatedContext.llmResponse = noResultsResponse;
-                      updatedContext.iGasCost = 0;
-                      
-                      actionResult = {
-                        llmResponse: noResultsResponse,
-                        listings: [],
-                        iGasCost: 0,
-                        currentIGas: 0
-                      };
-                      
-                      console.log(`✅ [${requestId}] Created "no results" response for empty listings`);
-                      break; // Exit the block instead of throwing
+                      console.error(`❌ [${requestId}] No listings available and no existing selectedListing/selectedListing2 to use`);
+                      throw new Error("Listings required for LLM formatting");
                     }
                     
                     // Use CLONED formatResponseWithOpenAI function directly (not imported)
@@ -3109,18 +3023,9 @@ httpServer.on("request", async (req, res) => {
                       filters: updatedContext.queryResult?.query?.filters
                     });
                     
-                    // Ensure userInput is not empty - use fallback if needed
-                    const userInputForFormatting = updatedContext.userInput?.trim() || 
-                      updatedContext.input?.trim() || 
-                      `Find ${processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie'} service options`;
-                    
-                    if (!updatedContext.userInput?.trim() && !updatedContext.input?.trim()) {
-                      console.warn(`⚠️ [${requestId}] userInput is empty, using fallback: "${userInputForFormatting}"`);
-                    }
-                    
                     const llmResponse = await formatFn(
                       availableListings,
-                      userInputForFormatting,
+                      updatedContext.userInput || "",
                       {
                         ...(updatedContext.queryResult?.query?.filters || {}),
                         serviceType: processedAction.serviceType || updatedContext.serviceType || updatedContext.queryResult?.serviceType || serviceType || 'movie'
@@ -3445,6 +3350,9 @@ httpServer.on("request", async (req, res) => {
         }
         console.log(`   📤 [${requestId}] ========================================`);
         
+        // Find the current step definition for type checking
+        const currentStep = workflow.steps.find((s: any) => s.id === stepId);
+        
         sendResponse(200, {
           success: true,
           message: `Step ${stepId} executed atomically`,
@@ -3454,7 +3362,7 @@ httpServer.on("request", async (req, res) => {
             events,
             updatedContext,
             nextStepId,
-            shouldAutoContinue: nextStepId && step.type !== 'decision' ? true : false
+            shouldAutoContinue: nextStepId && currentStep && currentStep.type !== 'decision' ? true : false
           }
         });
 
@@ -3462,7 +3370,7 @@ httpServer.on("request", async (req, res) => {
         // This ensures the workflow automatically progresses from ledger_create_entry to cashier_process_payment
         // The cashier step MUST execute to complete the ledger entry (status: pending -> processed)
         // This runs after executeStepAtomically is defined (see below after the function definition)
-        const shouldAutoContinue = nextStepId && step.type !== 'decision';
+        const shouldAutoContinue = nextStepId && currentStep && currentStep.type !== 'decision';
         const autoContinueStepId = shouldAutoContinue ? nextStepId : null;
         const autoContinueStep = shouldAutoContinue ? workflow.steps.find((s: any) => s.id === nextStepId) : null;
         const hasAlwaysTransition = shouldAutoContinue && autoContinueStep ? 
@@ -3499,33 +3407,36 @@ httpServer.on("request", async (req, res) => {
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error executing step atomically:`, error.message);
         
+        // Find the step definition for error handling
+        const stepForError = workflow.steps.find((s: any) => s.id === stepId);
+        
         // Check if step has errorHandling configuration
-        if (step.errorHandling && step.errorHandling.onError) {
-          console.log(`   ⚠️ [${requestId}] Step has errorHandling, transitioning to: ${step.errorHandling.onError}`);
+        if (stepForError && stepForError.errorHandling && stepForError.errorHandling.onError) {
+          console.log(`   ⚠️ [${requestId}] Step has errorHandling, transitioning to: ${stepForError.errorHandling.onError}`);
           
           // Set error object in context with component and message
           updatedContext.error = {
-            component: step.component || 'unknown',
+            component: stepForError.component || 'unknown',
             message: error.message,
             stepId: stepId,
-            stepName: step.name,
+            stepName: stepForError.name,
             error: error.message,
             stack: error.stack
           };
           
           console.log(`   ❌ [${requestId}] ========================================`);
-          console.log(`   ❌ [${requestId}] ERROR OCCURRED IN STEP: ${stepId} (${step.name})`);
-          console.log(`   ❌ [${requestId}] Component: ${step.component || 'unknown'}`);
+          console.log(`   ❌ [${requestId}] ERROR OCCURRED IN STEP: ${stepId} (${stepForError.name})`);
+          console.log(`   ❌ [${requestId}] Component: ${stepForError.component || 'unknown'}`);
           console.log(`   ❌ [${requestId}] Error Message: ${error.message}`);
           console.log(`   ❌ [${requestId}] Error Stack: ${error.stack?.substring(0, 200) || 'N/A'}`);
           console.log(`   ❌ [${requestId}] Error object set in context:`, JSON.stringify(updatedContext.error, null, 2));
           console.log(`   ❌ [${requestId}] Context keys after setting error:`, Object.keys(updatedContext));
-          console.log(`   ❌ [${requestId}] Transitioning to error handler: ${step.errorHandling.onError}`);
+          console.log(`   ❌ [${requestId}] Transitioning to error handler: ${stepForError.errorHandling.onError}`);
           console.log(`   ❌ [${requestId}] ========================================`);
           
           // Process errorEvents if defined
-          if (step.errorHandling.errorEvents) {
-            for (const event of step.errorHandling.errorEvents) {
+          if (stepForError.errorHandling.errorEvents) {
+            for (const event of stepForError.errorHandling.errorEvents) {
               const processedEvent = replaceTemplateVariables(event, updatedContext);
               // Ensure timestamp is always a valid number
               if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
@@ -3544,7 +3455,7 @@ httpServer.on("request", async (req, res) => {
           }
           
           // Find the error_handler step
-          const errorHandlerStep = workflow.steps.find((s: any) => s.id === step.errorHandling.onError);
+          const errorHandlerStep = workflow.steps.find((s: any) => s.id === stepForError.errorHandling.onError);
           if (errorHandlerStep) {
             console.log(`   🔄 [${requestId}] Transitioning to error handler step: ${errorHandlerStep.id} (${errorHandlerStep.name})`);
             
@@ -3577,14 +3488,14 @@ httpServer.on("request", async (req, res) => {
             
             if (existingExecution && existingExecution.workflow) {
               existingExecution.context = updatedContext;
-              existingExecution.currentStep = step.errorHandling.onError;
+              existingExecution.currentStep = stepForError.errorHandling.onError;
               workflowExecutions.set(executionId, existingExecution);
             } else {
               workflowExecutions.set(executionId, {
                 executionId,
                 workflow,
                 context: updatedContext,
-                currentStep: step.errorHandling.onError,
+                currentStep: stepForError.errorHandling.onError,
                 history: []
               });
             }
@@ -3593,7 +3504,7 @@ httpServer.on("request", async (req, res) => {
               success: true,
               message: `Step ${stepId} failed, transitioned to error handler`,
               result: {
-                stepId: step.errorHandling.onError,
+                stepId: stepForError.errorHandling.onError,
                 errorStepId: stepId,
                 error: error.message,
                 events,
@@ -3604,7 +3515,7 @@ httpServer.on("request", async (req, res) => {
             });
             return;
           } else {
-            console.error(`   ❌ [${requestId}] Error handler step not found: ${step.errorHandling.onError}`);
+            console.error(`   ❌ [${requestId}] Error handler step not found: ${stepForError.errorHandling.onError}`);
           }
         }
         
@@ -3808,14 +3719,6 @@ httpServer.on("request", async (req, res) => {
         console.log(`   ✅ [${requestId}] ========================================`);
         console.log(`   ✅ [${requestId}] 🎯 USER DECISION ENDPOINT HIT! 🎯`);
         console.log(`   ✅ [${requestId}] User ${selectionData ? 'selection' : 'decision'} submitted: ${finalDecision} for workflow ${workflowId}`);
-        console.log(`   ✅ [${requestId}] Original decision value: ${decision || 'none'}`);
-        console.log(`   ✅ [${requestId}] Final decision value: ${finalDecision}`);
-        console.log(`   ✅ [${requestId}] SelectionData provided: ${selectionData ? 'yes' : 'no'}`);
-        if (selectionData) {
-          console.log(`   ✅ [${requestId}] SelectionData type: ${typeof selectionData}`);
-          console.log(`   ✅ [${requestId}] SelectionData keys: ${typeof selectionData === 'object' ? Object.keys(selectionData).join(', ') : 'N/A'}`);
-        }
-        console.log(`   ✅ [${requestId}] StepId: ${stepId || 'not provided'}`);
         console.log(`   ✅ [${requestId}] ========================================`);
 
         // NEW ARCHITECTURE: Use FlowWiseService to handle user decisions
@@ -3904,17 +3807,8 @@ httpServer.on("request", async (req, res) => {
         sendChatHistoryResponse(200, { success: true, conversationId, messages: [] });
         return;
       }
-      
-      // Use dynamic import for faster startup, but cache the module
       const { getConversationMessages } = require("./src/chatHistory");
-      const startTime = Date.now();
       const messages = getConversationMessages(conversationId, limit, before);
-      const loadTime = Date.now() - startTime;
-      
-      if (loadTime > 100) {
-        console.log(`⚠️ [Chat History] Slow load: ${loadTime}ms for ${conversationId} (${messages.length} messages)`);
-      }
-      
       sendChatHistoryResponse(200, { success: true, conversationId, messages });
     } catch (e: any) {
       sendChatHistoryResponse(500, { success: false, error: e?.message || "Failed to load chat history" });
@@ -3957,879 +3851,6 @@ httpServer.on("request", async (req, res) => {
       } catch (e: any) {
         sendChatHistoryResponse(400, { success: false, error: e?.message || "Failed to append" });
       }
-    });
-    return;
-  }
-
-  if ((pathname === "/api/chat-history/delete" || pathname === "/api/chat-history/delete/") && req.method === "DELETE") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk.toString()));
-    req.on("end", () => {
-      try {
-        const parsed = body ? JSON.parse(body) : {};
-        const conversationId = String(parsed.conversationId || "").trim();
-        
-        if (!conversationId || !conversationId.startsWith("conv:")) {
-          sendChatHistoryResponse(400, { success: false, error: "Valid conversationId required" });
-          return;
-        }
-        
-        const { deleteConversation } = require("./src/chatHistory");
-        const deleted = deleteConversation(conversationId);
-        
-        if (deleted) {
-          // Broadcast deletion event
-          broadcastEvent({
-            type: "chat_history_deleted",
-            component: "chatHistory",
-            message: "Chat history deleted",
-            timestamp: Date.now(),
-            data: { conversationId }
-          });
-          
-          sendChatHistoryResponse(200, { success: true, conversationId, deleted: true });
-        } else {
-          sendChatHistoryResponse(404, { success: false, error: "Conversation not found" });
-        }
-      } catch (e: any) {
-        sendChatHistoryResponse(500, { success: false, error: e?.message || "Failed to delete chat history" });
-      }
-    });
-    return;
-  }
-
-  // ============================================
-  // Identity API Endpoints
-  // ============================================
-
-  // POST /api/identity/register - Register new Eden user with username
-  if (pathname === "/api/identity/register" && req.method === "POST") {
-    console.log(`   🎭 [${requestId}] POST /api/identity/register - Username registration`);
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { googleUserId, email, globalUsername, globalNickname } = parsed;
-        
-        if (!googleUserId || !email || !globalUsername) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Missing required fields" }));
-          return;
-        }
-
-        const user = createEdenUser(googleUserId, email, globalUsername, globalNickname);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, user }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Registration error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Registration failed" }));
-      }
-    });
-    return;
-  }
-
-  // GET /api/identity/username/check - Check username availability
-  if (pathname === "/api/identity/username/check" && req.method === "GET") {
-    const parsed = url.parse(req.url || "/", true);
-    const username = parsed.query.username as string;
-    
-    if (!username) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ available: false, error: "Username parameter required" }));
-      return;
-    }
-
-    const available = isUsernameAvailable(username);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ available }));
-    return;
-  }
-
-  // GET /api/identity/user/:userId - Get Eden user
-  if (pathname?.startsWith("/api/identity/user/") && req.method === "GET") {
-    const userId = pathname.split("/").pop();
-    if (!userId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "User ID required" }));
-      return;
-    }
-
-    const user = getEdenUser(userId);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: !!user, user: user || null }));
-    return;
-  }
-
-  // GET /api/identity/user-by-google/:googleUserId - Get Eden user by Google ID
-  if (pathname?.startsWith("/api/identity/user-by-google/") && req.method === "GET") {
-    const googleUserId = pathname.split("/").pop();
-    if (!googleUserId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "Google User ID required" }));
-      return;
-    }
-
-    const user = getEdenUserByGoogleId(googleUserId);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: !!user, user: user || null }));
-    return;
-  }
-
-  // GET /api/identity/user-by-email/:email - Get Eden user by email
-  if (pathname?.startsWith("/api/identity/user-by-email/") && req.method === "GET") {
-    const email = decodeURIComponent(pathname.split("/").pop() || "");
-    if (!email) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "Email required" }));
-      return;
-    }
-
-    const user = getEdenUserByEmail(email);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: !!user, user: user || null }));
-    return;
-  }
-
-  // GET /api/identity/garden-user - Get Garden user
-  if (pathname === "/api/identity/garden-user" && req.method === "GET") {
-    const parsed = url.parse(req.url || "/", true);
-    const userId = parsed.query.userId as string;
-    const gardenId = parsed.query.gardenId as string;
-    
-    if (!userId || !gardenId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "userId and gardenId required" }));
-      return;
-    }
-
-    const gardenUser = getGardenUser(userId, gardenId);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: true, gardenUser: gardenUser || null }));
-    return;
-  }
-
-  // POST /api/identity/garden/join - Join a Garden
-  if (pathname === "/api/identity/garden/join" && req.method === "POST") {
-    console.log(`   🎭 [${requestId}] POST /api/identity/garden/join - Garden join`);
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { userId, gardenId, gardenUsername, gardenNickname } = parsed;
-        
-        if (!userId || !gardenId) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "userId and gardenId required" }));
-          return;
-        }
-
-        const gardenUser = joinGarden(userId, gardenId, gardenUsername, gardenNickname);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, gardenUser }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Garden join error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Garden join failed" }));
-      }
-    });
-    return;
-  }
-
-  // PUT /api/identity/garden-user/nickname - Update garden nickname
-  if (pathname === "/api/identity/garden-user/nickname" && req.method === "PUT") {
-    console.log(`   🎭 [${requestId}] PUT /api/identity/garden-user/nickname - Update nickname`);
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { userId, gardenId, nickname } = parsed;
-        
-        if (!userId || !gardenId || !nickname) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "userId, gardenId, and nickname required" }));
-          return;
-        }
-
-        const gardenUser = updateGardenNickname(userId, gardenId, nickname);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, gardenUser }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Nickname update error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Nickname update failed" }));
-      }
-    });
-    return;
-  }
-
-  // ========================================
-  // Universal Messaging System API Endpoints
-  // ========================================
-
-  // POST /api/messaging/conversations - Create a new conversation
-  if (pathname === "/api/messaging/conversations" && req.method === "POST") {
-    console.log(`   💬 [${requestId}] POST /api/messaging/conversations - Create conversation`);
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { scope, participants, policy, initialMessage, creatorId, creatorType } = parsed;
-        
-        if (!scope || !participants || !creatorId || !creatorType) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "scope, participants, creatorId, and creatorType required" }));
-          return;
-        }
-
-        const conversation = createConversation(
-          { scope, participants, policy, initialMessage },
-          creatorId,
-          creatorType
-        );
-
-        // Broadcast conversation created event
-        broadcastEvent({
-          type: "conversation_created",
-          component: "messaging",
-          message: `Conversation created: ${conversation.conversationId}`,
-          data: { conversation },
-          timestamp: Date.now()
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, conversation }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Create conversation error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Failed to create conversation" }));
-      }
-    });
-    return;
-  }
-
-  // GET /api/messaging/conversations - List conversations with filters
-  if (pathname === "/api/messaging/conversations" && req.method === "GET") {
-    console.log(`   💬 [${requestId}] GET /api/messaging/conversations - List conversations`);
-    const parsed = url.parse(req.url || "/", true);
-    const filters: any = {};
-    if (parsed.query.scopeType) filters.scopeType = parsed.query.scopeType;
-    if (parsed.query.referenceId) filters.referenceId = parsed.query.referenceId;
-    if (parsed.query.participantId) filters.participantId = parsed.query.participantId;
-    if (parsed.query.state) filters.state = parsed.query.state;
-    if (parsed.query.gardenId) filters.gardenId = parsed.query.gardenId;
-
-    try {
-      const conversations = getConversations(filters);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: true, conversations }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] List conversations error:`, error);
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: error.message || "Failed to list conversations" }));
-    }
-    return;
-  }
-
-  // GET /api/messaging/conversations/:conversationId - Get conversation by ID
-  if (pathname?.startsWith("/api/messaging/conversations/") && req.method === "GET") {
-    const conversationId = pathname.split("/").pop() || "";
-    console.log(`   💬 [${requestId}] GET /api/messaging/conversations/${conversationId}`);
-    
-    if (!conversationId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "conversationId required" }));
-      return;
-    }
-
-    const conversation = getConversation(conversationId);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: !!conversation, conversation: conversation || null }));
-    return;
-  }
-
-  // POST /api/messaging/conversations/:conversationId/messages - Send a message
-  if (pathname?.startsWith("/api/messaging/conversations/") && pathname.endsWith("/messages") && req.method === "POST") {
-    const pathParts = pathname.split("/");
-    const conversationId = pathParts[pathParts.length - 2] || ""; // Get second-to-last part (before "messages")
-    console.log(`   💬 [${requestId}] POST /api/messaging/conversations/${conversationId}/messages`);
-    console.log(`   💬 [${requestId}] Full pathname: ${pathname}, Extracted conversationId: ${conversationId}`);
-    
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { messageType, payload, replyTo, senderId, senderType, senderRole } = parsed;
-        
-        if (!messageType || !payload || !senderId || !senderType) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "messageType, payload, senderId, and senderType required" }));
-          return;
-        }
-
-        console.log(`   💬 [${requestId}] Sending message: conversationId=${conversationId}, senderId=${senderId}, senderType=${senderType}`);
-        
-        const message = sendMessage(
-          { conversationId, messageType, payload, replyTo },
-          senderId,
-          senderType,
-          senderRole
-        );
-
-        console.log(`   ✅ [${requestId}] Message created: ${message.messageId}`);
-        console.log(`   ✅ [${requestId}] Verifying message storage...`);
-        
-        // Verify message was stored (getConversationMessages is already imported at top)
-        try {
-          const verifyMessages = getConversationMessages(conversationId, senderId, senderType, senderRole);
-          console.log(`   ✅ [${requestId}] Verification: Found ${verifyMessages.length} messages in conversation (including the one just sent)`);
-        } catch (verifyError: any) {
-          console.error(`   ⚠️ [${requestId}] Verification failed:`, verifyError.message);
-        }
-
-        // Broadcast message sent event
-        broadcastEvent({
-          type: "message_sent",
-          component: "messaging",
-          message: `Message sent: ${message.messageId}`,
-          data: { message, conversationId },
-          timestamp: Date.now()
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, message }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Send message error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Failed to send message" }));
-      }
-    });
-    return;
-  }
-
-  // GET /api/messaging/conversations/:conversationId/messages - Get messages for a conversation
-  if (pathname?.startsWith("/api/messaging/conversations/") && pathname.endsWith("/messages") && req.method === "GET") {
-    const pathParts = pathname.split("/");
-    const conversationId = pathParts[pathParts.length - 2] || ""; // Get second-to-last part (before "messages")
-    console.log(`   💬 [${requestId}] GET /api/messaging/conversations/${conversationId}/messages`);
-    console.log(`   💬 [${requestId}] Full pathname: ${pathname}, Extracted conversationId: ${conversationId}`);
-    
-    const parsed = url.parse(req.url || "/", true);
-    const entityId = parsed.query.entityId as string;
-    const entityType = parsed.query.entityType as string;
-    const entityRole = parsed.query.entityRole as string | undefined;
-
-    console.log(`   💬 [${requestId}] Query params: entityId=${entityId}, entityType=${entityType}, entityRole=${entityRole}`);
-
-    if (!entityId || !entityType) {
-      console.error(`   ❌ [${requestId}] Missing required params: entityId=${entityId}, entityType=${entityType}`);
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "entityId and entityType required" }));
-      return;
-    }
-
-    if (!conversationId) {
-      console.error(`   ❌ [${requestId}] Missing conversationId from path: ${pathname}`);
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "Conversation ID required" }));
-      return;
-    }
-
-    try {
-      console.log(`   💬 [${requestId}] Getting messages for conversation ${conversationId}, entity: ${entityId} (${entityType})`);
-      const messages = getConversationMessages(conversationId, entityId, entityType as any, entityRole);
-      console.log(`   ✅ [${requestId}] Retrieved ${messages.length} messages`);
-      const response = { success: true, messages };
-      console.log(`   ✅ [${requestId}] Sending response with ${messages.length} messages`);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(response));
-      console.log(`   ✅ [${requestId}] Response sent successfully`);
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Get messages error:`, error);
-      console.error(`   ❌ [${requestId}] Error details:`, {
-        conversationId,
-        entityId,
-        entityType,
-        errorMessage: error.message,
-        errorStack: error.stack
-      });
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: error.message || "Failed to get messages" }));
-    }
-    return;
-  }
-
-  // POST /api/messaging/messages/:messageId/forgive - Forgive a message
-  if (pathname?.startsWith("/api/messaging/messages/") && pathname.endsWith("/forgive") && req.method === "POST") {
-    const messageId = pathname.split("/")[4] || "";
-    console.log(`   💬 [${requestId}] POST /api/messaging/messages/${messageId}/forgive`);
-    
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { reason, forgiverId, forgiverType, forgiverRole } = parsed;
-        
-        if (!forgiverId || !forgiverType) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "forgiverId and forgiverType required" }));
-          return;
-        }
-
-        const message = forgiveMessage({ messageId, reason }, forgiverId, forgiverType as any, forgiverRole);
-
-        // Broadcast message forgiven event
-        broadcastEvent({
-          type: "message_forgiven",
-          component: "messaging",
-          message: `Message forgiven: ${messageId}`,
-          data: { message },
-          timestamp: Date.now()
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, message }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Forgive message error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Failed to forgive message" }));
-      }
-    });
-    return;
-  }
-
-  // POST /api/messaging/conversations/:conversationId/state - Update conversation state
-  if (pathname?.startsWith("/api/messaging/conversations/") && pathname.endsWith("/state") && req.method === "POST") {
-    const conversationId = pathname.split("/")[4] || "";
-    console.log(`   💬 [${requestId}] POST /api/messaging/conversations/${conversationId}/state`);
-    
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { state, reason, updaterId, updaterType, updaterRole } = parsed;
-        
-        if (!state || !updaterId || !updaterType) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "state, updaterId, and updaterType required" }));
-          return;
-        }
-
-        const conversation = updateConversationState(
-          { conversationId, state, reason },
-          updaterId,
-          updaterType as any,
-          updaterRole
-        );
-
-        // Broadcast conversation state changed event
-        broadcastEvent({
-          type: "conversation_state_changed",
-          component: "messaging",
-          message: `Conversation ${conversationId} state changed to ${state}`,
-          data: { conversation },
-          timestamp: Date.now()
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, conversation }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Update conversation state error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Failed to update conversation state" }));
-      }
-    });
-    return;
-  }
-
-  // POST /api/messaging/conversations/:conversationId/escalate - Escalate conversation
-  if (pathname?.startsWith("/api/messaging/conversations/") && pathname.endsWith("/escalate") && req.method === "POST") {
-    const conversationId = pathname.split("/")[4] || "";
-    console.log(`   💬 [${requestId}] POST /api/messaging/conversations/${conversationId}/escalate`);
-    
-    let body = "";
-    req.on("data", (chunk) => { body += chunk.toString(); });
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body);
-        const { additionalParticipants, reason, escalatorId, escalatorType, escalatorRole } = parsed;
-        
-        if (!additionalParticipants || !reason || !escalatorId || !escalatorType) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "additionalParticipants, reason, escalatorId, and escalatorType required" }));
-          return;
-        }
-
-        const conversation = escalateConversation(
-          { conversationId, additionalParticipants, reason },
-          escalatorId,
-          escalatorType as any,
-          escalatorRole
-        );
-
-        // Broadcast conversation escalated event
-        broadcastEvent({
-          type: "conversation_escalated",
-          component: "messaging",
-          message: `Conversation ${conversationId} escalated`,
-          data: { conversation },
-          timestamp: Date.now()
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, conversation }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Escalate conversation error:`, error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: error.message || "Failed to escalate conversation" }));
-      }
-    });
-    return;
-  }
-
-  // 🚨 REGULAR CHAT ENDPOINT: Only handles informational queries (RAG + general knowledge)
-  // Eden workflow queries should use /api/eden-chat instead
-  if (pathname === "/api/chat" && req.method === "POST") {
-    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
-    let body = "";
-    let bodyReceived = false;
-    
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    
-    req.on("end", async () => {
-      if (bodyReceived) {
-        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
-        return;
-      }
-      bodyReceived = true;
-      // Ensure response is sent even if there's an unhandled error
-      const sendResponse = (statusCode: number, data: any) => {
-        if (!res.headersSent) {
-          res.writeHead(statusCode, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(data));
-        } else {
-          console.warn(`⚠️  Response already sent, cannot send:`, data);
-        }
-      };
-
-      let email = 'unknown';
-      
-      try {
-        // Parse and validate request body
-        if (!body || body.trim().length === 0) {
-          sendResponse(400, { success: false, error: "Request body is required" });
-          return;
-        }
-        
-        let parsedBody;
-        try {
-          parsedBody = JSON.parse(body);
-        } catch (parseError: any) {
-          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
-          return;
-        }
-        
-        const { input, email: requestEmail } = parsedBody;
-        email = requestEmail || 'unknown';
-        
-        // Validate input
-        if (!input || typeof input !== 'string' || input.trim().length === 0) {
-          sendResponse(400, { success: false, error: "Valid input message required" });
-          return;
-        }
-        
-        if (!email || typeof email !== 'string' || !email.includes('@')) {
-          sendResponse(400, { success: false, error: "Valid email address required" });
-          return;
-        }
-        
-        console.log(`📨 [Chat] ========================================`);
-        console.log(`📨 [Chat] Processing chat request from ${email}`);
-        console.log(`📨 [Chat] User Input: "${input.trim()}"`);
-        console.log(`📨 [Chat] ========================================`);
-        
-        // Find or create user
-        let user = USERS_STATE.find(u => u.email === email);
-        if (!user) {
-          const nextId = `u${USERS_STATE.length + 1}`;
-          user = {
-            id: nextId,
-            email: email,
-            balance: 0,
-          };
-          USERS_STATE.push(user);
-          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
-        }
-        
-        // Sync user balance with wallet (wallet is source of truth)
-        const currentWalletBalance = await getWalletBalance(email);
-        user.balance = currentWalletBalance;
-        
-        // 🚨 REGULAR CHAT ENDPOINT: Only handles informational queries (RAG + general knowledge)
-        // This endpoint is for REGULAR TEXT CHAT only - no workflows
-        const isGodChat = (body as any).isGodChat === true;
-        console.log(`💬 [Chat] Processing REGULAR TEXT CHAT (informational query only)${isGodChat ? ' - GOD CHAT MODE' : ''}`);
-        
-        // Build conversation ID for chat history (matches frontend pattern: conv:service:chat:user or conv:service:god)
-        const { buildConversationId } = await import("./src/chatHistory");
-        const conversationId = isGodChat 
-          ? buildConversationId('service', 'god')
-          : buildConversationId('service', 'chat', 'user');
-        
-        // Append user message to chat history
-        const { appendChatMessage } = await import("./src/chatHistory");
-        appendChatMessage({
-          conversationId: conversationId,
-          role: 'USER',
-          content: input.trim(),
-          userEmail: email,
-          serviceType: 'chat'
-        });
-        
-        // Step 1: Check if it's a RAG query (Eden-related informational query)
-        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
-        const queryLower = input.trim().toLowerCase();
-        const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
-          /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
-        const isRAGQuery = hasQuestionPattern && isEdenRelated;
-        
-        if (isRAGQuery) {
-          console.log(`📚 [Chat] Detected RAG query (Eden-related informational) - using RAG knowledge base`);
-          try {
-            const { formatResponseWithOpenAI } = await import("./src/llm");
-            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { serviceType: 'informational' });
-            
-            // Append assistant response to chat history
-            appendChatMessage({
-              conversationId: conversationId,
-              role: 'ASSISTANT',
-              content: llmResponse.message,
-              userEmail: email,
-              serviceType: 'chat'
-            });
-            
-            // Broadcast LLM response
-            broadcastEvent({
-              type: "llm_response",
-              component: "llm",
-              message: llmResponse.message,
-              timestamp: Date.now(),
-              data: {
-                query: input.trim(),
-                response: llmResponse,
-                isRAG: true
-              }
-            });
-            
-            sendResponse(200, {
-              success: true,
-              message: llmResponse.message,
-              isRAG: true
-            });
-            console.log(`✅ [Chat] RAG query answered for ${email}`);
-            return;
-          } catch (error: any) {
-            console.error(`❌ [Chat] Error processing RAG query:`, error);
-            sendResponse(500, {
-              success: false,
-              error: error.message || 'Failed to process RAG query'
-            });
-            return;
-          }
-        }
-        
-        // Step 2: Not RAG → Give to LLM to handle (general knowledge or other informational queries)
-        console.log(`💬 [Chat] Processing as LLM query (general knowledge or informational) - letting LLM handle it`);
-        
-        // Detect if this is a message to GOD (pattern-based detection as fallback)
-        const inputLower = input.trim().toLowerCase();
-        const isMessageToGod = isGodChat || 
-          /message\s+to\s+god|send\s+to\s+god|tell\s+god|god\s+please|bless\s+me|prayer|pray\s+to|message\s+god|god\s+help|god\s+i\s+need/i.test(inputLower) ||
-          (inputLower.includes('god') && (inputLower.includes('bless') || inputLower.includes('help') || inputLower.includes('thank')));
-        
-        // Handle with LLM - LLM will determine if it's general knowledge or needs rejection
-        // For GOD chat, use a special prompt that allows personal/spiritual responses
-        const { formatResponseWithOpenAI, formatResponseWithDeepSeek } = await import("./src/llm");
-        const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
-        
-        try {
-          // For GOD chat, prepend a special context to allow personal/spiritual responses
-          const processedInput = isMessageToGod 
-            ? `[GOD CHAT MODE] You are GOD in the Eden ecosystem. The user is directly addressing you. Respond as GOD would - with wisdom, compassion, and understanding. This is a personal message, not a system query. User message: ${input.trim()}`
-            : input.trim();
-          
-          const llmResponse = await formatFn(
-            [], // No listings for informational queries
-            processedInput,
-            { serviceType: isMessageToGod ? "god_chat" : "informational" }
-          );
-          
-          // Check if LLM detected this should go to GOD's inbox (or pattern-based detection)
-          if (llmResponse.shouldRouteToGodInbox || isMessageToGod) {
-            console.log(`⚡ [Chat] Routing message to GOD's inbox for ${email}`);
-            
-            try {
-              // Create GOVERNANCE conversation with ROOT_AUTHORITY (GOD)
-              const { createConversation, sendMessage, getConversations } = await import("./src/messaging/conversationService");
-              
-              // Find existing GOD inbox conversation for this user
-              const existingConversations = getConversations({
-                scopeType: 'GOVERNANCE',
-                participantId: email
-              });
-              
-              // Look for conversation with ROOT_AUTHORITY as participant
-              let godConversation = existingConversations.find(conv => 
-                conv.participants.includes('ROOT_AUTHORITY') && 
-                conv.state === 'OPEN'
-              );
-              
-              if (!godConversation) {
-                // Create new GOVERNANCE conversation with ROOT_AUTHORITY
-                // Ensure both user and ROOT_AUTHORITY have read/write permissions
-                godConversation = createConversation(
-                  {
-                    scope: {
-                      type: 'GOVERNANCE',
-                      referenceId: `god_inbox_${Date.now()}`,
-                    },
-                    participants: [email, 'ROOT_AUTHORITY'],
-                    policy: {
-                      readPermissions: [
-                        { entityType: 'USER', entityId: email },
-                        { entityType: 'ROOT_AUTHORITY' }
-                      ],
-                      writePermissions: [
-                        { entityType: 'USER', entityId: email },
-                        { entityType: 'ROOT_AUTHORITY' }
-                      ],
-                      invitePermissions: [
-                        { entityType: 'USER', entityId: email },
-                        { entityType: 'ROOT_AUTHORITY' }
-                      ],
-                      escalatePermissions: [
-                        { entityType: 'PRIEST' },
-                        { entityType: 'ROOT_AUTHORITY' }
-                      ],
-                      closePermissions: [
-                        { entityType: 'USER', entityId: email },
-                        { entityType: 'PRIEST' },
-                        { entityType: 'ROOT_AUTHORITY' }
-                      ]
-                    },
-                    initialMessage: {
-                      messageType: 'TEXT',
-                      payload: { text: input.trim() },
-                      senderId: email,
-                      senderType: 'USER'
-                    }
-                  },
-                  email,
-                  'USER'
-                );
-                console.log(`✅ [Chat] Created GOD inbox conversation: ${godConversation.conversationId}`);
-              } else {
-                // Send message to existing conversation
-                sendMessage(
-                  {
-                    conversationId: godConversation.conversationId,
-                    messageType: 'TEXT',
-                    payload: { text: input.trim() },
-                    replyTo: undefined
-                  },
-                  email,
-                  'USER',
-                  undefined // senderRole
-                );
-                console.log(`✅ [Chat] Sent message to existing GOD inbox conversation: ${godConversation.conversationId}`);
-              }
-              
-              // Update response message to confirm routing
-              llmResponse.message = `✅ Your message has been sent to GOD's inbox. GOD will review it and respond when appropriate.\n\nYour message: "${input.trim()}"`;
-            } catch (godInboxError: any) {
-              console.error(`❌ [Chat] Error routing to GOD inbox:`, godInboxError);
-              // Continue with normal response even if inbox routing fails
-            }
-          }
-          
-          // Append assistant response to chat history
-          appendChatMessage({
-            conversationId: conversationId,
-            role: 'ASSISTANT',
-            content: llmResponse.message,
-            userEmail: email,
-            serviceType: 'chat'
-          });
-          
-          // Broadcast LLM response
-          broadcastEvent({
-            type: "llm_response",
-            component: "llm",
-            message: llmResponse.message,
-            timestamp: Date.now(),
-            data: {
-              query: input.trim(),
-              response: llmResponse,
-              isLLM: true,
-              routedToGodInbox: llmResponse.shouldRouteToGodInbox || isGodChat
-            }
-          });
-          
-          // Send response
-          sendResponse(200, {
-            success: true,
-            message: llmResponse.message,
-            isLLM: true,
-            routedToGodInbox: llmResponse.shouldRouteToGodInbox || isGodChat
-          });
-          console.log(`✅ [Chat] LLM query handled for ${email}`);
-          console.log(`💬 [Chat] Response: "${llmResponse.message.substring(0, 100)}${llmResponse.message.length > 100 ? '...' : ''}"`);
-        } catch (error: any) {
-          console.error(`❌ [Chat] Error processing chat query:`, error);
-          sendResponse(500, { 
-            success: false, 
-            error: error.message || "Failed to process chat query"
-          });
-        }
-      } catch (outerError: any) {
-        // Catch any errors from the outer try block (request parsing, validation, etc.)
-        console.error(`❌ Outer error processing request:`, outerError);
-        if (!res.headersSent) {
-          sendResponse(500, { 
-            success: false, 
-            error: outerError.message || "Internal server error",
-            timestamp: Date.now()
-          });
-        }
-      }
-    });
-    
-    // Handle request errors
-    req.on("error", (error: Error) => {
-      console.error(`❌ Request error:`, error);
-      if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Request processing error" }));
-      }
-    });
-    
-    // Handle request timeout
-    req.setTimeout(60000, () => {
-      console.error(`❌ Request timeout`);
-      if (!res.headersSent) {
-        res.writeHead(408, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Request timeout" }));
-      }
-      req.destroy();
     });
     return;
   }
@@ -4891,138 +3912,9 @@ httpServer.on("request", async (req, res) => {
           return;
         }
         
-        // CRITICAL: Check for pending workflow decisions BEFORE processing as new chat input
-        // Use LLM to determine if user input is a decision response for a pending workflow
-        if (!(global as any).workflowExecutions) {
-          (global as any).workflowExecutions = new Map();
-        }
-        const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+        console.log(`📨 Processing Eden chat request from ${email}: "${input.trim()}"`);
         
-        // Find active executions waiting for user decision
-        // Match by user email in context (execution.context.user.email)
-        for (const [executionId, execution] of workflowExecutions.entries()) {
-          const executionUserEmail = execution.context?.user?.email;
-          if (executionUserEmail === email) {
-            const currentStep = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
-            if (currentStep?.type === "decision" && currentStep?.requiresUserDecision) {
-              console.log(`   🤔 [${requestId}] Found pending decision for execution ${executionId}`);
-              
-              // First, check for simple confirmation patterns (yes/no/proceed) before using LLM
-              const normalizedInput = input.trim().toLowerCase();
-              const isSimpleConfirmation = normalizedInput === 'yes' || 
-                                          normalizedInput === 'no' ||
-                                          normalizedInput === 'yes, proceed' ||
-                                          normalizedInput === 'yes, preceed' ||
-                                          normalizedInput === 'proceed' ||
-                                          normalizedInput === 'confirm' ||
-                                          normalizedInput.startsWith('yes,') ||
-                                          normalizedInput.startsWith('no,');
-              
-              if (isSimpleConfirmation) {
-                // Map simple confirmations to decision values
-                let decisionValue = normalizedInput;
-                if (normalizedInput === 'yes' || normalizedInput === 'yes, proceed' || normalizedInput === 'yes, preceed' || normalizedInput.startsWith('yes,') || normalizedInput === 'proceed' || normalizedInput === 'confirm') {
-                  decisionValue = 'YES';
-                } else if (normalizedInput === 'no' || normalizedInput.startsWith('no,')) {
-                  decisionValue = 'NO';
-                }
-                
-                console.log(`   ✅ [${requestId}] Simple confirmation detected: "${input}" -> "${decisionValue}"`);
-                
-                // Route to workflow decision handler
-                const { submitUserDecision } = await import("./src/components/flowwiseService");
-                const result = await submitUserDecision(executionId, decisionValue);
-                
-                sendResponse(200, {
-                  success: true,
-                  message: "Decision processed successfully",
-                  decision: decisionValue,
-                  instruction: result.instruction
-                });
-                return;
-              }
-              
-              console.log(`   🤔 [${requestId}] Not a simple confirmation, using LLM to determine if input is a decision response...`);
-              
-              // Use LLM to determine if user input is a decision response
-              try {
-                // CRITICAL: Replace template variables in decision prompt and options using execution context
-                const { replaceTemplateVariables } = await import("./src/flowwise");
-                const context = execution.context || {};
-                
-                // Process decision prompt with template variables
-                let decisionPrompt = currentStep.decisionPrompt || "Please make a decision";
-                if (currentStep.decisionPrompt) {
-                  decisionPrompt = replaceTemplateVariables(currentStep.decisionPrompt, context);
-                  console.log(`   🔍 [${requestId}] Processed decision prompt: "${decisionPrompt}"`);
-                }
-                
-                // Process decision options with template variables
-                let decisionOptions: Array<{ value: string; label: string }> = [];
-                if (currentStep.decisionOptions && Array.isArray(currentStep.decisionOptions) && currentStep.decisionOptions.length > 0) {
-                  decisionOptions = currentStep.decisionOptions.map((opt: any) => ({
-                    value: opt.value,
-                    label: replaceTemplateVariables(opt.label || "", context)
-                  }));
-                  console.log(`   🔍 [${requestId}] Processed ${decisionOptions.length} decision options`);
-                }
-                
-                const { determineDecisionResponse } = await import("./src/llm");
-                const decisionResult = await determineDecisionResponse(
-                  input,
-                  decisionPrompt,
-                  decisionOptions
-                );
-                
-                if (decisionResult.isDecisionResponse) {
-                  console.log(`   ✅ [${requestId}] LLM determined input "${input}" is a decision response: ${decisionResult.decisionValue}`);
-                  
-                  // Route to workflow decision handler
-                  const { submitUserDecision } = await import("./src/components/flowwiseService");
-                  const result = await submitUserDecision(executionId, decisionResult.decisionValue);
-                  
-                  sendResponse(200, {
-                    success: true,
-                    message: "Decision processed successfully",
-                    decision: decisionResult.decisionValue,
-                    instruction: result.instruction
-                  });
-                  return;
-                } else {
-                  console.log(`   ℹ️  [${requestId}] LLM determined input "${input}" is NOT a decision response, continuing with normal chat processing`);
-                }
-              } catch (error: any) {
-                console.error(`   ❌ [${requestId}] Error using LLM to determine decision:`, error.message);
-                console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
-                // Fall through to normal chat processing if LLM check fails
-              }
-            }
-          }
-        }
-        
-        // CRITICAL: Before starting a new workflow, check if there's an active execution waiting for decision
-        // If there is, don't start a new workflow - the input should be handled as a decision
-        const hasActiveDecisionExecution = Array.from(workflowExecutions.entries()).some(([execId, exec]: [string, any]) => {
-          const execUserEmail = exec.context?.user?.email;
-          if (execUserEmail === email) {
-            const currentStep = exec.workflow?.steps?.find((s: any) => s.id === exec.currentStep);
-            return currentStep?.type === "decision" && currentStep?.requiresUserDecision;
-          }
-          return false;
-        });
-        
-        if (hasActiveDecisionExecution) {
-          console.log(`   ⚠️  [${requestId}] Active execution waiting for decision exists - input "${input}" should be handled as decision, not new workflow`);
-          console.log(`   ⚠️  [${requestId}] If this input wasn't caught by simple confirmation check, it may need LLM decision detection`);
-          // Don't start a new workflow - the decision handling above should have caught this
-          // But if it didn't, we'll still try to process it as a new workflow (fallback)
-        }
-        
-        console.log(`🔄 [Eden Chat] ========================================`);
-        console.log(`🔄 [Eden Chat] Processing Eden workflow chat request from ${email}`);
-        console.log(`🔄 [Eden Chat] User Input: "${input.trim()}"`);
-        console.log(`🔄 [Eden Chat] ========================================`);
-        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // Find or create user
         let user = USERS_STATE.find(u => u.email === email);
         if (!user) {
@@ -5040,15 +3932,266 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
-        // EDEN CHAT (Workflow/Service Query) - proceed with workflow
-        console.log(`🔄 [Eden Chat] Processing EDEN CHAT (workflow/service query) - starting workflow`);
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
+        // No need to detect serviceType manually - LLM handles it
+        const workflowResult = await startWorkflowFromUserInput(
+          input.trim(),
+          user
+          // serviceType is now optional - LLM service mapper will determine it from user input
+        );
+        
+        // Broadcast workflow started event with LLM service selection
+        broadcastEvent({
+          type: "workflow_started",
+          component: "workflow",
+          message: `Workflow started: ${workflowResult.executionId}`,
+          timestamp: Date.now(),
+          data: {
+            executionId: workflowResult.executionId,
+            currentStep: workflowResult.currentStep,
+            instruction: workflowResult.instruction,
+            workflowProcessingGas: workflowResult.workflowProcessingGas,
+            serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+          }
+        });
+        
+        // Send response with workflow execution details
+        sendResponse(200, {
+          success: true,
+          executionId: workflowResult.executionId,
+          currentStep: workflowResult.currentStep,
+          instruction: workflowResult.instruction,
+          workflowProcessingGas: workflowResult.workflowProcessingGas
+        });
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing Eden chat request:`, error.message);
+        console.error(`   Error stack:`, error.stack);
+        if (!res.headersSent) {
+          sendResponse(500, { success: false, error: error.message || "Internal server error" });
+        }
+      }
+    });
+    
+    // Handle request errors
+    req.on("error", (error: Error) => {
+      console.error(`❌ Request error:`, error);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request processing error" }));
+      }
+    });
+    
+    // Handle request timeout
+    req.setTimeout(60000, () => {
+      console.error(`❌ Request timeout`);
+      if (!res.headersSent) {
+        res.writeHead(408, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request timeout" }));
+      }
+      req.destroy();
+    });
+    return;
+  }
+
+  if (pathname === "/api/chat" && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) {
+        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
+        return;
+      }
+      bodyReceived = true;
+      // Ensure response is sent even if there's an unhandled error
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send:`, data);
+        }
+      };
+
+      let email = 'unknown';
+      
+      try {
+        // Parse and validate request body
+        if (!body || body.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Request body is required" });
+          return;
+        }
+        
+        let parsedBody;
+        try {
+          parsedBody = JSON.parse(body);
+        } catch (parseError: any) {
+          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
+          return;
+        }
+        
+        const { input, email: requestEmail } = parsedBody;
+        email = requestEmail || 'unknown';
+        
+        // Validate input
+        if (!input || typeof input !== 'string' || input.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Valid input message required" });
+          return;
+        }
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          sendResponse(400, { success: false, error: "Valid email address required" });
+          return;
+        }
+        
+        console.log(`📨 Processing chat request from ${email}: "${input.trim()}"`);
         
         // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
+        // Find or create user
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          const nextId = `u${USERS_STATE.length + 1}`;
+          user = {
+            id: nextId,
+            email: email,
+            balance: 0,
+          };
+          USERS_STATE.push(user);
+          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+        }
+        
+        // Sync user balance with wallet (wallet is source of truth)
+        const currentWalletBalance = await getWalletBalance(email);
+        user.balance = currentWalletBalance;
+        
+        // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
+        // This eliminates the need for pre-canned prompts and manual serviceType detection
+        // The LLM will analyze user input and select the best matching services from the registry
+        // No need to detect serviceType manually - LLM handles it
+        const workflowResult = await startWorkflowFromUserInput(
+          input.trim(),
+          user
+          // serviceType is now optional - LLM service mapper will determine it from user input
+        );
+        
+        // Broadcast workflow started event with LLM service selection
+        broadcastEvent({
+          type: "workflow_started",
+          component: "workflow",
+          message: `Workflow started: ${workflowResult.executionId}`,
+          timestamp: Date.now(),
+          data: {
+            executionId: workflowResult.executionId,
+            currentStep: workflowResult.currentStep,
+            instruction: workflowResult.instruction,
+            workflowProcessingGas: workflowResult.workflowProcessingGas,
+            serviceSelection: workflowResult.serviceSelection // Include LLM-selected services
+          }
+        });
+        
+        // Send response with workflow execution details
+        sendResponse(200, {
+          success: true,
+          executionId: workflowResult.executionId,
+          currentStep: workflowResult.currentStep,
+          instruction: workflowResult.instruction,
+          workflowProcessingGas: workflowResult.workflowProcessingGas
+        });
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing chat request:`, error.message);
+        sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/chat" && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/chat - Processing chat request`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) {
+        console.warn(`   ⚠️  [${requestId}] Request body already processed, ignoring duplicate end event`);
+        return;
+      }
+      bodyReceived = true;
+      // Ensure response is sent even if there's an unhandled error
+      const sendResponse = (statusCode: number, data: any) => {
+        if (!res.headersSent) {
+          res.writeHead(statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+        } else {
+          console.warn(`⚠️  Response already sent, cannot send:`, data);
+        }
+      };
+
+      let email = 'unknown';
+      
+      try {
+        // Parse and validate request body
+        if (!body || body.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Request body is required" });
+          return;
+        }
+        
+        let parsedBody;
+        try {
+          parsedBody = JSON.parse(body);
+        } catch (parseError: any) {
+          sendResponse(400, { success: false, error: "Invalid JSON in request body" });
+          return;
+        }
+        
+        const { input, email: requestEmail } = parsedBody;
+        email = requestEmail || 'unknown';
+        
+        // Validate input
+        if (!input || typeof input !== 'string' || input.trim().length === 0) {
+          sendResponse(400, { success: false, error: "Valid input message required" });
+          return;
+        }
+        
+        if (!email || typeof email !== 'string' || !email.includes('@')) {
+          sendResponse(400, { success: false, error: "Valid email address required" });
+          return;
+        }
+        
+        console.log(`📨 Processing chat request from ${email}: "${input.trim()}"`);
+        
+        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
+        // Find or create user
+        let user = USERS_STATE.find(u => u.email === email);
+        if (!user) {
+          const nextId = `u${USERS_STATE.length + 1}`;
+          user = {
+            id: nextId,
+            email: email,
+            balance: 0,
+          };
+          USERS_STATE.push(user);
+          console.log(`👤 Created new user: ${email} with ID: ${nextId}`);
+        }
+        
+        // Sync user balance with wallet (wallet is source of truth)
+        const currentWalletBalance = await getWalletBalance(email);
+        user.balance = currentWalletBalance;
+        
         // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
         // This eliminates the need for pre-canned prompts and manual serviceType detection
         // The LLM will analyze user input and select the best matching services from the registry
         try {
-          const { startWorkflowFromUserInput } = await import("./src/components/flowwiseService");
           const workflowResult = await startWorkflowFromUserInput(
             input.trim(),
             user
@@ -5074,17 +4217,17 @@ httpServer.on("request", async (req, res) => {
           if (!res.headersSent) {
             sendResponse(200, { 
               success: true, 
-              message: "Eden chat processed successfully",
+              message: "Chat processed successfully",
               executionId: workflowResult.executionId,
               instruction: workflowResult.instruction
             });
-            console.log(`✅ Eden chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
+            console.log(`✅ Chat request processed successfully for ${email}, workflow: ${workflowResult.executionId}`);
           } else {
             console.warn(`⚠️  Response already sent, skipping success response`);
           }
         } catch (error: any) {
           // Log error for debugging
-          console.error(`❌ Error processing Eden chat input:`, error);
+          console.error(`❌ Error processing chat input:`, error);
           console.error(`   Error stack:`, error.stack);
           
           // Send appropriate error response - ensure it's sent
@@ -5103,19 +4246,19 @@ httpServer.on("request", async (req, res) => {
         } finally {
           // Ensure response is always sent
           if (!res.headersSent) {
-            console.error(`❌ CRITICAL: No response sent for Eden chat request from ${email}!`);
+            console.error(`❌ CRITICAL: No response sent for request from ${email}!`);
             sendResponse(500, { 
               success: false, 
               error: "Unexpected server error - no response was sent",
               timestamp: Date.now()
             });
           } else {
-            console.log(`✅ Response sent for Eden chat request from ${email}`);
+            console.log(`✅ Response sent for request from ${email}`);
           }
         }
       } catch (outerError: any) {
         // Catch any errors from the outer try block (request parsing, validation, etc.)
-        console.error(`❌ Outer error processing Eden chat request:`, outerError);
+        console.error(`❌ Outer error processing request:`, outerError);
         if (!res.headersSent) {
           sendResponse(500, { 
             success: false, 
@@ -5128,7 +4271,7 @@ httpServer.on("request", async (req, res) => {
     
     // Handle request errors
     req.on("error", (error: Error) => {
-      console.error(`❌ Eden chat request error:`, error);
+      console.error(`❌ Request error:`, error);
       if (!res.headersSent) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Request processing error" }));
@@ -5137,7 +4280,7 @@ httpServer.on("request", async (req, res) => {
     
     // Handle request timeout
     req.setTimeout(60000, () => {
-      console.error(`❌ Eden chat request timeout`);
+      console.error(`❌ Request timeout`);
       if (!res.headersSent) {
         res.writeHead(408, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Request timeout" }));
@@ -7609,33 +6752,6 @@ httpServer.on("request", async (req, res) => {
         error: error.message
       }));
     }
-    return;
-  }
-
-  // ============================================
-  // RAG KNOWLEDGE GENERATION (LLM-based)
-  // ============================================
-  if (pathname === "/api/rag/generate" && req.method === "POST") {
-    console.log(`   📚 [${requestId}] POST /api/rag/generate - Generating RAG knowledge from white paper`);
-    req.on("end", async () => {
-      try {
-        const { generateAndSaveRAGKnowledge } = await import("./src/rag/ragGenerator");
-        await generateAndSaveRAGKnowledge();
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          success: true, 
-          message: "RAG knowledge base generated successfully from white paper" 
-        }));
-      } catch (err: any) {
-        console.error(`   ❌ [${requestId}] Failed to generate RAG knowledge:`, err);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          success: false, 
-          error: err.message || 'Failed to generate RAG knowledge base'
-        }));
-      }
-    });
     return;
   }
 
@@ -10711,256 +9827,6 @@ httpServer.on("request", async (req, res) => {
   }
   
   // GET /api/priesthood/stats - Get statistics for dashboard
-  // 🜂 Governance API Endpoints
-  if (pathname === "/api/governance/evaluate" && req.method === "POST") {
-    console.log(`   🜂 [${requestId}] POST /api/governance/evaluate - Evaluating action against governance rules`);
-    let body = "";
-    let bodyReceived = false;
-    
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    
-    req.on("end", async () => {
-      if (bodyReceived) return;
-      bodyReceived = true;
-      
-      try {
-        const parsedBody = JSON.parse(body);
-        const { getGovernanceService } = await import("./src/governance/governanceService");
-        const governanceService = getGovernanceService();
-        
-        const result = governanceService.evaluateAction(parsedBody);
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: true,
-          result: result
-        }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error evaluating governance action:`, error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: false,
-          error: error.message || "Failed to evaluate action"
-        }));
-      }
-    });
-    return;
-  }
-
-  if (pathname === "/api/governance/rules" && req.method === "GET") {
-    console.log(`   🜂 [${requestId}] GET /api/governance/rules - Getting all governance rules`);
-    try {
-      const { getGovernanceService } = await import("./src/governance/governanceService");
-      const governanceService = getGovernanceService();
-      const rules = governanceService.getAllRules();
-      
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: true,
-        rules: rules
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error getting governance rules:`, error);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message || "Failed to get rules"
-      }));
-    }
-    return;
-  }
-
-  if (pathname.startsWith("/api/governance/rules/") && req.method === "GET") {
-    const ruleId = pathname.split("/").pop();
-    console.log(`   🜂 [${requestId}] GET /api/governance/rules/${ruleId} - Getting rule by ID`);
-    try {
-      const { getGovernanceService } = await import("./src/governance/governanceService");
-      const governanceService = getGovernanceService();
-      const rule = governanceService.getRule(ruleId || "");
-      
-      if (!rule) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: false,
-          error: "Rule not found"
-        }));
-        return;
-      }
-      
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: true,
-        rule: rule
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error getting governance rule:`, error);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message || "Failed to get rule"
-      }));
-    }
-    return;
-  }
-
-  if (pathname === "/api/governance/rules" && req.method === "POST") {
-    console.log(`   🜂 [${requestId}] POST /api/governance/rules - Creating/updating governance rule`);
-    let body = "";
-    let bodyReceived = false;
-    
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    
-    req.on("end", async () => {
-      if (bodyReceived) return;
-      bodyReceived = true;
-      
-      try {
-        const parsedBody = JSON.parse(body);
-        const { rule, actorRole } = parsedBody;
-        
-        if (!rule || !actorRole) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({
-            success: false,
-            error: "Rule and actorRole are required"
-          }));
-          return;
-        }
-        
-        const { getGovernanceService } = await import("./src/governance/governanceService");
-        const { ActorRole } = await import("./src/governance/types");
-        const governanceService = getGovernanceService();
-        
-        governanceService.upsertRule(rule, actorRole as any);
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: true,
-          message: "Rule created/updated successfully"
-        }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error creating/updating governance rule:`, error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: false,
-          error: error.message || "Failed to create/update rule"
-        }));
-      }
-    });
-    return;
-  }
-
-  if (pathname.startsWith("/api/governance/rules/") && req.method === "DELETE") {
-    const ruleId = pathname.split("/").pop();
-    console.log(`   🜂 [${requestId}] DELETE /api/governance/rules/${ruleId} - Deleting governance rule`);
-    let body = "";
-    let bodyReceived = false;
-    
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    
-    req.on("end", async () => {
-      if (bodyReceived) return;
-      bodyReceived = true;
-      
-      try {
-        const parsedBody = body ? JSON.parse(body) : {};
-        const { actorRole } = parsedBody;
-        
-        if (!actorRole) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({
-            success: false,
-            error: "actorRole is required"
-          }));
-          return;
-        }
-        
-        const { getGovernanceService } = await import("./src/governance/governanceService");
-        const governanceService = getGovernanceService();
-        const deleted = governanceService.deleteRule(ruleId || "", actorRole);
-        
-        if (!deleted) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({
-            success: false,
-            error: "Rule not found"
-          }));
-          return;
-        }
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: true,
-          message: "Rule deleted successfully"
-        }));
-      } catch (error: any) {
-        console.error(`   ❌ [${requestId}] Error deleting governance rule:`, error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: false,
-          error: error.message || "Failed to delete rule"
-        }));
-      }
-    });
-    return;
-  }
-
-  // GET /api/governance/history - Get evaluation history (for automated monitoring)
-  if (pathname === "/api/governance/history" && req.method === "GET") {
-    console.log(`   🜂 [${requestId}] GET /api/governance/history - Getting evaluation history`);
-    try {
-      const { getGovernanceService } = await import("./src/governance/governanceService");
-      const governanceService = getGovernanceService();
-      const url = new URL(req.url || "", `http://${req.headers.host}`);
-      const limit = parseInt(url.searchParams.get("limit") || "100", 10);
-      const history = governanceService.getEvaluationHistory(limit);
-      
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: true,
-        history: history
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error getting evaluation history:`, error);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message || "Failed to get evaluation history"
-      }));
-    }
-    return;
-  }
-
-  // GET /api/governance/stats - Get evaluation statistics (self-scoring metrics)
-  if (pathname === "/api/governance/stats" && req.method === "GET") {
-    console.log(`   🜂 [${requestId}] GET /api/governance/stats - Getting evaluation statistics`);
-    try {
-      const { getGovernanceService } = await import("./src/governance/governanceService");
-      const governanceService = getGovernanceService();
-      const stats = governanceService.getEvaluationStats();
-      
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: true,
-        stats: stats
-      }));
-    } catch (error: any) {
-      console.error(`   ❌ [${requestId}] Error getting evaluation stats:`, error);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message || "Failed to get evaluation stats"
-      }));
-    }
-    return;
-  }
-
   if (pathname === "/api/priesthood/stats" && req.method === "GET") {
     console.log(`   📜 [${requestId}] GET /api/priesthood/stats - Getting certification statistics`);
     try {
@@ -11448,7 +10314,6 @@ type LLMResponse = {
   selectedListing: MovieListing | TokenListing | null;
   iGasCost: number;
   tradeDetails?: DEXTrade; // For DEX trades
-  shouldRouteToGodInbox?: boolean; // If true, route message to GOD's inbox
 };
 
 // Constants
@@ -12287,6 +11152,9 @@ async function extractQueryWithDeepSeek(userInput: string): Promise<LLMQueryResu
 // re-extraction unless user confirms/modifies query. This would reduce LLM calls by ~50% 
 // for DEX trades and improve latency.
 //
+// COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
+// that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
+/*
 // COMMENTED OUT: This function is a duplicate and bypasses the updated formatResponseWithOpenAI
 // that has hardcoded DEX mock data. Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead.
 /*
@@ -14396,11 +13264,11 @@ async function processChatInput(input: string, email: string) {
   // COMMENTED OUT: resolveLLM is disabled - this code path should not be used for workflows
   // Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions instead
   throw new Error("resolveLLM is disabled - use formatResponseWithOpenAI/formatResponseWithDeepSeek directly via workflow actions");
-  
-  /* DEAD CODE - All code below is unreachable due to throw above
+  /*
   const llmResponse: LLMResponse = await resolveLLM(input);
   console.log("📨 LLM Response:", llmResponse.message);
   console.log("⛽ iGas Cost:", llmResponse.iGasCost.toFixed(6));
+  */
   
   broadcastEvent({
     type: "llm_response",
@@ -14411,7 +13279,7 @@ async function processChatInput(input: string, email: string) {
   });
   
   // Accumulate total iGas
-  addTOTAL_IGAS(llmResponse.iGasCost);
+  TOTAL_IGAS += llmResponse.iGasCost;
   
   broadcastEvent({
     type: "igas",
@@ -14420,7 +13288,7 @@ async function processChatInput(input: string, email: string) {
     timestamp: Date.now(),
     data: { 
       igas: llmResponse.iGasCost,
-      totalIGas: getTOTAL_IGAS()
+      totalIGas: TOTAL_IGAS
     }
   });
   
@@ -14792,9 +13660,25 @@ async function processChatInput(input: string, email: string) {
     throw new Error(errorMsg);
   }
   
-  // REMOVED: Duplicate cashier_payment_processed broadcast
-  // processPayment() in ledger.ts already broadcasts this event, so we don't need to broadcast it again here
-  // This prevents duplicate confirmation messages from appearing in the frontend
+  // CRITICAL: Broadcast cashier_payment_processed here (matches old codebase pattern exactly)
+  // Old codebase: processPayment() broadcasts "cashier_payment_processed" internally,
+  // then processChatInput broadcasts "purchase" here (we broadcast both for compatibility)
+  const updatedCashier = getCashierStatus();
+  const updatedBalance = user.balance; // Updated by processPayment
+  console.log(`📡 [Broadcast] ⭐ Sending cashier_payment_processed event from processChatInput: ${ledgerEntry.amount} 🍎 APPLES`);
+  console.log(`📡 [Broadcast] Event details: cashier=${updatedCashier.name}, entryId=${ledgerEntry.entryId}, amount=${ledgerEntry.amount}, balance=${updatedBalance}`);
+  broadcastEvent({
+    type: "cashier_payment_processed",
+    component: "cashier",
+    message: `${updatedCashier.name} processed payment: ${ledgerEntry.amount} 🍎 APPLES`,
+    timestamp: Date.now(),
+    data: { 
+      entry: ledgerEntry, 
+      cashier: updatedCashier, 
+      userBalance: updatedBalance, 
+      walletService: "wallet-service-001" 
+    }
+  });
   
   // Also broadcast purchase event (matches old codebase pattern)
   console.log(`📡 [Broadcast] ⭐ Sending purchase event from processChatInput: ${selectedListing.movieTitle || 'service'}`);
@@ -14894,7 +13778,6 @@ async function processChatInput(input: string, email: string) {
   
   const duration = Date.now() - startTime;
   console.log(`✅ processChatInput completed in ${duration}ms for ${email}`);
-  */
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(`❌ processChatInput failed after ${duration}ms for ${email}:`, error);
@@ -15127,19 +14010,6 @@ async function main() {
 
   // Initialize ROOT CA
   initializeRootCA();
-  
-  // Initialize Identity System
-  initializeIdentity();
-  
-  // Initialize Universal Messaging System
-  initializeMessaging();
-  console.log("✅ [Messaging] Universal Messaging System initialized");
-  
-  // Initialize Rule-Based Governance System (v1.24)
-  const { initializeGovernance } = require("./src/governance/governanceService");
-  const dataPath = path.join(__dirname, "data");
-  initializeGovernance(dataPath);
-  console.log("✅ [Governance] Rule-Based Governance System (v1.24) initialized");
   
   // Initialize logger FIRST (needed for tracing garden lifecycle)
   initializeLogger();
@@ -15665,8 +14535,8 @@ async function main() {
         const fileContent = fs.readFileSync(igasPersistenceFile, 'utf-8');
         const persisted = JSON.parse(fileContent);
         if (persisted.totalIGas !== undefined && typeof persisted.totalIGas === 'number') {
-          setTOTAL_IGAS(persisted.totalIGas);
-          console.log(`⛽ [iGas Persistence] Loaded total iGas: ${getTOTAL_IGAS().toFixed(6)}`);
+          TOTAL_IGAS = persisted.totalIGas;
+          console.log(`⛽ [iGas Persistence] Loaded total iGas: ${TOTAL_IGAS.toFixed(6)}`);
         }
       }
     } catch (err: any) {
@@ -15931,7 +14801,7 @@ async function main() {
     console.log(`\n   🔍 [Startup] Checking for gardens without providers...`);
     
     // First, check gardens loaded from eden-wallet-persistence.json
-    let allGardens = [...GARDENS, ...TOKEN_GARDENS];
+    const allGardens = [...GARDENS, ...TOKEN_GARDENS];
     console.log(`   🔍 [Startup] Checking ${allGardens.length} garden(s) from memory: ${allGardens.map(g => `${g.id}(${(g as any).serviceType || 'no-type'})`).join(', ')}`);
     
     // Also check eden-gardens-persistence.json (separate file)
@@ -16183,7 +15053,7 @@ async function main() {
     // Periodic total iGas save (every 5 minutes)
     setInterval(() => {
       try {
-        let totalIGasToSave = getTOTAL_IGAS() || 0;
+        let totalIGasToSave = TOTAL_IGAS || 0;
         try {
           const { getAccountantState } = require("./src/accountant");
           totalIGasToSave = (getAccountantState()?.totalIGas ?? totalIGasToSave) || 0;

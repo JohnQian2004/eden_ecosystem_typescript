@@ -434,24 +434,18 @@ export async function executeNextStep(executionId: string): Promise<{
   await executeStepActions(step, context, executionId);
   console.log(`🔄 [FlowWiseService] executeStepActions completed for step: ${step.id}`);
 
-    // Broadcast WebSocket events
-    if (step.websocketEvents) {
-      console.log(`📡 [FlowWiseService] Broadcasting ${step.websocketEvents.length} websocket events for step: ${step.id}`);
-      // Ensure executionId and workflowId are in context for template variables
-      // CRITICAL: Also ensure selectedListing is accessible for template variable replacement
-      // For user_confirm_listing, ensure selectedListing is available from userSelection if not already set
-      let selectedListingForContext = context.selectedListing;
-      if (step.id === 'user_confirm_listing' && !selectedListingForContext && context.userSelection) {
-        selectedListingForContext = context.userSelection;
-        console.log(`   🤔 [FlowWiseService] user_confirm_listing: Using userSelection as selectedListing for template replacement`);
-      }
-      const contextWithIds = {
-        ...context,
-        executionId,
-        workflowId: executionId,
-        // Ensure selectedListing is accessible for {{selectedListing.videoUrl}} and {{selectedListing.movieTitle}}
-        selectedListing: selectedListingForContext || null
-      };
+  // Broadcast WebSocket events
+  if (step.websocketEvents) {
+    console.log(`📡 [FlowWiseService] Broadcasting ${step.websocketEvents.length} websocket events for step: ${step.id}`);
+    // Ensure executionId and workflowId are in context for template variables
+    // CRITICAL: Also ensure selectedListing is accessible for template variable replacement
+    const contextWithIds = {
+      ...context,
+      executionId,
+      workflowId: executionId,
+      // Ensure selectedListing is accessible for {{selectedListing.videoUrl}} and {{selectedListing.movieTitle}}
+      selectedListing: context.selectedListing || null
+    };
     
     // For view_movie step, ensure videoUrl and movieTitle are directly accessible
     if (step.id === 'view_movie' && context.selectedListing) {
@@ -482,26 +476,6 @@ export async function executeNextStep(executionId: string): Promise<{
       
       // CRITICAL: If this is a user_decision_required event, ensure options are preserved
       if (processedEvent.type === 'user_decision_required') {
-        // For user_confirm_listing, ensure prompt is properly replaced with selectedListing data
-        if (step.id === 'user_confirm_listing') {
-          console.log(`   🤔 [FlowWiseService] user_confirm_listing: Processing user_decision_required event`);
-          console.log(`   🤔 [FlowWiseService] selectedListing in context:`, selectedListingForContext ? JSON.stringify(selectedListingForContext, null, 2) : 'MISSING');
-          console.log(`   🤔 [FlowWiseService] userSelection in context:`, context.userSelection ? JSON.stringify(context.userSelection, null, 2) : 'MISSING');
-          
-          // Re-process the prompt with selectedListing to ensure template variables are replaced
-          if (finalEventData.prompt && selectedListingForContext) {
-            const promptWithReplacement = replaceTemplateVariables(finalEventData.prompt, {
-              ...contextWithIds,
-              selectedListing: selectedListingForContext
-            });
-            finalEventData.prompt = promptWithReplacement;
-            console.log(`   🤔 [FlowWiseService] Replaced prompt: "${finalEventData.prompt}"`);
-          } else if (finalEventData.prompt && !selectedListingForContext) {
-            console.warn(`   ⚠️ [FlowWiseService] user_confirm_listing: Prompt exists but selectedListing is missing!`);
-            console.warn(`   ⚠️ [FlowWiseService] Prompt: "${finalEventData.prompt}"`);
-          }
-        }
-        
         // Preserve original options if they exist and are valid
         if (originalOptions && Array.isArray(originalOptions) && originalOptions.length > 0) {
           finalEventData.options = originalOptions;
@@ -510,7 +484,7 @@ export async function executeNextStep(executionId: string): Promise<{
         } else if (step.decisionOptions && Array.isArray(step.decisionOptions) && step.decisionOptions.length > 0) {
           // Fallback: Build options from step.decisionOptions
           const builtOptions = step.decisionOptions.map((opt: any) => {
-            const label = replaceTemplateVariables(opt.label || "", contextWithIds);
+            const label = replaceTemplateVariables(opt.label || "", context);
             return {
               value: opt.value,
               label: label,
@@ -697,18 +671,25 @@ export async function executeNextStep(executionId: string): Promise<{
     if (step.dynamicOptions && step.dynamicOptions.source === "listings" && context.listings) {
       console.log(`   🎬 [FlowWiseService] Building dynamic options from ${context.listings.length} listings`);
       options = context.listings.map((listing: any) => {
-        const label = replaceTemplateVariables(step.dynamicOptions!.labelTemplate, listing);
+        // Create an enhanced listing object with id field for template compatibility
+        // Use movieId, providerId, or generate a unique id as fallback
+        const listingWithId = {
+          ...listing,
+          id: listing.id || listing.movieId || listing.providerId || `${listing.providerId}-${listing.movieId || Date.now()}`
+        };
+        
+        const label = replaceTemplateVariables(step.dynamicOptions!.labelTemplate, listingWithId);
         const data: any = {};
         if (step.dynamicOptions.dataTemplate) {
           Object.keys(step.dynamicOptions.dataTemplate).forEach(key => {
             const template = step.dynamicOptions!.dataTemplate[key];
-            data[key] = replaceTemplateVariables(template, listing);
+            data[key] = replaceTemplateVariables(template, listingWithId);
           });
         }
         return {
-          value: listing[step.dynamicOptions!.valueField] || listing.id,
+          value: listingWithId[step.dynamicOptions!.valueField] || listingWithId.id,
           label: label,
-          data: { ...listing, ...data }
+          data: { ...listingWithId, ...data }
         };
       });
       console.log(`   🎬 [FlowWiseService] Built ${options.length} options for user selection`);
@@ -1211,8 +1192,8 @@ async function executeStepActions(
   }
   
   // Get LLM config from environment
-  // DISABLED DeepSeek - Always use Cohere AI as default
-  const ENABLE_OPENAI = true; // Force Cohere (functions use Cohere internally), ignore environment variable
+  // DISABLED DeepSeek - Always use OpenAI (ChatGPT 4o) as default
+  const ENABLE_OPENAI = true; // Force OpenAI, ignore environment variable
   const MOCKED_LLM = process.env.MOCKED_LLM === 'true';
 
   console.log(`   ⚙️ [FlowWiseService] Step has ${step.actions?.length || 0} actions to execute`);
@@ -1429,7 +1410,7 @@ async function executeStepActions(
           console.log(`🔍 [FlowWiseService] llm_format_response ACTION CALLED`);
           console.log(`🔍 [FlowWiseService] listings count: ${context.listings?.length || 0}`);
           console.log(`🔍 [FlowWiseService] userInput: ${context.userInput?.substring(0, 100) || 'N/A'}`);
-          console.log(`🔍 [FlowWiseService] Using Cohere AI (ENABLE_OPENAI: ${ENABLE_OPENAI})`);
+          console.log(`🔍 [FlowWiseService] ENABLE_OPENAI: ${ENABLE_OPENAI}`);
           console.log(`🔍 [FlowWiseService] ========================================`);
           
           if (!context.listings || context.listings.length === 0) {
@@ -1530,7 +1511,7 @@ async function executeStepActions(
           } else {
             // Use LLM for non-autoparts services (e.g., banking)
             const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
-            console.log(`🔍 [FlowWiseService] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI (Cohere)' : 'formatResponseWithDeepSeek'}`);
+            console.log(`🔍 [FlowWiseService] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI' : 'formatResponseWithDeepSeek'}`);
             
             llmResponse = await formatFn(
               context.listings,
@@ -1583,11 +1564,8 @@ async function executeStepActions(
           const currentServiceType = context.serviceType || 'movie';
           if ((currentServiceType === 'movie' || currentServiceType === 'amc') && context.listings && context.listings.length > 0) {
             // Try to get videoUrl from garden config
-            // Import GARDENS to find the current garden
+            // Import GARDENS from state to find the current garden
             const { GARDENS } = await import("../state");
-            if (!GARDENS || !Array.isArray(GARDENS)) {
-              console.warn(`⚠️ [FlowWiseService] GARDENS is not available or not an array`);
-            }
             const currentGarden = GARDENS && Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : null;
             const videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
             
@@ -2234,14 +2212,9 @@ async function executeStepActions(
             try {
               const { GARDENS } = await import("../state");
               const currentServiceType = context.serviceType || 'movie';
-              if (!GARDENS || !Array.isArray(GARDENS)) {
-                console.warn(`⚠️ [FlowWiseService] GARDENS is not available or not an array`);
-                videoUrl = '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-              } else {
-                const currentGarden = GARDENS.find((g: any) => (g as any).serviceType === currentServiceType);
-                videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-                console.log(`🎬 [FlowWiseService] Retrieved videoUrl from GARDENS: ${videoUrl}`);
-              }
+              const currentGarden = GARDENS && Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : null;
+              videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
+              console.log(`🎬 [FlowWiseService] Retrieved videoUrl from GARDENS: ${videoUrl}`);
             } catch (err) {
               console.warn(`⚠️ [FlowWiseService] Could not get videoUrl from GARDENS:`, err);
               videoUrl = '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback

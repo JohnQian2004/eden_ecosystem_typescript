@@ -27,19 +27,17 @@ export const NUM_TOKEN_GARDENS = DEPLOYED_AS_ROOT ? 0 : (tokenIndexersArg ? pars
 
 // Server Configuration
 export const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000");
-// FRONTEND_PATH: Resolve relative to project root (not server directory)
-// When running with ts-node: __dirname = server/src, so ../.. = project root
-// When running compiled: __dirname = server/dist/src, so ../../.. = project root
-// Use a more robust approach: go up until we find the frontend directory
+// FRONTEND_PATH: Resolve relative to main project root (not old_codebase)
+// From old_codebase/20260121/server/src, we need to go up 4 levels to reach project root
+// __dirname = old_codebase/20260121/server/src
+// ../.. = old_codebase/20260121/server
+// ../../.. = old_codebase/20260121
+// ../../../.. = old_codebase
+// ../../../../.. = eden_ecosystem_typescript (project root)
+// CRITICAL: Skip old_codebase/20260121/frontend and use main project frontend
 let projectRoot = __dirname;
-let foundFrontend = false;
-// Go up at most 5 levels to find project root
-for (let i = 0; i < 5; i++) {
-  const frontendPath = path.join(projectRoot, "frontend");
-  if (fs.existsSync(frontendPath)) {
-    foundFrontend = true;
-    break;
-  }
+// Go up 4 levels from old_codebase/20260121/server/src to reach main project root
+for (let i = 0; i < 4; i++) {
   const parent = path.dirname(projectRoot);
   if (parent === projectRoot) {
     // Reached filesystem root
@@ -48,11 +46,25 @@ for (let i = 0; i < 5; i++) {
   projectRoot = parent;
 }
 
-if (!foundFrontend) {
-  // Fallback: assume project root is 2 levels up from server/src
-  projectRoot = path.resolve(__dirname, "../..");
-  console.warn(`⚠️  Could not find frontend directory by traversing up from ${__dirname}`);
-  console.warn(`   Using fallback project root: ${projectRoot}`);
+// Verify we're at the main project root by checking if it has both "frontend" and "server" directories
+// and that it's NOT inside old_codebase (which would have old_codebase as parent)
+const hasFrontend = fs.existsSync(path.join(projectRoot, "frontend"));
+const hasServer = fs.existsSync(path.join(projectRoot, "server"));
+const isInOldCodebase = projectRoot.includes("old_codebase");
+
+if (!hasFrontend || isInOldCodebase) {
+  // If we're still in old_codebase or frontend not found, go up one more level
+  const parentRoot = path.dirname(projectRoot);
+  if (fs.existsSync(path.join(parentRoot, "frontend")) && fs.existsSync(path.join(parentRoot, "server"))) {
+    projectRoot = parentRoot;
+    console.log(`📁 [Config] Found main project root one level higher: ${projectRoot}`);
+  } else {
+    console.warn(`⚠️  Could not find main project root`);
+    console.warn(`   Current path: ${projectRoot}`);
+    console.warn(`   Has frontend: ${hasFrontend}, Has server: ${hasServer}, In old_codebase: ${isInOldCodebase}`);
+  }
+} else {
+  console.log(`📁 [Config] Using main project root: ${projectRoot}`);
 }
 
 export const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(projectRoot, "frontend/dist/eden-sim-frontend");

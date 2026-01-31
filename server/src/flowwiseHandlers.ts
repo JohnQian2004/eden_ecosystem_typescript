@@ -34,34 +34,13 @@ export function createActionHandlers(): Map<string, (action: any, context: Workf
     // Use formatResponseWithOpenAI/formatResponseWithDeepSeek directly instead
     // This handler is likely not being used, but updating it just in case
     console.warn(`⚠️ [flowwiseHandlers] llm_format_response handler called - this should use formatResponseWithOpenAI instead of resolveLLM`);
-    
-    // Handle case when there are no listings - return a helpful "no results" message
-    if (!context.listings || context.listings.length === 0) {
-      console.log(`⚠️ [flowwiseHandlers] No listings found - creating "no results" response`);
-      const userInput = context.input || context.userInput || "your request";
-      const serviceType = context.serviceType || context.queryResult?.query?.serviceType || "service";
-      
-      // Create a helpful "no results" response
-      const noResultsResponse = {
-        message: `I couldn't find any ${serviceType} options matching "${userInput}". Please try a different search term or check back later.`,
-        listings: [],
-        selectedListing: null,
-        selectedListing2: null,
-        iGasCost: 0 // No LLM cost for no-results response
-      };
-      
-      return { 
-        llmResponse: noResultsResponse, 
-        selectedListing: null, 
-        selectedListing2: null, 
-        iGasCost: 0 
-      };
-    }
-    
     const { formatResponseWithOpenAI } = await import("./llm");
+    if (!context.listings || context.listings.length === 0) {
+      throw new Error("Listings required for LLM formatting");
+    }
     const llmResponse = await formatResponseWithOpenAI(
       context.listings,
-      context.input || context.userInput || "",
+      context.input || "",
       context.queryResult?.query?.filters
     );
     return { llmResponse, selectedListing: llmResponse.selectedListing, selectedListing2: llmResponse.selectedListing2, iGasCost: llmResponse.iGasCost };

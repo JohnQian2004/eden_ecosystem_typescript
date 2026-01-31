@@ -8,8 +8,6 @@ import * as http from "http";
 import { URL } from "url";
 import type { MovieListing, TokenListing, LLMQueryResult, LLMResponse, ServiceRegistryQuery } from "./types";
 import { MOCKED_LLM, ENABLE_OPENAI } from "./config";
-import { getMessagingSystemPrompt } from "./messaging/llmMessagingPrompt";
-import { getKnowledgeContext } from "./rag/edenKnowledgeBase";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -27,19 +25,7 @@ You are Eden Core AI query processor.
 Extract service query from user input.
 Return JSON only with: query (object with serviceType and filters), serviceType, confidence.
 
-🚨 CRITICAL: Distinguish between EDEN CHAT (workflow queries) and REGULAR TEXT CHAT (informational queries):
-
-- **EDEN CHAT (Workflow/Service Queries)**: These should trigger workflows
-  - Examples: "book a movie", "buy movie tickets", "trade 2 SOL with TOKEN", "find a pharmacy", "buy TOKENA"
-  - These are ACTION queries that request services
-  - Extract serviceType and filters for these queries
-
-- **REGULAR TEXT CHAT (Informational Queries)**: These should NOT trigger workflows
-  - Examples: "how to messaging", "how eden works", "what is the garden of eden", "who eden works", "how do I use this"
-  - These are INFORMATION queries that should be answered directly
-  - For these queries, return serviceType: "informational" and empty filters
-
-Service types: "movie", "dex", or "informational" (for regular text chat)
+Service types: "movie" or "dex"
 
 CRITICAL: Classify queries based on these rules:
 
@@ -453,59 +439,18 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
 // LLM Response Formatting Prompt
 export const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
-Format service listings into a user-friendly message, OR answer informational questions about Eden.
+Format service listings into a user-friendly message.
+Return JSON only with: message (string), selectedListing (object), selectedListing2 (object), listings (array).
 
-🚨 CRITICAL DISTINCTION: There are TWO types of user queries in Eden:
-
-1. **EDEN CHAT (Workflow/Service Queries)** - These trigger workflows:
-   - Examples: "book a movie", "buy movie tickets", "trade 2 SOL with TOKEN", "find a pharmacy", "buy TOKENA"
-   - These are ACTION queries that should trigger Eden workflows
-   - When listings are provided, these are SERVICE QUERIES
-   - Format service listings into a user-friendly message
-   - Return JSON with: message (string), selectedListing (object), selectedListing2 (object), listings (array)
-   - CRITICAL REQUIREMENTS:
-     * selectedListing is REQUIRED and MUST NOT be null or undefined
-     * selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
-     * selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
-     * selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
-     * If you cannot find a better match, pick the FIRST listing from the provided listings array
-
-2. **REGULAR TEXT CHAT (Informational Queries)** - These are answered directly:
-   
-   A. **EDEN-RELATED INFORMATIONAL QUERIES** (about Eden itself):
-   - Examples: "how to messaging", "how eden works", "what is the garden of eden", "how do I use this", "who eden works"
-   - These are INFORMATION queries about Eden that should be answered directly WITHOUT triggering workflows
-   - Answer using your knowledge of Eden's architecture and messaging system
-   - Return JSON with: message (string), selectedListing (null), selectedListing2 (null), listings (empty array)
-   - The message should be helpful and explain Eden's features, philosophy, or how to use the interface
-   - Reference the Universal Messaging System when relevant
-   - Guide users on how to use the UI interface (Workflow Display Component)
-   - DO NOT suggest triggering workflows for informational queries
-   
-   B. **GENERAL KNOWLEDGE QUERIES** (NOT about Eden):
-   - Examples: "what is GOD in Bible", "what is today", "what is the weather", "who is the president", "explain quantum physics"
-   - These are general knowledge questions that are NOT related to Eden services or workflows
-   - Answer these questions naturally and helpfully
-   - Return JSON with: message (string with the answer), selectedListing (null), selectedListing2 (null), listings (empty array)
-   - Provide clear, accurate answers to general knowledge questions
-   
-   C. **MESSAGES TO GOD** (Personal/Spiritual messages to GOD):
-   - Examples: "message to GOD: can you bless me", "send to GOD: I need help", "tell GOD: thank you", "GOD please help", "bless me GOD"
-   - These are personal messages directly addressed to GOD that should be routed to GOD's inbox
-   - Return JSON with: message (string indicating message was sent to GOD's inbox), selectedListing (null), selectedListing2 (null), listings (empty array), shouldRouteToGodInbox: true
-   - The message should confirm that the user's message has been sent to GOD's inbox
-   - Format: "✅ Your message has been sent to GOD's inbox. GOD will review it and respond when appropriate."
-
-CRITICAL CLASSIFICATION RULES:
-- If user asks "how to messaging", "how eden works", "what is eden", "who eden works" → EDEN-RELATED INFORMATIONAL QUERY
-- If user asks "what is GOD in Bible", "what is the weather", "who is the president" (NOT about Eden) → GENERAL KNOWLEDGE QUERY
-- If user asks "book a movie", "trade tokens", "buy TOKEN" → EDEN CHAT (workflow/service query)
-- If listings are provided → EDEN CHAT (service query)
-- If NO listings AND user asks question about Eden → EDEN-RELATED INFORMATIONAL QUERY
-- If NO listings AND user asks general knowledge question (NOT about Eden) → GENERAL KNOWLEDGE QUERY
+CRITICAL REQUIREMENTS:
+1. selectedListing is REQUIRED and MUST NOT be null or undefined
+2. selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
+3. selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
+4. selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
+5. If you cannot find a better match, pick the FIRST listing from the provided listings array
 
 CRITICAL: Never output "service type not supported" or similar errors.
-Always format the response for ANY service type provided, OR provide helpful informational answers.
+Always format the response for ANY service type provided.
 
 For ANY OTHER SERVICE TYPE (not movie or dex):
 - Extract key information from listings (name, price, location, rating, etc.)
@@ -514,61 +459,6 @@ For ANY OTHER SERVICE TYPE (not movie or dex):
 - Return the selected listing and all listings
 - selectedListing2 MUST be set to the same value as selectedListing
 
-## About Eden and Messaging System
-
-When users ask questions about Eden, the messaging system, or how to use the interface, you should:
-
-1. **Explain Eden**: Describe Eden as a garden-first economic and intelligence system that replaces blockchain with LLM-governed intelligence fees, federated gardens, and ROOT CA governance.
-
-2. **Explain Messaging**: Mention that Eden has a Universal Messaging System for governed, auditable communication. Conversations are scoped to contexts (ORDER, TRADE, SERVICE, DISPUTE, SYSTEM) and messages are never deleted (only state changes).
-
-3. **Guide UI Usage**: Explain that users can:
-   - Type natural language requests in the chat input (EDEN CHAT for workflows, REGULAR TEXT CHAT for questions)
-   - Follow workflow prompts and make decisions
-   - View transactions in the ledger display
-   - Watch videos (for movie services) in the video player modal
-
-4. **Distinguish Chat Types**: 
-   - EDEN CHAT: Use the input box to request services (movies, tokens, etc.) - these trigger workflows
-   - REGULAR TEXT CHAT: Use the input box to ask questions about Eden - these get direct answers
-
-5. **Suggest Conversations**: If users need ongoing help, suggest creating a conversation via the messaging system.
-
-## Response Formatting Requirements
-
-**CRITICAL**: Always format responses in a structured, readable way using:
-- **Clear sections with headers** (use ## or ### for markdown)
-- **Bullet points** for lists (use - or *)
-- **Numbered lists** for step-by-step instructions
-- **Bold text** for important terms or concepts
-- **Line breaks** between sections for readability
-- **Short paragraphs** (2-3 sentences max per paragraph)
-- **Avoid long walls of text** - break information into digestible chunks
-
-Example of good formatting:
-\`\`\`
-## Eden Overview
-
-Eden is a garden-first economic and intelligence system that:
-- Uses LLM-governed intelligence fees
-- Operates through federated gardens
-- Maintains governance through ROOT CA
-
-## Universal Messaging System
-
-Eden includes a messaging system that:
-- Organizes conversations into contexts (ORDER, TRADE, SERVICE, DISPUTE, SYSTEM)
-- Never deletes messages (only state changes)
-- Ensures transparent communication history
-
-## How to Use Eden
-
-1. **EDEN CHAT**: Request services (movies, tokens, etc.) - triggers workflows
-2. **REGULAR TEXT CHAT**: Ask questions - receives direct answers
-\`\`\`
-
-**NEVER** return long paragraphs without structure. Always use markdown formatting to make responses readable.
-
 Service type: {serviceType}
 
 Return JSON format:
@@ -576,8 +466,7 @@ Return JSON format:
   "message": "...",
   "listings": [...],
   "selectedListing": { /* complete listing object with ALL fields */ },
-  "selectedListing2": { /* MUST be the same as selectedListing */ },
-  "shouldRouteToGodInbox": false /* Set to true if this is a message to GOD that should be routed to inbox */
+  "selectedListing2": { /* MUST be the same as selectedListing */ }
 }
 `;
 
@@ -660,87 +549,22 @@ export async function formatResponseWithOpenAI(
   userQuery: string,
   queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
-  console.log(`🤖 [LLM] ========================================`);
-  console.log(`🤖 [LLM] formatResponseWithOpenAI called`);
-  console.log(`🤖 [LLM] User Query: "${userQuery}"`);
-  console.log(`🤖 [LLM] Service Type: ${queryFilters?.serviceType || 'unknown'}`);
-  console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
-  console.log(`🤖 [LLM] ========================================`);
-  
-  // If Cohere API key is not available, return a helpful error message
-  // The LLM should handle all logic, not regex parsing and hardcoded answers
-  if (!COHERE_API_KEY && !MOCKED_LLM) {
-    const errorResponse: LLMResponse = {
-      message: "I apologize, but I'm unable to process your query right now. The Cohere API key is not configured. Please configure the API key to enable LLM responses. Once configured, I'll be able to answer your questions using AI.",
-      listings: [],
-      selectedListing: null,
-      selectedListing2: null,
-      iGasCost: 0
-    };
-    console.log(`⚠️ [LLM] Cohere API key not configured - returning error message`);
-    return errorResponse;
-  }
-  
-  // Only use mock mode if explicitly enabled (for testing)
   if (MOCKED_LLM) {
-    const mockResponse: LLMResponse = {
-      message: "Mock LLM response (MOCKED_LLM enabled for testing)",
+    return {
+      message: "Mock LLM response",
       listings: listings.slice(0, 1),
       selectedListing: listings[0] || null,
-      selectedListing2: listings[0] || null,
       iGasCost: 0.001
     };
-    console.log(`🤖 [LLM] Mock LLM Response (MOCKED_LLM): "${mockResponse.message}"`);
-    return mockResponse;
   }
 
   const serviceType = queryFilters?.serviceType || "movie";
   const listingsJson = JSON.stringify(listings);
   const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  
-  // Check if this is an informational query
-  // Must be: (no listings) AND (question pattern) AND (NOT about Eden services/workflows)
-  const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
-  const queryLower = userQuery.toLowerCase();
-  // More specific Eden-related keywords - must be clearly about Eden services/workflows
-  // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
-  const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
-    /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
-  const isInformationalQuery = listings.length === 0 && hasQuestionPattern;
-  const isEdenInfoQuery = isInformationalQuery && isEdenRelated;
-  const isGeneralKnowledgeQuery = isInformationalQuery && !isEdenRelated;
-  
-  let systemPrompt = LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType);
-  
-  // For informational queries, include messaging system prompt and RAG context
-  if (isInformationalQuery) {
-    console.log(`📚 [LLM] Informational query detected - adding messaging system prompt`);
-    systemPrompt += `\n\n${getMessagingSystemPrompt()}`;
-    
-    // Add RAG context for Eden-related queries
-    if (isEdenInfoQuery) {
-      console.log(`📚 [LLM] Eden-related informational query - retrieving RAG knowledge context`);
-      const knowledgeContext = getKnowledgeContext(userQuery);
-      if (knowledgeContext) {
-        console.log(`📚 [LLM] RAG knowledge context retrieved (${knowledgeContext.length} characters)`);
-        systemPrompt += knowledgeContext;
-        systemPrompt += `\n\n**IMPORTANT**: Use the relevant Eden knowledge above to provide accurate, detailed answers. Reference specific concepts, architecture, and features when answering the user's question.`;
-      } else {
-        console.log(`⚠️ [LLM] No RAG knowledge context found for query: "${userQuery}"`);
-      }
-    } else {
-      console.log(`📚 [LLM] General knowledge query (not Eden-related) - no RAG context needed`);
-    }
-  }
-  
-  const userMessage = isInformationalQuery
-    ? isEdenInfoQuery
-      ? `User query: ${userQuery}\n\nThis is an Eden-related informational query. Please answer the user's question about Eden, the messaging system, or how to use the interface. Provide a helpful, clear explanation about Eden using the knowledge provided above.\n\n**CRITICAL FORMATTING REQUIREMENTS**:\n- Use structured markdown formatting with clear sections (## headers)\n- Use bullet points (- or *) for lists\n- Use numbered lists for step-by-step instructions\n- Use bold text (**text**) for important terms\n- Add line breaks between sections\n- Keep paragraphs short (2-3 sentences max)\n- NEVER write long walls of text - break information into digestible chunks\n- Make the response readable and scannable`
-      : `User query: ${userQuery}\n\nThis is a GENERAL KNOWLEDGE question (NOT about Eden). Please answer the user's question naturally and helpfully.\n\n**CRITICAL FORMATTING REQUIREMENTS**:\n- Use structured markdown formatting with clear sections (## headers)\n- Use bullet points (- or *) for lists\n- Use numbered lists for step-by-step instructions\n- Use bold text (**text**) for important terms\n- Add line breaks between sections\n- Keep paragraphs short (2-3 sentences max)\n- NEVER write long walls of text - break information into digestible chunks\n- Make the response readable and scannable`
-    : `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  const userMessage = `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
 
   const messages = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType) },
     { role: "user", content: userMessage }
   ];
 
@@ -753,32 +577,13 @@ export async function formatResponseWithOpenAI(
     
     const content = JSON.parse(contentStr);
     
-    // For informational queries, selectedListing can be null
-    const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
-    const queryLower = userQuery.toLowerCase();
-    // More specific Eden-related keywords - must be clearly about Eden services/workflows
-    // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
-    const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
-      /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
-    const isInformational = listings.length === 0 && hasQuestionPattern && !isEdenRelated;
-    const isEdenInfo = listings.length === 0 && hasQuestionPattern && isEdenRelated;
-    
-    const response: LLMResponse = {
+    return {
       message: content.message || "No response",
-      listings: content.listings || ((isInformational || isEdenInfo) ? [] : listings),
-      selectedListing: (isInformational || isEdenInfo) ? null : (content.selectedListing || listings[0] || null),
-      selectedListing2: (isInformational || isEdenInfo) ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
+      listings: content.listings || listings,
+      selectedListing: content.selectedListing || listings[0] || null,
+      selectedListing2: content.selectedListing2 || content.selectedListing || listings[0] || null,
       iGasCost: content.iGasCost || 0.001
     };
-    console.log(`🤖 [LLM] ========================================`);
-    console.log(`🤖 [LLM] Cohere Response received`);
-    console.log(`🤖 [LLM] Is General Knowledge Query: ${isInformational}`);
-    console.log(`🤖 [LLM] Is Eden Info Query: ${isEdenInfo}`);
-    console.log(`🤖 [LLM] Response Message: "${response.message.substring(0, 200)}${response.message.length > 200 ? '...' : ''}"`);
-    console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
-    console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
-    console.log(`🤖 [LLM] ========================================`);
-    return response;
   } catch (err: any) {
     throw new Error(`Failed to format response with Cohere: ${err.message}`);
   }
@@ -792,48 +597,15 @@ export async function formatResponseWithDeepSeek(
   userQuery: string,
   queryFilters?: { serviceType?: string; maxPrice?: number | string; genre?: string; time?: string; location?: string; tokenSymbol?: string; baseToken?: string; action?: 'BUY' | 'SELL'; [key: string]: any }
 ): Promise<LLMResponse> {
-  console.log(`🤖 [LLM] ========================================`);
-  console.log(`🤖 [LLM] formatResponseWithDeepSeek called`);
-  console.log(`🤖 [LLM] User Query: "${userQuery}"`);
-  console.log(`🤖 [LLM] Service Type: ${queryFilters?.serviceType || 'unknown'}`);
-  console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
-  console.log(`🤖 [LLM] ========================================`);
-  
-  // Check if this is an informational query
-  const isInformationalQuery = listings.length === 0 || 
-    /how (to|does|do|can|will)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
-  
   // Stub implementation - can be filled in later
-  // For informational queries, provide a helpful response
-  let message = "DeepSeek response (stub)";
-  if (isInformationalQuery) {
-    if (/messaging/i.test(userQuery)) {
-      message = "The Universal Messaging System in Eden provides governed, auditable, real-time communication for all Eden entities. You can create conversations for orders, trades, services, disputes, or system questions. Would you like me to explain more about how to use messaging in Eden?";
-    } else if (/eden|garden/i.test(userQuery)) {
-      message = "The Garden of Eden (Eden) is a garden-first economic and intelligence system that replaces traditional blockchain with LLM-governed intelligence fees. Eden features gas-free transactions, garden-driven architecture, and self-governing federated gardens. Would you like me to explain more about Eden's architecture?";
-    } else {
-      message = "I can help you with Eden! Eden is a garden-first economic system where intelligence is the new gas (iGas). You can use the chat interface to request services, trade tokens, or ask questions. How can I help you today?";
-    }
-  }
-  
-  const selectedListing = isInformationalQuery ? null : (listings[0] || null);
-  const response: LLMResponse = {
-    message: message,
-    listings: isInformationalQuery ? [] : listings.slice(0, 5),
+  const selectedListing = listings[0] || null;
+  return {
+    message: "DeepSeek response (stub)",
+    listings: listings.slice(0, 5),
     selectedListing: selectedListing,
     selectedListing2: selectedListing, // CRITICAL: Must return selectedListing2
     iGasCost: 0.001
   };
-  
-  console.log(`🤖 [LLM] ========================================`);
-  console.log(`🤖 [LLM] DeepSeek Response (stub) generated`);
-  console.log(`🤖 [LLM] Is Informational Query: ${isInformationalQuery}`);
-  console.log(`🤖 [LLM] Response Message: "${response.message}"`);
-  console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
-  console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
-  console.log(`🤖 [LLM] ========================================`);
-  
-  return response;
 }
 
 // SQL Parameterization Prompt
@@ -896,13 +668,8 @@ export type SQLParameterizationResult = {
  * Convert SQL query with hardcoded values to parameterized query using LLM
  */
 export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParameterizationResult> {
-  // Using Cohere AI (hardcoded API key) - no mock fallbacks
-  if (!COHERE_API_KEY && !MOCKED_LLM) {
-    throw new Error("Cohere API key is required for parameterizeSQLWithOpenAI.");
-  }
-  
-  // Only use mock mode if explicitly enabled (for testing)
-  if (MOCKED_LLM) {
+  // Use mock if MOCKED_LLM is enabled OR if OpenAI API key is not available
+  if (MOCKED_LLM || !process.env.OPENAI_API_KEY) {
     // Mock response: Extract values from SQL and create parameterized version
     const params: any[] = [];
     const paramOrder: string[] = [];
@@ -1009,175 +776,4 @@ export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParamet
   } catch (err: any) {
     throw new Error(`Failed to parse Cohere response: ${err.message}`);
   }
-}
-
-/**
- * Determine if user input is a decision response for a pending workflow decision
- * Uses LLM to intelligently determine if the input is a yes/no/confirm/cancel response
- */
-export async function determineDecisionResponse(
-  userInput: string,
-  decisionPrompt: string,
-  decisionOptions: Array<{ value: string; label: string }>
-): Promise<{
-  isDecisionResponse: boolean;
-  decisionValue: string | null;
-  confidence: number;
-}> {
-  const ENABLE_OPENAI = process.env.ENABLE_OPENAI !== 'false';
-  const MOCKED_LLM = process.env.MOCKED_LLM === 'true';
-
-  if (MOCKED_LLM) {
-    // Mock mode: simple keyword detection
-    const inputLower = userInput.toLowerCase().trim();
-    const positiveKeywords = ['yes', 'y', 'ok', 'okay', 'sure', 'confirm', 'proceed', 'preceed', 'go', 'continue', 'accept'];
-    const negativeKeywords = ['no', 'n', 'cancel', 'stop', 'abort', 'reject', 'decline'];
-    
-    if (positiveKeywords.some(kw => inputLower.includes(kw))) {
-      return { isDecisionResponse: true, decisionValue: 'YES', confidence: 0.9 };
-    }
-    if (negativeKeywords.some(kw => inputLower.includes(kw))) {
-      return { isDecisionResponse: true, decisionValue: 'NO', confidence: 0.9 };
-    }
-    return { isDecisionResponse: false, decisionValue: null, confidence: 0.1 };
-  }
-
-  const prompt = `You are analyzing user input to determine if it's a decision response for a workflow.
-
-The workflow is asking the user: "${decisionPrompt}"
-
-Available decision options:
-${decisionOptions.map((opt, i) => `${i + 1}. ${opt.label} (value: ${opt.value})`).join('\n')}
-
-User input: "${userInput}"
-
-Determine if the user input is a decision response (yes/no/confirm/cancel/etc.) for the above prompt.
-
-Return JSON only with:
-- isDecisionResponse: boolean (true if input is a decision response, false if it's a new query/request)
-- decisionValue: string | null (the decision value if isDecisionResponse is true, matching one of the option values or "YES"/"NO" for simple confirmations, null if not a decision)
-- confidence: number (0.0 to 1.0)
-
-Examples:
-- Input: "yes" → {"isDecisionResponse": true, "decisionValue": "YES", "confidence": 0.95}
-- Input: "yes, proceed" → {"isDecisionResponse": true, "decisionValue": "YES", "confidence": 0.95}
-- Input: "no" → {"isDecisionResponse": true, "decisionValue": "NO", "confidence": 0.95}
-- Input: "I want a movie" → {"isDecisionResponse": false, "decisionValue": null, "confidence": 0.9}
-- Input: "cancel" → {"isDecisionResponse": true, "decisionValue": "NO", "confidence": 0.9}
-
-CRITICAL: If the input is clearly a new service request (like "I want a movie", "book tickets", etc.), return isDecisionResponse: false.
-Only return isDecisionResponse: true if the input is clearly responding to the decision prompt.`;
-
-  if (ENABLE_OPENAI) {
-    return determineDecisionResponseWithOpenAI(userInput, prompt);
-  } else {
-    return determineDecisionResponseWithDeepSeek(userInput, prompt);
-  }
-}
-
-async function determineDecisionResponseWithOpenAI(
-  userInput: string,
-  prompt: string
-): Promise<{
-  isDecisionResponse: boolean;
-  decisionValue: string | null;
-  confidence: number;
-}> {
-  if (!COHERE_API_KEY) {
-    throw new Error("Cohere API key is required");
-  }
-
-  const messages = [
-    { role: "system", content: prompt },
-    { role: "user", content: userInput }
-  ];
-
-  try {
-    const contentStr = await callCohereAPI(messages, {
-      model: "command-r7b-12-2024",
-      response_format: { type: "json_object" },
-      temperature: 0.3
-    });
-    
-    const content = JSON.parse(contentStr);
-    return {
-      isDecisionResponse: content.isDecisionResponse === true,
-      decisionValue: content.decisionValue || null,
-      confidence: content.confidence || 0.5
-    };
-  } catch (err: any) {
-    throw new Error(`Failed to parse Cohere response: ${err.message}`);
-  }
-}
-
-async function determineDecisionResponseWithDeepSeek(
-  userInput: string,
-  prompt: string
-): Promise<{
-  isDecisionResponse: boolean;
-  decisionValue: string | null;
-  confidence: number;
-}> {
-  if (!process.env.DEEPSEEK_API_KEY) {
-    throw new Error("DeepSeek API key is required");
-  }
-
-  const messages = [
-    { role: "system", content: prompt },
-    { role: "user", content: userInput }
-  ];
-
-  const requestBody = {
-    model: "deepseek-chat",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0.3
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: "api.deepseek.com",
-        port: 443,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`
-        }
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              reject(new Error(`DeepSeek API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-              return;
-            }
-            if (parsed.choices?.[0]?.message?.content) {
-              const content = JSON.parse(parsed.choices[0].message.content);
-              resolve({
-                isDecisionResponse: content.isDecisionResponse === true,
-                decisionValue: content.decisionValue || null,
-                confidence: content.confidence || 0.5
-              });
-            } else {
-              reject(new Error("Invalid DeepSeek response format"));
-            }
-          } catch (err: any) {
-            reject(new Error(`Failed to parse DeepSeek response: ${err.message}`));
-          }
-        });
-      }
-    );
-
-    req.on("error", (err) => {
-      reject(new Error(`DeepSeek request failed: ${err.message}`));
-    });
-
-    req.write(JSON.stringify(requestBody));
-    req.end();
-  });
 }

@@ -6,16 +6,10 @@
   "types": "dist/eden_sim_ts_v_1.d.ts",
   "scripts": {
     "build": "tsc",
-    "build:esbuild": "node esbuild.config.js",
-    "build:esbuild:watch": "node esbuild.config.js --watch",
     "build:watch": "tsc --watch",
     "clean": "rimraf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "dev": "start-dev.bat",
-    "start": "start-full.bat",
-    "start:esbuild": "node dist/eden-sim-redis.js --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true",
-    "start:full": "start-full.bat",
-    "start:full:esbuild": "start-full-esbuild.bat",
     "generate-certs": "node scripts/generate-pki-certs.js"
   },
   "keywords": [
@@ -46,8 +40,6 @@
     "@types/node": "^20.10.0",
     "@types/stripe": "^8.0.417",
     "@types/ws": "^8.5.10",
-    "esbuild": "^0.19.0",
-    "glob": "^10.3.10",
     "rimraf": "^5.0.5",
     "typescript": "^5.3.3"
   }

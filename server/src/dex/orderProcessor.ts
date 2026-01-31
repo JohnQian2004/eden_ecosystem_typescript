@@ -196,22 +196,14 @@ export async function processOrder(order: DEXOrder): Promise<{
   broadcastSettlementPending(settlement.settlementId, order.orderId, order.pair);
   
   // Convert match result to trade format (for immediate use)
-  // Calculate baseAmount correctly: for BUY, assetIn is baseToken; for SELL, assetOut is baseToken
-  const baseTokenSymbol = order.pair.split('/')[1];
-  const baseAmount = matchResult.settlementData.assetIn.symbol?.toUpperCase() === baseTokenSymbol.toUpperCase()
-    ? matchResult.settlementData.assetIn.amount
-    : matchResult.settlementData.assetOut.symbol?.toUpperCase() === baseTokenSymbol.toUpperCase()
-      ? matchResult.settlementData.assetOut.amount
-      : 0;
-  
   const trade: DEXTrade = {
     tradeId: matchResult.tradeId,
     poolId: pool?.poolId || `pool-${order.pair.toLowerCase().replace('/', '-')}`,
     tokenSymbol: order.pair.split('/')[0],
-    baseToken: baseTokenSymbol,
+    baseToken: order.pair.split('/')[1],
     action: order.side,
     tokenAmount: matchResult.filledAmount,
-    baseAmount: baseAmount,
+    baseAmount: matchResult.settlementData.assetIn.amount,
     price: matchResult.executionPrice,
     priceImpact: matchResult.settlementData.priceImpact || 0,
     iTax: matchResult.settlementData.fees.iTax,
@@ -226,28 +218,6 @@ export async function processOrder(order: DEXOrder): Promise<{
     console.log(`✅ [OrderProcessor] Finalizing settlement ${settlement.settlementId}`);
     ledgerEntry = await finalizeSettlement(settlement.settlementId);
     broadcastSettlementFinal(settlement.settlementId, order.orderId, order.pair, ledgerEntry.entryId);
-    
-    // CRITICAL: Update pool statistics (totalTrades and totalVolume) after successful trade
-    if (pool) {
-      pool.totalTrades = (pool.totalTrades || 0) + 1;
-      // Calculate trade volume in baseToken
-      // For BUY: assetIn is baseToken, assetOut is token
-      // For SELL: assetIn is token, assetOut is baseToken
-      let tradeVolume = 0;
-      if (matchResult.settlementData.assetIn.symbol?.toUpperCase() === pool.baseToken.toUpperCase()) {
-        tradeVolume = matchResult.settlementData.assetIn.amount;
-      } else if (matchResult.settlementData.assetOut.symbol?.toUpperCase() === pool.baseToken.toUpperCase()) {
-        tradeVolume = matchResult.settlementData.assetOut.amount;
-      } else if (trade.baseAmount && trade.baseAmount > 0) {
-        // Fallback to trade.baseAmount if symbol matching fails
-        tradeVolume = trade.baseAmount;
-      } else {
-        // Last resort: use execution price * filled amount
-        tradeVolume = matchResult.executionPrice * matchResult.filledAmount;
-      }
-      pool.totalVolume = (pool.totalVolume || 0) + tradeVolume;
-      console.log(`📊 [OrderProcessor] Updated pool statistics for ${pool.poolId}: totalTrades=${pool.totalTrades}, totalVolume=${pool.totalVolume.toFixed(2)} ${pool.baseToken}`);
-    }
     
     // Broadcast trade executed and price update after successful settlement
     broadcastTradeExecuted(trade, order);

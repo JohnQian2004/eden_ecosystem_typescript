@@ -1,10 +1,10 @@
 {
-  "totalIGas": 0.21190000000000014,
+  "totalIGas": 0.22080000000000016,
   "totalITax": 3.1501250047302055e-7,
-  "totalRootCAFees": 0.481100026401104,
+  "totalRootCAFees": 0.561100026401104,
   "totalIndexerFees": 0.000125,
-  "totalProviderFees": 200.36420008500156,
-  "totalCashierFees": 31.300000000000175,
+  "totalProviderFees": 200.56420008500154,
+  "totalCashierFees": 31.500000000000178,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 48,
@@ -131,14 +131,14 @@
       "totalCashierFees": 0.2
     },
     "movie": {
-      "count": 194,
+      "count": 196,
       "totalAmount": 0,
-      "totalIGas": 0.863299999999997,
+      "totalIGas": 0.8721999999999969,
       "totalITax": 0,
-      "totalRootCAFees": 7.600080002400058,
+      "totalRootCAFees": 7.680080002400058,
       "totalIndexerFees": 0,
-      "totalProviderFees": 19.000200006000128,
-      "totalCashierFees": 19.400000000000006
+      "totalProviderFees": 19.20020000600013,
+      "totalCashierFees": 19.60000000000001
     },
     "undefined": {
       "count": 3,
@@ -151,7 +151,7 @@
       "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1769045872875,
+  "lastUpdated": 1769862840918,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-22T01:37:52.875Z"
+  "lastSaved": "2026-01-31T12:34:00.918Z"
 }

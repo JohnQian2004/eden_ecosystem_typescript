@@ -56,15 +56,19 @@
     },
     {
       "email": "billdraper25@gmail.com",
-      "status": "pending",
-      "appliedAt": 1769302195295,
-      "reason": "asdfa",
+      "status": "revoked",
+      "appliedAt": 1768848907905,
+      "reason": "sss",
       "metadata": {},
       "applicationFeePaid": true,
       "activityCount": 0,
       "trustScore": 0,
       "dailyActionCount": 0,
-      "applicationFeeTxId": "priesthood_app_fee_1769302195216_35f00016c4929221"
+      "applicationFeeTxId": "priesthood_app_fee_1768848907825_e265228b29be0bbb",
+      "approvedAt": 1768848970904,
+      "approvedBy": "bill.draper.auto@gmail.com",
+      "revokedAt": 1768900782167,
+      "revokedBy": "bill.draper.auto@gmail.com"
     },
     {
       "email": "rashardgarcia@gmail.com",
@@ -86,5 +90,5 @@
       "revokedBy": "bill.draper.auto@gmail.com"
     }
   ],
-  "lastSaved": "2026-01-25T00:49:55.327Z"
+  "lastSaved": "2026-01-20T09:20:08.230Z"
 }

@@ -130,7 +130,7 @@ export class CacheInterceptor implements HttpInterceptor {
   private cacheResponse(url: string, response: HttpResponse<any>): void {
     try {
       const cacheKey = this.getCacheKey(url);
-      const cacheData = {
+      const cacheData: { data: any; headers: { [key: string]: any }; timestamp: number } = {
         data: response.body,
         headers: {},
         timestamp: Date.now()

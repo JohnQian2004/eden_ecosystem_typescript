@@ -1,10 +1,10 @@
 {
-  "totalIGas": 0.4382000000000006,
-  "totalITax": 1.5500660027751323e-7,
-  "totalRootCAFees": 3.3604600144006946,
-  "totalIndexerFees": 0.000045,
-  "totalProviderFees": 207.5634000550002,
-  "totalCashierFees": 36.900000000000254,
+  "totalIGas": 0.22080000000000016,
+  "totalITax": 3.1501250047302055e-7,
+  "totalRootCAFees": 0.561100026401104,
+  "totalIndexerFees": 0.000125,
+  "totalProviderFees": 200.56420008500154,
+  "totalCashierFees": 31.500000000000178,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 48,
@@ -71,24 +71,24 @@
       "totalCashierFees": null
     },
     "dex": {
-      "count": 33,
+      "count": 65,
       "totalAmount": 0,
-      "totalIGas": 0.11579999999999997,
-      "totalITax": 1.5500660027751323e-7,
-      "totalRootCAFees": 0.0009270196007800367,
-      "totalIndexerFees": 0.00011174999999999999,
-      "totalProviderFees": 0.0011000460018900896,
-      "totalCashierFees": 2.0000000000000004
+      "totalIGas": 0.2030000000000001,
+      "totalITax": 3.1501250047302055e-7,
+      "totalRootCAFees": 0.0015670316011920532,
+      "totalIndexerFees": 0.00019175000000000016,
+      "totalProviderFees": 0.0019000760029201287,
+      "totalCashierFees": 3.600000000000002
     },
     "priesthood": {
-      "count": 6,
+      "count": 4,
       "totalAmount": 0,
       "totalIGas": 0,
       "totalITax": 0,
       "totalRootCAFees": 0,
       "totalIndexerFees": 0,
-      "totalProviderFees": 0,
-      "totalCashierFees": 0
+      "totalProviderFees": null,
+      "totalCashierFees": null
     },
     "airline": {
       "count": 10,
@@ -131,14 +131,14 @@
       "totalCashierFees": 0.2
     },
     "movie": {
-      "count": 266,
+      "count": 196,
       "totalAmount": 0,
-      "totalIGas": 1.1767999999999978,
+      "totalIGas": 0.8721999999999969,
       "totalITax": 0,
-      "totalRootCAFees": 10.480080002400005,
+      "totalRootCAFees": 7.680080002400058,
       "totalIndexerFees": 0,
-      "totalProviderFees": 26.20020000600023,
-      "totalCashierFees": 26.600000000000108
+      "totalProviderFees": 19.20020000600013,
+      "totalCashierFees": 19.60000000000001
     },
     "undefined": {
       "count": 3,
@@ -151,7 +151,7 @@
       "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1769858435512,
+  "lastUpdated": 1769895218135,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-01-31T11:20:35.512Z"
+  "lastSaved": "2026-01-31T21:33:38.135Z"
 }

@@ -1,6 +1,6 @@
 {
   "walletBalances": {
-    "wallet:balance:bill.draper.auto@gmail.com": "6640077.871657701",
+    "wallet:balance:bill.draper.auto@gmail.com": "6640075.871657701",
     "wallet:balance:billdraper2026@gmail.com": "346.151111111",
     "wallet:audit:bill.draper.auto@gmail.com:1767090872688": "{\"intent\":\"CREDIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":500,\"previousBalance\":0,\"newBalance\":500,\"txId\":\"9ee15e46-b04b-4926-8565-f4656dd842df\",\"reason\":\"Stripe payment confirmed: pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"metadata\":{\"stripePaymentIntentId\":\"pi_3Sk0FzP4h6MOSVxD0H0U1eua\",\"serviceProvider\":\"stripe-payment-rail-001\"},\"timestamp\":1767090872688}",
     "wallet:audit:bill.draper.auto@gmail.com:1767133942207": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":130,\"previousBalance\":6666438.2,\"newBalance\":6666308.2,\"txId\":\"79f18d77-976e-413e-aee9-bd311a5e7834\",\"reason\":\"indexer_deployment\",\"metadata\":{\"serviceType\":\"movie\",\"indexerName\":\"Garden-MOVIE\",\"createdBy\":\"bill.draper.auto@gmail.com\"},\"timestamp\":1767133942207}",
@@ -624,7 +624,8 @@
     "wallet:audit:bill.draper.auto@gmail.com:1769044072683": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640085.871657701,\"newBalance\":6640083.871657701,\"txId\":\"tx_1769044072626\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769044072683}",
     "wallet:audit:bill.draper.auto@gmail.com:1769044188952": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640083.871657701,\"newBalance\":6640081.871657701,\"txId\":\"tx_1769044188889\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769044188952}",
     "wallet:audit:bill.draper.auto@gmail.com:1769044432072": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640081.871657701,\"newBalance\":6640079.871657701,\"txId\":\"tx_1769044432007\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769044432072}",
-    "wallet:audit:bill.draper.auto@gmail.com:1769045928374": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640079.871657701,\"newBalance\":6640077.871657701,\"txId\":\"tx_1769045928303\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769045928375}"
+    "wallet:audit:bill.draper.auto@gmail.com:1769045928374": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640079.871657701,\"newBalance\":6640077.871657701,\"txId\":\"tx_1769045928303\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769045928375}",
+    "wallet:audit:bill.draper.auto@gmail.com:1769862020310": "{\"intent\":\"DEBIT\",\"email\":\"bill.draper.auto@gmail.com\",\"amount\":2,\"previousBalance\":6640077.871657701,\"newBalance\":6640075.871657701,\"txId\":\"tx_1769862020244\",\"reason\":\"Payment to AMC Theatres (movie)\",\"metadata\":{\"merchant\":\"AMC Theatres\",\"serviceType\":\"movie\",\"cashierId\":\"cashier-eden-001\"},\"timestamp\":1769862020310}"
   },
-  "lastSaved": "2026-01-22T01:38:48.470Z"
+  "lastSaved": "2026-01-31T12:20:20.399Z"
 }

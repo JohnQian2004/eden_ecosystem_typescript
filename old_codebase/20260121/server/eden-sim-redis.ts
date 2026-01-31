@@ -1295,6 +1295,7 @@ httpServer.on("request", async (req, res) => {
                 console.log(`🔍 [LLM] ========================================`);
                 console.log(`🔍 [LLM] formatResponseWithOpenAI_CLONED FUNCTION ENTRY - CLONED DIRECTLY IN EDEN-SIM-REDIS`);
                 console.log(`🔍 [LLM] This is the CLONED function - NOT imported`);
+                console.log(`🔍 [LLM] Using Cohere AI (switched from OpenAI)`);
                 console.log(`🔍 [LLM] listings count: ${listings.length}`);
                 console.log(`🔍 [LLM] userQuery: ${userQuery.substring(0, 100)}`);
                 console.log(`🔍 [LLM] queryFilters:`, JSON.stringify(queryFilters));
@@ -1309,46 +1310,91 @@ httpServer.on("request", async (req, res) => {
                   { role: "user", content: userMessage },
                 ];
                 
-                const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "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";
+                // Cohere AI API Configuration
+                const COHERE_API_KEY = "tHJAN4gUTZ4GM1IJ25FQFbKydqBp6LCVbsAxXggB";
+                const COHERE_API_HOST = "api.cohere.ai";
+                const COHERE_CHAT_ENDPOINT = "/v1/chat";
                 
-                const payload = JSON.stringify({
-                  model: "gpt-4o",
-                  messages,
-                  response_format: { type: "json_object" },
+                // Convert OpenAI messages format to Cohere format
+                // Cohere uses chat_history, message, and preamble format
+                const chatHistory: Array<{ role: string; message: string }> = [];
+                let currentMessage = "";
+                let preamble = "";
+                
+                // Process messages - Cohere expects:
+                // - preamble: system messages
+                // - chat_history: previous user/assistant messages
+                // - message: current user message
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  if (msg.role === "system") {
+                    // System messages go into preamble
+                    preamble += (preamble ? "\n\n" : "") + msg.content;
+                  } else if (i === messages.length - 1 && msg.role === "user") {
+                    // Last user message is the current message
+                    currentMessage = msg.content;
+                  } else {
+                    // Previous messages go into chat_history
+                    const role = msg.role === "assistant" ? "CHATBOT" : "USER";
+                    chatHistory.push({
+                      role: role,
+                      message: msg.content
+                    });
+                  }
+                }
+                
+                const requestBody: any = {
+                  message: currentMessage,
+                  model: "command-r7b-12-2024",
                   temperature: 0.7,
-                });
+                  max_tokens: 2000
+                };
+                
+                // Add chat_history if we have any
+                if (chatHistory.length > 0) {
+                  requestBody.chat_history = chatHistory;
+                }
+                
+                // Add preamble (system instructions + JSON mode)
+                requestBody.preamble = (preamble ? preamble + "\n\n" : "") + "You must respond with valid JSON only. No explanations, no markdown, just the JSON object.";
+                
+                const requestBodyJson = JSON.stringify(requestBody);
+                const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
 
                 return new Promise<LLMResponse>((resolve, reject) => {
                   const req = https.request(
                     {
-                      hostname: "api.openai.com",
+                      hostname: COHERE_API_HOST,
                       port: 443,
-                      path: "/v1/chat/completions",
+                      path: COHERE_CHAT_ENDPOINT,
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                        "Content-Length": payload.length,
+                        "Authorization": `Bearer ${COHERE_API_KEY}`,
+                        "Content-Length": requestBodyBuffer.length.toString()
                       },
                     },
                     (res) => {
                       let data = "";
                       res.on("data", (c) => (data += c));
                       res.on("end", () => {
-                        console.log(`🔍 [LLM] OpenAI response received, data length: ${data.length}`);
+                        console.log(`🔍 [LLM] Cohere response received, data length: ${data.length}`);
                         try {
                           const parsed = JSON.parse(data);
-                          console.log(`🔍 [LLM] OpenAI response parsed successfully`);
-                          if (parsed.error) {
-                            reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
+                          console.log(`🔍 [LLM] Cohere response parsed successfully`);
+                          if (parsed.message || parsed.error) {
+                            reject(new Error(`Cohere API error: ${parsed.message || parsed.error?.message || JSON.stringify(parsed.error)}`));
                             return;
                           }
-                          if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-                            let content: any;
-                            try {
-                              const contentStr = parsed.choices[0].message.content;
-                              console.log(`🔧 [LLM] Raw content from OpenAI: ${contentStr?.substring(0, 200)}...`);
-                              content = JSON.parse(contentStr);
+                          const contentStr = parsed.text || parsed.message;
+                          if (!contentStr) {
+                            reject(new Error("No content in Cohere response"));
+                            return;
+                          }
+                          let content: any;
+                          try {
+                            console.log(`🔧 [LLM] Raw content from Cohere: ${contentStr?.substring(0, 200)}...`);
+                            content = JSON.parse(contentStr);
                               console.log(`🔧 [LLM] Parsed content keys: ${Object.keys(content || {}).join(', ')}`);
                               console.log(`🔧 [LLM] content.selectedListing exists: ${!!content.selectedListing}, type: ${typeof content.selectedListing}`);
                               console.log(`🔧 [LLM] content.selectedListing2 exists: ${!!content.selectedListing2}, type: ${typeof content.selectedListing2}`);
@@ -1392,8 +1438,8 @@ httpServer.on("request", async (req, res) => {
                                 }
                               }
                             } catch (parseError: any) {
-                              console.error(`❌ [LLM] Failed to parse OpenAI content as JSON: ${parseError.message}`);
-                              content = { message: parsed.choices[0].message.content || "Service found", selectedListing: null };
+                              console.error(`❌ [LLM] Failed to parse Cohere content as JSON: ${parseError.message}`);
+                              content = { message: contentStr || "Service found", selectedListing: null };
                             }
                             
                             // Process the content
@@ -1545,20 +1591,17 @@ httpServer.on("request", async (req, res) => {
                             console.log(`\n\n\n`);
                             
                             resolve(result);
-                          } else {
-                            reject(new Error("Invalid OpenAI response format"));
-                          }
                         } catch (err: any) {
-                          reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
+                          reject(new Error(`Failed to parse Cohere response: ${err.message}`));
                         }
                       });
                     }
                   );
                   
                   req.on("error", (err) => {
-                    reject(new Error(`OpenAI request failed: ${err.message}`));
+                    reject(new Error(`Cohere API request failed: ${err.message}`));
                   });
-                  req.write(payload);
+                  req.write(requestBodyBuffer);
                   req.end();
                 });
               }
@@ -3307,6 +3350,9 @@ httpServer.on("request", async (req, res) => {
         }
         console.log(`   📤 [${requestId}] ========================================`);
         
+        // Find the current step definition for type checking
+        const currentStep = workflow.steps.find((s: any) => s.id === stepId);
+        
         sendResponse(200, {
           success: true,
           message: `Step ${stepId} executed atomically`,
@@ -3316,7 +3362,7 @@ httpServer.on("request", async (req, res) => {
             events,
             updatedContext,
             nextStepId,
-            shouldAutoContinue: nextStepId && step.type !== 'decision' ? true : false
+            shouldAutoContinue: nextStepId && currentStep && currentStep.type !== 'decision' ? true : false
           }
         });
 
@@ -3324,7 +3370,7 @@ httpServer.on("request", async (req, res) => {
         // This ensures the workflow automatically progresses from ledger_create_entry to cashier_process_payment
         // The cashier step MUST execute to complete the ledger entry (status: pending -> processed)
         // This runs after executeStepAtomically is defined (see below after the function definition)
-        const shouldAutoContinue = nextStepId && step.type !== 'decision';
+        const shouldAutoContinue = nextStepId && currentStep && currentStep.type !== 'decision';
         const autoContinueStepId = shouldAutoContinue ? nextStepId : null;
         const autoContinueStep = shouldAutoContinue ? workflow.steps.find((s: any) => s.id === nextStepId) : null;
         const hasAlwaysTransition = shouldAutoContinue && autoContinueStep ? 
@@ -3361,33 +3407,36 @@ httpServer.on("request", async (req, res) => {
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error executing step atomically:`, error.message);
         
+        // Find the step definition for error handling
+        const stepForError = workflow.steps.find((s: any) => s.id === stepId);
+        
         // Check if step has errorHandling configuration
-        if (step.errorHandling && step.errorHandling.onError) {
-          console.log(`   ⚠️ [${requestId}] Step has errorHandling, transitioning to: ${step.errorHandling.onError}`);
+        if (stepForError && stepForError.errorHandling && stepForError.errorHandling.onError) {
+          console.log(`   ⚠️ [${requestId}] Step has errorHandling, transitioning to: ${stepForError.errorHandling.onError}`);
           
           // Set error object in context with component and message
           updatedContext.error = {
-            component: step.component || 'unknown',
+            component: stepForError.component || 'unknown',
             message: error.message,
             stepId: stepId,
-            stepName: step.name,
+            stepName: stepForError.name,
             error: error.message,
             stack: error.stack
           };
           
           console.log(`   ❌ [${requestId}] ========================================`);
-          console.log(`   ❌ [${requestId}] ERROR OCCURRED IN STEP: ${stepId} (${step.name})`);
-          console.log(`   ❌ [${requestId}] Component: ${step.component || 'unknown'}`);
+          console.log(`   ❌ [${requestId}] ERROR OCCURRED IN STEP: ${stepId} (${stepForError.name})`);
+          console.log(`   ❌ [${requestId}] Component: ${stepForError.component || 'unknown'}`);
           console.log(`   ❌ [${requestId}] Error Message: ${error.message}`);
           console.log(`   ❌ [${requestId}] Error Stack: ${error.stack?.substring(0, 200) || 'N/A'}`);
           console.log(`   ❌ [${requestId}] Error object set in context:`, JSON.stringify(updatedContext.error, null, 2));
           console.log(`   ❌ [${requestId}] Context keys after setting error:`, Object.keys(updatedContext));
-          console.log(`   ❌ [${requestId}] Transitioning to error handler: ${step.errorHandling.onError}`);
+          console.log(`   ❌ [${requestId}] Transitioning to error handler: ${stepForError.errorHandling.onError}`);
           console.log(`   ❌ [${requestId}] ========================================`);
           
           // Process errorEvents if defined
-          if (step.errorHandling.errorEvents) {
-            for (const event of step.errorHandling.errorEvents) {
+          if (stepForError.errorHandling.errorEvents) {
+            for (const event of stepForError.errorHandling.errorEvents) {
               const processedEvent = replaceTemplateVariables(event, updatedContext);
               // Ensure timestamp is always a valid number
               if (!processedEvent.timestamp || isNaN(processedEvent.timestamp)) {
@@ -3406,7 +3455,7 @@ httpServer.on("request", async (req, res) => {
           }
           
           // Find the error_handler step
-          const errorHandlerStep = workflow.steps.find((s: any) => s.id === step.errorHandling.onError);
+          const errorHandlerStep = workflow.steps.find((s: any) => s.id === stepForError.errorHandling.onError);
           if (errorHandlerStep) {
             console.log(`   🔄 [${requestId}] Transitioning to error handler step: ${errorHandlerStep.id} (${errorHandlerStep.name})`);
             
@@ -3439,14 +3488,14 @@ httpServer.on("request", async (req, res) => {
             
             if (existingExecution && existingExecution.workflow) {
               existingExecution.context = updatedContext;
-              existingExecution.currentStep = step.errorHandling.onError;
+              existingExecution.currentStep = stepForError.errorHandling.onError;
               workflowExecutions.set(executionId, existingExecution);
             } else {
               workflowExecutions.set(executionId, {
                 executionId,
                 workflow,
                 context: updatedContext,
-                currentStep: step.errorHandling.onError,
+                currentStep: stepForError.errorHandling.onError,
                 history: []
               });
             }
@@ -3455,7 +3504,7 @@ httpServer.on("request", async (req, res) => {
               success: true,
               message: `Step ${stepId} failed, transitioned to error handler`,
               result: {
-                stepId: step.errorHandling.onError,
+                stepId: stepForError.errorHandling.onError,
                 errorStepId: stepId,
                 error: error.message,
                 events,
@@ -3466,7 +3515,7 @@ httpServer.on("request", async (req, res) => {
             });
             return;
           } else {
-            console.error(`   ❌ [${requestId}] Error handler step not found: ${step.errorHandling.onError}`);
+            console.error(`   ❌ [${requestId}] Error handler step not found: ${stepForError.errorHandling.onError}`);
           }
         }
         

@@ -313,14 +313,7 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
       if (value !== undefined && value !== null) {
         return value; // Return the actual object/value, not stringified
       }
-      // Special handling: snapshot.feeSplit should return empty object if snapshot exists but feeSplit doesn't
-      if (fullMatch[1] === "snapshot.feeSplit" && (context as any).snapshot) {
-        return {};
-      }
-      // Only warn for non-critical missing variables (suppress warning for snapshot.feeSplit as it's handled above)
-      if (fullMatch[1] !== "snapshot.feeSplit") {
-        console.warn(`⚠️  [Template] Variable not found in context: ${fullMatch[1]}`);
-      }
+      console.warn(`⚠️  [Template] Variable not found in context: ${fullMatch[1]}`);
       return null;
     }
     // Otherwise, replace template variables within the string
@@ -333,16 +326,9 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
         }
         return String(value);
       }
-      // Special handling: snapshot.feeSplit should return empty object string if snapshot exists but feeSplit doesn't
-      if (path === "snapshot.feeSplit" && (context as any).snapshot) {
-        return '{}';
-      }
       // If template variable not found, return empty string instead of keeping the template
       // This prevents showing "{{variableName}}" in the UI
-      // Only warn for non-critical missing variables (suppress warning for snapshot.feeSplit as it's handled above)
-      if (path !== "snapshot.feeSplit") {
-        console.warn(`⚠️  [Template] Variable not found in context: ${path}`);
-      }
+      console.warn(`⚠️  [Template] Variable not found in context: ${path}`);
       return '';
     });
   } else if (Array.isArray(template)) {
@@ -361,32 +347,7 @@ export function replaceTemplateVariables(template: any, context: WorkflowContext
  * Get nested value from object using dot notation
  */
 function getNestedValue(obj: any, path: string): any {
-  // Special handling: if snapshot.feeSplit is requested, check if snapshot exists first
-  if (path === "snapshot.feeSplit") {
-    if (obj?.snapshot) {
-      // Snapshot exists, check if feeSplit exists
-      if (obj.snapshot.feeSplit !== undefined && obj.snapshot.feeSplit !== null) {
-        return obj.snapshot.feeSplit;
-      }
-      // Snapshot exists but feeSplit doesn't, return empty object
-      return {};
-    }
-    // Snapshot doesn't exist, return undefined
-    return undefined;
-  }
-  
-  // Normal nested property access for other paths
-  const parts = path.split(".");
-  let current = obj;
-  
-  for (const prop of parts) {
-    if (current === null || current === undefined) {
-      return undefined;
-    }
-    current = current[prop];
-  }
-  
-  return current;
+  return path.split(".").reduce((current, prop) => current?.[prop], obj);
 }
 
 /**
@@ -396,83 +357,71 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   // Simple condition evaluation - can be enhanced
   if (condition === "always") return true;
 
-  // CRITICAL: Handle array length checks first (e.g., {{listings.length}} > 0)
-  // This must be done before general template replacement
-  let workingCondition = condition;
-  if (workingCondition.includes('.length')) {
-    const lengthMatches = workingCondition.matchAll(/\{\{(\w+(?:\.\w+)*)\.length\}\}/g);
-    for (const match of lengthMatches) {
-      const arrayPath = match[1];
-      const arrayValue = getNestedValue(context, arrayPath);
-      const arrayLength = Array.isArray(arrayValue) ? arrayValue.length : (arrayValue?.length || 0);
-      
-      // Replace {{array.length}} with the actual number
-      workingCondition = workingCondition.replace(match[0], String(arrayLength));
-      console.log(`   🔍 [evaluateCondition] Replaced ${match[0]} with ${arrayLength}`);
+  // First, replace template variables in the condition
+  // For arrays and objects, we need special handling - they should be evaluated as truthy/falsy
+  // For primitives, we can use them directly in comparisons
+  let processedCondition = condition;
+  
+  // Handle special cases where we need to evaluate arrays/objects as truthy
+  // Pattern: {{variable}} (without any comparison) should check if variable exists and is truthy
+  const simpleExistencePattern = /^\{\{(\w+(?:\.\w+)*)\}\}$/;
+  if (simpleExistencePattern.test(condition.trim())) {
+    const path = condition.trim().match(simpleExistencePattern)?.[1];
+    if (path) {
+      const value = getNestedValue(context, path);
+      // For arrays, check if it exists and has length > 0
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      // For objects, check if it exists and is not null/undefined
+      if (value && typeof value === 'object') {
+        return Object.keys(value).length > 0;
+      }
+      // For primitives, check truthiness
+      return !!value;
     }
   }
-
-  // First, replace template variables in the condition
-  let processedCondition = workingCondition;
+  
+  // Handle negation of simple existence: !{{variable}}
+  const negationPattern = /^!\{\{(\w+(?:\.\w+)*)\}\}$/;
+  if (negationPattern.test(condition.trim())) {
+    const path = condition.trim().match(negationPattern)?.[1];
+    if (path) {
+      const value = getNestedValue(context, path);
+      if (Array.isArray(value)) {
+        return value.length === 0;
+      }
+      if (value && typeof value === 'object') {
+        return Object.keys(value).length === 0;
+      }
+      return !value;
+    }
+  }
+  
+  // For conditions with comparisons, replace template variables
   processedCondition = processedCondition.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
     const value = getNestedValue(context, path);
     if (value === undefined || value === null) {
       return 'undefined';
     }
-    // If value is an array, evaluate as truthy (exists and has length > 0)
+    // If value is an array or object, we can't use it directly in string comparisons
+    // Instead, we'll use a special marker that we'll handle separately
     if (Array.isArray(value)) {
-      return value.length > 0 ? 'true' : 'false';
+      return `__ARRAY_LENGTH_${value.length}__`;
+    }
+    if (typeof value === 'object') {
+      return `__OBJECT_KEYS_${Object.keys(value).length}__`;
     }
     // If value is a string, wrap it in quotes for comparison
     if (typeof value === 'string') {
       return `'${value}'`;
     }
-    // For numbers and booleans, convert to string
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-    // For objects, check if they exist (truthy)
-    return value ? 'true' : 'false';
+    return String(value);
   });
-
-  // Handle comparison operators (>, <, >=, <=) - must check before ===
-  if (processedCondition.includes(' > ')) {
-    const [left, right] = processedCondition.split(' > ').map(s => s.trim());
-    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
-    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      const result = leftNum > rightNum;
-      console.log(`   🔍 [evaluateCondition] Comparison: ${leftNum} > ${rightNum} = ${result}`);
-      return result;
-    }
-  }
   
-  if (processedCondition.includes(' < ')) {
-    const [left, right] = processedCondition.split(' < ').map(s => s.trim());
-    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
-    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum < rightNum;
-    }
-  }
-  
-  if (processedCondition.includes(' >= ')) {
-    const [left, right] = processedCondition.split(' >= ').map(s => s.trim());
-    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
-    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum >= rightNum;
-    }
-  }
-  
-  if (processedCondition.includes(' <= ')) {
-    const [left, right] = processedCondition.split(' <= ').map(s => s.trim());
-    const leftNum = parseFloat(left.replace(/^['"]|['"]$/g, ''));
-    const rightNum = parseFloat(right.replace(/^['"]|['"]$/g, ''));
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum <= rightNum;
-    }
-  }
+  // Replace array length markers with actual numbers for comparison
+  processedCondition = processedCondition.replace(/__ARRAY_LENGTH_(\d+)__/g, '$1');
+  processedCondition = processedCondition.replace(/__OBJECT_KEYS_(\d+)__/g, '$1');
 
   // Handle comparison operators (===, !==, ==, !=)
   if (processedCondition.includes(' === ')) {
@@ -492,53 +441,53 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
     return leftValue !== rightValue;
   }
 
-  // Handle boolean string literals (true/false)
-  const trimmedProcessed = processedCondition.trim();
-  if (trimmedProcessed === 'true') return true;
-  if (trimmedProcessed === 'false') return false;
-
   // Handle logical operators (&&, ||)
-  // CRITICAL: Must check for && and || AFTER handling comparison operators
-  // because conditions like "2 > 0" need to be evaluated before splitting
-  if (processedCondition.includes(' && ')) {
-    const parts = processedCondition.split(' && ').map(p => p.trim());
-    console.log(`   🔍 [evaluateCondition] Splitting by &&: [${parts.join(', ')}]`);
-    // Evaluate each part recursively
-    const results = parts.map((part, index) => {
-      // If part is a simple boolean string, return it directly
-      if (part === 'true') {
-        console.log(`   🔍 [evaluateCondition] Part ${index} is 'true' → true`);
-        return true;
-      }
-      if (part === 'false') {
-        console.log(`   🔍 [evaluateCondition] Part ${index} is 'false' → false`);
-        return false;
-      }
-      // Otherwise, evaluate recursively
-      console.log(`   🔍 [evaluateCondition] Evaluating part ${index} recursively: "${part}"`);
-      const result = evaluateCondition(part, context);
-      console.log(`   🔍 [evaluateCondition] Part ${index} result: ${result}`);
-      return result;
-    });
-    const finalResult = results.every(r => r === true);
-    console.log(`   🔍 [evaluateCondition] && evaluation result: ${finalResult} (all parts: [${results.join(', ')}])`);
-    return finalResult;
-  }
-  
-  if (processedCondition.includes(' || ')) {
-    const parts = processedCondition.split(' || ').map(p => p.trim());
-    console.log(`   🔍 [evaluateCondition] Splitting by ||: [${parts.join(', ')}]`);
-    // Evaluate each part recursively
-    const results = parts.map((part, index) => {
-      // If part is a simple boolean string, return it directly
-      if (part === 'true') return true;
-      if (part === 'false') return false;
-      // Otherwise, evaluate recursively
-      return evaluateCondition(part, context);
-    });
-    const finalResult = results.some(r => r === true);
-    console.log(`   🔍 [evaluateCondition] || evaluation result: ${finalResult} (any part: [${results.join(', ')}])`);
-    return finalResult;
+  // CRITICAL: We need to split carefully to avoid splitting within template variable replacements
+  // First, check if we have && or || operators
+  if (processedCondition.includes(' && ') || processedCondition.includes(' || ')) {
+    // Split by && first, then by ||
+    if (processedCondition.includes(' && ')) {
+      const parts = processedCondition.split(' && ');
+      // For each part, check if it's a simple template variable that needs special handling
+      return parts.every(part => {
+        const trimmed = part.trim();
+        // Check if it's a simple template variable like {{listings}}
+        const templateMatch = trimmed.match(/^\{\{(\w+(?:\.\w+)*)\}\}$/);
+        if (templateMatch) {
+          const path = templateMatch[1];
+          const value = getNestedValue(context, path);
+          if (Array.isArray(value)) {
+            return value.length > 0;
+          }
+          if (value && typeof value === 'object') {
+            return Object.keys(value).length > 0;
+          }
+          return !!value;
+        }
+        // Otherwise, recursively evaluate the condition
+        return evaluateCondition(trimmed, context);
+      });
+    }
+    
+    if (processedCondition.includes(' || ')) {
+      const parts = processedCondition.split(' || ');
+      return parts.some(part => {
+        const trimmed = part.trim();
+        const templateMatch = trimmed.match(/^\{\{(\w+(?:\.\w+)*)\}\}$/);
+        if (templateMatch) {
+          const path = templateMatch[1];
+          const value = getNestedValue(context, path);
+          if (Array.isArray(value)) {
+            return value.length > 0;
+          }
+          if (value && typeof value === 'object') {
+            return Object.keys(value).length > 0;
+          }
+          return !!value;
+        }
+        return evaluateCondition(trimmed, context);
+      });
+    }
   }
 
   // Handle template syntax {{variable}} (simple existence check)
@@ -549,13 +498,72 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   }
 
   // Handle negation
-  if (condition.startsWith("!")) {
-    const path = condition.substring(1);
-    return !getNestedValue(context, path);
+  if (processedCondition.startsWith("!")) {
+    const rest = processedCondition.substring(1).trim();
+    // Check if it's a number (after template replacement)
+    if (!isNaN(Number(rest))) {
+      return !Number(rest);
+    }
+    // Check if it's a boolean string
+    if (rest === 'true' || rest === 'false') {
+      return rest !== 'true';
+    }
+    // Otherwise try to get from context
+    return !getNestedValue(context, rest);
+  }
+  
+  // Handle simple numeric comparisons (>, <, >=, <=)
+  if (processedCondition.includes(' > ')) {
+    const [left, right] = processedCondition.split(' > ').map(s => s.trim());
+    const leftNum = Number(left);
+    const rightNum = Number(right);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum > rightNum;
+    }
+  }
+  
+  if (processedCondition.includes(' < ')) {
+    const [left, right] = processedCondition.split(' < ').map(s => s.trim());
+    const leftNum = Number(left);
+    const rightNum = Number(right);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum < rightNum;
+    }
+  }
+  
+  if (processedCondition.includes(' >= ')) {
+    const [left, right] = processedCondition.split(' >= ').map(s => s.trim());
+    const leftNum = Number(left);
+    const rightNum = Number(right);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum >= rightNum;
+    }
+  }
+  
+  if (processedCondition.includes(' <= ')) {
+    const [left, right] = processedCondition.split(' <= ').map(s => s.trim());
+    const leftNum = Number(left);
+    const rightNum = Number(right);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum <= rightNum;
+    }
+  }
+  
+  // Check if processedCondition is just a number (after template replacement)
+  if (!isNaN(Number(processedCondition.trim()))) {
+    return Number(processedCondition.trim()) !== 0;
+  }
+  
+  // Check if it's a boolean string
+  if (processedCondition.trim() === 'true') {
+    return true;
+  }
+  if (processedCondition.trim() === 'false') {
+    return false;
   }
   
   // Default: check if value exists and is truthy
-  return !!getNestedValue(context, condition);
+  return !!getNestedValue(context, processedCondition);
 }
 
 /**
