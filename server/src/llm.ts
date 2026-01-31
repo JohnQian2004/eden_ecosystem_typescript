@@ -251,9 +251,9 @@ export type GetDataParamsResult = {
 };
 
 export async function extractGetDataParamsWithOpenAI(userInput: string): Promise<GetDataParamsResult> {
-  // Require OpenAI API key - no mock fallbacks
-  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
-    throw new Error("OpenAI API key is required for extractGetDataParamsWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  // Using Cohere AI (hardcoded API key) - no mock fallbacks
+  if (!COHERE_API_KEY && !MOCKED_LLM) {
+    throw new Error("Cohere API key is required for extractGetDataParamsWithOpenAI.");
   }
   
   // Only use mock mode if explicitly enabled (for testing)
@@ -293,89 +293,93 @@ export async function extractGetDataParamsWithOpenAI(userInput: string): Promise
     { role: "user", content: userInput }
   ];
 
-  const requestBody = {
-    model: "gpt-4o",
-    messages,
-    temperature: 0.3,
-    max_tokens: 500,
-    response_format: { type: "json_object" }
-  };
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: "api.openai.com",
-      path: "/v1/chat/completions",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      }
+  try {
+    const content = await callCohereAPI(messages, {
+      model: "command-r7b-12-2024",
+      temperature: 0.3,
+      max_tokens: 500,
+      response_format: { type: "json_object" }
+    });
+    
+    const parsed = JSON.parse(content);
+    // Validate and normalize response
+    const result: GetDataParamsResult = {
+      serviceType: String(parsed.serviceType || "autoparts"),
+      params: Array.isArray(parsed.params) ? parsed.params.map((p: any) => String(p)) : [],
+      maxCount: Math.max(1, Math.min(Number(parsed.maxCount || 30), 100)),
+      sortBy: parsed.sortBy ? String(parsed.sortBy) : undefined,
+      order: parsed.order === "desc" ? "desc" : "asc",
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0.9)))
     };
-
-    const req = https.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk.toString(); });
-      res.on("end", () => {
-        try {
-          const response = JSON.parse(data);
-          if (response.error) {
-            reject(new Error(response.error.message || "OpenAI API error"));
-            return;
-          }
-          const content = response.choices[0]?.message?.content;
-          if (!content) {
-            reject(new Error("No content in OpenAI response"));
-            return;
-          }
-          const parsed = JSON.parse(content);
-          // Validate and normalize response
-          const result: GetDataParamsResult = {
-            serviceType: String(parsed.serviceType || "autoparts"),
-            params: Array.isArray(parsed.params) ? parsed.params.map((p: any) => String(p)) : [],
-            maxCount: Math.max(1, Math.min(Number(parsed.maxCount || 30), 100)),
-            sortBy: parsed.sortBy ? String(parsed.sortBy) : undefined,
-            order: parsed.order === "desc" ? "desc" : "asc",
-            confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0.9)))
-          };
-          resolve(result);
-        } catch (err: any) {
-          reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-        }
-      });
-    });
-
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI API request failed: ${err.message}`));
-    });
-
-    req.write(JSON.stringify(requestBody));
-    req.end();
-  });
+    return result;
+  } catch (err: any) {
+    throw new Error(`Failed to parse Cohere response: ${err.message}`);
+  }
 }
 
-// OpenAI API Configuration
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Cohere AI API Configuration (hardcoded as requested)
+const COHERE_API_KEY = "tHJAN4gUTZ4GM1IJ25FQFbKydqBp6LCVbsAxXggB";
+const COHERE_API_HOST = "api.cohere.ai";
+const COHERE_CHAT_ENDPOINT = "/v1/chat";
 
-// Simple LLM call function (used by other modules)
-export async function callLLM(prompt: string, useOpenAI: boolean = true): Promise<string> {
-  if (MOCKED_LLM) {
-    return "Mock LLM response";
+/**
+ * Helper function to call Cohere AI API
+ */
+async function callCohereAPI(
+  messages: Array<{ role: string; content: string }>,
+  options: {
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    response_format?: { type: string };
+  } = {}
+): Promise<string> {
+  // Convert OpenAI messages format to Cohere format
+  // Cohere uses chat_history, message, and preamble format
+  const chatHistory: Array<{ role: string; message: string }> = [];
+  let currentMessage = "";
+  let preamble = "";
+  
+  // Process messages - Cohere expects:
+  // - preamble: system messages
+  // - chat_history: previous user/assistant messages
+  // - message: current user message
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.role === "system") {
+      // System messages go into preamble
+      preamble += (preamble ? "\n\n" : "") + msg.content;
+    } else if (i === messages.length - 1 && msg.role === "user") {
+      // Last user message is the current message
+      currentMessage = msg.content;
+    } else {
+      // Previous messages go into chat_history
+      const role = msg.role === "assistant" ? "CHATBOT" : "USER";
+      chatHistory.push({
+        role: role,
+        message: msg.content
+      });
+    }
   }
-
-  if (!useOpenAI || !OPENAI_API_KEY) {
-    throw new Error("OpenAI API key not configured");
-  }
-
-  const messages = [
-    { role: "user", content: prompt }
-  ];
-
-  const requestBody = {
-    model: "gpt-4o",
-    messages,
-    temperature: 0.7,
-    max_tokens: 1000
+  
+  const requestBody: any = {
+    message: currentMessage,
+    model: options.model || "command-r7b-12-2024",
+    temperature: options.temperature || 0.7,
+    max_tokens: options.max_tokens || 1000
   };
+  
+  // Add chat_history if we have any
+  if (chatHistory.length > 0) {
+    requestBody.chat_history = chatHistory;
+  }
+  
+  // Add preamble (system instructions + JSON mode if needed)
+  if (options.response_format?.type === "json_object") {
+    requestBody.preamble = (preamble ? preamble + "\n\n" : "") + "You must respond with valid JSON only. No explanations, no markdown, just the JSON object.";
+  } else if (preamble) {
+    requestBody.preamble = preamble;
+  }
 
   const requestBodyJson = JSON.stringify(requestBody);
   const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
@@ -383,13 +387,13 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
-        hostname: "api.openai.com",
+        hostname: COHERE_API_HOST,
         port: 443,
-        path: "/v1/chat/completions",
+        path: COHERE_CHAT_ENDPOINT,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Authorization": `Bearer ${COHERE_API_KEY}`,
           "Content-Length": requestBodyBuffer.length.toString()
         }
       },
@@ -399,29 +403,50 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
-            if (parsed.error) {
-              reject(new Error(parsed.error.message || "OpenAI API error"));
+            if (parsed.message || parsed.error) {
+              reject(new Error(parsed.message || parsed.error?.message || "Cohere API error"));
               return;
             }
-            const content = parsed.choices[0]?.message?.content;
+            const content = parsed.text || parsed.message;
             if (!content) {
-              reject(new Error("No content in LLM response"));
+              reject(new Error("No content in Cohere response"));
               return;
             }
             resolve(content);
           } catch (err: any) {
-            reject(new Error(`Failed to parse LLM response: ${err.message}`));
+            reject(new Error(`Failed to parse Cohere response: ${err.message}`));
           }
         });
       }
     );
 
     req.on("error", (err) => {
-      reject(new Error(`LLM API request failed: ${err.message}`));
+      reject(new Error(`Cohere API request failed: ${err.message}`));
     });
 
     req.write(requestBodyBuffer);
     req.end();
+  });
+}
+
+// Simple LLM call function (used by other modules)
+export async function callLLM(prompt: string, useOpenAI: boolean = true): Promise<string> {
+  if (MOCKED_LLM) {
+    return "Mock LLM response";
+  }
+
+  if (!COHERE_API_KEY) {
+    throw new Error("Cohere API key not configured");
+  }
+
+  const messages = [
+    { role: "user", content: prompt }
+  ];
+
+  return callCohereAPI(messages, {
+    model: "command-r7b-12-2024",
+    temperature: 0.7,
+    max_tokens: 1000
   });
 }
 
@@ -560,9 +585,9 @@ Return JSON format:
  * Extract query from user input using OpenAI
  */
 export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult> {
-  // Require OpenAI API key - no mock fallbacks
-  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
-    throw new Error("OpenAI API key is required for extractQueryWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  // Using Cohere AI (hardcoded API key) - no mock fallbacks
+  if (!COHERE_API_KEY && !MOCKED_LLM) {
+    throw new Error("Cohere API key is required for extractQueryWithOpenAI.");
   }
   
   // Only use mock mode if explicitly enabled (for testing)
@@ -609,63 +634,22 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
     { role: "user", content: userInput }
   ];
 
-  const requestBody = {
-    model: "gpt-4o-mini",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0.7
-  };
-
-  const requestBodyJson = JSON.stringify(requestBody);
-  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: "api.openai.com",
-        port: 443,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Length": requestBodyBuffer.length.toString()
-        }
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-              return;
-            }
-            if (parsed.choices?.[0]?.message?.content) {
-              const content = JSON.parse(parsed.choices[0].message.content);
-              resolve({
-                query: content.query || { serviceType: "movie", filters: {} },
-                serviceType: content.serviceType || "movie",
-                confidence: content.confidence || 0.9
-              });
-            } else {
-              reject(new Error("Invalid OpenAI response format"));
-            }
-          } catch (err: any) {
-            reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-          }
-        });
-      }
-    );
-
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI request failed: ${err.message}`));
+  try {
+    const content = await callCohereAPI(messages, {
+      model: "command-r7b-12-2024",
+      response_format: { type: "json_object" },
+      temperature: 0.7
     });
-
-    req.write(requestBodyBuffer);
-    req.end();
-  });
+    
+    const parsed = JSON.parse(content);
+    return {
+      query: parsed.query || { serviceType: "movie", filters: {} },
+      serviceType: parsed.serviceType || "movie",
+      confidence: parsed.confidence || 0.9
+    };
+  } catch (err: any) {
+    throw new Error(`Failed to parse Cohere response: ${err.message}`);
+  }
 }
 
 /**
@@ -683,17 +667,17 @@ export async function formatResponseWithOpenAI(
   console.log(`🤖 [LLM] Listings Count: ${listings.length}`);
   console.log(`🤖 [LLM] ========================================`);
   
-  // If OpenAI API key is not available, return a helpful error message
+  // If Cohere API key is not available, return a helpful error message
   // The LLM should handle all logic, not regex parsing and hardcoded answers
-  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
+  if (!COHERE_API_KEY && !MOCKED_LLM) {
     const errorResponse: LLMResponse = {
-      message: "I apologize, but I'm unable to process your query right now. The OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable to enable LLM responses. Once configured, I'll be able to answer your questions using AI.",
+      message: "I apologize, but I'm unable to process your query right now. The Cohere API key is not configured. Please configure the API key to enable LLM responses. Once configured, I'll be able to answer your questions using AI.",
       listings: [],
       selectedListing: null,
       selectedListing2: null,
       iGasCost: 0
     };
-    console.log(`⚠️ [LLM] OpenAI API key not configured - returning error message`);
+    console.log(`⚠️ [LLM] Cohere API key not configured - returning error message`);
     return errorResponse;
   }
   
@@ -760,85 +744,44 @@ export async function formatResponseWithOpenAI(
     { role: "user", content: userMessage }
   ];
 
-  const requestBody = {
-    model: "gpt-4o",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0.7
-  };
-
-  const requestBodyJson = JSON.stringify(requestBody);
-  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: "api.openai.com",
-        port: 443,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Length": requestBodyBuffer.length.toString()
-        }
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-              return;
-            }
-            if (parsed.choices?.[0]?.message?.content) {
-              const content = JSON.parse(parsed.choices[0].message.content);
-              
-              // For informational queries, selectedListing can be null
-              const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
-              const queryLower = userQuery.toLowerCase();
-              // More specific Eden-related keywords - must be clearly about Eden services/workflows
-              // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
-              const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
-                /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
-              const isInformational = listings.length === 0 && hasQuestionPattern && !isEdenRelated;
-              const isEdenInfo = listings.length === 0 && hasQuestionPattern && isEdenRelated;
-              
-              const response: LLMResponse = {
-                message: content.message || "No response",
-                listings: content.listings || ((isInformational || isEdenInfo) ? [] : listings),
-                selectedListing: (isInformational || isEdenInfo) ? null : (content.selectedListing || listings[0] || null),
-                selectedListing2: (isInformational || isEdenInfo) ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
-                iGasCost: content.iGasCost || 0.001
-              };
-              console.log(`🤖 [LLM] ========================================`);
-              console.log(`🤖 [LLM] OpenAI Response received`);
-              console.log(`🤖 [LLM] Is General Knowledge Query: ${isInformational}`);
-              console.log(`🤖 [LLM] Is Eden Info Query: ${isEdenInfo}`);
-              console.log(`🤖 [LLM] Response Message: "${response.message.substring(0, 200)}${response.message.length > 200 ? '...' : ''}"`);
-              console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
-              console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
-              console.log(`🤖 [LLM] ========================================`);
-              resolve(response);
-            } else {
-              reject(new Error("Invalid OpenAI response format"));
-            }
-          } catch (err: any) {
-            reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-          }
-        });
-      }
-    );
-
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI request failed: ${err.message}`));
+  try {
+    const contentStr = await callCohereAPI(messages, {
+      model: "command-r7b-12-2024",
+      response_format: { type: "json_object" },
+      temperature: 0.7
     });
-
-    req.write(requestBodyBuffer);
-    req.end();
-  });
+    
+    const content = JSON.parse(contentStr);
+    
+    // For informational queries, selectedListing can be null
+    const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(userQuery);
+    const queryLower = userQuery.toLowerCase();
+    // More specific Eden-related keywords - must be clearly about Eden services/workflows
+    // Use word boundaries to avoid false matches (e.g., "GOD" shouldn't match "workflow")
+    const isEdenRelated = /\b(eden|garden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|god|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
+      /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
+    const isInformational = listings.length === 0 && hasQuestionPattern && !isEdenRelated;
+    const isEdenInfo = listings.length === 0 && hasQuestionPattern && isEdenRelated;
+    
+    const response: LLMResponse = {
+      message: content.message || "No response",
+      listings: content.listings || ((isInformational || isEdenInfo) ? [] : listings),
+      selectedListing: (isInformational || isEdenInfo) ? null : (content.selectedListing || listings[0] || null),
+      selectedListing2: (isInformational || isEdenInfo) ? null : (content.selectedListing2 || content.selectedListing || listings[0] || null),
+      iGasCost: content.iGasCost || 0.001
+    };
+    console.log(`🤖 [LLM] ========================================`);
+    console.log(`🤖 [LLM] Cohere Response received`);
+    console.log(`🤖 [LLM] Is General Knowledge Query: ${isInformational}`);
+    console.log(`🤖 [LLM] Is Eden Info Query: ${isEdenInfo}`);
+    console.log(`🤖 [LLM] Response Message: "${response.message.substring(0, 200)}${response.message.length > 200 ? '...' : ''}"`);
+    console.log(`🤖 [LLM] iGas Cost: ${response.iGasCost}`);
+    console.log(`🤖 [LLM] Has Selected Listing: ${!!response.selectedListing}`);
+    console.log(`🤖 [LLM] ========================================`);
+    return response;
+  } catch (err: any) {
+    throw new Error(`Failed to format response with Cohere: ${err.message}`);
+  }
 }
 
 /**
@@ -953,9 +896,9 @@ export type SQLParameterizationResult = {
  * Convert SQL query with hardcoded values to parameterized query using LLM
  */
 export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParameterizationResult> {
-  // Require OpenAI API key - no mock fallbacks
-  if (!process.env.OPENAI_API_KEY && !MOCKED_LLM) {
-    throw new Error("OpenAI API key is required for parameterizeSQLWithOpenAI. Please set OPENAI_API_KEY environment variable.");
+  // Using Cohere AI (hardcoded API key) - no mock fallbacks
+  if (!COHERE_API_KEY && !MOCKED_LLM) {
+    throw new Error("Cohere API key is required for parameterizeSQLWithOpenAI.");
   }
   
   // Only use mock mode if explicitly enabled (for testing)
@@ -1046,62 +989,26 @@ export async function parameterizeSQLWithOpenAI(sql: string): Promise<SQLParamet
     { role: "user", content: sql }
   ];
 
-  const requestBody = {
-    model: "gpt-4o",
-    messages,
-    temperature: 0.1, // Low temperature for deterministic SQL conversion
-    max_tokens: 1000,
-    response_format: { type: "json_object" }
-  };
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: "api.openai.com",
-      path: "/v1/chat/completions",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      }
+  try {
+    const content = await callCohereAPI(messages, {
+      model: "command-r7b-12-2024",
+      temperature: 0.1, // Low temperature for deterministic SQL conversion
+      max_tokens: 1000,
+      response_format: { type: "json_object" }
+    });
+    
+    const parsed = JSON.parse(content);
+    // Validate and normalize response
+    const result: SQLParameterizationResult = {
+      parameterizedSql: String(parsed.parameterizedSql || sql),
+      params: Array.isArray(parsed.params) ? parsed.params : [],
+      paramOrder: Array.isArray(parsed.paramOrder) ? parsed.paramOrder.map((p: any) => String(p)) : [],
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0.9)))
     };
-
-    const req = https.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => { data += chunk.toString(); });
-      res.on("end", () => {
-        try {
-          const response = JSON.parse(data);
-          if (response.error) {
-            reject(new Error(response.error.message || "OpenAI API error"));
-            return;
-          }
-          const content = response.choices[0]?.message?.content;
-          if (!content) {
-            reject(new Error("No content in OpenAI response"));
-            return;
-          }
-          const parsed = JSON.parse(content);
-          // Validate and normalize response
-          const result: SQLParameterizationResult = {
-            parameterizedSql: String(parsed.parameterizedSql || sql),
-            params: Array.isArray(parsed.params) ? parsed.params : [],
-            paramOrder: Array.isArray(parsed.paramOrder) ? parsed.paramOrder.map((p: any) => String(p)) : [],
-            confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0.9)))
-          };
-          resolve(result);
-        } catch (err: any) {
-          reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-        }
-      });
-    });
-
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI API request failed: ${err.message}`));
-    });
-
-    req.write(JSON.stringify(requestBody));
-    req.end();
-  });
+    return result;
+  } catch (err: any) {
+    throw new Error(`Failed to parse Cohere response: ${err.message}`);
+  }
 }
 
 /**
@@ -1176,8 +1083,8 @@ async function determineDecisionResponseWithOpenAI(
   decisionValue: string | null;
   confidence: number;
 }> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OpenAI API key is required");
+  if (!COHERE_API_KEY) {
+    throw new Error("Cohere API key is required");
   }
 
   const messages = [
@@ -1185,63 +1092,22 @@ async function determineDecisionResponseWithOpenAI(
     { role: "user", content: userInput }
   ];
 
-  const requestBody = {
-    model: "gpt-4o-mini",
-    messages,
-    response_format: { type: "json_object" },
-    temperature: 0.3
-  };
-
-  const requestBodyJson = JSON.stringify(requestBody);
-  const requestBodyBuffer = Buffer.from(requestBodyJson, 'utf-8');
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: "api.openai.com",
-        port: 443,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Length": requestBodyBuffer.length.toString()
-        }
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              reject(new Error(`OpenAI API error: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-              return;
-            }
-            if (parsed.choices?.[0]?.message?.content) {
-              const content = JSON.parse(parsed.choices[0].message.content);
-              resolve({
-                isDecisionResponse: content.isDecisionResponse === true,
-                decisionValue: content.decisionValue || null,
-                confidence: content.confidence || 0.5
-              });
-            } else {
-              reject(new Error("Invalid OpenAI response format"));
-            }
-          } catch (err: any) {
-            reject(new Error(`Failed to parse OpenAI response: ${err.message}`));
-          }
-        });
-      }
-    );
-
-    req.on("error", (err) => {
-      reject(new Error(`OpenAI request failed: ${err.message}`));
+  try {
+    const contentStr = await callCohereAPI(messages, {
+      model: "command-r7b-12-2024",
+      response_format: { type: "json_object" },
+      temperature: 0.3
     });
-
-    req.write(requestBodyBuffer);
-    req.end();
-  });
+    
+    const content = JSON.parse(contentStr);
+    return {
+      isDecisionResponse: content.isDecisionResponse === true,
+      decisionValue: content.decisionValue || null,
+      confidence: content.confidence || 0.5
+    };
+  } catch (err: any) {
+    throw new Error(`Failed to parse Cohere response: ${err.message}`);
+  }
 }
 
 async function determineDecisionResponseWithDeepSeek(

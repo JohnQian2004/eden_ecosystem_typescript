@@ -3313,11 +3313,32 @@
     ],
     "conv:garden:garden-13:god": [
       {
-        "id": "c_1769791129297_a07439252e2058",
+        "id": "c_1769857173775_440dfa985617",
         "conversationId": "conv:garden:garden-13:god",
         "role": "USER",
         "content": "I want a sci-fi movie to watch tonight at the best price",
-        "timestamp": 1769791129297,
+        "timestamp": 1769857173775,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769857179133_2d1b516bc479c8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "The best sci-fi movie to watch tonight is Back to the Future at AMC Theatres in Baltimore, Maryland. It's priced at $2 and has a 5-star rating with 100 reviews.",
+        "timestamp": 1769857179133,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769857192620_6b6c3cfb45baf8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "yes, proceed",
+        "timestamp": 1769857192620,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "serviceType": "movie",
