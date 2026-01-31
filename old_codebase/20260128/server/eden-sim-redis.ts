@@ -4905,44 +4905,7 @@ httpServer.on("request", async (req, res) => {
           if (executionUserEmail === email) {
             const currentStep = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
             if (currentStep?.type === "decision" && currentStep?.requiresUserDecision) {
-              console.log(`   🤔 [${requestId}] Found pending decision for execution ${executionId}`);
-              
-              // First, check for simple confirmation patterns (yes/no/proceed) before using LLM
-              const normalizedInput = input.trim().toLowerCase();
-              const isSimpleConfirmation = normalizedInput === 'yes' || 
-                                          normalizedInput === 'no' ||
-                                          normalizedInput === 'yes, proceed' ||
-                                          normalizedInput === 'yes, preceed' ||
-                                          normalizedInput === 'proceed' ||
-                                          normalizedInput === 'confirm' ||
-                                          normalizedInput.startsWith('yes,') ||
-                                          normalizedInput.startsWith('no,');
-              
-              if (isSimpleConfirmation) {
-                // Map simple confirmations to decision values
-                let decisionValue = normalizedInput;
-                if (normalizedInput === 'yes' || normalizedInput === 'yes, proceed' || normalizedInput === 'yes, preceed' || normalizedInput.startsWith('yes,') || normalizedInput === 'proceed' || normalizedInput === 'confirm') {
-                  decisionValue = 'YES';
-                } else if (normalizedInput === 'no' || normalizedInput.startsWith('no,')) {
-                  decisionValue = 'NO';
-                }
-                
-                console.log(`   ✅ [${requestId}] Simple confirmation detected: "${input}" -> "${decisionValue}"`);
-                
-                // Route to workflow decision handler
-                const { submitUserDecision } = await import("./src/components/flowwiseService");
-                const result = await submitUserDecision(executionId, decisionValue);
-                
-                sendResponse(200, {
-                  success: true,
-                  message: "Decision processed successfully",
-                  decision: decisionValue,
-                  instruction: result.instruction
-                });
-                return;
-              }
-              
-              console.log(`   🤔 [${requestId}] Not a simple confirmation, using LLM to determine if input is a decision response...`);
+              console.log(`   🤔 [${requestId}] Found pending decision for execution ${executionId}, using LLM to determine if input is a decision response...`);
               
               // Use LLM to determine if user input is a decision response
               try {
@@ -4978,8 +4941,8 @@ httpServer.on("request", async (req, res) => {
                   console.log(`   ✅ [${requestId}] LLM determined input "${input}" is a decision response: ${decisionResult.decisionValue}`);
                   
                   // Route to workflow decision handler
-                  const { submitUserDecision } = await import("./src/components/flowwiseService");
-                  const result = await submitUserDecision(executionId, decisionResult.decisionValue);
+                  const { submitUserDecisionToFlowWise } = await import("./src/components/flowwiseService");
+                  const result = await submitUserDecisionToFlowWise(executionId, decisionResult.decisionValue);
                   
                   sendResponse(200, {
                     success: true,
@@ -4998,24 +4961,6 @@ httpServer.on("request", async (req, res) => {
               }
             }
           }
-        }
-        
-        // CRITICAL: Before starting a new workflow, check if there's an active execution waiting for decision
-        // If there is, don't start a new workflow - the input should be handled as a decision
-        const hasActiveDecisionExecution = Array.from(workflowExecutions.entries()).some(([execId, exec]: [string, any]) => {
-          const execUserEmail = exec.context?.user?.email;
-          if (execUserEmail === email) {
-            const currentStep = exec.workflow?.steps?.find((s: any) => s.id === exec.currentStep);
-            return currentStep?.type === "decision" && currentStep?.requiresUserDecision;
-          }
-          return false;
-        });
-        
-        if (hasActiveDecisionExecution) {
-          console.log(`   ⚠️  [${requestId}] Active execution waiting for decision exists - input "${input}" should be handled as decision, not new workflow`);
-          console.log(`   ⚠️  [${requestId}] If this input wasn't caught by simple confirmation check, it may need LLM decision detection`);
-          // Don't start a new workflow - the decision handling above should have caught this
-          // But if it didn't, we'll still try to process it as a new workflow (fallback)
         }
         
         console.log(`🔄 [Eden Chat] ========================================`);

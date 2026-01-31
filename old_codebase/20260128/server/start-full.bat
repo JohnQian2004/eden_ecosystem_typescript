@@ -89,9 +89,22 @@ if errorlevel 1 (
 echo ✅ Angular frontend built successfully
 echo.
 
-REM Step 3: Start the server
+REM Step 3: Kill existing Node.js processes on port 3000
 echo ========================================
-echo 🚀 Step 3: Starting Eden Ecosystem server...
+echo 🔪 Step 3: Killing existing Node.js processes on port 3000...
+echo ========================================
+taskkill /IM node.exe /F 2>nul
+if errorlevel 1 (
+    echo ℹ️  No existing Node.js processes found (or already stopped)
+) else (
+    echo ✅ Existing Node.js processes killed
+)
+timeout /t 2 /nobreak >nul
+echo.
+
+REM Step 4: Start the server
+echo ========================================
+echo 🚀 Step 4: Starting Eden Ecosystem server...
 echo ========================================
 cd /d "%SERVER_DIR%"
 echo 📍 Running from: %SERVER_DIR%

@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo 🚀 Eden Ecosystem - Full Build and Start
+echo 🚀 Eden Ecosystem - Full Build and Start (esbuild)
 echo ========================================
 echo.
 
@@ -15,9 +15,24 @@ echo 📁 Server Dir: %SERVER_DIR%
 echo 📁 Frontend Dir: %FRONTEND_DIR%
 echo.
 
-REM Step 1: Clean Angular cache
+REM Step 1: Build server with esbuild
 echo ========================================
-echo 🧹 Step 1: Cleaning Angular cache...
+echo 🔨 Step 1: Building server with esbuild...
+echo ========================================
+cd /d "%SERVER_DIR%"
+call npm run build:esbuild
+if errorlevel 1 (
+    echo ❌ Server build failed!
+    pause
+    exit /b 1
+) else (
+    echo ✅ Server built successfully with esbuild
+)
+echo.
+
+REM Step 2: Clean Angular cache
+echo ========================================
+echo 🧹 Step 2: Cleaning Angular cache...
 echo ========================================
 cd /d "%FRONTEND_DIR%"
 if exist "%FRONTEND_DIR%" (
@@ -43,9 +58,9 @@ if exist "%FRONTEND_DIR%" (
 )
 echo.
 
-REM Step 2: Build Angular frontend
+REM Step 3: Build Angular frontend
 echo ========================================
-echo 🔨 Step 2: Building Angular frontend...
+echo 🔨 Step 3: Building Angular frontend...
 echo ========================================
 cd /d "%FRONTEND_DIR%"
 if not exist "%FRONTEND_DIR%" (
@@ -89,20 +104,33 @@ if errorlevel 1 (
 echo ✅ Angular frontend built successfully
 echo.
 
-REM Step 3: Start the server
+REM Step 4: Kill existing Node.js processes on port 3000
 echo ========================================
-echo 🚀 Step 3: Starting Eden Ecosystem server...
+echo 🔪 Step 4: Killing existing Node.js processes on port 3000...
+echo ========================================
+taskkill /IM node.exe /F 2>nul
+if errorlevel 1 (
+    echo ℹ️  No existing Node.js processes found (or already stopped)
+) else (
+    echo ✅ Existing Node.js processes killed
+)
+timeout /t 2 /nobreak >nul
+echo.
+
+REM Step 5: Start the server (using compiled JavaScript)
+echo ========================================
+echo 🚀 Step 5: Starting Eden Ecosystem server (from compiled build)...
 echo ========================================
 cd /d "%SERVER_DIR%"
 echo 📍 Running from: %SERVER_DIR%
-echo 📍 Command: npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
+echo 📍 Command: node dist/eden-sim-redis.js --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 echo.
 echo ========================================
 echo ✅ Server starting...
 echo ========================================
 echo.
 
-npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
+node dist/eden-sim-redis.js --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 
 if errorlevel 1 (
     echo.

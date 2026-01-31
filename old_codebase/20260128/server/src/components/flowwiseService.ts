@@ -16,6 +16,7 @@ import type { LedgerEntry, User } from "../types";
 import { addLedgerEntry, processPayment, getCashierStatus } from "../ledger";
 import { getWalletBalance } from "../wallet";
 import { extractBookingDetails, getServiceTypeFields } from "../serviceTypeFields";
+import { DEPLOYED_AS_ROOT } from "../config";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -306,9 +307,7 @@ export async function startWorkflowFromUserInput(
   // Initialize context with user input and LLM service selection
   const context: WorkflowContext = {
     userInput,
-    input: userInput, // CRITICAL: Also include as 'input' for template variable compatibility
     user,
-    email: user.email, // CRITICAL: Include email directly in context for template variables
     serviceType: selectedServiceType,
     timestamp: Date.now(),
     workflowProcessingGas, // Include workflow processing gas in context
@@ -476,8 +475,8 @@ export async function executeNextStep(executionId: string): Promise<{
         stepId: step.id
       };
       
-      // CRITICAL: If this is a user_decision_required or user_selection_required event, ensure options and prompt are preserved
-      if (processedEvent.type === 'user_decision_required' || processedEvent.type === 'user_selection_required') {
+      // CRITICAL: If this is a user_decision_required event, ensure options and prompt are preserved
+      if (processedEvent.type === 'user_decision_required') {
         // Ensure prompt is set - use from websocketEvent data, or fall back to step.decisionPrompt
         if (!finalEventData.prompt && step.decisionPrompt) {
           finalEventData.prompt = replaceTemplateVariables(step.decisionPrompt, context);
@@ -489,91 +488,8 @@ export async function executeNextStep(executionId: string): Promise<{
           console.warn(`   ⚠️ [FlowWiseService] No prompt found for user_decision_required event in step: ${step.id}`);
         }
         
-        // CRITICAL: For user_select_listing and other steps with dynamicOptions, build options from listings
-        let dynamicOptions: any[] = [];
-        
-        // Check if websocketEvent has optionTemplate (like 0121 codebase)
-        const optionTemplate = event.data?.optionTemplate || processedEvent.data?.optionTemplate;
-        const listingsFromEvent = processedEvent.data?.options; // This might be {{listings}} after template replacement
-        
-        if (optionTemplate && listingsFromEvent && Array.isArray(listingsFromEvent)) {
-          // Use optionTemplate from websocketEvent (0121 approach)
-          console.log(`   🎬 [FlowWiseService] Building options from websocketEvent optionTemplate for ${listingsFromEvent.length} listings`);
-          dynamicOptions = listingsFromEvent.map((listing: any, index: number) => {
-            // Generate unique ID (same logic as in decision instruction)
-            let uniqueId: string;
-            if (listing.id) {
-              uniqueId = listing.id;
-            } else if (listing.movieId) {
-              uniqueId = listing.movieId;
-            } else if (listing.providerId && (listing.movieTitle || listing.showtime)) {
-              const moviePart = listing.movieTitle ? listing.movieTitle.replace(/\s+/g, '-').toLowerCase() : 'movie';
-              const showtimePart = listing.showtime ? listing.showtime.replace(/:/g, '').replace(/\s+/g, '') : '';
-              uniqueId = `${listing.providerId}-${moviePart}${showtimePart ? '-' + showtimePart : ''}`;
-            } else if (listing.providerId) {
-              uniqueId = `${listing.providerId}-${index}`;
-            } else {
-              uniqueId = `listing-${index}`;
-            }
-            
-            const listingWithId = { ...listing, id: uniqueId };
-            const value = replaceTemplateVariables(optionTemplate.value || "{{id}}", listingWithId);
-            const label = replaceTemplateVariables(optionTemplate.label || "{{movieTitle}}", listingWithId);
-            const data: any = {};
-            if (optionTemplate.data) {
-              Object.keys(optionTemplate.data).forEach(key => {
-                data[key] = replaceTemplateVariables(optionTemplate.data[key], listingWithId);
-              });
-            }
-            
-            return {
-              value: value,
-              label: label,
-              data: { ...listingWithId, ...data }
-            };
-          });
-          console.log(`   🎬 [FlowWiseService] Built ${dynamicOptions.length} options from websocketEvent optionTemplate`);
-        } else if (step.dynamicOptions && step.dynamicOptions.source === "listings" && context.listings) {
-          // Fallback: Use step.dynamicOptions (current approach)
-          console.log(`   🎬 [FlowWiseService] Building dynamic options for WebSocket event from ${context.listings.length} listings`);
-          dynamicOptions = context.listings.map((listing: any, index: number) => {
-            // Generate unique ID (same logic as in decision instruction)
-            let uniqueId: string;
-            if (listing.id) {
-              uniqueId = listing.id;
-            } else if (listing.movieId) {
-              uniqueId = listing.movieId;
-            } else if (listing.providerId && (listing.movieTitle || listing.showtime)) {
-              const moviePart = listing.movieTitle ? listing.movieTitle.replace(/\s+/g, '-').toLowerCase() : 'movie';
-              const showtimePart = listing.showtime ? listing.showtime.replace(/:/g, '').replace(/\s+/g, '') : '';
-              uniqueId = `${listing.providerId}-${moviePart}${showtimePart ? '-' + showtimePart : ''}`;
-            } else if (listing.providerId) {
-              uniqueId = `${listing.providerId}-${index}`;
-            } else {
-              uniqueId = `listing-${index}`;
-            }
-            
-            const listingWithId = { ...listing, id: uniqueId };
-            const label = replaceTemplateVariables(step.dynamicOptions!.labelTemplate, listingWithId);
-            const valueFieldValue = listingWithId[step.dynamicOptions!.valueField];
-            const optionValue = (valueFieldValue && valueFieldValue !== listing.providerId) ? valueFieldValue : uniqueId;
-            
-            return {
-              value: optionValue,
-              label: label,
-              data: listingWithId
-            };
-          });
-          console.log(`   🎬 [FlowWiseService] Built ${dynamicOptions.length} dynamic options for WebSocket event`);
-        }
-        
         // Preserve original options if they exist and are valid
-        if (dynamicOptions.length > 0) {
-          // Use dynamic options (from listings) - highest priority
-          finalEventData.options = dynamicOptions;
-          console.log(`   🎬 [FlowWiseService] Using ${dynamicOptions.length} dynamic options for user_decision_required event`);
-          console.log(`   🎬 [FlowWiseService] Options:`, dynamicOptions.map((o: any) => ({ value: o.value, label: o.label })));
-        } else if (originalOptions && Array.isArray(originalOptions) && originalOptions.length > 0) {
+        if (originalOptions && Array.isArray(originalOptions) && originalOptions.length > 0) {
           finalEventData.options = originalOptions;
           console.log(`   🤔 [FlowWiseService] Preserved ${originalOptions.length} options for user_decision_required event`);
           console.log(`   🤔 [FlowWiseService] Options:`, originalOptions.map((o: any) => ({ value: o.value, label: o.label })));
@@ -591,13 +507,7 @@ export async function executeNextStep(executionId: string): Promise<{
           console.log(`   🤔 [FlowWiseService] Built ${builtOptions.length} options from step.decisionOptions for user_decision_required event`);
           console.log(`   🤔 [FlowWiseService] Options:`, builtOptions.map((o: any) => ({ value: o.value, label: o.label })));
         } else {
-          console.warn(`   ⚠️ [FlowWiseService] No options found for ${processedEvent.type} event in step: ${step.id}`);
-        }
-        
-        // For user_selection_required events, also ensure prompt is set
-        if (processedEvent.type === 'user_selection_required' && !finalEventData.prompt && step.decisionPrompt) {
-          finalEventData.prompt = replaceTemplateVariables(step.decisionPrompt, context);
-          console.log(`   🎬 [FlowWiseService] Set prompt from step.decisionPrompt for user_selection_required: ${finalEventData.prompt}`);
+          console.warn(`   ⚠️ [FlowWiseService] No options found for user_decision_required event in step: ${step.id}`);
         }
       }
       
@@ -621,22 +531,11 @@ export async function executeNextStep(executionId: string): Promise<{
         console.log(`🎬 [FlowWiseService] FINAL options count:`, finalEventData.options?.length || 0);
       }
       
-      // For user_select_listing step, log final event data to verify options are included
-      if (step.id === 'user_select_listing' && (processedEvent.type === 'user_decision_required' || processedEvent.type === 'user_selection_required')) {
-        console.log(`🎬 [FlowWiseService] ========================================`);
-        console.log(`🎬 [FlowWiseService] FINAL user_select_listing event data for ${processedEvent.type}:`);
-        console.log(`🎬 [FlowWiseService] FINAL options count: ${finalEventData.options?.length || 0}`);
-        console.log(`🎬 [FlowWiseService] FINAL options:`, finalEventData.options?.map((o: any) => ({ value: o.value, label: o.label })));
-        console.log(`🎬 [FlowWiseService] FINAL prompt: ${finalEventData.prompt || 'N/A'}`);
-        console.log(`🎬 [FlowWiseService] FINAL event data (full):`, JSON.stringify(finalEventData, null, 2));
-        console.log(`🎬 [FlowWiseService] ========================================`);
-      }
-      
-      // For user_decision_required and user_selection_required events, ensure message field is set from prompt if not already set
+      // For user_decision_required events, ensure message field is set from prompt if not already set
       let eventMessage = processedEvent.message;
-      if ((processedEvent.type === 'user_decision_required' || processedEvent.type === 'user_selection_required') && !eventMessage && finalEventData.prompt) {
+      if (processedEvent.type === 'user_decision_required' && !eventMessage && finalEventData.prompt) {
         eventMessage = finalEventData.prompt;
-        console.log(`   🤔 [FlowWiseService] Set event message from prompt for ${processedEvent.type}: ${eventMessage}`);
+        console.log(`   🤔 [FlowWiseService] Set event message from prompt: ${eventMessage}`);
       }
       
       broadcastEvent({
@@ -666,11 +565,7 @@ export async function executeNextStep(executionId: string): Promise<{
     console.log(`🤔 [FlowWiseService] ========================================`);
     console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ DECISION STEP DETECTED: ${step.id} ⚠️⚠️⚠️`);
     console.log(`🤔 [FlowWiseService] Step name: ${step.name}`);
-    // Log both raw and processed prompt for debugging
-    const rawPrompt = step.decisionPrompt || "";
-    const processedPrompt = replaceTemplateVariables(rawPrompt, context);
-    console.log(`🤔 [FlowWiseService] Decision prompt (raw): ${rawPrompt}`);
-    console.log(`🤔 [FlowWiseService] Decision prompt (processed): ${processedPrompt}`);
+    console.log(`🤔 [FlowWiseService] Decision prompt: ${step.decisionPrompt}`);
     console.log(`🤔 [FlowWiseService] Decision options count: ${step.decisionOptions?.length || 0}`);
     console.log(`🤔 [FlowWiseService] Current step in execution: ${execution.currentStep}`);
     console.log(`🤔 [FlowWiseService] Context userDecision BEFORE clear: ${context.userDecision}`);
@@ -795,58 +690,19 @@ export async function executeNextStep(executionId: string): Promise<{
     // Handle dynamic options from listings (for user_select_listing step)
     if (step.dynamicOptions && step.dynamicOptions.source === "listings" && context.listings) {
       console.log(`   🎬 [FlowWiseService] Building dynamic options from ${context.listings.length} listings`);
-      options = context.listings.map((listing: any, index: number) => {
-        // Generate a unique ID for each listing
-        // Priority: existing id > movieId > combination of providerId+movieId+showtime > providerId+index
-        let uniqueId: string;
-        if (listing.id) {
-          uniqueId = listing.id;
-        } else if (listing.movieId) {
-          // For movies, use movieId (should be unique per movie/showtime)
-          uniqueId = listing.movieId;
-        } else if (listing.providerId && (listing.movieTitle || listing.showtime)) {
-          // Create unique ID from provider + movie + showtime
-          const moviePart = listing.movieTitle ? listing.movieTitle.replace(/\s+/g, '-').toLowerCase() : 'movie';
-          const showtimePart = listing.showtime ? listing.showtime.replace(/:/g, '').replace(/\s+/g, '') : '';
-          uniqueId = `${listing.providerId}-${moviePart}${showtimePart ? '-' + showtimePart : ''}`;
-        } else if (listing.providerId) {
-          // Fallback: use providerId + index to ensure uniqueness
-          uniqueId = `${listing.providerId}-${index}`;
-        } else {
-          // Last resort: use index-based ID
-          uniqueId = `listing-${index}`;
-        }
-        
-        // CRITICAL: Update the listing in context.listings with the generated ID
-        // This ensures we can find it later when user selects the option
-        if (!listing.id) {
-          listing.id = uniqueId;
-          console.log(`   🎬 [FlowWiseService] Set generated ID for listing: ${uniqueId} (movieTitle: ${listing.movieTitle || 'N/A'})`);
-        }
-        
-        // Ensure listing has an 'id' field for template replacement
-        const listingWithId = {
-          ...listing,
-          id: uniqueId
-        };
-        
-        const label = replaceTemplateVariables(step.dynamicOptions!.labelTemplate, listingWithId);
+      options = context.listings.map((listing: any) => {
+        const label = replaceTemplateVariables(step.dynamicOptions!.labelTemplate, listing);
         const data: any = {};
         if (step.dynamicOptions.dataTemplate) {
           Object.keys(step.dynamicOptions.dataTemplate).forEach(key => {
             const template = step.dynamicOptions!.dataTemplate[key];
-            data[key] = replaceTemplateVariables(template, listingWithId);
+            data[key] = replaceTemplateVariables(template, listing);
           });
         }
-        
-        // Use the unique ID as the value (or the specified valueField if it exists and is unique)
-        const valueFieldValue = listingWithId[step.dynamicOptions!.valueField];
-        const optionValue = (valueFieldValue && valueFieldValue !== listing.providerId) ? valueFieldValue : uniqueId;
-        
         return {
-          value: optionValue,
+          value: listing[step.dynamicOptions!.valueField] || listing.id,
           label: label,
-          data: { ...listingWithId, ...data }
+          data: { ...listing, ...data }
         };
       });
       console.log(`   🎬 [FlowWiseService] Built ${options.length} options for user selection`);
@@ -867,30 +723,7 @@ export async function executeNextStep(executionId: string): Promise<{
     }
     
     // Build decision prompt - include iGas cost if available
-    // CRITICAL: Ensure selectedListing is available in context for template replacement
-    if (step.id === 'user_confirm_listing' && !context.selectedListing && context.userSelection) {
-      // If selectedListing is missing but userSelection exists, use it
-      context.selectedListing = context.userSelection;
-      console.log(`   🎬 [FlowWiseService] Using userSelection as selectedListing for prompt template replacement`);
-    }
-    
-    // Debug: Log selectedListing availability before template replacement
-    if (step.decisionPrompt && step.decisionPrompt.includes('selectedListing')) {
-      console.log(`   🔍 [FlowWiseService] selectedListing available: ${!!context.selectedListing}`);
-      if (context.selectedListing) {
-        console.log(`   🔍 [FlowWiseService] selectedListing.movieTitle: ${context.selectedListing.movieTitle || 'N/A'}`);
-        console.log(`   🔍 [FlowWiseService] selectedListing.showtime: ${context.selectedListing.showtime || 'N/A'}`);
-        console.log(`   🔍 [FlowWiseService] selectedListing.price: ${context.selectedListing.price || 'N/A'}`);
-      }
-    }
-    
     let decisionPrompt = replaceTemplateVariables(step.decisionPrompt || "", context);
-    
-    // Debug: Log if template variables weren't replaced
-    if (decisionPrompt.includes('{{') || decisionPrompt.includes('}}')) {
-      console.warn(`   ⚠️ [FlowWiseService] Template variables not fully replaced in prompt: ${decisionPrompt}`);
-      console.warn(`   ⚠️ [FlowWiseService] This may indicate missing context data`);
-    }
     
     // If iGas cost is available and not already mentioned in prompt, add it
     if (context.iGasCost !== undefined && context.iGasCost !== null) {
@@ -995,6 +828,8 @@ export async function executeNextStep(executionId: string): Promise<{
     console.log(`   🤔 [FlowWiseService] ✅ userDecision is: ${context.userDecision ? 'STILL SET (ERROR!)' : 'cleared (correct)'}`);
     console.log(`   🤔 [FlowWiseService] ========================================`);
     
+    // Always return decision instruction to show user confirmation prompt
+    // User must explicitly confirm before workflow continues
     return {
       type: "decision",
       message: decisionPrompt,
@@ -1186,6 +1021,19 @@ export async function executeNextStep(executionId: string): Promise<{
     console.warn(`⚠️ [FlowWiseService] No valid transition found from step: ${currentStep}`);
   }
 
+  // CRITICAL: Check if current step is an output type step that's a final step
+  // Output steps (like summary) should complete immediately when they're final steps
+  const currentStepDef = workflow.steps.find((s: WorkflowStep) => s.id === currentStep);
+  if (currentStepDef && currentStepDef.type === "output" && workflow.finalSteps.includes(currentStep)) {
+    console.log(`📋 [FlowWiseService] Output step ${currentStep} is a final step - completing workflow`);
+    execution.currentStep = currentStep;
+    return {
+      type: "complete",
+      message: "Workflow completed successfully",
+      data: { context }
+    };
+  }
+
   // Check if workflow is complete
   if (workflow.finalSteps.includes(currentStep) || !nextStepId) {
     execution.currentStep = currentStep;
@@ -1356,7 +1204,7 @@ async function executeStepActions(
     formatResponseWithDeepSeek
   } = await import("../llm");
   const { queryROOTCAServiceRegistry } = await import("../serviceProvider");
-  const { debitWallet, getWalletBalance } = await import("../wallet");
+  const { debitWallet, creditWallet, getWalletBalance } = await import("../wallet");
   
   // Certificate functions (local to this function)
   function getCertificate(uuid: string): any {
@@ -1589,50 +1437,12 @@ async function executeStepActions(
           console.log(`🔍 [FlowWiseService] ========================================`);
           console.log(`🔍 [FlowWiseService] llm_format_response ACTION CALLED`);
           console.log(`🔍 [FlowWiseService] listings count: ${context.listings?.length || 0}`);
-          console.log(`🔍 [FlowWiseService] listings2 count: ${context.listings2?.length || 0}`);
-          console.log(`🔍 [FlowWiseService] selectedListing: ${context.selectedListing ? 'exists' : 'none'}`);
-          console.log(`🔍 [FlowWiseService] llmResponse.listings: ${context.llmResponse?.listings?.length || 0}`);
           console.log(`🔍 [FlowWiseService] userInput: ${context.userInput?.substring(0, 100) || 'N/A'}`);
           console.log(`🔍 [FlowWiseService] ENABLE_OPENAI: ${ENABLE_OPENAI}`);
           console.log(`🔍 [FlowWiseService] ========================================`);
           
-          // Try to get listings from multiple sources
-          let listings = context.listings;
-          if (!listings || listings.length === 0) {
-            // Try listings2
-            if (context.listings2 && context.listings2.length > 0) {
-              listings = context.listings2;
-              context.listings = listings;
-              console.log(`✅ [FlowWiseService] Using listings from context.listings2: ${listings.length} listings`);
-            } else if (context.llmResponse?.listings && context.llmResponse.listings.length > 0) {
-              // Try llmResponse.listings
-              listings = context.llmResponse.listings;
-              context.listings = listings;
-              console.log(`✅ [FlowWiseService] Using listings from context.llmResponse.listings: ${listings.length} listings`);
-            } else if (context.selectedListing) {
-              // If we have a selectedListing but no listings array, create a listings array from it
-              listings = [context.selectedListing];
-              context.listings = listings;
-              console.log(`✅ [FlowWiseService] Created listings array from selectedListing: 1 listing`);
-            }
-          }
-          
-          // Handle case when there are no listings
-          // If userInput is a confirmation (yes/no), skip LLM formatting - we don't need to format a response for confirmations
-          const userInputLower = (context.userInput || "").toLowerCase().trim();
-          const isConfirmation = userInputLower === "yes" || userInputLower === "no" || 
-                                 userInputLower === "yes, proceed" || userInputLower === "yes, preceed" ||
-                                 userInputLower.includes("proceed") || userInputLower.includes("confirm");
-          
-          if (!listings || listings.length === 0) {
-            if (isConfirmation) {
-              // User is confirming something - skip LLM formatting, just proceed
-              console.log(`⚠️ [FlowWiseService] No listings but user input is a confirmation - skipping LLM formatting`);
-              console.log(`⚠️ [FlowWiseService] This is expected when user confirms a selection`);
-              break; // Skip this action and continue workflow
-            }
-            
-            // Otherwise, create a "no results" response
+          // Handle case when there are no listings - return a helpful "no results" message
+          if (!context.listings || context.listings.length === 0) {
             console.log(`⚠️ [FlowWiseService] No listings found - creating "no results" response`);
             const userInput = context.userInput || "your request";
             const serviceType = context.serviceType || context.queryResult?.query?.serviceType || "service";
@@ -1649,7 +1459,27 @@ async function executeStepActions(
             context.llmResponse = noResultsResponse;
             context.iGasCost = 0;
             
-            console.log(`✅ [FlowWiseService] Created "no results" response`);
+            // Broadcast to frontend
+            const workflowExecutions = (global as any).workflowExecutions as Map<string, any>;
+            const execution = workflowExecutions?.get(executionId);
+            if (broadcastEvent) {
+              broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: noResultsResponse.message,
+              timestamp: Date.now(),
+              data: {
+                response: noResultsResponse,
+                executionId: executionId,
+                workflowId: executionId,
+                stepId: step.id,
+                userInput: context.userInput,
+                serviceType: context.serviceType
+              }
+            });
+            }
+            
+            console.log(`✅ [FlowWiseService] Created "no results" response and broadcasted to frontend`);
             break; // Exit the case statement - no need to process further
           }
           
@@ -1759,6 +1589,19 @@ async function executeStepActions(
           
           console.log(`🔍 [FlowWiseService] formatFn returned, llmResponse received`);
           
+          // REGULAR CHAT LOGGING: Console out user input and LLM response
+          console.log(`\n💬 [Chat] ========================================`);
+          console.log(`💬 [Chat] REGULAR CHAT MESSAGE`);
+          console.log(`💬 [Chat] User Input: "${context.userInput || 'N/A'}"`);
+          console.log(`💬 [Chat] ─────────────────────────────────────────`);
+          console.log(`💬 [Chat] LLM Response:`);
+          console.log(`💬 [Chat] "${llmResponse.message}"`);
+          console.log(`💬 [Chat] ─────────────────────────────────────────`);
+          console.log(`💬 [Chat] iGas Cost: ${llmResponse.iGasCost}`);
+          console.log(`💬 [Chat] Service Type: ${context.serviceType || 'unknown'}`);
+          console.log(`💬 [Chat] Has Selected Listing: ${!!llmResponse.selectedListing}`);
+          console.log(`💬 [Chat] ========================================\n`);
+          
           // DEBUG: Log what we got from LLM function - CRITICAL DIAGNOSTIC
           console.log(`🔍 [FlowWiseService] ========================================`);
           console.log(`🔍 [FlowWiseService] llmResponse received from formatFn:`);
@@ -1784,6 +1627,23 @@ async function executeStepActions(
           context.llmResponse = llmResponse;
           context.iGasCost = llmResponse.iGasCost;
           
+          // Broadcast LLM response as WebSocket event so frontend can display it
+          broadcastEvent({
+            type: "llm_response",
+            component: "llm",
+            message: llmResponse.message,
+            timestamp: Date.now(),
+            data: {
+              response: llmResponse,
+              executionId: executionId,
+              workflowId: executionId,
+              stepId: step.id,
+              userInput: context.userInput,
+              serviceType: context.serviceType
+            }
+          });
+          console.log(`📡 [FlowWiseService] Broadcasted llm_response event to frontend`);
+          
           // CRITICAL: Preserve listings from llmResponse back to context.listings
           // This ensures the user_select_listing step has access to listings
           if (llmResponse.listings && Array.isArray(llmResponse.listings) && llmResponse.listings.length > 0) {
@@ -1800,31 +1660,11 @@ async function executeStepActions(
           // Get videoUrl from garden configuration (if available)
           const currentServiceType = context.serviceType || 'movie';
           if ((currentServiceType === 'movie' || currentServiceType === 'amc') && context.listings && context.listings.length > 0) {
-            // Try to get videoUrl from context.listings2 first, then garden config
-            let videoUrl = '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-            
-            // First, try to get videoUrl from context.listings2 if available
-            if (context.listings2 && Array.isArray(context.listings2) && context.listings2.length > 0) {
-              const firstListing = context.listings2[0];
-              if (firstListing.videoUrl) {
-                videoUrl = firstListing.videoUrl;
-                console.log(`✅ [FlowWiseService] Using videoUrl from context.listings2: ${videoUrl}`);
-              }
-            }
-            
-            // If not found in listings2, try to get from garden config
-            if (videoUrl === '/api/movie/video/2025-12-09-144801890.mp4') {
-              try {
-                const { GARDENS } = await import("../state");
-                if (GARDENS && Array.isArray(GARDENS)) {
-                  const currentGarden = GARDENS.find((g: any) => (g as any).serviceType === currentServiceType);
-                  videoUrl = currentGarden?.videoUrl || videoUrl;
-                  console.log(`✅ [FlowWiseService] Using videoUrl from GARDENS: ${videoUrl}`);
-                }
-              } catch (err) {
-                console.warn(`⚠️ [FlowWiseService] Could not import GARDENS from state:`, err);
-              }
-            }
+            // Try to get videoUrl from garden config
+            // Import GARDENS from state to find the current garden
+            const { GARDENS } = await import("../state");
+            const currentGarden = Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : undefined;
+            const videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
             
             console.log(`🎬 [FlowWiseService] Injecting videoUrl into movie listings: ${videoUrl}`);
             
@@ -2464,31 +2304,17 @@ async function executeStepActions(
                         context.gardenConfig?.videoUrl || 
                         context.videoUrl || '';
           
-          // If still not found, try to get from context.listings2 or GARDENS
+          // If still not found, try to get from GARDENS
           if (!videoUrl) {
-            // First try context.listings2
-            if (context.listings2 && Array.isArray(context.listings2) && context.listings2.length > 0) {
-              const firstListing = context.listings2[0];
-              if (firstListing.videoUrl) {
-                videoUrl = firstListing.videoUrl;
-                console.log(`🎬 [FlowWiseService] Retrieved videoUrl from context.listings2: ${videoUrl}`);
-              }
-            }
-            
-            // If still not found, try GARDENS from state
-            if (!videoUrl) {
-              try {
-                const { GARDENS } = await import("../state");
-                const currentServiceType = context.serviceType || 'movie';
-                if (GARDENS && Array.isArray(GARDENS)) {
-                  const currentGarden = GARDENS.find((g: any) => (g as any).serviceType === currentServiceType);
-                  videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-                  console.log(`🎬 [FlowWiseService] Retrieved videoUrl from GARDENS: ${videoUrl}`);
-                }
-              } catch (err) {
-                console.warn(`⚠️ [FlowWiseService] Could not get videoUrl from GARDENS:`, err);
-                videoUrl = '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-              }
+            try {
+              const { GARDENS } = await import("../state");
+              const currentServiceType = context.serviceType || 'movie';
+              const currentGarden = Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : undefined;
+              videoUrl = currentGarden?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
+              console.log(`🎬 [FlowWiseService] Retrieved videoUrl from GARDENS: ${videoUrl}`);
+            } catch (err) {
+              console.warn(`⚠️ [FlowWiseService] Could not get videoUrl from GARDENS:`, err);
+              videoUrl = '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
             }
           }
           
@@ -2848,6 +2674,62 @@ async function executeStepActions(
           console.log(`   🏦 [FlowWiseService] transactionProcessed flag set to: ${context.transactionProcessed}`);
           break;
 
+        case "apply_review":
+          // Apply review rebate: calculate 10% of movie price and credit wallet
+          console.log(`   ⭐ [FlowWiseService] Applying review rebate`);
+          console.log(`   ⭐ [FlowWiseService] Action details:`, processedAction);
+          
+          const user = processedAction.user || context.user;
+          const moviePrice = processedAction.moviePrice || context.moviePrice || context.selectedListing?.price || 0;
+          const review = processedAction.review || { rating: 5 };
+          
+          // Calculate rebate: 10% of movie price (only if rating >= 4)
+          const rebate = review.rating >= 4 ? moviePrice * 0.1 : 0;
+          
+          if (rebate > 0 && user && user.email) {
+            console.log(`   ⭐ [FlowWiseService] Calculating rebate: ${moviePrice} * 0.1 = ${rebate} 🍎 APPLES`);
+            
+            // Credit wallet with rebate
+            const rebateResult = await creditWallet(
+              user.email,
+              rebate,
+              crypto.randomUUID(),
+              `Review rebate: ${review.rating}/5 rating`,
+              {
+                reviewRating: review.rating,
+                moviePrice,
+                rebateType: "review",
+              }
+            );
+            
+            if (rebateResult.success) {
+              // Update user balance in context
+              if (context.user) {
+                context.user.balance = rebateResult.balance;
+              }
+              // Set rebate in context for template variables
+              context.rebate = rebate;
+              console.log(`   ⭐ [FlowWiseService] ✅ Rebate credited: ${rebate} 🍎 APPLES, new balance: ${rebateResult.balance} 🍎 APPLES`);
+            } else {
+              console.error(`   ❌ [FlowWiseService] Failed to credit rebate:`, rebateResult.error);
+              context.rebate = 0;
+            }
+          } else {
+            console.log(`   ⭐ [FlowWiseService] No rebate (rating: ${review.rating}, moviePrice: ${moviePrice})`);
+            context.rebate = 0;
+          }
+          
+          context[`${processedAction.type}_completed`] = true;
+          break;
+
+        case "generate_summary":
+          // Generate transaction summary (no-op - summary is generated via websocket events)
+          console.log(`   📋 [FlowWiseService] Generating transaction summary`);
+          console.log(`   📋 [FlowWiseService] Action details:`, processedAction);
+          // Summary is generated via websocket events, no action needed here
+          context[`${processedAction.type}_completed`] = true;
+          break;
+
         default:
           console.warn(`   ⚠️ [FlowWiseService] Unknown action type: ${processedAction.type}`);
       }
@@ -2941,39 +2823,26 @@ export async function submitUserDecision(
   // Update context with decision
   // CRITICAL: Normalize decision value to uppercase for consistent comparison
   // This ensures "yes", "Yes", "YES" all become "YES" to match workflow conditions
-  const normalizedDecision = typeof decision === 'string' ? decision.toUpperCase().trim() : decision;
-  
-  // CRITICAL: If we're at user_select_listing step, require selectionData (not a decision string)
-  // user_select_listing expects a listing selection, not a confirmation decision like "DONE_WATCHING" or "YES"
-  if (execution.currentStep === 'user_select_listing') {
-    // Check if this is a confirmation decision (YES/NO/DONE_WATCHING) without selectionData
-    const isConfirmationDecision = normalizedDecision === 'DONE_WATCHING' || 
-                                   normalizedDecision === 'YES' || 
-                                   normalizedDecision === 'NO' ||
-                                   (normalizedDecision.includes('PROCEED') || normalizedDecision.includes('CONFIRM'));
-    
-    if (isConfirmationDecision && !selectionData) {
-      console.warn(`   🎬 [FlowWiseService] ========================================`);
-      console.warn(`   🎬 [FlowWiseService] WARNING: user_select_listing step received stale decision "${normalizedDecision}"`);
-      console.warn(`   🎬 [FlowWiseService] This is likely a stale decision from a previous step (e.g., "DONE_WATCHING" from view_movie)`);
-      console.warn(`   🎬 [FlowWiseService] user_select_listing expects selectionData (a listing object), not a confirmation decision`);
-      console.warn(`   🎬 [FlowWiseService] Ignoring this stale decision and returning current workflow state`);
-      console.warn(`   🎬 [FlowWiseService] The workflow will remain at user_select_listing, waiting for proper listing selection`);
-      console.warn(`   🎬 [FlowWiseService] ========================================`);
-      
-      // Clear the invalid decision but don't throw - return current state instead
-      execution.context.userDecision = undefined;
-      delete execution.context.userDecision;
-      execution.context.userSelection = undefined;
-      delete execution.context.userSelection;
-      
-      // Return the current workflow state so frontend can refresh and show correct prompt
-      const currentInstruction = await executeNextStep(executionId);
-      return {
-        instruction: currentInstruction
-      };
-    }
+  console.log(`   🔍 [FlowWiseService] ========================================`);
+  console.log(`   🔍 [FlowWiseService] 📝 PROCESSING USER DECISION 📝`);
+  console.log(`   🔍 [FlowWiseService] Original decision value: "${decision}" (type: ${typeof decision})`);
+  console.log(`   🔍 [FlowWiseService] Current step: ${execution.currentStep}`);
+  console.log(`   🔍 [FlowWiseService] Current step definition:`, {
+    id: currentStepDef?.id,
+    type: currentStepDef?.type,
+    requiresUserDecision: currentStepDef?.requiresUserDecision,
+    name: currentStepDef?.name
+  });
+  console.log(`   🔍 [FlowWiseService] Previous userDecision in context: ${execution.context.userDecision || 'none'}`);
+  console.log(`   🔍 [FlowWiseService] SelectionData provided: ${selectionData ? 'yes' : 'no'}`);
+  if (selectionData) {
+    console.log(`   🔍 [FlowWiseService] SelectionData type: ${typeof selectionData}`);
+    console.log(`   🔍 [FlowWiseService] SelectionData keys: ${typeof selectionData === 'object' ? Object.keys(selectionData).join(', ') : 'N/A'}`);
   }
+  
+  const normalizedDecision = typeof decision === 'string' ? decision.toUpperCase().trim() : decision;
+  console.log(`   🔍 [FlowWiseService] Normalized decision: "${normalizedDecision}"`);
+  console.log(`   🔍 [FlowWiseService] ========================================`);
   
   // CRITICAL: If we're at view_movie step, REJECT any decision that isn't "DONE_WATCHING"
   // This prevents stale selections (like "AMC-001") from being submitted when the workflow is waiting for "DONE_WATCHING"
@@ -2994,12 +2863,28 @@ export async function submitUserDecision(
   // This prevents userDecision from being set prematurely
   // Note: currentStepDef is already declared above at line 2468, so we reuse it
   if (currentStepDef && currentStepDef.type === "decision" && currentStepDef.requiresUserDecision) {
+    const previousUserDecision = execution.context.userDecision;
     execution.context.userDecision = normalizedDecision;
-    console.log(`   🔄 [FlowWiseService] ✅ Set userDecision in context: ${normalizedDecision} (original: ${decision})`);
-    console.log(`   🔄 [FlowWiseService] ✅ Current step is a decision step: ${execution.currentStep}`);
+    console.log(`   ✅ [FlowWiseService] ========================================`);
+    console.log(`   ✅ [FlowWiseService] ✅ SET USER DECISION IN CONTEXT ✅`);
+    console.log(`   ✅ [FlowWiseService] Previous userDecision: ${previousUserDecision || 'none'}`);
+    console.log(`   ✅ [FlowWiseService] New userDecision: ${normalizedDecision} (original: ${decision})`);
+    console.log(`   ✅ [FlowWiseService] Current step: ${execution.currentStep}`);
+    console.log(`   ✅ [FlowWiseService] Step type: ${currentStepDef.type}`);
+    console.log(`   ✅ [FlowWiseService] Context after setting:`, {
+      userDecision: execution.context.userDecision,
+      currentStep: execution.currentStep,
+      hasSelectedListing: !!execution.context.selectedListing
+    });
+    console.log(`   ✅ [FlowWiseService] ========================================`);
   } else {
+    console.warn(`   ⚠️ [FlowWiseService] ========================================`);
     console.warn(`   ⚠️ [FlowWiseService] WARNING: Attempting to set userDecision but current step is NOT a decision step!`);
-    console.warn(`   ⚠️ [FlowWiseService] Current step: ${execution.currentStep}, type: ${currentStepDef?.type}, requiresUserDecision: ${currentStepDef?.requiresUserDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] Current step: ${execution.currentStep}`);
+    console.warn(`   ⚠️ [FlowWiseService] Step type: ${currentStepDef?.type}`);
+    console.warn(`   ⚠️ [FlowWiseService] requiresUserDecision: ${currentStepDef?.requiresUserDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] Decision being set anyway: ${normalizedDecision}`);
+    console.warn(`   ⚠️ [FlowWiseService] ========================================`);
     // Still set it, but log a warning
     execution.context.userDecision = normalizedDecision;
   }
@@ -3050,42 +2935,14 @@ export async function submitUserDecision(
     
     // If selectionData is just an ID string, try to find the full listing from context.listings
     if (typeof selectionData === 'string' && execution.context.listings) {
-      // Try multiple matching strategies to find the listing
-      // 1. Match by id (including generated unique IDs)
-      // 2. Match by movieId (for movies)
-      // 3. Match by providerId
-      // 4. Match by combination of providerId + movieTitle + showtime (for generated IDs)
-      const foundListing = execution.context.listings.find((listing: any) => {
-        // Direct ID match
-        if (listing.id === selectionData || listing.providerId === selectionData) {
-          return true;
-        }
-        // Match by movieId
-        if (listing.movieId === selectionData) {
-          return true;
-        }
-        // Match generated IDs like "amc-001-the-matrix-800pm"
-        const moviePart = listing.movieTitle ? listing.movieTitle.replace(/\s+/g, '-').toLowerCase() : '';
-        const showtimePart = listing.showtime ? listing.showtime.replace(/:/g, '').replace(/\s+/g, '') : '';
-        const generatedId = listing.providerId && moviePart 
-          ? `${listing.providerId}-${moviePart}${showtimePart ? '-' + showtimePart : ''}`
-          : null;
-        if (generatedId === selectionData) {
-          return true;
-        }
-        return false;
-      });
+      const foundListing = execution.context.listings.find((listing: any) => 
+        listing.id === selectionData || listing.providerId === selectionData
+      );
       if (foundListing) {
         selectedListing = foundListing;
         console.log(`   🎬 [FlowWiseService] Found full listing from listings array for ID: ${selectionData}`);
       } else {
         console.warn(`   ⚠️ [FlowWiseService] Could not find listing in context.listings for ID: ${selectionData}`);
-        console.warn(`   ⚠️ [FlowWiseService] Available listing IDs:`, execution.context.listings.map((l: any) => ({
-          id: l.id,
-          movieId: l.movieId,
-          providerId: l.providerId,
-          movieTitle: l.movieTitle
-        })));
       }
     } else if (typeof selectionData === 'object' && execution.context.listings) {
       // If selectionData is an object but might be missing fields, try to merge with full listing
@@ -3114,46 +2971,16 @@ export async function submitUserDecision(
       }
     } else {
       // Try to find the listing from context.listings using decision ID
-      // This handles cases where decision is the option value (unique ID we generated)
-      const foundListing = execution.context.listings.find((listing: any) => {
-        // Direct ID match
-        if (listing.id === decision || listing.providerId === decision || listing.value === decision) {
-          return true;
-        }
-        // Match by movieId
-        if (listing.movieId === decision) {
-          return true;
-        }
-        // Match generated IDs like "amc-001-the-matrix-800pm" or "back-to-future-1"
-        const moviePart = listing.movieTitle ? listing.movieTitle.replace(/\s+/g, '-').toLowerCase() : '';
-        const showtimePart = listing.showtime ? listing.showtime.replace(/:/g, '').replace(/\s+/g, '') : '';
-        const generatedId = listing.providerId && moviePart 
-          ? `${listing.providerId}-${moviePart}${showtimePart ? '-' + showtimePart : ''}`
-          : null;
-        if (generatedId === decision) {
-          return true;
-        }
-        // Also check if decision matches movieId format
-        if (listing.movieId && listing.movieId === decision) {
-          return true;
-        }
-        return false;
-      });
+      const foundListing = execution.context.listings.find((listing: any) => 
+        listing.id === decision || 
+        listing.providerId === decision ||
+        listing.value === decision
+      );
       if (foundListing) {
         selectedListing = foundListing;
         console.log(`   🎬 [FlowWiseService] Found listing from context.listings for decision ID: ${decision}`);
       } else {
         console.warn(`   ⚠️ [FlowWiseService] Could not find listing for decision ID: ${decision}`);
-        if (execution.context.listings && execution.context.listings.length > 0) {
-          console.warn(`   ⚠️ [FlowWiseService] Available listing IDs:`, execution.context.listings.map((l: any, idx: number) => ({
-            index: idx,
-            id: l.id,
-            movieId: l.movieId,
-            providerId: l.providerId,
-            movieTitle: l.movieTitle,
-            showtime: l.showtime
-          })));
-        }
       }
     }
   }
@@ -3412,19 +3239,101 @@ export async function submitUserDecision(
         console.log(`   🤔 [FlowWiseService] However, since user submitted a decision, we'll evaluate transitions with the new decision value`);
       }
       
+      // CRITICAL: Check if the decision is meant for a different step
+      // For example, "DONE_WATCHING" is only valid for "view_movie" step
+      // If we're at a different step but receive this decision, we need to handle it
+      if (normalizedDecision === 'DONE_WATCHING' && currentStep !== 'view_movie') {
+        console.log(`   🎬 [FlowWiseService] ⚠️ Received DONE_WATCHING decision but current step is ${currentStep}, not view_movie`);
+        console.log(`   🎬 [FlowWiseService] Checking if view_movie step exists and can be recovered to`);
+        console.log(`   🎬 [FlowWiseService] Context state: paymentAuthorized=${context.paymentAuthorized}, paymentSuccess=${context.paymentSuccess}, movieWatched=${context.movieWatched}`);
+        console.log(`   🎬 [FlowWiseService] Workflow history:`, execution.history.map((h: any) => h.step).join(' → '));
+        
+        // Check if view_movie step exists in the workflow
+        const viewMovieStep = workflow.steps.find((s: any) => s.id === 'view_movie');
+        if (viewMovieStep) {
+          // Check if we've already been to view_movie (check history)
+          const hasBeenToViewMovie = execution.history.some((h: any) => h.step === 'view_movie');
+          
+          // Check if payment is authorized (required to watch movie)
+          const canWatchMovie = context.paymentAuthorized || context.paymentSuccess;
+          
+          // Set context for view_movie decision regardless of whether we've been there
+          context.userDecision = normalizedDecision;
+          context.movieWatched = true;
+          
+          // Try to evaluate transitions from view_movie - be more aggressive
+          const viewMovieTransitions = workflow.transitions.filter((t: any) => t.from === 'view_movie');
+          if (viewMovieTransitions.length > 0) {
+            console.log(`   🎬 [FlowWiseService] ✅ Attempting to transition from view_movie (${hasBeenToViewMovie ? 'already visited' : 'recovering to'})`);
+            
+            // Evaluate transitions from view_movie
+            for (const transition of viewMovieTransitions) {
+              try {
+                const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
+                console.log(`   🔄 [FlowWiseService] Transition: view_movie → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
+                if (conditionMet) {
+                  execution.currentStep = transition.to;
+                  currentStep = transition.to;
+                  console.log(`   🎬 [FlowWiseService] ✅ Successfully transitioned from view_movie to: ${transition.to}`);
+                  // Execute the next step
+                  const instruction = await executeNextStep(executionId);
+                  return { instruction };
+                }
+              } catch (evalError: any) {
+                console.error(`   ❌ [FlowWiseService] Error evaluating view_movie transition:`, evalError.message);
+              }
+            }
+            
+            console.log(`   🎬 [FlowWiseService] ⚠️ No valid transition from view_movie matched`);
+          } else {
+            console.log(`   🎬 [FlowWiseService] ⚠️ No transitions found from view_movie step`);
+          }
+          
+          // If we haven't been to view_movie and payment isn't authorized, try to skip directly to snapshot_persist
+          if (!hasBeenToViewMovie && !canWatchMovie) {
+            console.log(`   🎬 [FlowWiseService] ⚠️ Payment not authorized and haven't been to view_movie - attempting to skip to snapshot_persist`);
+            const snapshotStep = workflow.steps.find((s: any) => s.id === 'snapshot_persist');
+            if (snapshotStep) {
+              console.log(`   🎬 [FlowWiseService] ✅ Attempting to skip directly to snapshot_persist`);
+              execution.currentStep = 'snapshot_persist';
+              const instruction = await executeNextStep(executionId);
+              return { instruction };
+            }
+          }
+        } else {
+          console.log(`   🎬 [FlowWiseService] ⚠️ view_movie step not found in workflow - continuing with current step`);
+        }
+      }
+      
       const transitions = workflow.transitions.filter((t: any) => t.from === currentStep);
-      console.log(`   🔄 [FlowWiseService] Evaluating ${transitions.length} transitions from step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] ========================================`);
+      console.log(`   🔄 [FlowWiseService] 🔍 EVALUATING TRANSITIONS AFTER USER DECISION 🔍`);
+      console.log(`   🔄 [FlowWiseService] Current step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] User decision submitted: ${normalizedDecision} (original: ${decision})`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userSelection: ${context.userSelection ? 'exists' : 'none'}`);
+      console.log(`   🔄 [FlowWiseService] Context selectedListing: ${context.selectedListing ? 'exists' : 'none'}`);
+      console.log(`   🔄 [FlowWiseService] Found ${transitions.length} transitions from step: ${currentStep}`);
+      console.log(`   🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
+      console.log(`   🔄 [FlowWiseService] ========================================`);
       
       if (currentStep === 'view_movie') {
         console.log(`   🎬 [FlowWiseService] ========================================`);
         console.log(`   🎬 [FlowWiseService] EVALUATING TRANSITIONS FROM VIEW_MOVIE`);
         console.log(`   🎬 [FlowWiseService] Submitted decision: ${normalizedDecision}`);
         console.log(`   🎬 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+        console.log(`   🎬 [FlowWiseService] Context movieWatched: ${context.movieWatched}`);
         console.log(`   🎬 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
         console.log(`   🎬 [FlowWiseService] ========================================`);
       }
       
       if (transitions.length === 0) {
+        console.error(`   ❌ [FlowWiseService] ========================================`);
+        console.error(`   ❌ [FlowWiseService] NO TRANSITIONS FOUND FROM STEP: ${currentStep}`);
+        console.error(`   ❌ [FlowWiseService] User decision: ${normalizedDecision}`);
+        console.error(`   ❌ [FlowWiseService] Context userDecision: ${context.userDecision}`);
+        console.error(`   ❌ [FlowWiseService] All workflow transitions:`, workflow.transitions.map((t: any) => `${t.from} → ${t.to}`).join(', '));
+        console.error(`   ❌ [FlowWiseService] ========================================`);
         // If still no transitions and we're at error_handler, this is a terminal error
         if (currentStep === 'error_handler') {
           throw new Error(`Workflow is in error state (error_handler) and cannot proceed. This may indicate a previous error that needs to be resolved. User attempted to submit: ${decision}`);
@@ -3438,11 +3347,28 @@ export async function submitUserDecision(
     if (currentStep === 'user_confirm_listing') {
       console.log(`   🔄 [FlowWiseService] ⚠️⚠️⚠️ EVALUATING TRANSITIONS FROM user_confirm_listing ⚠️⚠️⚠️`);
       console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision type: ${typeof context.userDecision}`);
+      console.log(`   🔄 [FlowWiseService] Context userDecision value: "${context.userDecision}"`);
       console.log(`   🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
     }
     
     for (const transition of transitions) {
       try {
+        console.log(`   🔍 [FlowWiseService] Evaluating transition: ${currentStep} → ${transition.to}`);
+        console.log(`   🔍 [FlowWiseService] Transition condition: ${transition.condition || 'always (no condition)'}`);
+        
+        // Log context values that might be used in condition evaluation
+        if (transition.condition) {
+          console.log(`   🔍 [FlowWiseService] Context values for condition evaluation:`, {
+            userDecision: context.userDecision,
+            userSelection: context.userSelection ? 'exists' : 'none',
+            selectedListing: context.selectedListing ? 'exists' : 'none',
+            paymentSuccess: context.paymentSuccess,
+            paymentAuthorized: context.paymentAuthorized,
+            movieWatched: context.movieWatched
+          });
+        }
+        
         const conditionMet = !transition.condition || evaluateCondition(transition.condition, context);
         
         if (currentStep === 'user_confirm_listing' && transition.to === 'root_ca_ledger_and_payment') {
@@ -3450,21 +3376,67 @@ export async function submitUserDecision(
           console.log(`   🔄 [FlowWiseService] Condition: ${transition.condition}`);
           console.log(`   🔄 [FlowWiseService] Condition met: ${conditionMet}`);
           console.log(`   🔄 [FlowWiseService] Context userDecision: ${context.userDecision}`);
+          console.log(`   🔄 [FlowWiseService] Context userDecision === 'YES': ${context.userDecision === 'YES'}`);
+          console.log(`   🔄 [FlowWiseService] Context userDecision === 'yes': ${context.userDecision === 'yes'}`);
         }
         console.log(`   🔄 [FlowWiseService] Transition: ${currentStep} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
         if (conditionMet) {
           nextStepId = transition.to;
-          console.log(`   🔄 [FlowWiseService] ✅ Selected next step: ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] ========================================`);
+          console.log(`   ✅ [FlowWiseService] ✅ TRANSITION CONDITION MET! ✅`);
+          console.log(`   ✅ [FlowWiseService] Selected next step: ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] Transition: ${currentStep} → ${nextStepId}`);
+          console.log(`   ✅ [FlowWiseService] Condition: ${transition.condition || 'always'}`);
+          console.log(`   ✅ [FlowWiseService] ========================================`);
           break;
+        } else {
+          console.log(`   ⚠️ [FlowWiseService] Transition condition NOT met: ${currentStep} → ${transition.to}`);
         }
       } catch (evalError: any) {
-        console.error(`   ❌ [FlowWiseService] Error evaluating transition condition "${transition.condition}":`, evalError.message);
+        console.error(`   ❌ [FlowWiseService] ========================================`);
+        console.error(`   ❌ [FlowWiseService] ERROR EVALUATING TRANSITION CONDITION`);
+        console.error(`   ❌ [FlowWiseService] Transition: ${currentStep} → ${transition.to}`);
+        console.error(`   ❌ [FlowWiseService] Condition: ${transition.condition}`);
+        console.error(`   ❌ [FlowWiseService] Error message: ${evalError.message}`);
         console.error(`   ❌ [FlowWiseService] Error stack:`, evalError.stack);
+        console.error(`   ❌ [FlowWiseService] ========================================`);
         // Continue to next transition
       }
     }
     
     if (!nextStepId) {
+      // Special handling for DONE_WATCHING when at wrong step
+      if (normalizedDecision === 'DONE_WATCHING' && currentStep !== 'view_movie') {
+        console.warn(`   ⚠️ [FlowWiseService] DONE_WATCHING decision submitted at wrong step: ${currentStep}`);
+        console.warn(`   ⚠️ [FlowWiseService] Attempting to find path to view_movie or snapshot_persist`);
+        
+        // Check if we can transition directly to snapshot_persist (the step after view_movie)
+        const snapshotPersistTransitions = workflow.transitions.filter((t: any) => t.to === 'snapshot_persist');
+        if (snapshotPersistTransitions.length > 0) {
+          // Check if any transition from current step can lead to snapshot_persist
+          const canReachSnapshot = workflow.transitions.some((t: any) => 
+            t.from === currentStep && (t.to === 'snapshot_persist' || 
+            workflow.transitions.some((t2: any) => t2.from === t.to && t2.to === 'snapshot_persist'))
+          );
+          
+          if (canReachSnapshot || context.movieWatched) {
+            // Try to go directly to snapshot_persist
+            const snapshotStep = workflow.steps.find((s: any) => s.id === 'snapshot_persist');
+            if (snapshotStep) {
+              console.log(`   🎬 [FlowWiseService] ✅ Attempting to skip to snapshot_persist since movie is watched`);
+              context.userDecision = normalizedDecision;
+              context.movieWatched = true;
+              execution.currentStep = 'snapshot_persist';
+              const instruction = await executeNextStep(executionId);
+              return { instruction };
+            }
+          }
+        }
+        
+        // If we can't recover, provide a helpful error
+        throw new Error(`Cannot process DONE_WATCHING decision at step "${currentStep}". The workflow needs to be at "view_movie" step to accept this decision. Current workflow state may be out of sync.`);
+      }
+      
       console.warn(`   ⚠️ [FlowWiseService] No valid transition found from step: ${currentStep} after user decision`);
       console.warn(`   ⚠️ [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
       throw new Error(`No valid transition found from step: ${currentStep}. User decision: ${context.userDecision}`);

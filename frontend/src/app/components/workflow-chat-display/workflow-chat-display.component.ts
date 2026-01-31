@@ -201,6 +201,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     }, 1500);
     
     // Check for active executions periodically (only when tab is visible)
+    // Reduced interval from 1000ms to 200ms for faster response
     this.executionCheckInterval = setInterval(() => {
       // Skip processing if tab is not visible
       if (!this.isTabVisible) {
@@ -225,9 +226,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         // Show wallet balance after workflow completion
         setTimeout(() => {
           this.loadWalletBalance(true);
-        }, 1000);
+        }, 500); // Reduced from 1000ms to 500ms
       }
-    }, 1000);
+    }, 200); // Reduced from 1000ms to 200ms for faster polling
 
     // Initialize tab visibility handling
     this.initializeTabVisibilityHandling();
@@ -262,6 +263,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       }
       console.log('💬 [WorkflowChat] Decision required:', decisionRequest);
       this.addDecisionMessage(decisionRequest);
+      // Trigger immediate change detection for faster UI update
+      this.cdr.detectChanges();
     });
 
     // Listen for selection requests from FlowWiseService
@@ -274,6 +277,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       console.log('💬 [WorkflowChat] Selection required:', selectionRequest);
       if (selectionRequest.options && selectionRequest.options.length > 0) {
         this.addSelectionMessage(selectionRequest.options, selectionRequest.serviceType || 'service');
+        // Trigger immediate change detection for faster UI update
+        this.cdr.detectChanges();
       }
     });
 
