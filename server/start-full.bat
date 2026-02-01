@@ -4,8 +4,8 @@ echo 🚀 Eden Ecosystem - Full Build and Start
 echo ========================================
 echo.
 
-REM Change to project root directory (go up 1 level from server)
-cd /d "%~dp0\.."
+REM Change to project root directory (go up 3 levels from old_codebase/20260121/server)
+cd /d "%~dp0\..\..\.."
 set PROJECT_ROOT=%CD%
 set SERVER_DIR=%PROJECT_ROOT%\server
 set FRONTEND_DIR=%PROJECT_ROOT%\frontend
@@ -89,11 +89,11 @@ if errorlevel 1 (
 echo ✅ Angular frontend built successfully
 echo.
 
-REM Step 3: Start the server
+REM Step 3: Start the server (from old_codebase/20260121/server directory)
 echo ========================================
 echo 🚀 Step 3: Starting Eden Ecosystem server...
 echo ========================================
-cd /d "%SERVER_DIR%"
+cd /d "%~dp0"
 echo 📍 Running from: %CD%
 echo 📍 Command: npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 echo.

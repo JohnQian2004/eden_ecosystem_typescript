@@ -358,59 +358,11 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   if (condition === "always") return true;
 
   // First, replace template variables in the condition
-  // For arrays and objects, we need special handling - they should be evaluated as truthy/falsy
-  // For primitives, we can use them directly in comparisons
   let processedCondition = condition;
-  
-  // Handle special cases where we need to evaluate arrays/objects as truthy
-  // Pattern: {{variable}} (without any comparison) should check if variable exists and is truthy
-  const simpleExistencePattern = /^\{\{(\w+(?:\.\w+)*)\}\}$/;
-  if (simpleExistencePattern.test(condition.trim())) {
-    const path = condition.trim().match(simpleExistencePattern)?.[1];
-    if (path) {
-      const value = getNestedValue(context, path);
-      // For arrays, check if it exists and has length > 0
-      if (Array.isArray(value)) {
-        return value.length > 0;
-      }
-      // For objects, check if it exists and is not null/undefined
-      if (value && typeof value === 'object') {
-        return Object.keys(value).length > 0;
-      }
-      // For primitives, check truthiness
-      return !!value;
-    }
-  }
-  
-  // Handle negation of simple existence: !{{variable}}
-  const negationPattern = /^!\{\{(\w+(?:\.\w+)*)\}\}$/;
-  if (negationPattern.test(condition.trim())) {
-    const path = condition.trim().match(negationPattern)?.[1];
-    if (path) {
-      const value = getNestedValue(context, path);
-      if (Array.isArray(value)) {
-        return value.length === 0;
-      }
-      if (value && typeof value === 'object') {
-        return Object.keys(value).length === 0;
-      }
-      return !value;
-    }
-  }
-  
-  // For conditions with comparisons, replace template variables
   processedCondition = processedCondition.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
     const value = getNestedValue(context, path);
     if (value === undefined || value === null) {
       return 'undefined';
-    }
-    // If value is an array or object, we can't use it directly in string comparisons
-    // Instead, we'll use a special marker that we'll handle separately
-    if (Array.isArray(value)) {
-      return `__ARRAY_LENGTH_${value.length}__`;
-    }
-    if (typeof value === 'object') {
-      return `__OBJECT_KEYS_${Object.keys(value).length}__`;
     }
     // If value is a string, wrap it in quotes for comparison
     if (typeof value === 'string') {
@@ -418,57 +370,34 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
     }
     return String(value);
   });
-  
-  // Replace array length markers with actual numbers for comparison
-  processedCondition = processedCondition.replace(/__ARRAY_LENGTH_(\d+)__/g, '$1');
-  processedCondition = processedCondition.replace(/__OBJECT_KEYS_(\d+)__/g, '$1');
 
-  // Handle logical operators (&&, ||) FIRST, before comparison operators
-  // This ensures proper operator precedence
-  if (processedCondition.includes(' && ') || processedCondition.includes(' || ')) {
-    // Split by && first, then by ||
-    if (processedCondition.includes(' && ')) {
-      const parts = processedCondition.split(' && ');
-      // For each part, check if it's a simple template variable that needs special handling
-      return parts.every(part => {
-        const trimmed = part.trim();
-        // Check if it's a simple template variable like {{listings}}
-        const templateMatch = trimmed.match(/^\{\{(\w+(?:\.\w+)*)\}\}$/);
-        if (templateMatch) {
-          const path = templateMatch[1];
-          const value = getNestedValue(context, path);
-          if (Array.isArray(value)) {
-            return value.length > 0;
-          }
-          if (value && typeof value === 'object') {
-            return Object.keys(value).length > 0;
-          }
-          return !!value;
-        }
-        // Otherwise, recursively evaluate the condition
-        return evaluateCondition(trimmed, context);
-      });
-    }
-    
-    if (processedCondition.includes(' || ')) {
-      const parts = processedCondition.split(' || ');
-      return parts.some(part => {
-        const trimmed = part.trim();
-        const templateMatch = trimmed.match(/^\{\{(\w+(?:\.\w+)*)\}\}$/);
-        if (templateMatch) {
-          const path = templateMatch[1];
-          const value = getNestedValue(context, path);
-          if (Array.isArray(value)) {
-            return value.length > 0;
-          }
-          if (value && typeof value === 'object') {
-            return Object.keys(value).length > 0;
-          }
-          return !!value;
-        }
-        return evaluateCondition(trimmed, context);
-      });
-    }
+  // Handle comparison operators (===, !==, ==, !=)
+  if (processedCondition.includes(' === ')) {
+    const [left, right] = processedCondition.split(' === ').map(s => s.trim());
+    // Remove quotes if present (handle both single and double quotes)
+    const leftValue = left.replace(/^['"]|['"]$/g, '');
+    const rightValue = right.replace(/^['"]|['"]$/g, '');
+    const result = leftValue === rightValue;
+    console.log(`   🔍 [evaluateCondition] Comparison: "${leftValue}" === "${rightValue}" = ${result}`);
+    return result;
+  }
+  
+  if (processedCondition.includes(' !== ')) {
+    const [left, right] = processedCondition.split(' !== ').map(s => s.trim());
+    const leftValue = left.replace(/^'|'$/g, '');
+    const rightValue = right.replace(/^'|'$/g, '');
+    return leftValue !== rightValue;
+  }
+
+  // Handle logical operators (&&, ||)
+  if (processedCondition.includes(' && ')) {
+    const parts = processedCondition.split(' && ');
+    return parts.every(part => evaluateCondition(part.trim(), context));
+  }
+  
+  if (processedCondition.includes(' || ')) {
+    const parts = processedCondition.split(' || ');
+    return parts.some(part => evaluateCondition(part.trim(), context));
   }
 
   // Handle template syntax {{variable}} (simple existence check)
@@ -479,72 +408,13 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   }
 
   // Handle negation
-  if (processedCondition.startsWith("!")) {
-    const rest = processedCondition.substring(1).trim();
-    // Check if it's a number (after template replacement)
-    if (!isNaN(Number(rest))) {
-      return !Number(rest);
-    }
-    // Check if it's a boolean string
-    if (rest === 'true' || rest === 'false') {
-      return rest !== 'true';
-    }
-    // Otherwise try to get from context
-    return !getNestedValue(context, rest);
-  }
-  
-  // Handle simple numeric comparisons (>, <, >=, <=)
-  if (processedCondition.includes(' > ')) {
-    const [left, right] = processedCondition.split(' > ').map(s => s.trim());
-    const leftNum = Number(left);
-    const rightNum = Number(right);
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum > rightNum;
-    }
-  }
-  
-  if (processedCondition.includes(' < ')) {
-    const [left, right] = processedCondition.split(' < ').map(s => s.trim());
-    const leftNum = Number(left);
-    const rightNum = Number(right);
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum < rightNum;
-    }
-  }
-  
-  if (processedCondition.includes(' >= ')) {
-    const [left, right] = processedCondition.split(' >= ').map(s => s.trim());
-    const leftNum = Number(left);
-    const rightNum = Number(right);
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum >= rightNum;
-    }
-  }
-  
-  if (processedCondition.includes(' <= ')) {
-    const [left, right] = processedCondition.split(' <= ').map(s => s.trim());
-    const leftNum = Number(left);
-    const rightNum = Number(right);
-    if (!isNaN(leftNum) && !isNaN(rightNum)) {
-      return leftNum <= rightNum;
-    }
-  }
-  
-  // Check if processedCondition is just a number (after template replacement)
-  if (!isNaN(Number(processedCondition.trim()))) {
-    return Number(processedCondition.trim()) !== 0;
-  }
-  
-  // Check if it's a boolean string
-  if (processedCondition.trim() === 'true') {
-    return true;
-  }
-  if (processedCondition.trim() === 'false') {
-    return false;
+  if (condition.startsWith("!")) {
+    const path = condition.substring(1);
+    return !getNestedValue(context, path);
   }
   
   // Default: check if value exists and is truthy
-  return !!getNestedValue(context, processedCondition);
+  return !!getNestedValue(context, condition);
 }
 
 /**
