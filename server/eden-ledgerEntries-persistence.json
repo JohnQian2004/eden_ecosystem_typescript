@@ -31,7 +31,71 @@
         "rating": 5,
         "videoUrl": "/api/movie/video/2025-12-09-144801890.mp4"
       }
+    },
+    {
+      "entryId": "74294f14-7943-4130-a79b-859dd617e599",
+      "txId": "tx_1769905835993",
+      "timestamp": 1769905835993,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.001,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "Back to the Future",
+        "showtime": "10:30 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "back-to-future-1",
+        "reviewCount": 100,
+        "rating": 5,
+        "videoUrl": "/api/movie/video/2025-12-09-144801890.mp4"
+      }
+    },
+    {
+      "entryId": "004935e3-0952-450b-b76d-e6a1b0d51466",
+      "txId": "tx_1769906132759",
+      "timestamp": 1769906132759,
+      "payer": "bill.draper.auto@gmail.com",
+      "payerId": "bill.draper.auto@gmail.com",
+      "merchant": "AMC Theatres",
+      "providerUuid": "amc-001",
+      "serviceType": "movie",
+      "amount": 2,
+      "iGasCost": 0.001,
+      "fees": {
+        "indexer": 0,
+        "cashier": 0.1,
+        "provider": 0.1,
+        "eden": 0.04
+      },
+      "status": "completed",
+      "cashierId": "cashier-eden-001",
+      "bookingDetails": {
+        "price": 2,
+        "movieTitle": "Back to the Future",
+        "showtime": "10:30 PM",
+        "location": "Baltimore, Maryland",
+        "providerName": "AMC Theatres",
+        "providerId": "amc-001",
+        "movieId": "back-to-future-1",
+        "reviewCount": 100,
+        "rating": 5,
+        "videoUrl": "/api/movie/video/2025-12-09-144801890.mp4"
+      }
     }
   ],
-  "lastSaved": "2026-02-01T00:26:06.825Z"
+  "lastSaved": "2026-02-01T00:35:32.863Z"
 }

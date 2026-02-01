@@ -5278,6 +5278,59 @@
         "mode": "god",
         "serviceType": "movie",
         "status": "active"
+      },
+      {
+        "id": "c_1769905809324_ff180faa8f7288",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769905809324,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769905814770_8ab7c6a047d84",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Back to the Future is available at 10:30 PM for $2 at AMC Theatres in Baltimore, Maryland",
+        "timestamp": 1769905814770,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769905835961_a4086410ce69e",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "yes, proceed",
+        "timestamp": 1769905835961,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769906114750_5f4218aa478b88",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769906114750,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769906119746_cf74ba164d20d8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Back to the Future is available at 10:30 PM for $2 at AMC Theatres in Baltimore, Maryland",
+        "timestamp": 1769906119746,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [

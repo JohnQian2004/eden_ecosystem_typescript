@@ -689,6 +689,77 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         }
         break;
 
+      case 'movie_started':
+      case 'movie_finished':
+        // Handle movie events - these contain videoUrl that should be displayed
+        console.log('🎬 [WorkflowChat] ========================================');
+        console.log('🎬 [WorkflowChat] Received movie event:', event.type);
+        console.log('🎬 [WorkflowChat] Event data:', event.data);
+        console.log('🎬 [WorkflowChat] videoUrl:', event.data?.videoUrl);
+        console.log('🎬 [WorkflowChat] movieTitle:', event.data?.movieTitle);
+        console.log('🎬 [WorkflowChat] ========================================');
+        
+        // Extract videoUrl and movieTitle from event data
+        const movieVideoUrl = event.data?.videoUrl || 
+                             event.data?.selectedListing?.videoUrl ||
+                             undefined;
+        const movieTitleFromEvent = event.data?.movieTitle || 
+                                   event.data?.selectedListing?.movieTitle ||
+                                   undefined;
+        
+        if (movieVideoUrl) {
+          // Check if a message with this videoUrl already exists
+          const existingVideoMessage = this.chatMessages.find(m => 
+            m.videoUrl === movieVideoUrl && m.type === 'assistant'
+          );
+          
+          if (existingVideoMessage) {
+            // Update existing message with movie title if not set
+            if (movieTitleFromEvent && !existingVideoMessage.movieTitle) {
+              existingVideoMessage.movieTitle = movieTitleFromEvent;
+            }
+            // Update message content if it's a movie_finished event
+            if (event.type === 'movie_finished' && event.data?.message) {
+              existingVideoMessage.content = event.data.message;
+            }
+            console.log('🎬 [WorkflowChat] Updated existing video message');
+            this.cdr.detectChanges();
+          } else {
+            // Create new message with video player
+            const movieMessage: ChatMessage = {
+              id: `movie-${Date.now()}`,
+              type: 'assistant',
+              content: event.data?.message || (event.type === 'movie_started' 
+                ? `🎬 Now playing: ${movieTitleFromEvent || 'Movie'}` 
+                : `✅ Movie completed: ${movieTitleFromEvent || 'Movie'}. Video is ready to play.`),
+              timestamp: event.timestamp || Date.now(),
+              videoUrl: movieVideoUrl,
+              movieTitle: movieTitleFromEvent
+            };
+            
+            // Insert after last user message if it exists
+            const lastUserMessage = [...this.chatMessages].reverse().find(m => m.type === 'user');
+            if (lastUserMessage) {
+              const lastUserIndex = this.chatMessages.findIndex(m => m.id === lastUserMessage.id);
+              if (lastUserIndex >= 0) {
+                this.chatMessages.splice(lastUserIndex + 1, 0, movieMessage);
+              } else {
+                this.chatMessages.push(movieMessage);
+              }
+            } else {
+              this.chatMessages.push(movieMessage);
+            }
+            
+            // Sort messages by timestamp
+            this.chatMessages.sort((a, b) => a.timestamp - b.timestamp);
+            console.log('🎬 [WorkflowChat] Added movie message with video player');
+            this.cdr.detectChanges();
+          }
+        } else {
+          console.warn('🎬 [WorkflowChat] Movie event received but no videoUrl found');
+        }
+        break;
+
       case 'user_selection_required':
         if (event.data?.options && event.data.options.length > 0) {
           this.addSelectionMessage(event.data.options, event.data.serviceType || 'service');
