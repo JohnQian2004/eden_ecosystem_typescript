@@ -11,6 +11,7 @@ import { getServiceRegistry2 } from "./serviceRegistry2";
 import { getMySQLProviderPluginConfig } from "./plugins/providerPluginRegistry";
 import { testMySQLQuery } from "./plugins/mysql";
 import { extractGetDataParamsWithOpenAI, type GetDataParamsResult } from "./llm";
+import { getAllMoviesAsListings } from "./videoService";
 
 // Dependencies that need to be injected
 let broadcastEvent: (event: any) => void;
@@ -391,42 +392,18 @@ export async function queryAMCAPI(location: string, filters?: { genre?: string; 
   
   if (!amcProvider) {
     console.warn(`⚠️  [queryAMCAPI] Provider amc-001 not found in ROOT_CA_SERVICE_REGISTRY. Using fallback gardenId: ${gardenId}`);
-    // Return hardcoded "Back to the Future 1" if provider not found
-    return [
-      {
-        providerId: "amc-001",
-        providerName: "AMC Theatres",
-        movieTitle: "Back to the Future",
-        movieId: "back-to-future-1",
-        price: 2.0,
-        showtime: "10:30 PM",
-        location: location || "Baltimore, Maryland",
-        reviewCount: 100,
-        rating: 5.0,
-        gardenId: gardenId
-      }
-    ];
   } else if (!amcProvider.gardenId) {
     console.warn(`⚠️  [queryAMCAPI] Provider amc-001 found but has no gardenId. Using fallback: ${gardenId}`);
-    // Return hardcoded "Back to the Future 1" if no gardenId
-    return [
-      {
-        providerId: "amc-001",
-        providerName: "AMC Theatres",
-        movieTitle: "Back to the Future",
-        movieId: "back-to-future-1",
-        price: 2.0,
-        showtime: "10:30 PM",
-        location: location || "Baltimore, Maryland",
-        reviewCount: 100,
-        rating: 5.0,
-        gardenId: gardenId
-      }
-    ];
+  } else {
+    console.log(`✅ [queryAMCAPI] Found amc-001 with gardenId: ${gardenId}`);
   }
-  console.log(`✅ [queryAMCAPI] Found amc-001 with gardenId: ${gardenId}`);
   
-  // Mock AMC API response with real-time pricing
+  // NEW: Return all videos from server/data/videos directory - ALL FREE
+  // Filter by genre if specified (e.g., "sci-fi" -> matches content_tags like "fantasy", "cgi", "space", etc.)
+  return getAllMoviesAsListings("amc-001", "AMC Theatres", gardenId, filters);
+  
+  // OLD CODE (commented out - replaced with free video listings):
+  /* Mock AMC API response with real-time pricing
   return [
     {
       providerId: "amc-001",
@@ -453,6 +430,7 @@ export async function queryAMCAPI(location: string, filters?: { genre?: string; 
       gardenId: gardenId
     },
   ];
+  */
 }
 
 // Query Movie.com API
@@ -499,23 +477,13 @@ export async function queryMovieComAPI(location: string, filters?: { genre?: str
       }
     ];
   }
-  console.log(`✅ [queryMovieComAPI] Found moviecom-001 with gardenId: ${gardenId}`);
+  if (moviecomProvider) {
+    console.log(`✅ [queryMovieComAPI] Found moviecom-001 with gardenId: ${gardenId}`);
+  }
   
-  // Mock MovieCom API response with real-time pricing
-  return [
-    {
-      providerId: "moviecom-001",
-      providerName: "MovieCom",
-      movieTitle: "Back to the Future",
-      movieId: "back-to-future-1",
-      price: 1.5, // Real-time price from MovieCom API
-      showtime: "9:45 PM",
-      location: location,
-      reviewCount: 85,
-      rating: 4.7,
-      gardenId: gardenId
-    },
-  ];
+  // NEW: Return all videos from server/data/videos directory - ALL FREE
+  // Filter by genre if specified
+  return getAllMoviesAsListings("moviecom-001", "MovieCom", gardenId, filters);
 }
 
 // Query Cinemark API
@@ -546,39 +514,13 @@ export async function queryCinemarkAPI(location: string, filters?: { genre?: str
     ];
   } else if (!cinemarkProvider.gardenId) {
     console.warn(`⚠️  [queryCinemarkAPI] Provider cinemark-001 found but has no gardenId. Using fallback: ${gardenId}`);
-    // Return hardcoded "Back to the Future 1" if no gardenId
-    return [
-      {
-        providerId: "cinemark-001",
-        providerName: "Cinemark",
-        movieTitle: "Back to the Future",
-        movieId: "back-to-future-1",
-        price: 2.5,
-        showtime: "11:00 PM",
-        location: location || "Baltimore, Maryland",
-        reviewCount: 120,
-        rating: 4.8,
-        gardenId: gardenId
-      }
-    ];
+  } else {
+    console.log(`✅ [queryCinemarkAPI] Found cinemark-001 with gardenId: ${gardenId}`);
   }
-  console.log(`✅ [queryCinemarkAPI] Found cinemark-001 with gardenId: ${gardenId}`);
   
-  // Mock Cinemark API response with real-time pricing
-  return [
-    {
-      providerId: "cinemark-001",
-      providerName: "Cinemark",
-      movieTitle: "The Matrix",
-      movieId: "matrix-001",
-      price: 2.5, // Real-time price from Cinemark API
-      showtime: "11:00 PM",
-      location: location,
-      reviewCount: 120,
-      rating: 4.8,
-      gardenId: gardenId
-    },
-  ];
+  // NEW: Return all videos from server/data/videos directory - ALL FREE
+  // Filter by genre if specified
+  return getAllMoviesAsListings("cinemark-001", "Cinemark", gardenId, filters);
 }
 
 // Query DEX Pool API

@@ -416,7 +416,7 @@
         "component": "user",
         "description": "Ask user to confirm the selected movie listing",
         "requiresUserDecision": true,
-        "decisionPrompt": "Would you like to proceed with {{selectedListing.movieTitle}} at {{selectedListing.showtime}} for {{selectedListing.price}} 🍎 APPLES?",
+        "decisionPrompt": "Would you like to watch {{selectedListing.movieTitle}}? (FREE - Earn 1 🍎 APPLE when you finish watching!)",
         "decisionOptions": [
           {
             "value": "YES",
@@ -436,7 +436,7 @@
             "message": "Please confirm your selection",
             "data": {
               "decisionId": "confirm_listing",
-              "prompt": "Would you like to proceed with {{selectedListing.movieTitle}} at {{selectedListing.showtime}} for {{selectedListing.price}} 🍎 APPLES?",
+              "prompt": "Would you like to watch {{selectedListing.movieTitle}}? (FREE - Earn 1 🍎 APPLE when you finish watching!)",
               "options": [
                 {"value": "YES", "label": "Yes, proceed"},
                 {"value": "NO", "label": "No, cancel"}
@@ -995,6 +995,37 @@
         }
       },
       {
+        "id": "reward_watching",
+        "name": "🎁 Reward: Earn 1 APPLE for Watching",
+        "type": "process",
+        "component": "reward",
+        "description": "Give user 1 APPLE reward for watching the movie",
+        "actions": [
+          {
+            "type": "reward_user",
+            "email": "{{user.email}}",
+            "amount": 1,
+            "reason": "Watched movie: {{selectedListing.movieTitle}}"
+          }
+        ],
+        "websocketEvents": [
+          {
+            "type": "reward_granted",
+            "component": "reward",
+            "message": "🎁 You earned 1 🍎 APPLE for watching {{selectedListing.movieTitle}}!",
+            "data": {
+              "amount": 1,
+              "reason": "Watched movie: {{selectedListing.movieTitle}}",
+              "newBalance": "{{user.balance}}"
+            }
+          }
+        ],
+        "outputs": {
+          "rewardAmount": 1,
+          "rewardGranted": true
+        }
+      },
+      {
         "id": "snapshot_persist",
         "name": "7️⃣ Snapshot + Persist",
         "type": "process",
@@ -1217,7 +1248,7 @@
       },
         {
           "from": "user_confirm_listing",
-          "to": "root_ca_ledger_and_payment",
+          "to": "watch_movie",
           "condition": "{{userDecision}} === 'YES'"
         },
         {
@@ -1267,8 +1298,13 @@
       },
       {
         "from": "view_movie",
-        "to": "snapshot_persist",
+        "to": "reward_watching",
         "condition": "{{userDecision}} === 'DONE_WATCHING'"
+      },
+      {
+        "from": "reward_watching",
+        "to": "snapshot_persist",
+        "condition": "always"
       },
       {
         "from": "view_movie",

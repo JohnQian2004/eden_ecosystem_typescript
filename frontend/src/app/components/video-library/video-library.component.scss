@@ -1,0 +1,42 @@
+.content-tags-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.content-tag-badge {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  transition: all 0.2s ease;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.content-tag-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.content-tag-badge.selected {
+  border-color: rgba(255, 255, 255, 0.3);
+  font-weight: 500;
+}
+
+.content-tag-badge:not(.selected):hover {
+  background-color: #6c757d !important;
+  border-color: #5a6268;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+

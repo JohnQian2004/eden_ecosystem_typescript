@@ -1,0 +1,37 @@
+.video-card-icon {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.video-thumbnail-container {
+  aspect-ratio: 16 / 9;
+  background: #000;
+  min-height: 60px;
+}
+
+.video-action-buttons {
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+}
+
+.video-action-btn {
+  opacity: 0.8;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+}
+
+.video-action-btn:hover {
+  opacity: 1;
+}
+
+.video-filename-overlay {
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  z-index: 15;
+}
+
+.play-icon-overlay {
+  z-index: 10;
+}
+

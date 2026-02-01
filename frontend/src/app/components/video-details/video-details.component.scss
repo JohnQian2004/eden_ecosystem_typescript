@@ -1,0 +1,146 @@
+.tags {
+  margin-top: 8px;
+}
+
+.card .card-body {
+  padding: 12px;
+}
+
+.card strong {
+  font-size: 12px;
+  color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.card p {
+  font-size: 14px;
+  color: #333;
+}
+
+.modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.content-description-card {
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #0d6efd;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.content-description-card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.content-description-card .card-body {
+  padding: 1.25rem;
+}
+
+.content-icon {
+  font-size: 1.5rem;
+  color: #0d6efd;
+  min-width: 2rem;
+  text-align: center;
+  padding-top: 0.25rem;
+}
+
+.content-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #495057;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.75rem;
+}
+
+.content-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #212529;
+  margin-bottom: 0;
+  text-align: justify;
+}
+
+.content-main-subject {
+  border-left-color: #0d6efd !important;
+}
+
+.content-activity {
+  border-left-color: #198754 !important;
+}
+
+.content-environment {
+  border-left-color: #ffc107 !important;
+}
+
+.content-mood {
+  border-left-color: #dc3545 !important;
+}
+
+.content-main-subject .content-icon {
+  color: #0d6efd;
+}
+
+.content-activity .content-icon {
+  color: #198754;
+}
+
+.content-environment .content-icon {
+  color: #ffc107;
+}
+
+.content-mood .content-icon {
+  color: #dc3545;
+}
+
+.content-description-text {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 0.375rem;
+}
+
+.content-text-block {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #212529;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  border-left: 4px solid #6c757d;
+}
+
+.content-text-block:last-child {
+  margin-bottom: 0;
+}
+
+.copy-success-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: #198754;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.copy-success-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+

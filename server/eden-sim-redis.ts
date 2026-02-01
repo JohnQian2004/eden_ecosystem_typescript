@@ -4346,6 +4346,9 @@ httpServer.on("request", async (req, res) => {
         
         const queryLower = input.trim().toLowerCase();
         
+        // Check for question patterns (for informational queries)
+        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(queryLower);
+        
         // Check for explicit Eden context (eden, garden, or Eden-specific terms)
         const hasExplicitEdenContext = /\b(eden|garden\s+of\s+eden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
           /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
@@ -5044,6 +5047,139 @@ httpServer.on("request", async (req, res) => {
       balances,
       timestamp: Date.now()
     }));
+    return;
+  }
+
+  // GET /api/videos - Get all available videos with optional filters
+  if (pathname === "/api/videos" && req.method === "GET") {
+    console.log(`   🎬 [${requestId}] GET /api/videos - Getting videos with filters`);
+    try {
+      const parsedUrl = url.parse(req.url || "/", true);
+      const query = parsedUrl.query;
+      
+      // Extract filter parameters
+      const filters = {
+        tags: query.tags ? (query.tags as string).split(',').map(t => t.trim()) : undefined,
+        shot_type: query.shot_type as string | undefined,
+        scene_type: query.scene_type as string | undefined,
+        search: query.search as string | undefined,
+        content_tags: query.content_tags ? (query.content_tags as string).split(',').map(t => t.trim().toLowerCase()) : undefined
+      };
+      
+      // Load library.json file
+      const libraryPath = path.join(__dirname, 'data', 'videos', 'library.json');
+      let library: any = { videos: [] };
+      
+      if (fs.existsSync(libraryPath)) {
+        try {
+          const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
+          library = JSON.parse(libraryContent);
+          console.log(`   🎬 [${requestId}] Loaded ${library.videos?.length || 0} videos from library.json`);
+        } catch (err: any) {
+          console.warn(`   ⚠️ [${requestId}] Failed to load library.json:`, err.message);
+        }
+      } else {
+        console.warn(`   ⚠️ [${requestId}] Library file not found: ${libraryPath}`);
+      }
+      
+      // Determine server directory (where eden-sim-redis.ts is located)
+      // When running with ts-node, __dirname is the directory of the source file
+      const serverDir = __dirname;
+      const videosDir = path.join(serverDir, "data", "videos");
+      
+      // Start with all videos from library, but filter to only include files that actually exist
+      let videos = (library.videos || [])
+        .filter((video: any) => {
+          // Check if the video file actually exists
+          const videoFilePath = path.join(videosDir, video.filename);
+          const exists = fs.existsSync(videoFilePath);
+          if (!exists) {
+            console.log(`   ⚠️ [${requestId}] Video file not found, skipping: ${video.filename}`);
+          }
+          return exists;
+        })
+        .map((video: any) => {
+          // Convert filename to title
+          let title = video.filename.replace(/\.(mp4|mov|avi|mkv)$/i, '');
+          title = title.replace(/^(vibes_media_|downloaded_video_)/i, '');
+          title = title.replace(/[_-]/g, ' ');
+          title = title.split(' ')
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+          
+          return {
+            id: video.id || `video-${video.filename}`,
+            filename: video.filename,
+            title: title || video.filename,
+            videoUrl: `/api/movie/video/${video.filename}`,
+            thumbnailUrl: `/api/movie/video/${video.filename}`,
+            tags: video.tags || [],
+            analysis: video.analysis || {
+              content_tags: [],
+              shot_type: undefined,
+              scene_type: undefined
+            }
+          };
+        });
+      
+      // Apply filters (matching old codebase behavior)
+      if (filters.tags && filters.tags.length > 0) {
+        videos = videos.filter((v: any) =>
+          filters.tags!.some((tag) => v.tags.includes(tag))
+        );
+      }
+      
+      if (filters.shot_type) {
+        videos = videos.filter((v: any) =>
+          v.analysis?.shot_type === filters.shot_type
+        );
+      }
+      
+      if (filters.scene_type) {
+        videos = videos.filter((v: any) =>
+          v.analysis?.scene_type === filters.scene_type
+        );
+      }
+      
+      if (filters.content_tags && filters.content_tags.length > 0) {
+        videos = videos.filter((v: any) => {
+          if (!v.analysis?.content_tags || v.analysis.content_tags.length === 0) {
+            return false;
+          }
+          // Check if video has at least one matching content tag (case-insensitive)
+          const videoContentTags = v.analysis.content_tags.map((tag: string) => tag.toLowerCase());
+          return filters.content_tags!.some((filterTag) =>
+            videoContentTags.some((videoTag: string) => videoTag.includes(filterTag) || filterTag.includes(videoTag))
+          );
+        });
+      }
+      
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        videos = videos.filter((v: any) =>
+          v.filename.toLowerCase().includes(searchLower) ||
+          v.title.toLowerCase().includes(searchLower) ||
+          (v.tags && v.tags.some((tag: string) => tag.toLowerCase().includes(searchLower))) ||
+          (v.analysis?.content_tags && v.analysis.content_tags.some((tag: string) => tag.toLowerCase().includes(searchLower)))
+        );
+      }
+      
+      console.log(`   🎬 [${requestId}] Returning ${videos.length} filtered videos (from ${library.videos?.length || 0} total)`);
+      
+      res.writeHead(200, { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        data: videos,
+        count: videos.length
+      }));
+    } catch (err: any) {
+      console.error(`   ❌ [${requestId}] Error getting videos:`, err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -10361,11 +10497,36 @@ httpServer.on("request", async (req, res) => {
     }
     
     const videoFile = pathname.substring("/api/movie/video/".length); // Remove "/api/movie/video/" prefix
-    const videoPath = path.join(__dirname, "data", videoFile);
+    
+    // Determine the correct base directory
+    // When running with ts-node, __dirname is the directory of the source file
+    // eden-sim-redis.ts is in server/, so __dirname = server/
+    // Use a robust method similar to config.ts to find the server directory
+    let serverDir = __dirname;
+    // If we're in a compiled output (dist/build), go up to server/
+    if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+      serverDir = path.dirname(serverDir);
+    }
+    // Ensure we're in the server directory by checking for data/videos
+    const testVideosPath = path.join(serverDir, "data", "videos");
+    if (!fs.existsSync(testVideosPath)) {
+      // Try going up one level (in case __dirname is server/src)
+      const parentDir = path.dirname(serverDir);
+      const parentVideosPath = path.join(parentDir, "data", "videos");
+      if (fs.existsSync(parentVideosPath)) {
+        serverDir = parentDir;
+      }
+    }
+    
+    // Video files are stored in data/videos/ directory relative to server/
+    // If videoFile already includes "videos/", use it as-is, otherwise prepend "videos/"
+    const videoPath = videoFile.startsWith("videos/") || videoFile.startsWith("videos\\")
+      ? path.join(serverDir, "data", videoFile)
+      : path.join(serverDir, "data", "videos", videoFile);
     
     // Security: Ensure the resolved path is within the data directory
     const resolvedPath = path.resolve(videoPath);
-    const dataDir = path.resolve(path.join(__dirname, "data"));
+    const dataDir = path.resolve(path.join(serverDir, "data"));
     if (!resolvedPath.startsWith(dataDir)) {
       console.log(`   🚫 [${requestId}] Forbidden video access attempt: ${pathname}`);
       res.writeHead(403, { "Content-Type": "text/plain" });
@@ -10373,9 +10534,32 @@ httpServer.on("request", async (req, res) => {
       return;
     }
     
+    // Debug logging
+    console.log(`   🎬 [${requestId}] Video request: ${pathname}`);
+    console.log(`   🎬 [${requestId}] Extracted filename: ${videoFile}`);
+    console.log(`   🎬 [${requestId}] Resolved path: ${resolvedPath}`);
+    console.log(`   🎬 [${requestId}] File exists: ${fs.existsSync(resolvedPath)}`);
+    
     fs.access(videoPath, fs.constants.F_OK, (err) => {
       if (err) {
         console.log(`   ❌ [${requestId}] Video file not found: ${videoPath}`);
+        console.log(`   ❌ [${requestId}] Resolved path: ${resolvedPath}`);
+        console.log(`   ❌ [${requestId}] __dirname: ${__dirname}`);
+        console.log(`   ❌ [${requestId}] Server dir: ${serverDir}`);
+        console.log(`   ❌ [${requestId}] Data dir: ${dataDir}`);
+        // List available files for debugging
+        const videosDir = path.join(serverDir, "data", "videos");
+        if (fs.existsSync(videosDir)) {
+          try {
+            const files = fs.readdirSync(videosDir);
+            const videoFiles = files.filter((f: string) => /\.(mp4|mov|avi|mkv)$/i.test(f));
+            console.log(`   📁 [${requestId}] Available video files (${videoFiles.length}): ${videoFiles.slice(0, 5).join(', ')}${videoFiles.length > 5 ? '...' : ''}`);
+          } catch (listErr: any) {
+            console.log(`   ⚠️ [${requestId}] Could not list video files: ${listErr.message}`);
+          }
+        } else {
+          console.log(`   ⚠️ [${requestId}] Videos directory does not exist: ${videosDir}`);
+        }
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Video not found");
         return;

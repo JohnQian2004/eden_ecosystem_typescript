@@ -1,0 +1,280 @@
+<div class="modal-header">
+  <h5 class="modal-title">{{ video.filename }}</h5>
+  <button type="button" class="btn-close" aria-label="Close" (click)="closeModal()"></button>
+</div>
+
+<div class="modal-body">
+  <!-- Video Player -->
+  <div class="mb-4">
+    <video
+      class="w-100"
+      controls
+      [src]="videoStreamUrl"
+      style="max-height: 500px; background: #000;"
+    >
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" [class.active]="!video.analysis" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
+    </li>
+    <li class="nav-item" role="presentation" *ngIf="video.analysis">
+      <button class="nav-link active" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">Analysis</button>
+    </li>
+    <li class="nav-item" role="presentation" *ngIf="video.analysis && (video.analysis.main_subject || video.analysis.activity || video.analysis.environment || video.analysis.mood)">
+      <button class="nav-link" id="content-description-tab" data-bs-toggle="tab" data-bs-target="#content-description" type="button" role="tab">Content Description</button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade" [class.show]="!video.analysis" [class.active]="!video.analysis" id="overview" role="tabpanel">
+      <div class="mb-4">
+        <h5>File Information</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>Duration:</strong>
+                <p class="mb-0">{{ video.duration ? video.duration.toFixed(1) + 's' : 'Unknown' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>File Size:</strong>
+                <p class="mb-0">{{ formatFileSize(video.file_size) }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>Resolution:</strong>
+                <p class="mb-0" *ngIf="video.resolution_width && video.resolution_height">
+                  {{ video.resolution_width }}x{{ video.resolution_height }}
+                </p>
+                <p class="mb-0" *ngIf="!video.resolution_width || !video.resolution_height">Unknown</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>Frame Rate:</strong>
+                <p class="mb-0">{{ video.frame_rate ? video.frame_rate.toFixed(2) + ' fps' : 'Unknown' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>Codec:</strong>
+                <p class="mb-0">{{ video.codec || 'Unknown' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <strong>Created:</strong>
+                <p class="mb-0">{{ formatDate(video.created_at) }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="video.tags.length > 0">
+        <h5>Tags</h5>
+        <div class="tags">
+          <span *ngFor="let tag of video.tags" class="badge bg-secondary me-1 mb-1">{{ tag }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade show active" id="analysis" role="tabpanel" *ngIf="video.analysis">
+      <!-- Content Description -->
+      <div class="mb-4" *ngIf="video.analysis.main_subject || video.analysis.activity || video.analysis.environment || video.analysis.mood">
+        <h5 class="mb-3">
+          <i class="bi bi-file-text me-2"></i>Content Description
+        </h5>
+        <div class="row g-3">
+          <div class="col-12" *ngIf="video.analysis.main_subject">
+            <div class="card content-description-card content-main-subject h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-start mb-2">
+                  <div class="content-icon me-3">
+                    <i class="bi bi-person-circle"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="content-label mb-2">Main Subject</h6>
+                    <p class="content-text mb-0">{{ getContentDescription(video.analysis.main_subject) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-12" *ngIf="video.analysis.activity">
+            <div class="card content-description-card content-activity h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-start mb-2">
+                  <div class="content-icon me-3">
+                    <i class="bi bi-activity"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="content-label mb-2">Activity</h6>
+                    <p class="content-text mb-0">{{ getContentDescription(video.analysis.activity) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-12" *ngIf="video.analysis.environment">
+            <div class="card content-description-card content-environment h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-start mb-2">
+                  <div class="content-icon me-3">
+                    <i class="bi bi-geo-alt"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="content-label mb-2">Environment</h6>
+                    <p class="content-text mb-0">{{ getContentDescription(video.analysis.environment) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-12" *ngIf="video.analysis.mood">
+            <div class="card content-description-card content-mood h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-start mb-2">
+                  <div class="content-icon me-3">
+                    <i class="bi bi-emoji-smile"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="content-label mb-2">Mood</h6>
+                    <p class="content-text mb-0">{{ getContentDescription(video.analysis.mood) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <h5>Technical Analysis</h5>
+        <div class="row g-3">
+          <div class="col-md-6" *ngIf="video.analysis.shot_type">
+            <div class="card">
+              <div class="card-body">
+                <strong>Shot Type:</strong>
+                <p class="mb-0">{{ video.analysis.shot_type }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6" *ngIf="video.analysis.camera_movement">
+            <div class="card">
+              <div class="card-body">
+                <strong>Camera Movement:</strong>
+                <p class="mb-0">{{ video.analysis.camera_movement }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6" *ngIf="video.analysis.camera_angle">
+            <div class="card">
+              <div class="card-body">
+                <strong>Camera Angle:</strong>
+                <p class="mb-0">{{ video.analysis.camera_angle }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6" *ngIf="video.analysis.scene_type">
+            <div class="card">
+              <div class="card-body">
+                <strong>Scene Type:</strong>
+                <p class="mb-0">{{ video.analysis.scene_type }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6" *ngIf="video.analysis.lighting_brightness">
+            <div class="card">
+              <div class="card-body">
+                <strong>Lighting:</strong>
+                <p class="mb-0">{{ video.analysis.lighting_brightness }} / {{ video.analysis.lighting_temperature }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6" *ngIf="video.analysis.time_of_day">
+            <div class="card">
+              <div class="card-body">
+                <strong>Time of Day:</strong>
+                <p class="mb-0">{{ video.analysis.time_of_day }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="video.analysis.content_tags.length > 0" class="mb-4">
+        <h5>Content Tags</h5>
+        <div class="tags">
+          <span *ngFor="let tag of video.analysis.content_tags" class="badge bg-primary me-1 mb-1">{{ tag }}</span>
+        </div>
+      </div>
+
+      <div *ngIf="video.analysis.detected_objects.length > 0">
+        <h5>Detected Objects</h5>
+        <div class="tags">
+          <span *ngFor="let obj of video.analysis.detected_objects" class="badge bg-info me-1 mb-1">{{ obj }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Description Tab (Plain ASCII Text) -->
+    <div class="tab-pane fade" id="content-description" role="tabpanel" *ngIf="video.analysis && (video.analysis.main_subject || video.analysis.activity || video.analysis.environment || video.analysis.mood)">
+      <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-sm btn-outline-primary" (click)="copyContentDescription()" title="Copy all content description to clipboard">
+          <i class="bi bi-clipboard me-2"></i>Copy All
+        </button>
+      </div>
+      <div class="content-description-text">
+        <pre *ngIf="video.analysis.main_subject" class="content-text-block">Main Subject:
+
+{{ getContentDescription(video.analysis.main_subject) }}</pre>
+
+        <pre *ngIf="video.analysis.activity" class="content-text-block">Activity:
+
+{{ getContentDescription(video.analysis.activity) }}</pre>
+
+        <pre *ngIf="video.analysis.environment" class="content-text-block">Environment:
+
+{{ getContentDescription(video.analysis.environment) }}</pre>
+
+        <pre *ngIf="video.analysis.mood" class="content-text-block">Mood:
+
+{{ getContentDescription(video.analysis.mood) }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button class="btn btn-info" (click)="analyzeVideo()" [disabled]="analyzing">
+    <i class="bi bi-search me-2"></i>
+    <span *ngIf="analyzing">Analyzing...</span>
+    <span *ngIf="!analyzing">{{ video.analysis ? 'Re-analyze' : 'Analyze Video' }}</span>
+  </button>
+  <button class="btn btn-warning" (click)="removeAudio()">
+    <i class="bi bi-volume-mute me-2"></i>
+    Remove Audio
+  </button>
+  <button class="btn btn-secondary" (click)="closeModal()">Close</button>
+</div>
+

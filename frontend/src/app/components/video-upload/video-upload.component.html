@@ -1,0 +1,33 @@
+<div class="video-upload d-flex gap-2 align-items-center">
+  <input
+    type="file"
+    #fileInput
+    (change)="onFileSelected($event)"
+    accept="video/mp4,video/quicktime,video/x-msvideo"
+    style="display: none"
+  />
+
+  <button
+    class="btn btn-primary"
+    (click)="fileInput.click()"
+    [disabled]="uploading"
+  >
+    <i class="bi bi-cloud-upload me-2"></i>
+    {{ selectedFile ? selectedFile.name : 'Upload Video' }}
+  </button>
+
+  <button
+    *ngIf="selectedFile"
+    class="btn btn-success"
+    (click)="uploadVideo()"
+    [disabled]="uploading"
+  >
+    <span *ngIf="!uploading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+    <i *ngIf="!uploading" class="bi bi-send me-2"></i>
+    <span *ngIf="uploading" class="spinner-border spinner-border-sm me-2" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </span>
+    {{ uploading ? 'Uploading...' : 'Upload' }}
+  </button>
+</div>
+

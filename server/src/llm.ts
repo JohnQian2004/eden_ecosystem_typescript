@@ -30,11 +30,13 @@ Service types: "movie", "dex", "autoparts", "pharmacy", "airline", "hotel", "res
 CRITICAL: Classify queries based on these rules:
 
 MOVIE SERVICE (serviceType: "movie"):
-- Keywords: "movie", "ticket", "tickets", "cinema", "theater", "theatre", "film", "watch", "showtime", "show", "AMC", "Cinemark", "MovieCom", "cinema", "theater"
-- Examples: "buy movie tickets", "I want to watch a movie", "find movies", "movie tickets", "cinema tickets", "2 tickets", "buy 2 tickets"
+- Keywords: "movie", "ticket", "tickets", "cinema", "theater", "theatre", "film", "watch", "showtime", "show", "AMC", "Cinemark", "MovieCom", "cinema", "theater", "video", "videos", "list", "show", "display"
+- Examples: "buy movie tickets", "I want to watch a movie", "find movies", "movie tickets", "cinema tickets", "2 tickets", "buy 2 tickets", "list all videos", "show me videos", "list movies", "display all videos"
 - If user mentions "ticket" or "tickets" WITHOUT mentioning "token", "TOKENA", "TOKENB", "DEX", "pool", "trade", it's ALWAYS a movie query
 - If user says "buy 2 tickets" or "I want 2 tickets", it means 2 MOVIE TICKETS, not tokens
+- If user says "list all videos", "show videos", "list movies" → serviceType: "movie" with empty filters (return all videos, don't search for a specific movie)
 - Extract filters: location, maxPrice, genre, time, showtime
+- CRITICAL: "list all videos" means return ALL videos, not search for a movie titled "list all videos" - use empty filters {}
 
 DEX TOKEN SERVICE (serviceType: "dex"):
 - Keywords: "token", "TOKEN", "TOKENA", "TOKENB", "TOKENC", "DEX", "pool", "trade", "swap", "exchange", "buy token", "sell token", "token A", "token B", "SOL", "SOLANA"
@@ -51,6 +53,9 @@ For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
 Example: {"query": {"serviceType": "movie", "filters": {"maxPrice": "best"}}, "serviceType": "movie", "confidence": 0.95}
 Example: {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
+Example for "list all videos": {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
+Example for "show me videos": {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
+Example for "list movies": {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
 
 For autoparts queries:
 Example: {"query": {"serviceType": "autoparts", "filters": {}}, "serviceType": "autoparts", "confidence": 0.95}
@@ -542,6 +547,31 @@ CRITICAL CLASSIFICATION RULES:
 CRITICAL: Never output "service type not supported" or similar errors.
 Always format the response for ANY service type provided, OR provide helpful informational answers.
 
+## MOVIE SERVICE - CRITICAL INFORMATION:
+
+**ALL MOVIES ARE FREE (price = $0.00)**
+- Every movie in Eden's video library is completely FREE
+- Users get 1 APPLE reward when they watch a movie
+- No payment required - all movies are available at $0.00
+- When users ask for "best price" or mention price, emphasize that ALL movies are FREE
+- Filter by genre (sci-fi, fantasy, action, etc.) using content_tags from video analysis
+- Videos are available immediately - no booking needed
+
+For MOVIE service queries:
+- Emphasize that ALL movies are FREE ($0.00)
+- If user asks for "best price" or mentions price, respond: "Great news! All movies in Eden are completely FREE ($0.00). You can watch any movie without payment, and you'll even get 1 APPLE reward for watching!"
+- **CRITICAL: If user asks to "list all videos", "show videos", or "list movies":**
+  * DO NOT filter or search for a movie with that title
+  * DO NOT try to find a movie matching "list all videos" 
+  * Return ALL listings provided in the listings array
+  * Select the FIRST listing as selectedListing and selectedListing2
+  * Format message: "Here are all [X] videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one."
+- Filter listings by genre if user specifies (e.g., "sci-fi" → look for videos with "sci-fi", "fantasy", "cgi", "space", "futuristic" in content_tags or genre_indicators)
+- Select the best matching movie based on genre, title, or description (unless user wants to list all, then select the first one)
+- Highlight that movies are available immediately
+- Mention the 1 APPLE reward for watching
+- When listing all videos, format the message to show the total count and mention that all are free
+
 For ANY OTHER SERVICE TYPE (not movie or dex):
 - Extract key information from listings (name, price, location, rating, etc.)
 - Format as a natural language message
@@ -599,9 +629,11 @@ export async function classifyQueryType(userInput: string): Promise<{ isWorkflow
   if (MOCKED_LLM) {
     const inputLower = userInput.toLowerCase();
     // Simple heuristic for mock mode
-    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
     const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-    const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+    // Special case: "list all videos" or "show videos" should be workflow queries
+    const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
+    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
     return {
       isWorkflowQuery: isWorkflow,
       isInformationalQuery: !isWorkflow,
@@ -615,11 +647,12 @@ Determine if a user query is a WORKFLOW/SERVICE REQUEST (should trigger Eden wor
 
 WORKFLOW/SERVICE QUERIES are:
 - Action requests that should trigger Eden workflows or services
-- Examples: "book a movie", "buy movie tickets", "trade 2 SOL", "find a pharmacy", "create a service", "build a simulator", "order food", "get a hotel room"
+- Examples: "book a movie", "buy movie tickets", "trade 2 SOL", "find a pharmacy", "create a service", "build a simulator", "order food", "get a hotel room", "list all videos", "show me videos", "list movies"
 - Requests to perform actions, transactions, or create/configure things in Eden
 - Service requests that need workflow processing
+- Requests to list, show, or display service data (videos, movies, etc.) → WORKFLOW QUERY
 - Even if phrased as questions, if they're requesting an action → WORKFLOW QUERY
-- Examples of action questions: "can you book a movie?", "how do I buy tokens?", "where can I find a pharmacy?"
+- Examples of action questions: "can you book a movie?", "how do I buy tokens?", "where can I find a pharmacy?", "can you list all videos?"
 
 INFORMATIONAL QUERIES are:
 - Questions asking for information, explanations, or guidance
@@ -654,6 +687,15 @@ Input: "how does Eden work"
 Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
 
 Input: "can you book a movie for me"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+
+Input: "list all videos"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+
+Input: "show me videos"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+
+Input: "list movies"
 Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
 `;
 
@@ -696,9 +738,11 @@ Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0
       
       // Fallback: use simple heuristics
       const inputLower = userInput.toLowerCase();
-      const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+      const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
       const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-      const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+      // Special case: "list all videos" or "show videos" should be workflow queries even without other action verbs
+      const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
+      const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
       
       return {
         isWorkflowQuery: isWorkflow,
@@ -716,9 +760,11 @@ Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0
     console.error(`❌ [classifyQueryType] Error:`, error);
     // Fallback: use simple heuristics
     const inputLower = userInput.toLowerCase();
-    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
     const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-    const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+    // Special case: "list all videos" or "show videos" should be workflow queries even without other action verbs
+    const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
+    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
     
     return {
       isWorkflowQuery: isWorkflow,
@@ -1035,6 +1081,23 @@ export async function formatResponseWithOpenAI(
 
   const serviceType = queryFilters?.serviceType || "movie";
   
+  // Check if user wants to list all videos/movies
+  const userQueryLower = userQuery.toLowerCase();
+  const isListAllRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(userQueryLower);
+  
+  // For "list all videos" requests with many listings, return directly without LLM formatting
+  // This avoids JSON truncation issues and is faster
+  if (isListAllRequest && serviceType === "movie" && listings.length > 0) {
+    console.log(`📋 [LLM] "List all videos" request detected - returning all ${listings.length} listings directly`);
+    return {
+      message: `Here are all ${listings.length} videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.`,
+      listings: listings,
+      selectedListing: listings[0] || null,
+      selectedListing2: listings[0] || null,
+      iGasCost: 0.001
+    };
+  }
+  
   // Check if this is an informational query (no listings and serviceType is informational or god_chat)
   const isInformational = listings.length === 0 && (serviceType === "informational" || serviceType === "god_chat");
   
@@ -1071,7 +1134,15 @@ export async function formatResponseWithOpenAI(
     // For service queries, include listings and filters
     const listingsJson = JSON.stringify(listings);
     const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-    userMessage += `Query filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+    
+    // Note: isListAllRequest is already checked above, but we keep this for the message formatting
+    if (isListAllRequest && serviceType === "movie") {
+      // User wants to list ALL videos - don't filter, return all listings
+      userMessage += `Query filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nIMPORTANT: The user wants to LIST ALL VIDEOS. Do NOT filter or search for a specific movie. Return ALL listings provided. Select the FIRST listing as selectedListing and selectedListing2. Format a message showing the total count of videos and mention they're all FREE.`;
+    } else {
+      // Normal query - filter based on query filters
+      userMessage += `Query filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+    }
   }
 
   const messages = [
@@ -1080,29 +1151,79 @@ export async function formatResponseWithOpenAI(
   ];
 
   try {
+    // For "list all videos" requests with many listings, we need more tokens
+    // Estimate: ~100 tokens per listing + message overhead
+    const estimatedTokens = isListAllRequest && listings.length > 10 
+      ? Math.max(4000, listings.length * 100 + 500)
+      : 2000; // Default to 2000 for normal responses
+    
     const contentStr = await callCohereAPI(messages, {
       model: "command-r7b-12-2024",
       response_format: { type: "json_object" },
-      temperature: 0.7
+      temperature: 0.7,
+      max_tokens: estimatedTokens
     });
     
     let content: any;
     try {
       content = JSON.parse(contentStr);
     } catch (parseErr: any) {
-      // If JSON parsing fails, try to extract message from response
-      console.warn(`⚠️ [LLM] Failed to parse JSON response, attempting to extract message: ${contentStr.substring(0, 200)}`);
-      // For informational queries, we can return the raw response as message
-      if (isInformational) {
-        return {
-          message: contentStr || "I apologize, but I couldn't process your request properly. Please try again.",
-          listings: [],
-          selectedListing: null,
-          selectedListing2: null,
-          iGasCost: 0.001
-        };
+      // If JSON parsing fails, try to extract partial JSON or message
+      console.warn(`⚠️ [LLM] Failed to parse JSON response, attempting to extract message: ${contentStr.substring(0, 500)}`);
+      
+      // Try to extract partial JSON if it's just truncated
+      try {
+        // Look for the last complete JSON object/array
+        const jsonMatch = contentStr.match(/\{[\s\S]*"message"[\s\S]*"listings"[\s\S]*\[[\s\S]*\}/);
+        if (jsonMatch) {
+          // Try to close any unclosed brackets/braces
+          let partialJson = jsonMatch[0];
+          // Count open/close braces and brackets
+          const openBraces = (partialJson.match(/\{/g) || []).length;
+          const closeBraces = (partialJson.match(/\}/g) || []).length;
+          const openBrackets = (partialJson.match(/\[/g) || []).length;
+          const closeBrackets = (partialJson.match(/\]/g) || []).length;
+          
+          // Close unclosed structures
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            partialJson += '}';
+          }
+          for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            partialJson += ']';
+          }
+          
+          content = JSON.parse(partialJson);
+          console.log(`✅ [LLM] Successfully parsed partial JSON after fixing truncation`);
+        } else {
+          throw parseErr; // Re-throw if we can't extract partial JSON
+        }
+      } catch (extractErr: any) {
+        // If we can't extract partial JSON, try to extract just the message
+        const messageMatch = contentStr.match(/"message"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+        if (messageMatch && isListAllRequest) {
+          // For "list all" requests, return all listings even if JSON is malformed
+          console.warn(`⚠️ [LLM] JSON parsing failed, but extracted message. Returning all listings.`);
+          return {
+            message: messageMatch[1] || `Here are all ${listings.length} videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.`,
+            listings: listings,
+            selectedListing: listings[0] || null,
+            selectedListing2: listings[0] || null,
+            iGasCost: 0.001
+          };
+        }
+        
+        // For informational queries, we can return the raw response as message
+        if (isInformational) {
+          return {
+            message: contentStr || "I apologize, but I couldn't process your request properly. Please try again.",
+            listings: [],
+            selectedListing: null,
+            selectedListing2: null,
+            iGasCost: 0.001
+          };
+        }
+        throw new Error(`Failed to parse LLM response as JSON: ${parseErr.message}`);
       }
-      throw new Error(`Failed to parse LLM response as JSON: ${parseErr.message}`);
     }
     
     return {

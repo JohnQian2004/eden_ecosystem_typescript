@@ -25,6 +25,10 @@ import { UsernameRegistrationComponent } from './components/username-registratio
 import { LlmGovernanceComponent } from './components/llm-governance/llm-governance.component';
 import { PopupChatComponent } from './components/popup-chat/popup-chat.component';
 import { GodInboxComponent } from './components/god-inbox/god-inbox.component';
+import { VideoLibraryComponent } from './components/video-library/video-library.component';
+import { VideoCardComponent } from './components/video-card/video-card.component';
+import { VideoDetailsComponent } from './components/video-details/video-details.component';
+import { VideoUploadComponent } from './components/video-upload/video-upload.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -63,7 +67,11 @@ const routes: Routes = [
     UsernameRegistrationComponent,
     LlmGovernanceComponent,
     PopupChatComponent,
-    GodInboxComponent
+    GodInboxComponent,
+    VideoLibraryComponent,
+    VideoCardComponent,
+    VideoDetailsComponent,
+    VideoUploadComponent
   ],
   imports: [
     BrowserModule,

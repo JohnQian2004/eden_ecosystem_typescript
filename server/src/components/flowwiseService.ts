@@ -11,6 +11,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 import { replaceTemplateVariables, evaluateCondition, type FlowWiseWorkflow, type WorkflowStep, type WorkflowContext, type WorkflowExecution } from "../flowwise";
 import type { LedgerEntry, User, TokenListing } from "../types";
 import { addLedgerEntry, processPayment, getCashierStatus } from "../ledger";
@@ -2762,6 +2763,55 @@ async function executeStepActions(
           } else {
             console.log(`   ⭐ [FlowWiseService] No rebate (rating: ${review.rating}, moviePrice: ${moviePrice})`);
             context.rebate = 0;
+          }
+          
+          context[`${processedAction.type}_completed`] = true;
+          break;
+
+        case "reward_user":
+          // Reward user for watching movie - give 1 APPLE
+          console.log(`   🎁 [FlowWiseService] ========================================`);
+          console.log(`   🎁 [FlowWiseService] REWARD_USER ACTION: Giving 1 🍎 APPLE for watching movie`);
+          console.log(`   🎁 [FlowWiseService] ========================================`);
+          
+          const rewardEmail = processedAction.email || context.user?.email;
+          const rewardAmount = processedAction.amount || 1;
+          const rewardReason = processedAction.reason || `Watched movie: ${context.selectedListing?.movieTitle || 'Unknown'}`;
+          
+          if (!rewardEmail) {
+            throw new Error("User email required for reward");
+          }
+          
+          try {
+            const { creditWallet } = await import("../wallet");
+            const rewardResult = await creditWallet(
+              rewardEmail,
+              rewardAmount,
+              crypto.randomUUID(),
+              rewardReason,
+              {
+                rewardType: "movie_watching",
+                movieTitle: context.selectedListing?.movieTitle,
+                workflowExecutionId: executionId
+              }
+            );
+            
+            if (rewardResult.success) {
+              // Update user balance in context
+              if (context.user) {
+                context.user.balance = rewardResult.balance;
+              }
+              context.rewardAmount = rewardAmount;
+              context.rewardGranted = true;
+              console.log(`   🎁 [FlowWiseService] ✅ Reward granted: ${rewardAmount} 🍎 APPLE, new balance: ${rewardResult.balance} 🍎 APPLES`);
+            } else {
+              console.error(`   ❌ [FlowWiseService] Failed to grant reward:`, rewardResult.error);
+              context.rewardGranted = false;
+              throw new Error(`Failed to grant reward: ${rewardResult.error}`);
+            }
+          } catch (error: any) {
+            console.error(`   ❌ [FlowWiseService] Error granting reward:`, error.message);
+            throw error;
           }
           
           context[`${processedAction.type}_completed`] = true;

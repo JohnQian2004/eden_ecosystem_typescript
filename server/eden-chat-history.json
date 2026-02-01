@@ -5659,6 +5659,69 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769947449129_b3d806d9b3e6a",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769947449129,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769947453868_0b9dbb17474978",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Sure! Here's a sci-fi movie suggestion for you. If you're looking for something with a mix of action and drama, consider 'The Matrix'. It's a classic that explores themes of reality, artificial intelligence, and human freedom. You can find it on various streaming platforms, and I recommend checking the prices on platforms like Netflix, Amazon Prime Video, or Apple TV+. Prices may vary depending on your location and subscription status, but it's usually available for rent or purchase at a reasonable cost. Enjoy your movie night!",
+        "timestamp": 1769947453868,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769947467676_7068402d433ea8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "list all movies",
+        "timestamp": 1769947467676,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769947473797_e22b2b033dc73",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "I'm sorry, I don't have a list of all movies available at the moment. I can help you with other tasks, such as finding a pharmacy or trading tokens.",
+        "timestamp": 1769947473797,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769948683916_22c443e11b75a8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769948683916,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769948686161_85a2de9db1961",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "I can help you find a sci-fi movie to watch tonight! I don't have specific pricing information, but I can guide you through the process of finding and booking a movie. Here's how it works:\n\n1. **Select a Service Type**: Click on the 'Movie' card on the Garden of Eden Main Street UI.\n2. **Choose a Movie**: Browse the available options and select a sci-fi movie that suits your taste.\n3. **Make a Decision**: Follow any prompts that appear to confirm your choice and payment details.\n4. **Payment**: Your payment will be processed, and you'll receive a confirmation.\n\nYou can also type a request like 'Book a sci-fi movie' in the chat input, and the system will guide you through the process.\n\nIf you have any questions or need further assistance, feel free to ask!",
+        "timestamp": 1769948686161,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [
@@ -5785,6 +5848,27 @@
         "role": "ASSISTANT",
         "content": "You can catch 'Back to the Future' at 10:30 PM at AMC Theatres in Baltimore, Maryland. It's rated 5 stars and has 100 reviews.",
         "timestamp": 1769910056865,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769948639296_f7a1d45a8b4a3",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "list all movies or videos",
+        "timestamp": 1769948639296,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769948641327_2af8763cefb9c8",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "To list all movies or videos, you can use the movie service. Here's how to do it:",
+        "timestamp": 1769948641327,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
@@ -6144,6 +6228,210 @@
         "role": "ASSISTANT",
         "content": "In the Bible, God is the supreme being and the creator of the universe. He is often associated with attributes such as love, justice, and power. God is a central figure in Christianity, Judaism, and other religions, and is often depicted as a divine, all-powerful, and all-knowing entity.",
         "timestamp": 1769913928987,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949579881_2f0bcd380f1cb",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949579881,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949582251_896191c82c9b58",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769949582251,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949714046_c95de949efdbf8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949714046,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949727648_36abf2589fe578",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here's a list of all the videos available in Eden's video library. Please note that all movies are completely free and you'll receive 1 APPLE reward for watching each one.",
+        "timestamp": 1769949727648,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949907276_6c32e9fe65515",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949907276,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949911124_a04a548b7d5e8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I couldn't find any movie options matching \"list all videos\". Please try a different search term or check back later.",
+        "timestamp": 1769949911124,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769949911199_dc1b9d2f8ea4a8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769949911199,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950058956_fd7cf08c1b33b",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950058956,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950066661_5752e39a2503d",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I couldn't find any movie options matching \"list all videos\". Please try a different search term or check back later.",
+        "timestamp": 1769950066661,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950066711_64a64e652ab0a",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769950066711,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950287865_5c2b3f9c6fa6a",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950287865,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950291978_988e733e0b0178",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I couldn't find any movie options matching \"list all videos\". Please try a different search term or check back later.",
+        "timestamp": 1769950291978,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950292015_6f47c17a48e82",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769950292015,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950538925_3909d2bc5d6e4",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950538925,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950553393_b140412cdc2ee",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769950553393,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950762953_3b20b7852c0e6",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950762953,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950768938_ab6a3aaceb5b08",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 36 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769950768938,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950769008_e300d4cd510ad8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769950769008,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769950784149_1807484fd9537",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"1765279884546\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769950784149,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
@@ -6773,6 +7061,166 @@
         "role": "USER",
         "content": "create a Auto Body Shop simulator",
         "timestamp": 1769944478169,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769947449148_6ad0af545601a",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769947449148,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769947453864_e628ef95f0cf1",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Sure! Here's a sci-fi movie suggestion for you. If you're looking for something with a mix of action and drama, consider 'The Matrix'. It's a classic that explores themes of reality, artificial intelligence, and human freedom. You can find it on various streaming platforms, and I recommend checking the prices on platforms like Netflix, Amazon Prime Video, or Apple TV+. Prices may vary depending on your location and subscription status, but it's usually available for rent or purchase at a reasonable cost. Enjoy your movie night!",
+        "timestamp": 1769947453864,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769947467696_93761f942d5ab",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all movies",
+        "timestamp": 1769947467696,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769947473794_3b4edcd24559b",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I'm sorry, I don't have a list of all movies available at the moment. I can help you with other tasks, such as finding a pharmacy or trading tokens.",
+        "timestamp": 1769947473794,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769948639330_aaa9e1f8f947b",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all movies or videos",
+        "timestamp": 1769948639330,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769948641323_4a5bc63062ae5",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "To list all movies or videos, you can use the movie service. Here's how to do it:",
+        "timestamp": 1769948641323,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769948683936_cd2e957ca20d7",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769948683936,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769948686156_4b8e84fe84881",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "I can help you find a sci-fi movie to watch tonight! I don't have specific pricing information, but I can guide you through the process of finding and booking a movie. Here's how it works:\n\n1. **Select a Service Type**: Click on the 'Movie' card on the Garden of Eden Main Street UI.\n2. **Choose a Movie**: Browse the available options and select a sci-fi movie that suits your taste.\n3. **Make a Decision**: Follow any prompts that appear to confirm your choice and payment details.\n4. **Payment**: Your payment will be processed, and you'll receive a confirmation.\n\nYou can also type a request like 'Book a sci-fi movie' in the chat input, and the system will guide you through the process.\n\nIf you have any questions or need further assistance, feel free to ask!",
+        "timestamp": 1769948686156,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769949581520_47cc148d000ba",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949581520,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769949717008_f5e2958f7d5cf",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949717008,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769949727643_87e035c3c9e2f",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here's a list of all the videos available in Eden's video library. Please note that all movies are completely free and you'll receive 1 APPLE reward for watching each one.",
+        "timestamp": 1769949727643,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769949908501_44d9a49fe6077",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769949908501,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769950061056_e4fa3f57f0aeb",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950061056,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769950289872_4a55e0cdf0ca7",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950289872,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769950540425_3fb7208d6f86a",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950540425,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769950764769_7aeba6472674a",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769950764769,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

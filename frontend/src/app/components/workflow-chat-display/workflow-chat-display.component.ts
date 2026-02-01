@@ -7,6 +7,14 @@ import { getApiBaseUrl } from '../../services/api-base';
 import { MessagingService, Conversation, Message } from '../../services/messaging.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
+interface Video {
+  id: string;
+  filename: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
 interface ChatMessage {
   id: string;
   type: 'user' | 'assistant' | 'system' | 'ledger';
@@ -17,6 +25,7 @@ interface ChatMessage {
   options?: Array<{ value: string; label: string; data: any }>;
   videoUrl?: string; // For movie video playback
   movieTitle?: string; // For movie title display
+  videos?: Video[]; // For video listing (thumbnail players)
 }
 
 interface ChatThread {
@@ -1332,6 +1341,24 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     return `${baseUrl}/${videoUrl}`;
   }
 
+  /**
+   * Play video when thumbnail is clicked
+   */
+  playVideo(video: Video): void {
+    console.log('🎬 [WorkflowChat] Playing video:', video);
+    
+    // Add a new assistant message with the video player
+    this.addChatMessage({
+      type: 'assistant',
+      content: `Playing: ${video.title}`,
+      timestamp: Date.now(),
+      videoUrl: video.videoUrl,
+      movieTitle: video.title
+    });
+    
+    this.cdr.detectChanges();
+  }
+
   // Video event handlers to help debug and fix Windows player issues
   onVideoLoadStart(event: Event, videoUrl?: string): void {
     const video = event.target as HTMLVideoElement;
@@ -1643,6 +1670,135 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Genre/category mapping for content_tags
+   * Maps user-friendly genre names to actual content_tags found in library.json
+   */
+  private getGenreContentTags(genre: string): string[] {
+    const genreMap: { [key: string]: string[] } = {
+      'sci-fi': ['sci-fi', 'science fiction', 'futuristic', 'space', 'technology', 'cyberpunk'],
+      'science fiction': ['sci-fi', 'science fiction', 'futuristic', 'space', 'technology'],
+      'scifi': ['sci-fi', 'science fiction', 'futuristic', 'space', 'technology'],
+      'action': ['action', 'fight', 'combat', 'battle', 'explosion', 'adventure', 'dramatic', 'intense'],
+      'comedy': ['comedy', 'funny', 'humor', 'humorous', 'laugh'],
+      'horror': ['horror', 'scary', 'frightening', 'dark', 'thriller'],
+      'drama': ['drama', 'emotional', 'serious', 'intense', 'dramatic'],
+      'romance': ['romance', 'romantic', 'love', 'relationship'],
+      'thriller': ['thriller', 'suspense', 'tension', 'mystery'],
+      'fantasy': ['fantasy', 'magical', 'mythical', 'medieval', 'magic', 'cgi', 'portrait', 'character'],
+      'documentary': ['documentary', 'educational', 'informative', 'real'],
+      'nature': ['nature', 'outdoor', 'wildlife', 'landscape', 'environment'],
+      'architecture': ['architecture', 'building', 'structure', 'design', 'interior', 'grand', 'modern', 'luxury'],
+      'indoor': ['indoor', 'interior', 'inside'],
+      'outdoor': ['outdoor', 'exterior', 'outside', 'nature'],
+      'portrait': ['portrait', 'close-up', 'character', 'cgi', 'dramatic'],
+      'cgi': ['cgi', 'render', 'fantasy', 'portrait', 'character'],
+      'character': ['character', 'portrait', 'cgi', 'fantasy', 'dramatic']
+    };
+    
+    const lowerGenre = genre.toLowerCase().trim();
+    return genreMap[lowerGenre] || [lowerGenre];
+  }
+
+  /**
+   * Extract genre/category from user message
+   */
+  private extractGenreFromMessage(message: string): { genre?: string; isVideoRequest: boolean } {
+    const lowerMessage = message.toLowerCase();
+    
+      // Patterns for video requests with genres
+      const genrePatterns = [
+        { pattern: /(?:watch|show|find|list|get|see|want).*?(?:sci-fi|science fiction|scifi)/i, genre: 'sci-fi' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?action/i, genre: 'action' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?comedy/i, genre: 'comedy' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?horror/i, genre: 'horror' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?drama/i, genre: 'drama' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?romance/i, genre: 'romance' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?thriller/i, genre: 'thriller' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?fantasy/i, genre: 'fantasy' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?documentary/i, genre: 'documentary' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?nature/i, genre: 'nature' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?architecture/i, genre: 'architecture' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?indoor/i, genre: 'indoor' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?outdoor/i, genre: 'outdoor' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?portrait/i, genre: 'portrait' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?cgi/i, genre: 'cgi' },
+        { pattern: /(?:watch|show|find|list|get|see|want).*?character/i, genre: 'character' },
+        // Generic movie/video requests
+        { pattern: /(?:watch|show|find|list|get|see|want).*?(?:movie|video|film)/i, genre: undefined }
+      ];
+    
+    // Check for genre-specific requests
+    for (const { pattern, genre } of genrePatterns) {
+      if (pattern.test(message)) {
+        return { genre, isVideoRequest: true };
+      }
+    }
+    
+    // Check for general video listing requests
+    const listingPatterns = [
+      'list all available videos',
+      'list all videos',
+      'show all videos',
+      'show available videos',
+      'list videos',
+      'all videos',
+      'available videos'
+    ];
+    
+    if (listingPatterns.some(pattern => lowerMessage.includes(pattern))) {
+      return { isVideoRequest: true };
+    }
+    
+    return { isVideoRequest: false };
+  }
+
+  /**
+   * Check if message is requesting video listing
+   */
+  private isVideoListingRequest(message: string): boolean {
+    return this.extractGenreFromMessage(message).isVideoRequest;
+  }
+
+  /**
+   * Fetch videos from API with optional filters
+   */
+  private async fetchVideos(filters?: { search?: string; content_tags?: string[] }): Promise<Video[]> {
+    try {
+      let url = `${this.apiUrl}/api/videos`;
+      const params: string[] = [];
+      
+      if (filters) {
+        if (filters.search) {
+          params.push(`search=${encodeURIComponent(filters.search)}`);
+        }
+        if (filters.content_tags && filters.content_tags.length > 0) {
+          params.push(`content_tags=${filters.content_tags.map(t => encodeURIComponent(t)).join(',')}`);
+        }
+      }
+      
+      if (params.length > 0) {
+        url += '?' + params.join('&');
+      }
+      
+      const response = await this.http.get<any>(url).toPromise();
+      if (response && response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error: any) {
+      console.error('❌ [WorkflowChat] Failed to fetch videos:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch all available videos from API (backward compatibility)
+   */
+  private async fetchAllVideos(): Promise<Video[]> {
+    return this.fetchVideos();
+  }
+
+  /**
    * Send regular chat message from the input box above chat history
    * The LLM will determine if it's Eden-related and respond appropriately
    */
@@ -1668,7 +1824,63 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       const messageToSend = message;
       this.chatInput = '';
 
-      // Send to backend
+      // Check if this is a video listing request
+      const videoRequest = this.extractGenreFromMessage(messageToSend);
+      if (videoRequest.isVideoRequest) {
+        console.log('🎬 [WorkflowChat] Detected video request:', videoRequest);
+        
+        // Build filters based on genre
+        const filters: { search?: string; content_tags?: string[] } = {};
+        
+        if (videoRequest.genre) {
+          // Get content tags for the genre
+          const contentTags = this.getGenreContentTags(videoRequest.genre);
+          filters.content_tags = contentTags;
+          console.log('🎬 [WorkflowChat] Applying genre filter:', videoRequest.genre, '-> content_tags:', contentTags);
+        } else {
+          // For generic requests, use search to find relevant videos
+          // Extract keywords from message
+          const keywords = messageToSend
+            .toLowerCase()
+            .replace(/(?:watch|show|find|list|get|see|all|available|videos?|movies?|films?)/g, '')
+            .trim()
+            .split(/\s+/)
+            .filter(w => w.length > 2);
+          
+          if (keywords.length > 0) {
+            filters.search = keywords.join(' ');
+            console.log('🎬 [WorkflowChat] Applying search filter:', filters.search);
+          }
+        }
+        
+        // Fetch videos with filters
+        const videos = await this.fetchVideos(filters);
+        
+        if (videos.length > 0) {
+          // Add assistant message with video thumbnails
+          const genreText = videoRequest.genre ? ` ${videoRequest.genre}` : '';
+          this.addChatMessage({
+            type: 'assistant',
+            content: `Found ${videos.length}${genreText} video${videos.length !== 1 ? 's' : ''}:`,
+            timestamp: Date.now(),
+            videos: videos
+          });
+        } else {
+          // No videos found
+          const genreText = videoRequest.genre ? ` ${videoRequest.genre}` : '';
+          this.addChatMessage({
+            type: 'assistant',
+            content: `No${genreText} videos found in the library.`,
+            timestamp: Date.now()
+          });
+        }
+        
+        this.isSendingChat = false;
+        this.cdr.detectChanges();
+        return;
+      }
+
+      // Send to backend for regular chat
       const response = await this.http.post<any>(`${this.apiUrl}/api/chat`, {
         input: messageToSend,
         email: this.userEmail || 'guest@example.com'
