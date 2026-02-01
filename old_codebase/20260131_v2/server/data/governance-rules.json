@@ -1,0 +1,59 @@
+[
+  {
+    "ruleId": "rule-settlement-authority-001",
+    "ruleType": "PERMISSION",
+    "scope": "GLOBAL",
+    "conditions": {
+      "action": "SETTLE_TRANSACTION",
+      "actorRole": "ROOT_CA"
+    },
+    "actions": {
+      "allow": true,
+      "requireAudit": true,
+      "requireLedgerEntry": true
+    },
+    "priority": 100,
+    "version": 1,
+    "createdAt": "2026-01-24T22:15:22.259Z",
+    "createdBy": "ROOT_CA",
+    "description": "Only ROOT CA can settle transactions"
+  },
+  {
+    "ruleId": "rule-garden-execution-001",
+    "ruleType": "PERMISSION",
+    "scope": "GARDEN",
+    "conditions": {
+      "action": "EXECUTE_TRANSACTION",
+      "actorRole": "GARDEN",
+      "hasValidCertificate": true
+    },
+    "actions": {
+      "allow": true,
+      "requireAudit": true,
+      "prohibitSettlement": true
+    },
+    "priority": 90,
+    "version": 1,
+    "createdAt": "2026-01-24T22:15:22.259Z",
+    "createdBy": "ROOT_CA",
+    "description": "Gardens can execute transactions but not settle them"
+  },
+  {
+    "ruleId": "rule-user-service-request-001",
+    "ruleType": "PERMISSION",
+    "scope": "USER",
+    "conditions": {
+      "action": "REQUEST_SERVICE",
+      "actorRole": "USER"
+    },
+    "actions": {
+      "allow": true,
+      "requireAudit": false
+    },
+    "priority": 80,
+    "version": 1,
+    "createdAt": "2026-01-24T22:15:22.259Z",
+    "createdBy": "ROOT_CA",
+    "description": "Users can request services"
+  }
+]

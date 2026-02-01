@@ -1,0 +1,17 @@
+.wallet-balance-clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #0d6efd;
+  text-decoration: underline;
+  
+  &:hover {
+    color: #0a58ca;
+    transform: scale(1.05);
+    text-decoration: none;
+  }
+  
+  &:active {
+    transform: scale(0.98);
+  }
+}
+

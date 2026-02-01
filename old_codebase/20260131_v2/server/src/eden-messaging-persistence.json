@@ -1,0 +1,203 @@
+{
+  "conversations": [
+    {
+      "conversationId": "conv_1769335784471_63d0a144",
+      "scope": {
+        "type": "GOVERNANCE",
+        "referenceId": "god_inbox_1769335784471"
+      },
+      "participants": [
+        "bill.draper.auto@gmail.com",
+        "ROOT_AUTHORITY"
+      ],
+      "policy": {
+        "readPermissions": [
+          {
+            "entityType": "USER",
+            "entityId": "bill.draper.auto@gmail.com"
+          }
+        ],
+        "writePermissions": [
+          {
+            "entityType": "USER",
+            "entityId": "bill.draper.auto@gmail.com"
+          }
+        ],
+        "invitePermissions": [
+          {
+            "entityType": "USER",
+            "entityId": "bill.draper.auto@gmail.com"
+          }
+        ],
+        "escalatePermissions": [
+          {
+            "entityType": "PRIEST"
+          },
+          {
+            "entityType": "ROOT_AUTHORITY"
+          }
+        ],
+        "closePermissions": [
+          {
+            "entityType": "USER",
+            "entityId": "bill.draper.auto@gmail.com"
+          },
+          {
+            "entityType": "PRIEST"
+          },
+          {
+            "entityType": "ROOT_AUTHORITY"
+          }
+        ]
+      },
+      "state": "OPEN",
+      "createdAt": 1769335784472,
+      "updatedAt": 1769344491253
+    }
+  ],
+  "messages": [
+    {
+      "messageId": "msg_1769335784472_076ff46a",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "mesage to GOD: can you bless me"
+      },
+      "timestamp": 1769335784472,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769336389764_522bdaf0",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "message to GOD: please bless me"
+      },
+      "timestamp": 1769336389764,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769336619655_6301a1d0",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "mesage to GOD: please bless me"
+      },
+      "timestamp": 1769336619656,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769337632409_fb9197aa",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "mesage to GOD: please bless me"
+      },
+      "timestamp": 1769337632410,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769338498995_13b5925a",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "GOD, please bless me"
+      },
+      "timestamp": 1769338498995,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769338707906_79294c0b",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god, please bless me and allow me to time traval 10x speed"
+      },
+      "timestamp": 1769338707906,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769340095816_5c9aace2",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god, please bless me"
+      },
+      "timestamp": 1769340095817,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769340379318_ee14fbd4",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god, please bless me"
+      },
+      "timestamp": 1769340379318,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769342651676_e9a00262",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "ROOT_AUTHORITY",
+      "senderType": "ROOT_AUTHORITY",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "I will bless you"
+      },
+      "timestamp": 1769342651676,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769344491252_ca6b0d48",
+      "conversationId": "conv_1769335784471_63d0a144",
+      "senderId": "ROOT_AUTHORITY",
+      "senderType": "ROOT_AUTHORITY",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "I will bless you"
+      },
+      "timestamp": 1769344491252,
+      "state": "ACTIVE"
+    }
+  ],
+  "conversationMessages": {
+    "conv_1769335784471_63d0a144": [
+      "msg_1769335784472_076ff46a",
+      "msg_1769336389764_522bdaf0",
+      "msg_1769336619655_6301a1d0",
+      "msg_1769337632409_fb9197aa",
+      "msg_1769338498995_13b5925a",
+      "msg_1769338707906_79294c0b",
+      "msg_1769340095816_5c9aace2",
+      "msg_1769340379318_ee14fbd4",
+      "msg_1769342651676_e9a00262",
+      "msg_1769344491252_ca6b0d48"
+    ]
+  },
+  "entityConversations": {
+    "bill.draper.auto@gmail.com": [
+      "conv_1769335784471_63d0a144"
+    ],
+    "ROOT_AUTHORITY": [
+      "conv_1769335784471_63d0a144"
+    ]
+  },
+  "savedAt": 1769344491253
+}

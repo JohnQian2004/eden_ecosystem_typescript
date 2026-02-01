@@ -1,0 +1,172 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-0">🜂 LLM Governess</h2>
+      <p class="text-muted mb-0 small">Fully Automated Self-Scoring & Self-Estimation System</p>
+    </div>
+    <div>
+      <button 
+        type="button" 
+        class="btn btn-outline-primary btn-sm me-2" 
+        (click)="loadEvaluationHistory(); loadEvaluationStats()"
+        [disabled]="isLoadingHistory || isLoadingStats">
+        <span *ngIf="!isLoadingHistory && !isLoadingStats">🔄 Refresh</span>
+        <span *ngIf="isLoadingHistory || isLoadingStats">
+          <span class="spinner-border spinner-border-sm me-2"></span>Loading...
+        </span>
+      </button>
+      <span class="badge bg-secondary">
+        Manual Refresh Only
+      </span>
+    </div>
+  </div>
+
+  <div class="alert alert-info mb-4">
+    <strong>🤖 Fully Automated System:</strong> The LLM Governess automatically evaluates all actions, self-scores compliance, and self-estimates trust without any human intervention. This dashboard shows real-time monitoring of the automated governance system.
+  </div>
+
+  <!-- Self-Scoring Metrics Dashboard -->
+  <div class="row mb-4" *ngIf="evaluationStats">
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title text-muted mb-2">Total Evaluations</h5>
+          <h2 class="mb-0">{{ evaluationStats.totalEvaluations | number }}</h2>
+          <small class="text-muted">All-time automated evaluations</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title text-muted mb-2">Compliance Rate</h5>
+          <h2 class="mb-0 text-success">{{ evaluationStats.complianceRate | number:'1.1-1' }}%</h2>
+          <small class="text-muted">Self-scored compliance (last 100)</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title text-muted mb-2">Average Trust Score</h5>
+          <h2 class="mb-0 text-info">{{ evaluationStats.averageTrustScore | number:'1.2-2' }}</h2>
+          <small class="text-muted">Self-estimated trust (last 100)</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title text-muted mb-2">Recent Activity</h5>
+          <h2 class="mb-0">{{ evaluationStats.recentEvaluations | number }}</h2>
+          <small class="text-muted">Last 100 evaluations</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decision Breakdown -->
+  <div class="row mb-4" *ngIf="evaluationStats">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">✅ Allowed</h6>
+          <h3 class="text-success mb-0">{{ evaluationStats.allowedCount }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">❌ Denied</h6>
+          <h3 class="text-danger mb-0">{{ evaluationStats.deniedCount }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">⚠️ Escalated</h6>
+          <h3 class="text-warning mb-0">{{ evaluationStats.escalatedCount }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-Time Evaluation Stream -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">📊 Real-Time Automated Evaluation Stream</h5>
+    </div>
+    <div class="card-body">
+      <div *ngIf="isLoadingHistory" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Loading automated evaluations...</p>
+      </div>
+
+      <div *ngIf="!isLoadingHistory && evaluationHistory.length === 0" class="alert alert-info">
+        <strong>ℹ️ No evaluations yet.</strong> The system will automatically evaluate actions as they occur.
+      </div>
+
+      <div *ngIf="!isLoadingHistory && evaluationHistory.length > 0" class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+        <table class="table table-sm table-hover">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Timestamp</th>
+              <th>Action</th>
+              <th>Actor</th>
+              <th>Role</th>
+              <th>Decision</th>
+              <th>Trust Score</th>
+              <th>Rules Applied</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let entry of evaluationHistory">
+              <td class="small">{{ formatTimestamp(entry.timestamp) }}</td>
+              <td><code class="small">{{ entry.context.action }}</code></td>
+              <td class="small">{{ entry.context.actorId || entry.context.userId || '-' }}</td>
+              <td><span class="badge bg-secondary">{{ entry.context.actorRole }}</span></td>
+              <td>
+                <span class="badge" [ngClass]="getDecisionBadgeClass(entry.result.decision)">
+                  {{ entry.result.decision }}
+                </span>
+              </td>
+              <td>
+                <span *ngIf="entry.context.trustScore !== undefined && entry.context.trustScore !== null" class="badge bg-info">
+                  {{ entry.context.trustScore | number:'1.2-2' }}
+                </span>
+                <span *ngIf="entry.context.trustScore === undefined || entry.context.trustScore === null" class="text-muted">-</span>
+              </td>
+              <td>
+                <span *ngIf="entry.result.appliedRules && entry.result.appliedRules.length > 0" class="badge bg-primary">
+                  {{ entry.result.appliedRules.length }}
+                </span>
+                <span *ngIf="!entry.result.appliedRules || entry.result.appliedRules.length === 0" class="text-muted">0</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>❌ Error:</strong> {{ error }}
+    <button type="button" class="btn-close" (click)="error = null" aria-label="Close"></button>
+  </div>
+
+  <!-- System Information -->
+  <div class="card">
+    <div class="card-header bg-secondary text-white">
+      <h5 class="mb-0">ℹ️ System Information</h5>
+    </div>
+    <div class="card-body">
+      <p class="mb-2"><strong>Automation Level:</strong> <span class="badge bg-success">100% Automated</span></p>
+      <p class="mb-2"><strong>Self-Scoring:</strong> <span class="badge bg-info">Active</span> - Trust scores and compliance rates calculated automatically</p>
+      <p class="mb-2"><strong>Self-Estimation:</strong> <span class="badge bg-info">Active</span> - LLM estimates trust and evaluates actions autonomously</p>
+      <p class="mb-0"><strong>Human Intervention:</strong> <span class="badge bg-danger">None Required</span> - System operates fully autonomously</p>
+    </div>
+  </div>
+</div>

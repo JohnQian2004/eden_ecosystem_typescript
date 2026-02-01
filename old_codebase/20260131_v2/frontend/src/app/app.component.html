@@ -1,0 +1,1196 @@
+<div class="container-fluid" [ngClass]="{'dark-theme': !isUserSignedIn}" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.min-height]="!isUserSignedIn ? '100vh' : ''" [attr.data-user-signed-in]="isUserSignedIn">
+  <!-- Global Loading Overlay (GOD mode boot + long network operations) -->
+  <div *ngIf="isGlobalLoading" class="global-loading-overlay">
+    <div class="global-loading-card">
+      <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
+      <div class="mt-3 fw-semibold">{{ globalLoadingMessage }}</div>
+      <div class="small text-muted mt-1">Please wait…</div>
+    </div>
+  </div>
+  <!-- Router Outlet for DEX Garden Wizard (only visible for child routes) -->
+  <div style="position: relative;" *ngIf="isDexWizardRoute">
+    <router-outlet></router-outlet>
+  </div>
+  <!-- Main App Content (hidden when on DEX wizard route) -->
+  <div *ngIf="!isDexWizardRoute" class="row" [attr.data-render-key]="renderKey">
+    <!-- Sidebar (shown for all signed-in users: USER, PRIEST, and GOD modes) -->
+    <!-- Chat history is always visible, System Architecture only for admins -->
+    <div class="col-md-3 sidebar" *ngIf="showSidebar">
+      <app-sidebar 
+        #sidebarComponent
+        [activeConversationId]="activeConversationId"
+        [chatHistoryMessages]="chatHistoryMessages"
+        [isLoadingChatHistory]="isLoadingChatHistory"
+        [isProcessingEdenChat]="isProcessing"
+        [getVideoUrl]="getVideoUrl.bind(this)"
+        (loadChatHistory)="loadChatHistory()"
+        (clearChatHistory)="clearChatHistoryPanel()"
+        (stopChatHistoryLoading)="stopChatHistoryLoading()"
+        (edenChatSubmit)="onEdenChatFromSidebar($event)">
+      </app-sidebar>
+    </div>
+    
+    <!-- Main Content -->
+    <div [ngClass]="{'col-md-9': showSidebar, 'col-md-12': !showSidebar}">
+      <div class="container-fluid py-3" [style.background-color]="!isUserSignedIn ? '#0d1117' : ''">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+          <div class="d-flex align-items-center">
+            <h1 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Eden Simulator Dashboard<span *ngIf="userEmail && isUserSignedIn" class="text-muted"> for {{ userEmail }}</span></h1>
+          </div>
+          <!-- Sign In/Out Button - Right Side (SaaS style) -->
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleTheme()" title="Toggle theme">
+              <span *ngIf="theme === 'dark'">🌙 Dark</span>
+              <span *ngIf="theme === 'light'">☀️ Light</span>
+            </button>
+            <button class="btn" [ngClass]="{'btn-primary': isUserSignedIn, 'btn-success': !isUserSignedIn}" (click)="openSignInModal()" [style.background-color]="!isUserSignedIn ? '#238636' : ''" [style.border-color]="!isUserSignedIn ? '#238636' : ''" [style.color]="!isUserSignedIn ? '#fff' : ''">
+              <span *ngIf="!isUserSignedIn">🔐 Sign In</span>
+              <span *ngIf="isUserSignedIn">👤 {{ userEmail }}</span>
+            </button>
+            <button *ngIf="isUserSignedIn" class="btn btn-outline-secondary btn-sm" (click)="signOut()" title="Sign Out">
+              Sign Out
+            </button>
+          </div>
+        </div>
+        
+        <!-- Sign In/Out Modal -->
+        <div class="modal fade" id="signInModal" tabindex="-1" aria-labelledby="signInModalLabel" aria-hidden="true" [class.show]="showSignInModal" [style.display]="showSignInModal ? 'block' : 'none'">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="signInModalLabel">
+                  <span *ngIf="!isGoogleSignedIn">👤 Guest</span>
+                  <span *ngIf="isGoogleSignedIn">👤 Account Settings</span>
+                </h5>
+                <button type="button" class="btn-close" (click)="closeSignInModal()" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div *ngIf="!isGoogleSignedIn">
+                  <!-- Step 1: Mode Selection (BEFORE login) -->
+                  <div *ngIf="showModeSelection && !showLoginForm" class="mb-4">
+                    <div class="text-center mb-4">
+                      <h5 class="mb-2">🌳 Welcome to Eden Simulator</h5>
+                      <p class="text-muted mb-3">Please select your view mode before signing in</p>
+                    </div>
+                    <div class="row g-3">
+                      <!-- GOD Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-primary': selectedMode === 'god', 'btn-outline-primary': selectedMode !== 'god'}"
+                          (click)="selectedMode = 'god'; proceedToLogin()"
+                          title="GOD Mode: Shows ROOT CA and all infrastructure (Admin only)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">⛪ GOD Mode</strong>
+                              <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'god'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Shows ROOT CA and all infrastructure. Full system access for administrators.</small>
+                        </button>
+                      </div>
+                      
+                      <!-- Priest Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-success': selectedMode === 'priest', 'btn-outline-success': selectedMode !== 'priest'}"
+                          (click)="selectedMode = 'priest'; proceedToLogin()"
+                          title="Priest Mode: Hides ROOT CA, shows only gardens (Admin only)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">🛐 Priest Mode</strong>
+                              <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'priest'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Hides system architecture sidebar (like User mode). For administrators who want a cleaner view without infrastructure details.</small>
+                          <small class="d-block text-warning mt-1">
+                            <strong>Note:</strong> Non-admin users need Priesthood certification to access PRIEST mode. Apply after signing in.
+                          </small>
+                        </button>
+                      </div>
+                      
+                      <!-- USER Mode -->
+                      <div class="col-12">
+                        <button 
+                          type="button" 
+                          class="btn w-100 text-start p-3"
+                          [ngClass]="{'btn-secondary': selectedMode === 'user', 'btn-outline-secondary': selectedMode !== 'user'}"
+                          (click)="selectedMode = 'user'; proceedToLogin()"
+                          title="USER Mode: Standard user view (no sidebar)">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong class="fs-5">👤 USER Mode</strong>
+                              <span class="badge bg-info text-white ms-2">Standard</span>
+                            </div>
+                            <span *ngIf="selectedMode === 'user'" class="badge bg-light text-dark">Selected</span>
+                          </div>
+                          <small class="d-block text-muted">Standard user view with no sidebar. Filtered views showing only your bookings and services.</small>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3 mb-0">
+                      <small>
+                        <strong>Note:</strong> After signing in, the system will validate your selection. 
+                        Non-admin users will automatically use USER mode regardless of selection.
+                      </small>
+                    </div>
+                  </div>
+                  
+                  <!-- Step 2: Login Form (AFTER mode selection) -->
+                  <div *ngIf="showLoginForm || isGoogleSignedIn">
+                    <!-- Email/Password Sign-In Form -->
+                    <form (ngSubmit)="signInWithEmail()" class="mb-4">
+                      <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input 
+                          type="email" 
+                          class="form-control form-control-lg" 
+                          id="email" 
+                          [(ngModel)]="signInEmail"
+                          name="email"
+                          placeholder="Enter your email"
+                          required>
+                      </div>
+                      <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input 
+                          type="password" 
+                          class="form-control form-control-lg" 
+                          id="password" 
+                          [(ngModel)]="signInPassword"
+                          name="password"
+                          placeholder="Enter your password"
+                          required>
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" [disabled]="isSigningIn">
+                        <span *ngIf="!isSigningIn">Sign In</span>
+                        <span *ngIf="isSigningIn">
+                          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                          Signing In...
+                        </span>
+                      </button>
+                    </form>
+                    
+                    <!-- Divider -->
+                    <div class="text-center mb-3">
+                      <span class="text-muted">OR</span>
+                    </div>
+                    
+                    <!-- Google Sign-In Button -->
+                    <div class="text-center">
+                      <p class="mb-3">Sign in with your Google account</p>
+                      <div id="google-signin-button-modal" style="min-width: 200px; min-height: 40px; margin: 0 auto;"></div>
+                    </div>
+                    
+                    <!-- Back button to change mode -->
+                    <div class="text-center mt-3">
+                      <button type="button" class="btn btn-link btn-sm" (click)="goBackToModeSelection()">
+                        ← Change Mode Selection
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div *ngIf="isGoogleSignedIn" class="text-center">
+                  <div class="mb-4">
+                    <p class="mb-2"><strong>Signed in as:</strong></p>
+                    <p class="text-primary fs-5">{{ userEmail }}</p>
+                  </div>
+                  
+                  <!-- Admin Mode Selection (only for admin users) -->
+                  <div *ngIf="userEmail === adminEmail" class="mb-4">
+                    <label class="form-label"><strong>Select View Mode:</strong></label>
+                    <div class="btn-group w-100" role="group">
+                      <button 
+                        type="button" 
+                        class="btn"
+                        [ngClass]="{'btn-primary': selectedAdminMode === 'god', 'btn-outline-primary': selectedAdminMode !== 'god'}"
+                        (click)="changeAdminMode('god')"
+                        title="GOD Mode: Shows ROOT CA and all infrastructure">
+                        ⛪ GOD
+                      </button>
+                      <button 
+                        type="button" 
+                        class="btn"
+                        [ngClass]="{'btn-success': selectedAdminMode === 'priest', 'btn-outline-success': selectedAdminMode !== 'priest'}"
+                        (click)="changeAdminMode('priest')"
+                        title="Priest Mode: Hides ROOT CA, shows only gardens">
+                        🛐 Priest
+                      </button>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                      <span *ngIf="selectedAdminMode === 'god'">Shows ROOT CA and all infrastructure (sidebar visible)</span>
+                      <span *ngIf="selectedAdminMode === 'priest'">Hides system architecture sidebar (like User mode)</span>
+                    </small>
+                  </div>
+                  
+                  <button class="btn btn-danger btn-lg" (click)="signOutAndClose()">
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" (click)="closeSignInModal()">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="showSignInModal" class="modal-backdrop fade show" (click)="closeSignInModal()"></div>
+        
+        <!-- Username Registration Modal -->
+        <div *ngIf="showUsernameRegistration" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1055;">
+          <app-username-registration
+            [googleUserId]="googleUserIdForRegistration"
+            [email]="emailForRegistration"
+            (registrationComplete)="onUsernameRegistrationComplete($event)"
+            (cancel)="onUsernameRegistrationCancel()">
+          </app-username-registration>
+        </div>
+        
+        <!-- Stripe Payment Rail Modal (shown when balance < 100 🍎 APPLES after sign-in) -->
+        <div class="modal fade" id="stripePaymentModal" tabindex="-1" aria-labelledby="stripePaymentModalLabel" aria-hidden="true" [class.show]="showStripePaymentModal" [style.display]="showStripePaymentModal ? 'block' : 'none'">
+          <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="stripePaymentModalLabel">
+                  💳 Stripe Payment Rail - Refill Your Wallet
+                </h5>
+                <button type="button" class="btn-close btn-close-white" (click)="closeStripePaymentModal()" aria-label="Close"></button>
+              </div>
+              <div class="modal-body text-center">
+                <div class="mb-4">
+                  <div class="mb-3">
+                    <h4>💰 Low Wallet Balance Detected</h4>
+                    <p class="text-muted">Your current wallet balance is <strong>{{ walletBalance.toFixed(2) }} 🍎 APPLES</strong></p>
+                    <p class="lead">To continue using Eden Simulator services, we recommend maintaining at least <strong>100 🍎 APPLES</strong> in your wallet.</p>
+                  </div>
+                  
+                  <div class="card border-primary mb-4">
+                    <div class="card-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                      <h5 class="card-title mb-3">💳 Stripe Payment Rail</h5>
+                      <div class="mb-3">
+                        <div class="fs-4 mb-2"><strong>500 🍎 APPLES = $500 USD</strong></div>
+                        <div class="small">Purchase 🍎 APPLES to refill your wallet</div>
+                      </div>
+                      <div class="mb-3" *ngIf="userEmail">
+                        <div><strong>Email:</strong> {{ userEmail }}</div>
+                        <div *ngIf="!isLoadingBalance">
+                          <strong>Current Balance:</strong> {{ walletBalance.toFixed(2) }} 🍎 APPLES
+                        </div>
+                      </div>
+                      <button 
+                        class="btn btn-light btn-lg w-100 mb-2" 
+                        (click)="buyJesusCoin(500); closeStripePaymentModal()"
+                        [disabled]="isProcessingStripe || !userEmail">
+                        <span *ngIf="!isProcessingStripe">💳 BUY 500 🍎 APPLES ($500 USD)</span>
+                        <span *ngIf="isProcessingStripe">
+                          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                          Processing...
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="alert alert-info">
+                    <small>
+                      <strong>Why 100 🍎 APPLES?</strong> This ensures you have sufficient balance for multiple service requests and iGas costs. 
+                      You can always purchase more 🍎 APPLES later if needed.
+                    </small>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" (click)="closeStripePaymentModal()">Maybe Later</button>
+                <button type="button" class="btn btn-primary" (click)="buyJesusCoin(500); closeStripePaymentModal()" [disabled]="isProcessingStripe || !userEmail">
+                  Purchase 500 🍎 APPLES
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="showStripePaymentModal" class="modal-backdrop fade show" (click)="closeStripePaymentModal()"></div>
+        
+        <!-- iGas Display -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <app-igas-display 
+              [priesthoodStats]="priesthoodStats"
+              [walletBalance]="walletBalance"
+              [onOpenStripeModal]="openStripePaymentModal.bind(this)">
+            </app-igas-display>
+          </div>
+        </div>
+        
+        <!-- Signed-out: run as guest mode (no forced sign-in banner/modal). -->
+        
+        <!-- Garden of Eden Main Street - Service Type Cards -->
+        <!-- Main Street always shows hardcoded service types -->
+        <!-- When signed out, show all public services (not tied to any Priest) -->
+        <div class="row mb-3" *ngIf="(isLoadingAppleGardens || appleGardens.length > 0 || dexGardens.length > 0)" [ngClass]="{'dark-main-street': !isUserSignedIn}">
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🌳 Garden of Eden Main Street</h5>
+              <div class="d-flex gap-2" *ngIf="isUserSignedIn">
+                <!-- Apply for Priesthood Button (USER mode only) -->
+                <button 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && !hasPriesthoodCert && priesthoodStatus !== 'pending'"
+                  class="btn btn-success btn-sm"
+                  (click)="showPriesthoodApplicationModal = true"
+                  title="Apply for Priesthood certification to access PRIEST mode">
+                  📜 Apply for Priesthood
+                </button>
+                <!-- Priesthood Status Badge (USER mode) -->
+                <span 
+                  *ngIf="isGoogleSignedIn && userEmail && userEmail !== adminEmail && priesthoodStatus === 'pending'"
+                  class="badge bg-warning text-dark align-self-center">
+                  ⏳ Application Pending
+                </span>
+                <span 
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && (userEmail !== adminEmail || currentViewMode === 'priest')"
+                  class="badge bg-success align-self-center"
+                  (click)="switchToPriestMode()"
+                  style="cursor: pointer;"
+                  title="Click to switch to PRIEST mode">
+                  ✅ Certified Priest
+                </span>
+                <!-- Membership Activation Button (for approved priests - FREE) -->
+                <button 
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && (priesthoodStatus === 'approved' || priesthoodStatus === 'suspended') && (userEmail !== adminEmail || currentViewMode === 'priest')"
+                  class="btn btn-success btn-sm"
+                  (click)="activateMembership()"
+                  title="Activate membership (FREE - trust-based authority)">
+                  ✅ Activate Membership (FREE)
+                </button>
+                <!-- Membership Status (if certified) -->
+                <span 
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && priesthoodCertification?.membershipActiveUntil && (userEmail !== adminEmail || currentViewMode === 'priest')"
+                  class="badge bg-info align-self-center ms-2">
+                  Active until: {{ (priesthoodCertification.membershipActiveUntil | date:'short') || 'N/A' }}
+                </span>
+                <!-- Trust Score Display -->
+                <span 
+                  *ngIf="isUserSignedIn && userEmail && hasPriesthoodCert && priesthoodCertification?.trustScore !== undefined && (userEmail !== adminEmail || currentViewMode === 'priest')"
+                  class="badge bg-primary align-self-center ms-2"
+                  title="Trust Score: Authority scales with trust, not payment">
+                  Trust: {{ priesthoodCertification.trustScore || 0 }}/100
+                </span>
+                <!-- Shutdown Gardens Button (PRIEST mode and GOD mode) -->
+                <button 
+                  *ngIf="isUserSignedIn && userEmail && userEmail !== '' && ((hasPriesthoodCert && currentViewMode === 'priest') || (userEmail === adminEmail && (currentViewMode === 'priest' || currentViewMode === 'god')))"
+                  class="btn btn-danger btn-sm"
+                  (click)="openGardenShutdownDialog()"
+                  title="Hard shutdown your gardens (revoke certificates)">
+                  🛑 Shutdown Gardens
+                </button>
+                <!-- Priesthood Management Button (GOD mode) -->
+                <button 
+                  *ngIf="isUserSignedIn && userEmail === adminEmail && currentViewMode === 'god'"
+                  class="btn btn-info btn-sm"
+                  (click)="showPriesthoodManagementPanel = true; loadPriesthoodApplications(); loadPriesthoodStats()"
+                  title="Manage Priesthood certifications">
+                  📜 Manage Priesthood
+                </button>
+              </div>
+              <div *ngIf="!isUserSignedIn" class="small" [style.color]="'#8b949e'">
+                <em>Public services available to all users</em>
+              </div>
+            </div>
+            <p class="small mb-3" [ngClass]="{'text-muted': isUserSignedIn}" [style.color]="!isUserSignedIn ? '#8b949e' : ''">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+
+            <!-- 🍎 Apple ecosystem (garden-driven, like DEX: no grouping by serviceType) -->
+            <div *ngIf="isLoadingAppleGardens || appleGardens.length > 0" class="mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">🍎 Apple Ecosystem</h6>
+                <small class="text-muted" *ngIf="isUserSignedIn">SaaS gardens (regular)</small>
+              </div>
+              <div *ngIf="isLoadingAppleGardens && appleGardens.length === 0" class="text-muted small mb-2" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                Loading Apple gardens...
+              </div>
+              <div class="row g-2">
+                <!-- GOD inbox with Mercy Button (First Element) -->
+                <div class="col-6 col-md-4 col-lg-2">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    (click)="openPopupChat()" 
+                    style="cursor: pointer; border: 2px solid #ffd700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="card-body text-center p-2" style="color: white;">
+                      <div class="small mb-1">
+                        <span class="badge bg-warning text-dark">#0</span>
+                      </div>
+                      <div class="small fw-bold mb-1" style="font-size: 0.9rem;">
+                        ⚡ GOD inbox with Mercy
+                      </div>
+                      <div class="small mt-1" style="opacity: 0.9;">
+                        <span>💬 Direct Access</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of appleGardens; let idx = index; trackBy: trackByGardenId">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    (click)="selectAppleGarden(garden)" 
+                    style="cursor: pointer;"
+                    [attr.data-garden-id]="garden.id">
+                    <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle(garden.serviceType)" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                      <div class="small mb-1">
+                        <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
+                      </div>
+                      <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                        <span *ngIf="garden.serviceType">
+                          {{ getServiceTypeIcon(garden.serviceType) }}
+                          <span class="ms-1">{{ (garden.serviceType || '').toString().toUpperCase() }}</span>
+                        </span>
+                      </div>
+                      <div class="mt-1">
+                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                          Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.ownerEmail">
+                        <small class="text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                          👤 {{ getGardenOwnerDisplayName(garden) }}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 💰 DEX ecosystem (garden-driven, NOT service-type driven) -->
+            <div *ngIf="dexGardens.length > 0">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">💰 DEX Ecosystem</h6>
+                <small class="text-muted" *ngIf="isUserSignedIn">DEX gardens (token)</small>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens; let idx = index; trackBy: trackByGardenId">
+                  <div 
+                    class="card service-card-compact h-100" 
+                    [ngClass]="{
+                      'dex-service': true
+                    }"
+                    (click)="selectDexGarden(garden)" 
+                    style="cursor: pointer;"
+                    [attr.data-garden-id]="garden.id">
+                    <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                      <div class="small mb-1">
+                        <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                      </div>
+                      <div class="small fw-bold mb-1" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                        {{ garden.name || garden.id }}
+                      </div>
+                      <div class="small text-muted mt-1" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                        {{ getServiceTypeIcon('dex') }}
+                        <span class="ms-1">DEX</span>
+                      </div>
+                      <div class="mt-1">
+                        <span class="badge bg-dark-subtle text-body small" [style.background-color]="!isUserSignedIn ? '#30363d' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">
+                          Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.initialLiquidity && garden.initialLiquidity > 0">
+                        <span class="badge bg-success-subtle text-success small" [style.background-color]="!isUserSignedIn ? '#1a472a' : ''" [style.color]="!isUserSignedIn ? '#3fb950' : ''">
+                          💧 {{ (garden.currentLiquidity || garden.initialLiquidity).toLocaleString() }} {{ garden.baseToken || 'SOL' }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.liquidityCertified">
+                        <span class="badge bg-primary-subtle text-primary small" [style.background-color]="!isUserSignedIn ? '#1c2128' : ''" [style.color]="!isUserSignedIn ? '#58a6ff' : ''">
+                          ✅ Certified
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.totalTrades !== undefined && garden.totalTrades > 0">
+                        <span class="badge bg-info-subtle text-info small" [style.background-color]="!isUserSignedIn ? '#1c2128' : ''" [style.color]="!isUserSignedIn ? '#79c0ff' : ''">
+                          📊 {{ garden.totalTrades.toLocaleString() }} Trade{{ garden.totalTrades !== 1 ? 's' : '' }}
+                        </span>
+                      </div>
+                      <div class="mt-1" *ngIf="garden.ownerEmail">
+                        <small class="text-muted" [style.color]="!isUserSignedIn ? '#8b949e' : ''">
+                          👤 {{ getGardenOwnerDisplayName(garden) }}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Legacy single-loop kept here for reference:
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-2" *ngFor="let serviceType of serviceTypes">
+                <div 
+                  class="card service-card-compact h-100" 
+                  [ngClass]="{
+                    'movie-service': serviceType.type === 'movie', 
+                    'dex-service': serviceType.type === 'dex',
+                    'airline-service': serviceType.type === 'airline',
+                    'autoparts-service': serviceType.type === 'autoparts',
+                    'hotel-service': serviceType.type === 'hotel',
+                    'restaurant-service': serviceType.type === 'restaurant',
+                    'grocerystore-service': serviceType.type === 'grocerystore',
+                    'pharmacy-service': serviceType.type === 'pharmacy',
+                    'dogpark-service': serviceType.type === 'dogpark',
+                    'gasstation-service': serviceType.type === 'gasstation',
+                    'party-service': serviceType.type === 'party',
+                    'bank-service': serviceType.type === 'bank'
+                  }"
+                  (click)="selectServiceType(serviceType)" 
+                  style="cursor: pointer;">
+                  <div class="card-body text-center p-2" [style.background-color]="!isUserSignedIn ? '#161b22' : ''" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''" [style.border-color]="!isUserSignedIn ? '#30363d' : ''">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">{{ serviceType.icon }}</div>
+                    <h6 class="card-title mb-0 small" [style.color]="!isUserSignedIn ? '#c9d1d9' : ''">{{ serviceType.adText }}</h6>
+                    <div *ngIf="amcWorkflowActive && serviceType.type === 'movie'" class="mt-1">
+                      <span class="badge bg-success small">Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            -->
+          </div>
+        </div>
+        
+        <!-- Snake Services (serviceType: "snake", belongs to gardens) -->
+        <div class="row mb-3" *ngIf="!isLoadingSnakeProviders && snakeProviders.length > 0">
+          <div class="col-12">
+            <h5 class="mb-2">🐍 Snake Services</h5>
+            <p class="text-muted small mb-3">Snake is a service type (serviceType: "snake") - Each service belongs to a garden. Higher fees, transparent pricing.</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-3" *ngFor="let snakeProvider of snakeProviders">
+                <div 
+                  class="card service-card-compact h-100 snake-provider-card" 
+                  (click)="selectServiceType({type: snakeProvider.serviceType, icon: '🐍', adText: snakeProvider.name, sampleQuery: 'Show me ' + snakeProvider.name + ' options'})"
+                  style="cursor: pointer; border: 2px solid #ff6b9d;">
+                  <div class="card-body text-center p-2">
+                    <div class="service-icon-compact mb-1" style="font-size: 1.8rem;">🐍</div>
+                    <h6 class="card-title mb-1 small fw-bold">{{ snakeProvider.name }}</h6>
+                    <div class="small text-muted mb-1">
+                      <div><strong>Service Type:</strong> {{ snakeProvider.serviceType }}</div>
+                      <div><strong>Garden:</strong> {{ snakeProvider.gardenId || snakeProvider.indexerId }}</div>
+                      <div>iGas: {{ (snakeProvider.iGasMultiplier || 1.0) }}x</div>
+                      <div>iTax: {{ (snakeProvider.iTaxMultiplier || 1.0) }}x</div>
+                      <div>Insurance: {{ snakeProvider.insuranceFee || snakeProvider.bond }}</div>
+                    </div>
+                    <div class="small">
+                      <span class="badge bg-info" *ngFor="let context of snakeProvider.contextsAllowed">{{ context }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Loading Snake Services -->
+        <div class="row mb-3" *ngIf="isLoadingSnakeProviders">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-danger" role="status" style="width: 1.5rem; height: 1.5rem;">
+              <span class="visually-hidden">Loading Snake services...</span>
+            </div>
+            <p class="mt-2 text-muted small">Loading Snake services...</p>
+          </div>
+        </div>
+        
+        <!-- Loading Services -->
+        <div class="row mb-4" *ngIf="isLoadingServices">
+          <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading services...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading Garden of Eden Main Street...</p>
+          </div>
+        </div>
+        
+        <!-- Regular Chat Display (No Input - Input moved to sidebar) -->
+        <!-- Chat history is shown in sidebar, input is in sidebar for Eden workflows -->
+        
+        <!-- Tabbed Interface -->
+        <div class="row">
+          <div class="col-12">
+            <!-- Tabs Navigation - Only show when user is signed in -->
+            <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist" *ngIf="isUserSignedIn">
+              <li class="nav-item" role="presentation" *ngIf="!isUserMode">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow'}"
+                  id="workflow-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow'"
+                  role="tab">
+                  🔄 FlowWise Workflows
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow-chat'}"
+                  id="workflow-chat-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow-chat'"
+                  role="tab">
+                  💬 FlowWise Workflows Chat
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'workflow2'}"
+                  id="workflow2-tab" 
+                  type="button" 
+                  (click)="activeTab = 'workflow2'"
+                  role="tab">
+                  🎬 FlowWise Workflow2 (Testbed)
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'ledger'}"
+                  id="ledger-tab" 
+                  type="button" 
+                  (click)="activeTab = 'ledger'"
+                  role="tab">
+                  <span *ngIf="!isUserMode">📋 Ledger - All Eden Bookings</span>
+                  <span *ngIf="isUserMode">📋 Ledger - All User Bookings</span>
+                </button>
+              </li>
+              <li class="nav-item" role="presentation" *ngIf="isUserMode">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'ledger-cards'}"
+                  id="ledger-cards-tab" 
+                  type="button" 
+                  (click)="activeTab = 'ledger-cards'"
+                  role="tab">
+                  📋 My Bookings (Cards)
+                </button>
+              </li>
+              <li class="nav-item" role="presentation" *ngIf="!isUserMode">
+                <button 
+                  class="nav-link" 
+                  [ngClass]="{'active': activeTab === 'certificates'}"
+                  id="certificates-tab" 
+                  type="button" 
+                  (click)="activeTab = 'certificates'"
+                  role="tab">
+                  🔐 Certificates
+                </button>
+              </li>
+                  <li class="nav-item" role="presentation" *ngIf="!isUserMode">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'chat'}"
+                      id="chat-tab" 
+                      type="button"
+                      (click)="activeTab = 'chat'"
+                      role="tab">
+                      💬 Simulator Chat
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation" *ngIf="currentViewMode !== 'user'">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'config'}"
+                      id="config-tab" 
+                      type="button"
+                      (click)="activeTab = 'config'"
+                      role="tab">
+                      ⚙️ System Configuration
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation" *ngIf="currentViewMode !== 'user'">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'governance'}"
+                      id="governance-tab" 
+                      type="button"
+                      (click)="activeTab = 'governance'"
+                      role="tab">
+                      🜂 LLM Governess
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button 
+                      class="nav-link" 
+                      [ngClass]="{'active': activeTab === 'god-inbox'}"
+                      id="god-inbox-tab" 
+                      type="button"
+                      (click)="activeTab = 'god-inbox'"
+                      role="tab">
+                      ⚡ GOD's Inbox
+                    </button>
+                  </li>
+            </ul>
+            
+            <!-- Tab Content - Only show when user is signed in -->
+            <div class="tab-content" id="mainTabContent" *ngIf="isUserSignedIn">
+              <!-- Workflow Tab (First Tab) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow'}"
+                id="workflow-pane" 
+                role="tabpanel"
+                *ngIf="!isUserMode">
+                <app-workflow-display></app-workflow-display>
+              </div>
+              
+              <!-- Workflow Chat Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow-chat'}"
+                id="workflow-chat-pane" 
+                role="tabpanel">
+                <app-workflow-chat-display></app-workflow-chat-display>
+              </div>
+              
+              <!-- Workflow2 Tab (Testbed) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'workflow2'}"
+                id="workflow2-pane" 
+                role="tabpanel">
+                <app-workflow-display2></app-workflow-display2>
+              </div>
+              
+              <!-- Ledger Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'ledger'}"
+                id="ledger-pane" 
+                role="tabpanel">
+                <app-ledger-display></app-ledger-display>
+              </div>
+              
+              <!-- Ledger Card Deck Tab (User Bookings) -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'ledger-cards'}"
+                id="ledger-cards-pane" 
+                role="tabpanel"
+                *ngIf="isUserMode">
+                <app-ledger-card-deck></app-ledger-card-deck>
+              </div>
+              
+              <!-- Certificates Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'certificates'}"
+                id="certificates-pane" 
+                role="tabpanel"
+                *ngIf="!isUserMode">
+                <app-certificate-display></app-certificate-display>
+              </div>
+              
+              <!-- Chat Tab -->
+              <div
+                class="tab-pane fade"
+                [ngClass]="{'show active': activeTab === 'chat'}"
+                id="chat-pane"
+                role="tabpanel"
+                *ngIf="!isUserMode">
+                <!-- AMC Workflow Active Indicator -->
+                <div *ngIf="amcWorkflowActive" class="alert alert-success mb-3">
+                  <h6>🎬 AMC Cinema Workflow Active (Atomic Server Execution)</h6>
+                  <p class="mb-2">Your movie request is being processed through the AMC Cinema workflow.</p>
+                  <div class="alert alert-info small mb-2">
+                    <strong>🔄 Atomic Execution:</strong> Steps processed entirely on server |
+                    <strong>🤖 LLM Self-Play:</strong> AI processing automated |
+                    <strong>💰 Server Autopay:</strong> Payments processed automatically
+                    <br><strong>💬 Eden Chat:</strong> Use the input field to provide movie preferences.
+                  </div>
+                  <div class="progress mb-2">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                         role="progressbar" style="width: 100%">
+                      Processing...
+                    </div>
+                  </div>
+                </div>
+
+                <!-- FlowWise Decision Prompt -->
+                <div *ngIf="showDecisionPrompt && pendingDecision" class="alert alert-info mb-3" role="alert">
+                  <h5 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h5>
+                  <hr>
+                  <!-- Debug Info -->
+                  <div class="small text-muted mb-2" *ngIf="pendingDecision">
+                    🔍 DEBUG: videoUrl = "{{ pendingDecision.videoUrl || 'undefined' }}", movieTitle = "{{ pendingDecision.movieTitle || 'undefined' }}"
+                    <br>
+                    🔍 DEBUG: showDecisionPrompt = {{ showDecisionPrompt }}, pendingDecision exists = {{ !!pendingDecision }}
+                    <br>
+                    🔍 DEBUG: videoUrl truthy = {{ !!pendingDecision.videoUrl }}, videoUrl length = {{ pendingDecision.videoUrl?.length || 0 }}
+                  </div>
+                  <!-- Video Player for Movie Viewing Decision -->
+                  <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
+                    <div class="card" style="display: block !important; visibility: visible !important;">
+                      <div class="card-body" style="display: block !important; visibility: visible !important;">
+                        <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
+                        <video 
+                          controls 
+                          autoplay
+                          class="w-100" 
+                          style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                          [src]="getVideoUrl(pendingDecision.videoUrl)"
+                          preload="auto">
+                          Your browser does not support the video tag.
+                        </video>
+                        <div class="small text-muted mt-1">
+                          Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
+                        </div>
+                        <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button
+                      *ngFor="let option of pendingDecision.options"
+                      class="btn btn-primary"
+                      (click)="submitDecision(option.value)">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <small class="text-muted mt-2 d-block">
+                    This decision will advance the AMC workflow
+                  </small>
+                </div>
+
+                <!-- Workflow Messages (when AMC workflow is active) -->
+                <div *ngIf="amcWorkflowActive && workflowMessages.length > 0" class="mb-3">
+                  <div class="card">
+                    <div class="card-header">
+                      <h6 class="mb-0">🎬 AMC Workflow Messages</h6>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                      <div *ngFor="let msg of workflowMessages" class="mb-2">
+                        <div [ngClass]="{
+                          'text-primary fw-bold': msg.type === 'user_message',
+                          'text-success': msg.type === 'llm_response',
+                          'text-info': msg.type === 'ledger_entry_added',
+                          'text-warning': msg.type === 'cashier_payment_processed',
+                          'text-danger': msg.type === 'error'
+                        }">
+                          <small class="text-muted">[{{ msg.type }}]</small>
+                          {{ msg.message }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Stop AMC Workflow Button -->
+                <div *ngIf="amcWorkflowActive" class="mb-3 text-center">
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm"
+                    (click)="stopAmcWorkflow()">
+                    <i class="fas fa-stop"></i> Stop AMC Workflow
+                  </button>
+                </div>
+
+                <app-chat-box></app-chat-box>
+              </div>
+              <!-- System Configuration Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'config'}"
+                id="config-pane" 
+                role="tabpanel"
+                *ngIf="currentViewMode !== 'user'">
+                <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
+              </div>
+              
+              <!-- LLM Governess Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'governance'}"
+                id="governance-pane" 
+                role="tabpanel"
+                *ngIf="currentViewMode !== 'user'">
+                <app-llm-governance *ngIf="activeTab === 'governance'"></app-llm-governance>
+              </div>
+              
+              <!-- GOD Inbox Tab -->
+              <div 
+                class="tab-pane fade" 
+                [ngClass]="{'show active': activeTab === 'god-inbox'}"
+                id="god-inbox-pane" 
+                role="tabpanel">
+                <app-god-inbox *ngIf="activeTab === 'god-inbox'"></app-god-inbox>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Garden Shutdown Dialog -->
+  <div class="modal fade" id="gardenShutdownModal" tabindex="-1" aria-labelledby="gardenShutdownModalLabel" aria-hidden="true" [class.show]="showGardenShutdownDialog" [style.display]="showGardenShutdownDialog ? 'block' : 'none'">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title" id="gardenShutdownModalLabel">
+            🛑 Hard Shutdown Gardens
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="closeGardenShutdownDialog()" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div *ngIf="isLoadingGardens" class="text-center py-4">
+            <div class="spinner-border text-danger" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading your gardens...</p>
+          </div>
+          
+          <div *ngIf="!isLoadingGardens && priestGardens.length === 0" class="alert alert-info">
+            <p class="mb-0">You don't have any active gardens to shut down.</p>
+          </div>
+          
+          <div *ngIf="!isLoadingGardens && priestGardens.length > 0">
+            <div class="alert alert-warning">
+              <strong>⚠️ Warning:</strong> Hard shutdown will permanently revoke the garden's certificate. This action cannot be easily undone.
+            </div>
+            
+            <div class="mb-3">
+              <label for="shutdownReason" class="form-label">Shutdown Reason <span class="text-danger">*</span></label>
+              <textarea 
+                class="form-control" 
+                id="shutdownReason" 
+                rows="3" 
+                [(ngModel)]="shutdownReason" 
+                placeholder="Enter reason for shutting down the garden..."
+                [disabled]="isShuttingDown">
+              </textarea>
+            </div>
+            
+            <h6 class="mb-3">Your Gardens:</h6>
+            <div class="list-group">
+              <div 
+                *ngFor="let garden of priestGardens" 
+                class="list-group-item d-flex justify-content-between align-items-start">
+                <div class="ms-2 me-auto">
+                  <div class="fw-bold">{{ garden.name }}</div>
+                  <small class="text-muted">
+                    Service: {{ garden.serviceType || 'N/A' }} | 
+                    Status: <span [ngClass]="{'text-success': garden.active, 'text-danger': !garden.active}">{{ garden.active ? 'Active' : 'Inactive' }}</span>
+                  </small>
+                </div>
+                <button 
+                  class="btn btn-danger btn-sm"
+                  (click)="confirmGardenShutdown(garden.id)"
+                  [disabled]="isShuttingDown || selectedGardenForShutdown === garden.id || !shutdownReason.trim()">
+                  <span *ngIf="selectedGardenForShutdown === garden.id">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Shutting Down...
+                  </span>
+                  <span *ngIf="selectedGardenForShutdown !== garden.id">
+                    🛑 Revoke Certificate
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeGardenShutdownDialog()" [disabled]="isShuttingDown">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showGardenShutdownDialog" class="modal-backdrop fade show" (click)="closeGardenShutdownDialog()"></div>
+  
+  <!-- Priesthood Application Modal (USER mode) -->
+  <div class="modal fade" [class.show]="showPriesthoodApplicationModal" [style.display]="showPriesthoodApplicationModal ? 'block' : 'none'">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title">📜 Apply for Priesthood Certification</h5>
+          <button type="button" class="btn-close btn-close-white" (click)="showPriesthoodApplicationModal = false" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Apply for Priesthood certification to gain access to PRIEST mode, allowing you to create and manage gardens.</p>
+          
+          <div class="alert alert-info mb-3">
+            <strong>🍎 Covenant Token: 1 🍎 APPLES</strong><br>
+            <small>Symbolic offering (non-refundable) demonstrates commitment and prevents spam applications.</small>
+          </div>
+          
+          <div class="mb-3">
+            <label for="priesthoodReason" class="form-label">Why do you want to become a Priest? <span class="text-danger">*</span></label>
+            <textarea 
+              class="form-control" 
+              id="priesthoodReason" 
+              rows="4" 
+              [(ngModel)]="priesthoodApplicationReason" 
+              placeholder="Explain why you want to become a Priest and what you plan to do with garden management..."
+              [disabled]="isSubmittingApplication">
+            </textarea>
+            <small class="form-text text-muted">Your application will be reviewed by GOD. You will be notified of the decision.</small>
+          </div>
+          
+          <div class="alert alert-success small">
+            <strong>✅ After Approval:</strong> Membership is <strong>FREE</strong>! Authority is trust-based and rate-limited. Your power scales with trust, not payment.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="showPriesthoodApplicationModal = false" [disabled]="isSubmittingApplication">
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-success" 
+            (click)="applyForPriesthood()"
+            [disabled]="isSubmittingApplication || !priesthoodApplicationReason.trim()">
+            <span *ngIf="isSubmittingApplication" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            {{ isSubmittingApplication ? 'Submitting...' : 'Submit Application' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showPriesthoodApplicationModal" class="modal-backdrop fade show" (click)="showPriesthoodApplicationModal = false"></div>
+  
+  <!-- Priesthood Management Panel (GOD mode) -->
+  <div class="modal fade" [class.show]="showPriesthoodManagementPanel" [style.display]="showPriesthoodManagementPanel ? 'block' : 'none'">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">📜 Priesthood Certification Management</h5>
+          <button type="button" class="btn-close btn-close-white" (click)="showPriesthoodManagementPanel = false" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Statistics Dashboard -->
+          <div class="row mb-4" *ngIf="priesthoodStats">
+            <div class="col-md-3">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.total }}</h3>
+                  <small class="text-muted">Total Applications</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-warning text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.pending }}</h3>
+                  <small>Pending Review</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.approved }}</h3>
+                  <small>Certified Priests</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center bg-danger text-white">
+                <div class="card-body">
+                  <h3 class="mb-0">{{ priesthoodStats.revoked }}</h3>
+                  <small>Revoked</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Applications List -->
+          <div *ngIf="isLoadingApplications" class="text-center py-4">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading applications...</p>
+          </div>
+          
+          <div *ngIf="!isLoadingApplications">
+            <h6 class="mb-3">All Applications ({{ priesthoodApplications.length }})</h6>
+            
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Applied At</th>
+                    <th>Reviewed By</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let app of priesthoodApplications">
+                    <td>{{ app.email }}</td>
+                    <td>
+                      <span class="badge" 
+                        [ngClass]="{
+                          'bg-warning': app.status === 'pending',
+                          'bg-success': app.status === 'approved',
+                          'bg-danger': app.status === 'rejected',
+                          'bg-secondary': app.status === 'revoked'
+                        }">
+                        {{ app.status }}
+                      </span>
+                    </td>
+                    <td>{{ app.appliedAt ? (app.appliedAt | number) : 'N/A' }}</td>
+                    <td>{{ app.approvedBy || app.rejectedBy || app.revokedBy || 'N/A' }}</td>
+                    <td><small class="text-muted">{{ app.reason || 'N/A' }}</small></td>
+                    <td>
+                      <button 
+                        *ngIf="app.status === 'pending'"
+                        class="btn btn-success btn-sm me-1"
+                        (click)="approvePriesthoodApplication(app.email)">
+                        ✅ Approve
+                      </button>
+                      <button 
+                        *ngIf="app.status === 'pending'"
+                        class="btn btn-danger btn-sm me-1"
+                        (click)="rejectPriesthoodApplication(app.email)">
+                        ❌ Reject
+                      </button>
+                      <button 
+                        *ngIf="app.status === 'approved'"
+                        class="btn btn-warning btn-sm"
+                        (click)="revokePriesthoodCertification(app.email)">
+                        🛑 Revoke
+                      </button>
+                    </td>
+                  </tr>
+                  <tr *ngIf="priesthoodApplications.length === 0">
+                    <td colspan="6" class="text-center text-muted py-4">No applications found</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="showPriesthoodManagementPanel = false">
+            Close
+          </button>
+          <button type="button" class="btn btn-primary" (click)="loadPriesthoodApplications(); loadPriesthoodStats()">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showPriesthoodManagementPanel" class="modal-backdrop fade show" (click)="showPriesthoodManagementPanel = false"></div>
+  
+  <!-- Popup Chat Component -->
+  <app-popup-chat 
+    *ngIf="showPopupChat"
+    [userEmail]="userEmail"
+    (close)="closePopupChat()">
+  </app-popup-chat>
+</div>
+
