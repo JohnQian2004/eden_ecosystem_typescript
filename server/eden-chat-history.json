@@ -6700,6 +6700,27 @@
         "mode": "god",
         "serviceType": "chat",
         "status": "active"
+      },
+      {
+        "id": "c_1769988509085_8ed056c3fa018",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is god in Eden",
+        "timestamp": 1769988509085,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769988514735_d9badc1ba8f1b",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In Eden, GOD refers to ROOT CA (Root Certificate Authority), the supreme authority and law of the Eden ecosystem. ROOT CA alone can validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It is the global certification authority, manages the ServiceRegistry, and handles settlement.",
+        "timestamp": 1769988514735,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -7600,6 +7621,66 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"
+      },
+      {
+        "id": "m_1769988513242_c8b54430cc27e",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is god in Eden",
+        "timestamp": 1769988513242,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769988514731_d9afacfc3a557",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In Eden, GOD refers to ROOT CA (Root Certificate Authority), the supreme authority and law of the Eden ecosystem. ROOT CA alone can validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It is the global certification authority, manages the ServiceRegistry, and handles settlement.",
+        "timestamp": 1769988514731,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769988647848_524c38becd1bd",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "god, please bless me",
+        "timestamp": 1769988647848,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769988647848_1e865aba6d6ae",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+        "timestamp": 1769988647848,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769988987191_6eb5109c18e2f",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "god please bless me",
+        "timestamp": 1769988987191,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769988987191_57947c36b84eb",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+        "timestamp": 1769988987191,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
       }
     ],
     "conv:garden:garden-13:user": [
@@ -7657,6 +7738,42 @@
         "role": "ASSISTANT",
         "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
         "timestamp": 1769939887323,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "status": "active"
+      },
+      {
+        "id": "c_1769988647398_d4b227310bcf2",
+        "conversationId": "conv:service:god:user",
+        "role": "USER",
+        "content": "god, please bless me",
+        "timestamp": 1769988647398,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "status": "active"
+      },
+      {
+        "id": "c_1769988647863_f3d402aee81148",
+        "conversationId": "conv:service:god:user",
+        "role": "ASSISTANT",
+        "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+        "timestamp": 1769988647863,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "status": "active"
+      },
+      {
+        "id": "c_1769988986725_78df2711cf172",
+        "conversationId": "conv:service:god:user",
+        "role": "USER",
+        "content": "god please bless me",
+        "timestamp": 1769988986725,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "status": "active"
+      },
+      {
+        "id": "c_1769988987206_6e85b74a3a7c",
+        "conversationId": "conv:service:god:user",
+        "role": "ASSISTANT",
+        "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+        "timestamp": 1769988987206,
         "userEmail": "bill.draper.auto@gmail.com",
         "status": "active"
       }

@@ -65,16 +65,19 @@ export class GodInboxComponent implements OnInit, OnDestroy {
         console.log('📨 [GOD Inbox] Received god_message_received event, refreshing inbox...');
         const eventData = event.data as any;
         
-        // Refresh conversations to show the new message
-        this.loadConversations(true);
-        
-        // If a conversation is currently selected and the new message is for that conversation,
-        // also refresh the messages
-        if (this.selectedConversation && 
-            eventData?.conversationId === this.selectedConversation.conversationId) {
-          console.log('📨 [GOD Inbox] New message for selected conversation, refreshing messages...');
-          this.loadMessages(this.selectedConversation.conversationId);
-        }
+        // Add a small delay to ensure backend has processed the message/conversation
+        setTimeout(() => {
+          // Refresh conversations to show the new message (force refresh)
+          this.loadConversations(true);
+          
+          // If a conversation is currently selected and the new message is for that conversation,
+          // also refresh the messages
+          if (this.selectedConversation && 
+              eventData?.conversationId === this.selectedConversation.conversationId) {
+            console.log('📨 [GOD Inbox] New message for selected conversation, refreshing messages...');
+            this.loadMessages(this.selectedConversation.conversationId);
+          }
+        }, 300);
       }
     });
   }
@@ -264,7 +267,16 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   }
 
   refresh(): void {
-    this.loadConversations();
+    this.loadConversations(true);
+    if (this.selectedConversation) {
+      this.loadMessages(this.selectedConversation.conversationId);
+    }
+  }
+  
+  // Public method to force refresh (can be called externally)
+  public forceRefresh(): void {
+    console.log('🔄 [GOD Inbox] Force refresh requested');
+    this.loadConversations(true);
     if (this.selectedConversation) {
       this.loadMessages(this.selectedConversation.conversationId);
     }
@@ -322,12 +334,14 @@ export class GodInboxComponent implements OnInit, OnDestroy {
             this.messages.push(response.message);
             this.messages.sort((a, b) => a.timestamp - b.timestamp);
           }
-          // Reload messages to ensure we have the latest (but don't reload conversations immediately)
+          // Reload messages immediately to ensure we have the latest
           if (this.selectedConversation) {
             this.loadMessages(this.selectedConversation.conversationId);
           }
-          // Reload conversations after a delay to update the updatedAt timestamp (throttled)
-          setTimeout(() => this.loadConversations(), 1000);
+          // Reload conversations after a delay to update the updatedAt timestamp (use force to bypass throttling)
+          setTimeout(() => {
+            this.loadConversations(true);
+          }, 1000);
         }
         this.isSendingMessage = false;
         this.cdr.detectChanges();

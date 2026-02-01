@@ -1,10 +1,10 @@
 {
   "conversations": [
     {
-      "conversationId": "conv_1769939887304_0741ba00",
+      "conversationId": "conv_1769988647843_f7eed88f",
       "scope": {
         "type": "GOVERNANCE",
-        "referenceId": "god_inbox_1769939887304"
+        "referenceId": "god_inbox_1769988647842"
       },
       "participants": [
         "bill.draper.auto@gmail.com",
@@ -51,37 +51,51 @@
         ]
       },
       "state": "OPEN",
-      "createdAt": 1769939887304,
-      "updatedAt": 1769939887305
+      "createdAt": 1769988647843,
+      "updatedAt": 1769988987188
     }
   ],
   "messages": [
     {
-      "messageId": "msg_1769939887305_4c8a7f39",
-      "conversationId": "conv_1769939887304_0741ba00",
+      "messageId": "msg_1769988647844_2006fe66",
+      "conversationId": "conv_1769988647843_f7eed88f",
       "senderId": "bill.draper.auto@gmail.com",
       "senderType": "USER",
       "senderRole": "USER",
       "messageType": "TEXT",
       "payload": {
-        "text": "please bless me"
+        "text": "god, please bless me"
       },
-      "timestamp": 1769939887305,
+      "timestamp": 1769988647844,
+      "state": "ACTIVE"
+    },
+    {
+      "messageId": "msg_1769988987187_cd105d7e",
+      "conversationId": "conv_1769988647843_f7eed88f",
+      "senderId": "bill.draper.auto@gmail.com",
+      "senderType": "USER",
+      "senderRole": "USER",
+      "messageType": "TEXT",
+      "payload": {
+        "text": "god please bless me"
+      },
+      "timestamp": 1769988987188,
       "state": "ACTIVE"
     }
   ],
   "conversationMessages": {
-    "conv_1769939887304_0741ba00": [
-      "msg_1769939887305_4c8a7f39"
+    "conv_1769988647843_f7eed88f": [
+      "msg_1769988647844_2006fe66",
+      "msg_1769988987187_cd105d7e"
     ]
   },
   "entityConversations": {
     "bill.draper.auto@gmail.com": [
-      "conv_1769939887304_0741ba00"
+      "conv_1769988647843_f7eed88f"
     ],
     "ROOT_AUTHORITY": [
-      "conv_1769939887304_0741ba00"
+      "conv_1769988647843_f7eed88f"
     ]
   },
-  "savedAt": 1769939887306
+  "savedAt": 1769988987188
 }
