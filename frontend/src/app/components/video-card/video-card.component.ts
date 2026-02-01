@@ -10,6 +10,7 @@ export class VideoCardComponent implements OnInit, OnDestroy {
   @Input() video!: Video;
   @Output() deleted = new EventEmitter<void>();
   @Output() details = new EventEmitter<Video>();
+  @Output() playVideo = new EventEmitter<Video>();
   @ViewChild('videoElement', { static: false }) videoElement?: ElementRef<HTMLVideoElement>;
   
   showVideo = false;
@@ -80,17 +81,20 @@ export class VideoCardComponent implements OnInit, OnDestroy {
   }
 
   togglePlay(): void {
-    if (this.isPlaying) {
-      this.pauseVideo();
-    } else {
-      this.showVideo = true;
-      setTimeout(() => {
-        this.playVideo();
-      }, 100);
+    console.log('🎬 [VideoCard] togglePlay() called');
+    console.log('🎬 [VideoCard] Video:', this.video);
+    console.log('🎬 [VideoCard] Video filename:', this.video?.filename);
+    console.log('🎬 [VideoCard] playVideo emitter exists:', !!this.playVideo);
+    console.log('🎬 [VideoCard] Emitting playVideo event...');
+    try {
+      this.playVideo.emit(this.video);
+      console.log('🎬 [VideoCard] playVideo event emitted successfully');
+    } catch (error) {
+      console.error('🎬 [VideoCard] Error emitting playVideo event:', error);
     }
   }
 
-  playVideo(): void {
+  playVideoInline(): void {
     const video = this.videoElement?.nativeElement;
     if (video) {
       video.play().then(() => {
@@ -111,7 +115,7 @@ export class VideoCardComponent implements OnInit, OnDestroy {
 
   onVideoLoaded(): void {
     setTimeout(() => {
-      this.playVideo();
+      this.playVideoInline();
     }, 200);
   }
 

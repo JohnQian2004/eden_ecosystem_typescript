@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, ChangeDetectorRef, HostListener, OnDestroy } from '@angular/core';
 import { VideoLibraryService, Video } from '../../services/video-library.service';
 
 @Component({
@@ -6,12 +6,16 @@ import { VideoLibraryService, Video } from '../../services/video-library.service
   templateUrl: './video-library.component.html',
   styleUrls: ['./video-library.component.scss']
 })
-export class VideoLibraryComponent implements OnInit {
+export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('videoPlayerElement', { static: false }) videoPlayerElement?: ElementRef<HTMLVideoElement>;
+  
   videos: Video[] = [];
   loading = false;
   syncing = false;
   searchQuery = '';
   selectedVideo: Video | null = null;
+  selectedVideoForPlayer: Video | null = null;
+  showVideoPlayer = false;
   librarySize = 0; // Total size in bytes
   librarySizeFormatted = '0 MB';
   selectedFilters: {
@@ -23,10 +27,17 @@ export class VideoLibraryComponent implements OnInit {
   allContentTags: string[] = [];
   filteredVideos: Video[] = [];
 
-  constructor(private videoLibraryService: VideoLibraryService) {}
+  constructor(
+    private videoLibraryService: VideoLibraryService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.loadVideos();
+  }
+
+  ngAfterViewInit(): void {
+    // No longer needed for slide-out player
   }
 
   loadVideos(): void {
@@ -66,12 +77,70 @@ export class VideoLibraryComponent implements OnInit {
     this.loadVideos();
   }
 
+  onPlayVideo(video: Video): void {
+    this.openVideoPlayer(video);
+  }
+
   openDetailsModal(video: Video): void {
     this.selectedVideo = video;
     const modalElement = document.getElementById('videoDetailsModal');
     if (modalElement) {
       const modal = new (window as any).bootstrap.Modal(modalElement);
       modal.show();
+    }
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  handleEscapeKey(event: KeyboardEvent): void {
+    if (this.showVideoPlayer && this.selectedVideoForPlayer) {
+      this.closeVideoPlayer();
+    }
+  }
+
+  openVideoPlayer(video: Video): void {
+    this.selectedVideoForPlayer = video;
+    this.showVideoPlayer = true;
+    // Prevent body scroll when player is open
+    document.body.style.overflow = 'hidden';
+    this.cdr.detectChanges();
+    
+    // Auto-play video after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      this.playVideo();
+    }, 300);
+  }
+
+  closeVideoPlayer(): void {
+    this.pauseVideo();
+    this.showVideoPlayer = false;
+    this.selectedVideoForPlayer = null;
+    // Restore body scroll
+    document.body.style.overflow = '';
+  }
+
+  ngOnDestroy(): void {
+    // Clean up: restore body scroll if component is destroyed while player is open
+    if (this.showVideoPlayer) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  playVideo(): void {
+    const video = this.videoPlayerElement?.nativeElement;
+    if (video && this.selectedVideoForPlayer) {
+      video.load();
+      video.play().catch((error) => {
+        // Autoplay might be blocked, but controls will allow manual play
+        console.log('Autoplay blocked, user can play manually');
+      });
+    }
+  }
+
+  pauseVideo(): void {
+    const video = this.videoPlayerElement?.nativeElement;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
     }
   }
 
@@ -198,6 +267,10 @@ export class VideoLibraryComponent implements OnInit {
     } else {
       this.librarySizeFormatted = `${mb.toFixed(2)} MB`;
     }
+  }
+
+  getVideoPlayerUrl(video: Video): string {
+    return this.videoLibraryService.getVideoStreamUrl(video.filename);
   }
 }
 

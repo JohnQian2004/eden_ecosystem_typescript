@@ -51,8 +51,8 @@ export class HomeMobileComponent implements OnInit, OnDestroy {
 
     // Initialize WebSocket connection
     this.websocketService.connect();
-    this.websocketService.onMessage().subscribe((message: any) => {
-      this.handleWebSocketMessage(message);
+    this.websocketService.events$.subscribe((event: any) => {
+      this.handleWebSocketMessage(event);
     });
 
     // Load chat history if needed
@@ -84,20 +84,20 @@ export class HomeMobileComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
 
     try {
-      // Send via WebSocket or HTTP
-      const response = await this.chatService.sendMessage(
+      // Send via HTTP using async method
+      const response = await this.chatService.sendMessageAsync(
         input,
         this.userEmail,
         this.conversationId || undefined,
         'workflow'
       );
 
-      if (response.conversationId) {
+      if (response && response.conversationId) {
         this.conversationId = response.conversationId;
       }
 
       // Add assistant response
-      if (response.message || response.response) {
+      if (response && (response.message || response.response)) {
         const assistantMessage: ChatMessage = {
           role: 'ASSISTANT',
           content: typeof response.message === 'string' ? response.message : JSON.stringify(response.message || response.response),

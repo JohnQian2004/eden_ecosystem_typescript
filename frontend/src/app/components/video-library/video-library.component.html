@@ -1,9 +1,41 @@
-<div class="container-fluid p-3">
+<div class="container-fluid p-3" [class.has-video-player]="showVideoPlayer && selectedVideoForPlayer">
   <!-- Video Details Modal -->
   <div class="modal fade" id="videoDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <app-video-details *ngIf="selectedVideo" [video]="selectedVideo" (close)="closeDetailsModal()"></app-video-details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Video Player Overlay -->
+  <div class="video-player-overlay" [class.show]="showVideoPlayer && selectedVideoForPlayer" (click)="closeVideoPlayer()">
+    <div class="video-player-container" (click)="$event.stopPropagation()" *ngIf="selectedVideoForPlayer">
+      <div class="video-player-header">
+        <div class="video-player-title">
+          <i class="bi bi-play-circle-fill me-2"></i>
+          {{ selectedVideoForPlayer.filename || 'Video Player' }}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-light" (click)="closeVideoPlayer()" aria-label="Close" title="Close (Esc)">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div class="video-player-body">
+        <video
+          #videoPlayerElement
+          class="w-100"
+          [src]="getVideoPlayerUrl(selectedVideoForPlayer)"
+          controls
+          playsinline
+          autoplay
+        >
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      <div class="video-player-footer">
+        <button type="button" class="btn btn-sm btn-outline-light" (click)="closeVideoPlayer(); openDetailsModal(selectedVideoForPlayer)">
+          <i class="bi bi-info-circle me-2"></i>View Details
+        </button>
       </div>
     </div>
   </div>
@@ -138,6 +170,7 @@
         [video]="video"
         (deleted)="onVideoDeleted()"
         (details)="openDetailsModal($event)"
+        (playVideo)="onPlayVideo($event)"
       ></app-video-card>
     </div>
   </div>

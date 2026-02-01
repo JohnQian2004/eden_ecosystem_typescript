@@ -1,5 +1,5 @@
 <div class="card h-100 video-card-icon">
-  <div class="video-thumbnail-container position-relative" (click)="togglePlay(); $event.stopPropagation()" style="cursor: pointer;">
+  <div class="video-thumbnail-container position-relative" (click)="togglePlay()" style="cursor: pointer;">
     <video
       *ngIf="showVideo && !videoLoadError"
       #videoElement

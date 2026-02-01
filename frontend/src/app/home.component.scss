@@ -1171,8 +1171,10 @@
     z-index: 1;
     
     .nav-item {
+      opacity: 0.85;
       .nav-link {
         position: relative;
+        color: #FFFFFF;
         background-image: url('/assets/images/eden-2028-background.png');
         background-size: cover;
         background-position: center top;
