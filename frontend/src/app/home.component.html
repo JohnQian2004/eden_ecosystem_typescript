@@ -286,6 +286,25 @@
           <div *ngIf="isLoadingAppleGardens || appleGardens.length > 0" class="eden-garden-section">
             <h6 class="mb-2">🍎 Apple Ecosystem</h6>
             <div class="row g-2">
+              <!-- GOD inbox with Mercy Button (First Element) -->
+              <div class="col-6 col-md-4 col-lg-2">
+                <div 
+                  class="card service-card-compact h-100" 
+                  (click)="openPopupChat()" 
+                  style="cursor: pointer; border: 2px solid #ffd700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                  <div class="card-body text-center p-2" style="color: white;">
+                    <div class="small mb-1">
+                      <span class="badge bg-warning text-dark">#0</span>
+                    </div>
+                    <div class="small fw-bold mb-1" style="font-size: 0.9rem;">
+                      ⚡ GOD inbox with Mercy
+                    </div>
+                    <div class="small mt-1" style="opacity: 0.9;">
+                      <span>💬 Direct Access</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of appleGardens; let idx = index; trackBy: trackByGardenId">
                 <div class="card service-card-compact h-100" (click)="selectAppleGarden(garden)" style="cursor: pointer;" [attr.data-garden-id]="garden.id">
                   <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle(garden.serviceType)">

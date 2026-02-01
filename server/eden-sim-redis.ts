@@ -3945,9 +3945,13 @@ httpServer.on("request", async (req, res) => {
           serviceType: 'chat'
         });
         
-        // 🚨 DUAL CHAT SYSTEM: Check if this is an informational query first
+        // 🚨 DUAL CHAT SYSTEM: Use LLM to classify query type
         // For Eden chat, we handle Eden-related informational queries with RAG
-        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
+        const { classifyQueryType } = await import("./src/llm");
+        const queryClassification = await classifyQueryType(input.trim());
+        const isWorkflowQuery = queryClassification.isWorkflowQuery;
+        const isInformationalQuery = queryClassification.isInformationalQuery;
+        
         const queryLower = input.trim().toLowerCase();
         
         // Check for explicit Eden context (eden, garden, or Eden-specific terms)
@@ -3962,14 +3966,10 @@ httpServer.on("request", async (req, res) => {
         // Eden-related if it has explicit Eden context OR god with Eden context
         const isEdenRelated = hasExplicitEdenContext || hasGodWithEdenContext;
         
-        const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve)\b/i.test(queryLower);
-        const isWorkflowQuery = hasActionVerbs && !hasQuestionPattern;
-        const isInformationalQuery = hasQuestionPattern || (!isWorkflowQuery && !hasActionVerbs);
-        
         if (isInformationalQuery) {
           // Informational query - handle both Eden-related (with RAG) and general knowledge (without RAG)
           const isEdenInfoQuery = isEdenRelated;
-          console.log(`💬 [Eden-Chat] Detected informational query - ${isEdenInfoQuery ? 'Eden-related (using RAG)' : 'general knowledge (no RAG)'}`);
+          console.log(`💬 [Eden-Chat] LLM classified as informational query (confidence: ${queryClassification.confidence.toFixed(2)}) - ${isEdenInfoQuery ? 'Eden-related (using RAG)' : 'general knowledge (no RAG)'}`);
           
           try {
             const { formatResponseWithOpenAI } = await import("./src/llm");
@@ -4337,9 +4337,13 @@ httpServer.on("request", async (req, res) => {
           serviceType: 'chat'
         });
         
-        // 🚨 DUAL CHAT SYSTEM: Detect if this is an informational query vs workflow query
-        // Step 1: Check if it's an informational query (Eden-related or general knowledge)
-        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
+        // 🚨 DUAL CHAT SYSTEM: Use LLM to classify query type
+        // Step 1: Use LLM to determine if this is a workflow query or informational query
+        const { classifyQueryType } = await import("./src/llm");
+        const queryClassification = await classifyQueryType(input.trim());
+        const isWorkflowQuery = queryClassification.isWorkflowQuery;
+        const isInformationalQuery = queryClassification.isInformationalQuery;
+        
         const queryLower = input.trim().toLowerCase();
         
         // Check for explicit Eden context (eden, garden, or Eden-specific terms)
@@ -4355,17 +4359,9 @@ httpServer.on("request", async (req, res) => {
         // Eden-related if it has explicit Eden context OR god with Eden context
         const isEdenRelated = hasExplicitEdenContext || hasGodWithEdenContext;
         
-        // Detect if it's a workflow/service action query (has action verbs but not a question)
-        const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve)\b/i.test(queryLower);
-        const isWorkflowQuery = hasActionVerbs && !hasQuestionPattern;
-        
-        // If it's a question pattern, treat as informational query
-        // If it has action verbs without question pattern, treat as workflow query
-        const isInformationalQuery = hasQuestionPattern || (!isWorkflowQuery && !hasActionVerbs);
-        
         if (isInformationalQuery) {
           // REGULAR TEXT CHAT (Informational Query) - Answer directly using LLM + RAG
-          console.log(`💬 [Chat] Detected informational query - answering directly`);
+          console.log(`💬 [Chat] LLM classified as informational query (confidence: ${queryClassification.confidence.toFixed(2)}) - answering directly`);
           
           // Check if it's Eden-related (use RAG) or general knowledge
           const isEdenInfoQuery = hasQuestionPattern && isEdenRelated;

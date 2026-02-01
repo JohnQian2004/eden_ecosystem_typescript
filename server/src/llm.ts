@@ -25,7 +25,7 @@ You are Eden Core AI query processor.
 Extract service query from user input.
 Return JSON only with: query (object with serviceType and filters), serviceType, confidence.
 
-Service types: "movie" or "dex"
+Service types: "movie", "dex", "autoparts", "pharmacy", "airline", "hotel", "restaurant", "grocerystore", "gasstation", "dogpark", "party", "bank", or other service types
 
 CRITICAL: Classify queries based on these rules:
 
@@ -51,6 +51,12 @@ For movie queries:
 Example: {"query": {"serviceType": "movie", "filters": {"location": "Baltimore", "maxPrice": 10}}, "serviceType": "movie", "confidence": 0.95}
 Example: {"query": {"serviceType": "movie", "filters": {"maxPrice": "best"}}, "serviceType": "movie", "confidence": 0.95}
 Example: {"query": {"serviceType": "movie", "filters": {}}, "serviceType": "movie", "confidence": 0.95}
+
+For autoparts queries:
+Example: {"query": {"serviceType": "autoparts", "filters": {}}, "serviceType": "autoparts", "confidence": 0.95}
+Example for "create a auto shop simulator": {"query": {"serviceType": "autoparts", "filters": {}}, "serviceType": "autoparts", "confidence": 0.9}
+Example for "create a auto body shop simulator": {"query": {"serviceType": "autoparts", "filters": {}}, "serviceType": "autoparts", "confidence": 0.9}
+Example for "find autoparts": {"query": {"serviceType": "autoparts", "filters": {}}, "serviceType": "autoparts", "confidence": 0.95}
 
 For DEX token trading queries (BUY/SELL tokens):
 - tokenSymbol: The token being bought/sold (e.g., "TOKENA", "TOKENB", "TOKENC", "Token A", "TOKEN")
@@ -119,13 +125,38 @@ Example for "buy TOKEN": {"query": {"serviceType": "dex", "filters": {"tokenSymb
 Example for "buy 2 TOKENA": {"query": {"serviceType": "dex", "filters": {"tokenSymbol": "TOKENA", "baseToken": "SOL", "action": "BUY", "tokenAmount": 2}}, "serviceType": "dex", "confidence": 0.95}
   * NOTE: In "buy 2 TOKENA", the number 2 refers to tokens (tokenAmount), not SOL (baseAmount)
 
+AUTOPARTS SERVICE (serviceType: "autoparts"):
+- Keywords: "autopart", "autoparts", "auto part", "auto parts", "car part", "car parts", "auto shop", "auto body shop", "auto repair", "bumper", "brake", "tire", "wheel", "engine", "transmission", "simulator" (when combined with auto/autoparts)
+- Examples: "create a auto shop simulator", "create a auto body shop simulator", "find autoparts", "buy car parts", "auto repair shop", "auto body shop"
+- If user says "create a [auto/autoparts] simulator" or "create [auto/autoparts] shop simulator" → AUTOPARTS
+- Extract filters: location, maxPrice, partName, vehicleMake, vehicleModel, year
+
+PHARMACY SERVICE (serviceType: "pharmacy"):
+- Keywords: "pharmacy", "prescription", "medication", "drug", "pharmaceutical"
+- Examples: "find a pharmacy", "prescription drugs", "pharmacy near me"
+
+AIRLINE SERVICE (serviceType: "airline"):
+- Keywords: "flight", "airline", "airport", "fly", "ticket" (when combined with flight/airline)
+- Examples: "book a flight", "find flights", "airline tickets"
+
+HOTEL SERVICE (serviceType: "hotel"):
+- Keywords: "hotel", "lodging", "accommodation", "room", "reservation" (when hotel-related)
+- Examples: "book a hotel", "find hotels", "hotel room"
+
+RESTAURANT SERVICE (serviceType: "restaurant"):
+- Keywords: "restaurant", "dining", "food", "meal", "eat", "dinner", "lunch"
+- Examples: "find a restaurant", "book a table", "restaurant reservation"
+
 CRITICAL DISAMBIGUATION RULES:
-- "buy tickets" or "buy 2 tickets" = MOVIE (only if NO mention of "TOKEN", "SOL", "DEX", "pool", "trade", "swap")
+- "buy tickets" or "buy 2 tickets" = MOVIE (only if NO mention of "TOKEN", "SOL", "DEX", "pool", "trade", "swap", "flight", "airline")
 - "Trade 2 SOL with TOKEN" = DEX (has "trade", "SOL", and "TOKEN")
 - "buy TOKEN" = DEX (has "TOKEN")
 - "buy token with SOL" = DEX (has "token" and "SOL")
+- "create a auto shop simulator" or "create a auto body shop simulator" = AUTOPARTS (has "auto" and "simulator" or "shop")
+- "create a simulator" (without auto/autoparts context) = Check other keywords to determine service type
+- "auto shop", "auto body shop", "auto repair", "autoparts", "car parts" = AUTOPARTS
 - If user mentions BOTH movie keywords AND DEX keywords (TOKEN, SOL, DEX, pool, trade), prioritize DEX classification
-- When in doubt between movie and DEX, check: Does the query mention "TOKEN", "SOL", "DEX", "pool", or "trade"? If YES → DEX. If NO → Movie.
+- When in doubt between movie and DEX, check: Does the query mention "TOKEN", "SOL", "DEX", "pool", or "trade"? If YES → DEX. If NO → Check for other service types.
 `;
 
 /**
@@ -561,6 +592,143 @@ Return JSON format:
 `;
 
 /**
+ * Classify query type using LLM - determines if query is workflow/service request or informational
+ */
+export async function classifyQueryType(userInput: string): Promise<{ isWorkflowQuery: boolean; isInformationalQuery: boolean; confidence: number }> {
+  // Handle MOCKED_LLM mode
+  if (MOCKED_LLM) {
+    const inputLower = userInput.toLowerCase();
+    // Simple heuristic for mock mode
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+    const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
+    const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+    return {
+      isWorkflowQuery: isWorkflow,
+      isInformationalQuery: !isWorkflow,
+      confidence: 0.7
+    };
+  }
+
+  const QUERY_CLASSIFICATION_PROMPT = `
+You are Eden query classifier.
+Determine if a user query is a WORKFLOW/SERVICE REQUEST (should trigger Eden workflows) or an INFORMATIONAL QUERY (should be answered directly).
+
+WORKFLOW/SERVICE QUERIES are:
+- Action requests that should trigger Eden workflows or services
+- Examples: "book a movie", "buy movie tickets", "trade 2 SOL", "find a pharmacy", "create a service", "build a simulator", "order food", "get a hotel room"
+- Requests to perform actions, transactions, or create/configure things in Eden
+- Service requests that need workflow processing
+- Even if phrased as questions, if they're requesting an action → WORKFLOW QUERY
+- Examples of action questions: "can you book a movie?", "how do I buy tokens?", "where can I find a pharmacy?"
+
+INFORMATIONAL QUERIES are:
+- Questions asking for information, explanations, or guidance
+- Examples: "how does Eden work?", "what is the garden of Eden?", "who is GOD?", "explain quantum physics", "what is today?"
+- Questions about how to use Eden (not requesting an action, just asking for information)
+- General knowledge questions unrelated to Eden services
+- Questions that don't require workflow execution
+
+CRITICAL DISTINCTION:
+- "create a simulator" → WORKFLOW QUERY (requesting to create something)
+- "how to create a simulator" → INFORMATIONAL QUERY (asking for instructions/information)
+- "book a movie" → WORKFLOW QUERY (action request)
+- "how do I book a movie?" → WORKFLOW QUERY (action request, even though it's a question)
+- "what is a movie?" → INFORMATIONAL QUERY (information request)
+
+Return JSON only with: isWorkflowQuery (boolean), isInformationalQuery (boolean), confidence (number 0-1)
+
+Examples:
+Input: "book a movie"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+
+Input: "create a auto body shop simulator"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.9}
+
+Input: "how to create a simulator"
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.9}
+
+Input: "what is Eden"
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
+
+Input: "how does Eden work"
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
+
+Input: "can you book a movie for me"
+Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+`;
+
+  try {
+    const messages = [
+      { role: "system", content: QUERY_CLASSIFICATION_PROMPT },
+      { role: "user", content: userInput }
+    ];
+
+    const content = await callCohereAPI(messages, {
+      temperature: 0.3,
+      max_tokens: 200,
+      response_format: { type: "json_object" }
+    });
+
+    // Try to parse JSON response
+    let parsed: any;
+    try {
+      let jsonStr = content.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1];
+      } else {
+        const jsonObjectMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonObjectMatch) {
+          jsonStr = jsonObjectMatch[0];
+        }
+      }
+      
+      jsonStr = jsonStr.trim();
+      parsed = JSON.parse(jsonStr);
+      
+      // Validate the parsed object
+      if (typeof parsed.isWorkflowQuery !== 'boolean' || typeof parsed.isInformationalQuery !== 'boolean' || typeof parsed.confidence !== 'number') {
+        throw new Error('Invalid JSON structure');
+      }
+    } catch (parseError: any) {
+      const contentPreview = content.substring(0, 200);
+      console.warn(`⚠️ [classifyQueryType] Failed to parse JSON response. Input: "${userInput.substring(0, 50)}...". Content preview: ${contentPreview}`);
+      
+      // Fallback: use simple heuristics
+      const inputLower = userInput.toLowerCase();
+      const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+      const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
+      const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+      
+      return {
+        isWorkflowQuery: isWorkflow,
+        isInformationalQuery: !isWorkflow,
+        confidence: 0.6
+      };
+    }
+
+    return {
+      isWorkflowQuery: parsed.isWorkflowQuery === true,
+      isInformationalQuery: parsed.isInformationalQuery === true,
+      confidence: parsed.confidence || 0.5
+    };
+  } catch (error: any) {
+    console.error(`❌ [classifyQueryType] Error:`, error);
+    // Fallback: use simple heuristics
+    const inputLower = userInput.toLowerCase();
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
+    const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
+    const isWorkflow = hasActionVerbs && !hasQuestionPattern;
+    
+    return {
+      isWorkflowQuery: isWorkflow,
+      isInformationalQuery: !isWorkflow,
+      confidence: 0.5
+    };
+  }
+}
+
+/**
  * Detect if message should be routed to GOD's inbox using LLM
  */
 export async function detectGodMessage(userInput: string): Promise<{ shouldRouteToGodInbox: boolean; confidence: number }> {
@@ -593,6 +761,9 @@ NOT GOD messages:
 - Questions about Eden that mention GOD in context (e.g., "how does GOD work in Eden")
 - Service requests that happen to mention GOD (e.g., "book a movie with GOD")
 - General informational queries
+- Requests to create or build something (e.g., "create a simulator")
+
+CRITICAL: You MUST respond with ONLY valid JSON. No explanations, no markdown, no additional text. Just the JSON object.
 
 Return JSON only with: shouldRouteToGodInbox (boolean), confidence (number 0-1)
 
@@ -617,6 +788,9 @@ Output: {"shouldRouteToGodInbox": false, "confidence": 0.85}
 
 Input: "book a movie"
 Output: {"shouldRouteToGodInbox": false, "confidence": 0.95}
+
+Input: "create a simulator"
+Output: {"shouldRouteToGodInbox": false, "confidence": 0.95}
 `;
 
   try {
@@ -627,18 +801,41 @@ Output: {"shouldRouteToGodInbox": false, "confidence": 0.95}
 
     const content = await callCohereAPI(messages, {
       temperature: 0.3,
-      max_tokens: 200
+      max_tokens: 200,
+      response_format: { type: "json_object" }
     });
 
-    // Try to parse JSON response
+    // Try to parse JSON response with improved extraction
     let parsed: any;
     try {
-      // Remove markdown code blocks if present
-      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || content.match(/(\{[\s\S]*\})/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : content;
+      // First, try to find JSON in markdown code blocks
+      let jsonStr = content.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1];
+      } else {
+        // Try to find JSON object in the content
+        const jsonObjectMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonObjectMatch) {
+          jsonStr = jsonObjectMatch[0];
+        }
+      }
+      
+      // Clean up the JSON string - remove any leading/trailing whitespace or non-JSON text
+      jsonStr = jsonStr.trim();
+      
+      // Try to parse
       parsed = JSON.parse(jsonStr);
+      
+      // Validate the parsed object has the required fields
+      if (typeof parsed.shouldRouteToGodInbox !== 'boolean' || typeof parsed.confidence !== 'number') {
+        throw new Error('Invalid JSON structure');
+      }
     } catch (parseError: any) {
-      console.warn(`⚠️ [detectGodMessage] Failed to parse JSON response. Content: ${content.substring(0, 200)}`);
+      // Log more detailed error information for debugging
+      const contentPreview = content.substring(0, 200);
+      console.warn(`⚠️ [detectGodMessage] Failed to parse JSON response. Input: "${userInput.substring(0, 50)}...". Content preview: ${contentPreview}`);
+      
       // Fallback: use keyword-based detection
       const queryLower = userInput.toLowerCase();
       const hasGodDirect = /\b(god|root\s*ca|roca|root\s*authority)\b/i.test(queryLower) && 
@@ -686,7 +883,13 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
     let mockServiceType = "movie";
     let mockFilters: any = {};
     
-    if (inputLower.includes("token") || inputLower.includes("dex") || inputLower.includes("pool")) {
+    // Check autoparts FIRST (before movie) to catch "auto shop simulator" queries
+    if (inputLower.includes("autopart") || inputLower.includes("auto shop") || inputLower.includes("auto body shop") || 
+        inputLower.includes("auto repair") || inputLower.includes("car part") || 
+        (inputLower.includes("auto") && inputLower.includes("simulator"))) {
+      mockServiceType = "autoparts";
+      mockFilters = {};
+    } else if (inputLower.includes("token") || inputLower.includes("dex") || inputLower.includes("pool")) {
       mockServiceType = "dex";
       mockFilters = {
         tokenSymbol: inputLower.includes("tokenb") || inputLower.includes("token b") ? "TOKENB" : "TOKENA",
@@ -700,7 +903,8 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
         destination: "any",
         date: "any"
       };
-    } else if (inputLower.includes("autopart") || inputLower.includes("car") || inputLower.includes("brake") || inputLower.includes("bumper")) {
+    } else if (inputLower.includes("car") && !inputLower.includes("movie") && !inputLower.includes("ticket")) {
+      // "car" without movie/ticket context might be autoparts
       mockServiceType = "autoparts";
       mockFilters = {};
     } else {
@@ -759,7 +963,12 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
         let fallbackFilters: any = {};
         
         // Simple keyword-based fallback classification
-        if (inputLower.includes("token") || inputLower.includes("dex") || inputLower.includes("pool") || inputLower.includes("trade") || inputLower.includes("swap")) {
+        // Check autoparts FIRST (before movie) to catch "auto shop simulator" queries
+        if (inputLower.includes("autopart") || inputLower.includes("auto shop") || inputLower.includes("auto body shop") || 
+            inputLower.includes("auto repair") || inputLower.includes("car part") || 
+            (inputLower.includes("auto") && inputLower.includes("simulator"))) {
+          fallbackServiceType = "autoparts";
+        } else if (inputLower.includes("token") || inputLower.includes("dex") || inputLower.includes("pool") || inputLower.includes("trade") || inputLower.includes("swap")) {
           fallbackServiceType = "dex";
           fallbackFilters = {
             tokenSymbol: inputLower.includes("tokenb") || inputLower.includes("token b") ? "TOKENB" : "TOKENA",
@@ -774,7 +983,8 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
           fallbackServiceType = "hotel";
         } else if (inputLower.includes("restaurant")) {
           fallbackServiceType = "restaurant";
-        } else if (inputLower.includes("autopart") || inputLower.includes("car")) {
+        } else if (inputLower.includes("car") && !inputLower.includes("movie") && !inputLower.includes("ticket")) {
+          // "car" without movie/ticket context might be autoparts
           fallbackServiceType = "autoparts";
         }
         

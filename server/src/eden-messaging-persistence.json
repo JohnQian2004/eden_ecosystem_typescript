@@ -1,20 +1,20 @@
 {
   "conversations": [
     {
-      "conversationId": "conv_1769919905183_8ad48244",
+      "conversationId": "conv_1769939887304_0741ba00",
       "scope": {
         "type": "GOVERNANCE",
-        "referenceId": "god_inbox_1769919905183"
+        "referenceId": "god_inbox_1769939887304"
       },
       "participants": [
-        "rashardgarcia@gmail.com",
+        "bill.draper.auto@gmail.com",
         "ROOT_AUTHORITY"
       ],
       "policy": {
         "readPermissions": [
           {
             "entityType": "USER",
-            "entityId": "rashardgarcia@gmail.com"
+            "entityId": "bill.draper.auto@gmail.com"
           },
           {
             "entityType": "ROOT_AUTHORITY",
@@ -24,7 +24,7 @@
         "writePermissions": [
           {
             "entityType": "USER",
-            "entityId": "rashardgarcia@gmail.com"
+            "entityId": "bill.draper.auto@gmail.com"
           },
           {
             "entityType": "ROOT_AUTHORITY",
@@ -51,50 +51,37 @@
         ]
       },
       "state": "OPEN",
-      "createdAt": 1769919905183,
-      "updatedAt": 1769919931368
+      "createdAt": 1769939887304,
+      "updatedAt": 1769939887305
     }
   ],
   "messages": [
     {
-      "messageId": "msg_1769919905184_1230562b",
-      "conversationId": "conv_1769919905183_8ad48244",
-      "senderId": "rashardgarcia@gmail.com",
+      "messageId": "msg_1769939887305_4c8a7f39",
+      "conversationId": "conv_1769939887304_0741ba00",
+      "senderId": "bill.draper.auto@gmail.com",
       "senderType": "USER",
       "senderRole": "USER",
       "messageType": "TEXT",
       "payload": {
-        "text": "god please bless me"
+        "text": "please bless me"
       },
-      "timestamp": 1769919905184,
-      "state": "ACTIVE"
-    },
-    {
-      "messageId": "msg_1769919931368_85f12af7",
-      "conversationId": "conv_1769919905183_8ad48244",
-      "senderId": "ROOT_AUTHORITY",
-      "senderType": "ROOT_AUTHORITY",
-      "messageType": "TEXT",
-      "payload": {
-        "text": "I will bless you"
-      },
-      "timestamp": 1769919931368,
+      "timestamp": 1769939887305,
       "state": "ACTIVE"
     }
   ],
   "conversationMessages": {
-    "conv_1769919905183_8ad48244": [
-      "msg_1769919905184_1230562b",
-      "msg_1769919931368_85f12af7"
+    "conv_1769939887304_0741ba00": [
+      "msg_1769939887305_4c8a7f39"
     ]
   },
   "entityConversations": {
-    "rashardgarcia@gmail.com": [
-      "conv_1769919905183_8ad48244"
+    "bill.draper.auto@gmail.com": [
+      "conv_1769939887304_0741ba00"
     ],
     "ROOT_AUTHORITY": [
-      "conv_1769919905183_8ad48244"
+      "conv_1769939887304_0741ba00"
     ]
   },
-  "savedAt": 1769919931368
+  "savedAt": 1769939887306
 }

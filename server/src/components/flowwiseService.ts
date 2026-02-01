@@ -278,8 +278,13 @@ export async function startWorkflowFromUserInput(
       const { mapUserInputToServices } = await import("../llmServiceMapper");
       serviceSelection = await mapUserInputToServices(userInput);
       selectedServiceType = serviceSelection.serviceType;
-      console.log(`🤖 [FlowWiseService] LLM selected serviceType: ${selectedServiceType}`);
-      console.log(`🤖 [FlowWiseService] LLM selected ${serviceSelection.selectedProviders.length} provider(s)`);
+      console.log(`🤖 [FlowWiseService] ========================================`);
+      console.log(`🤖 [FlowWiseService] LLM SERVICE MAPPER RESULT:`);
+      console.log(`🤖 [FlowWiseService]   - User input: "${userInput.substring(0, 100)}"`);
+      console.log(`🤖 [FlowWiseService]   - Detected serviceType: "${selectedServiceType}"`);
+      console.log(`🤖 [FlowWiseService]   - Selected ${serviceSelection.selectedProviders.length} provider(s)`);
+      console.log(`🤖 [FlowWiseService]   - Providers: ${serviceSelection.selectedProviders.map((p: any) => `${p.providerName} (${p.providerId})`).join(', ')}`);
+      console.log(`🤖 [FlowWiseService] ========================================`);
     } catch (error: any) {
       console.error(`❌ [FlowWiseService] LLM service mapper failed: ${error.message}`);
       // Fallback to default serviceType
@@ -297,9 +302,29 @@ export async function startWorkflowFromUserInput(
   }
   
   // Load workflow definition
+  console.log(`📋 [FlowWiseService] Loading workflow for serviceType: "${selectedServiceType}"`);
   const workflow = loadWorkflowDefinition(selectedServiceType);
   if (!workflow) {
     throw new Error(`Workflow not found for service type: ${selectedServiceType}`);
+  }
+  console.log(`✅ [FlowWiseService] Workflow loaded: "${workflow.name}" with ${workflow.steps.length} steps`);
+  
+  // CRITICAL: Validate that the loaded workflow matches the expected serviceType
+  // Check the first step that has a name to verify it's the right workflow
+  const firstNamedStep = workflow.steps.find((s: any) => s.name);
+  if (firstNamedStep) {
+    console.log(`🔍 [FlowWiseService] First named step: "${firstNamedStep.name}" (step id: ${firstNamedStep.id})`);
+    // Check if it's a movie workflow when we expected autoparts
+    if (selectedServiceType === 'autoparts' && firstNamedStep.name.includes('Movie')) {
+      console.error(`❌ [FlowWiseService] MISMATCH: Expected autoparts workflow but loaded movie workflow!`);
+      console.error(`❌ [FlowWiseService] Step name "${firstNamedStep.name}" indicates wrong workflow loaded`);
+      throw new Error(`Workflow mismatch: Expected autoparts workflow but loaded movie workflow. Check serviceType detection.`);
+    }
+    // Check if it's an autoparts workflow when we expected movie
+    if (selectedServiceType === 'movie' && firstNamedStep.name.includes('Part')) {
+      console.error(`❌ [FlowWiseService] MISMATCH: Expected movie workflow but loaded autoparts workflow!`);
+      throw new Error(`Workflow mismatch: Expected movie workflow but loaded autoparts workflow.`);
+    }
   }
 
   // Calculate workflow processing gas
@@ -339,7 +364,7 @@ export async function startWorkflowFromUserInput(
     executionId,
     workflow,
     context,
-    serviceType, // CRITICAL: Store original serviceType from workflow - never let LLM override this
+    serviceType: selectedServiceType, // CRITICAL: Store determined serviceType from workflow - never let LLM override this
     currentStep: workflow.initialStep,
     history: [],
     flowwiseServiceUUID: FLOWWISE_SERVICE_UUID // Store certificate UUID for audit trail
@@ -570,10 +595,20 @@ export async function executeNextStep(executionId: string): Promise<{
   // This check MUST happen FIRST, before any transition evaluation
   console.log(`🔍 [FlowWiseService] Checking step type: ${step.type}, requiresUserDecision: ${step.requiresUserDecision}, step.id: ${step.id}`);
   if (step.type === "decision" && step.requiresUserDecision) {
+    // Resolve template variables early for logging
+    const resolvedPrompt = replaceTemplateVariables(step.decisionPrompt || "", context);
+    
     console.log(`🤔 [FlowWiseService] ========================================`);
     console.log(`🤔 [FlowWiseService] ⚠️⚠️⚠️ DECISION STEP DETECTED: ${step.id} ⚠️⚠️⚠️`);
     console.log(`🤔 [FlowWiseService] Step name: ${step.name}`);
-    console.log(`🤔 [FlowWiseService] Decision prompt: ${step.decisionPrompt}`);
+    console.log(`🤔 [FlowWiseService] Decision prompt (raw): ${step.decisionPrompt}`);
+    console.log(`🤔 [FlowWiseService] Decision prompt (resolved): ${resolvedPrompt}`);
+    console.log(`🤔 [FlowWiseService] Context selectedListing exists: ${!!context.selectedListing}`);
+    if (context.selectedListing) {
+      console.log(`🤔 [FlowWiseService] Context selectedListing.movieTitle: ${context.selectedListing.movieTitle || 'missing'}`);
+      console.log(`🤔 [FlowWiseService] Context selectedListing.showtime: ${context.selectedListing.showtime || 'missing'}`);
+      console.log(`🤔 [FlowWiseService] Context selectedListing.price: ${context.selectedListing.price || 'missing'}`);
+    }
     console.log(`🤔 [FlowWiseService] Decision options count: ${step.decisionOptions?.length || 0}`);
     console.log(`🤔 [FlowWiseService] Current step in execution: ${execution.currentStep}`);
     console.log(`🤔 [FlowWiseService] Context userDecision BEFORE clear: ${context.userDecision}`);
@@ -731,6 +766,7 @@ export async function executeNextStep(executionId: string): Promise<{
     }
     
     // Build decision prompt - include iGas cost if available
+    // Note: Template variables already resolved above for logging, but resolve again here to ensure latest context
     let decisionPrompt = replaceTemplateVariables(step.decisionPrompt || "", context);
     
     // If iGas cost is available and not already mentioned in prompt, add it

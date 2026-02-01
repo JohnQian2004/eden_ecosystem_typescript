@@ -11,7 +11,7 @@
  * - Returns structured selection that can be used to start workflows
  */
 
-import { extractQueryWithOpenAI, extractQueryWithDeepSeek } from "./llm";
+import { extractQueryWithOpenAI } from "./llm";
 import { queryROOTCAServiceRegistry, type ServiceProvider } from "./serviceProvider";
 import { ROOT_CA_SERVICE_REGISTRY } from "./state";
 import { ENABLE_OPENAI, MOCKED_LLM } from "./config";
@@ -191,13 +191,19 @@ export async function mapUserInputToServices(
   availableProviders?: ServiceProvider[]
 ): Promise<ServiceSelection> {
   if (MOCKED_LLM) {
-    // Mock response for testing
+    // Mock response for testing - detect autoparts from input
+    const inputLower = userInput.toLowerCase();
+    const mockServiceType = (inputLower.includes("autopart") || inputLower.includes("auto shop") || 
+                            inputLower.includes("auto body shop") || inputLower.includes("auto repair") ||
+                            (inputLower.includes("auto") && inputLower.includes("simulator"))) 
+                            ? "autoparts" : "movie";
+    
     return {
-      serviceType: "movie",
+      serviceType: mockServiceType,
       selectedProviders: [
         {
-          providerId: "amc-001",
-          providerName: "AMC Theatres",
+          providerId: mockServiceType === "autoparts" ? "autoparts-001" : "amc-001",
+          providerName: mockServiceType === "autoparts" ? "Garden-AUTOPARTS Provider" : "AMC Theatres",
           gardenId: "HG",
           confidence: 0.95,
           reason: "Mock selection for testing"
@@ -214,9 +220,32 @@ export async function mapUserInputToServices(
     };
   }
 
+  // STEP 1: Use extractQueryWithOpenAI to determine serviceType first
+  // This ensures we correctly classify autoparts, movie, dex, etc.
+  let detectedServiceType: string | null = null;
+  try {
+    const queryResult = await extractQueryWithOpenAI(userInput);
+    detectedServiceType = queryResult.serviceType;
+    console.log(`🤖 [LLM Service Mapper] Query extraction detected serviceType: ${detectedServiceType}`);
+  } catch (error: any) {
+    console.warn(`⚠️ [LLM Service Mapper] Query extraction failed, will use full service registry: ${error.message}`);
+  }
+
   // Get available providers (filter out core services)
   let providers: ServiceProvider[] = availableProviders || Array.from(ROOT_CA_SERVICE_REGISTRY);
   providers = filterCoreServices(providers);
+  
+  // CRITICAL: Filter providers by detected serviceType if available
+  // This ensures we only send relevant services to the LLM for selection
+  if (detectedServiceType) {
+    const filteredProviders = providers.filter(p => p.serviceType === detectedServiceType);
+    if (filteredProviders.length > 0) {
+      providers = filteredProviders;
+      console.log(`🤖 [LLM Service Mapper] Filtered to ${providers.length} ${detectedServiceType} service(s) based on query extraction`);
+    } else {
+      console.warn(`⚠️ [LLM Service Mapper] No providers found for detected serviceType "${detectedServiceType}", using all providers`);
+    }
+  }
   
   // CRITICAL: For DEX-related queries, only send DEX services to LLM
   // Detect DEX intent from user input (keywords like "buy", "sell", "trade", "token", "dex", "sol", etc.)
@@ -224,7 +253,7 @@ export async function mapUserInputToServices(
   const userInputLower = userInput.toLowerCase();
   const isDexQuery = dexKeywords.some(keyword => userInputLower.includes(keyword));
   
-  if (isDexQuery) {
+  if (isDexQuery && (!detectedServiceType || detectedServiceType === 'dex')) {
     // Filter to only DEX services
     providers = providers.filter(p => p.serviceType === 'dex');
     console.log(`🤖 [LLM Service Mapper] DEX query detected - filtering to ${providers.length} DEX service(s) only`);
@@ -259,9 +288,6 @@ Analyze the user input and select the best matching services from the registry a
 Return ONLY the JSON object as specified in the format above.`;
 
   try {
-    // Use OpenAI or DeepSeek to analyze and select
-    const extractFn = ENABLE_OPENAI ? extractQueryWithOpenAI : extractQueryWithDeepSeek;
-    
     // Call LLM directly with the service selection prompt
     const { callLLM } = await import("./llm");
     
@@ -289,6 +315,13 @@ Return ONLY the JSON object as specified in the format above.`;
     // Validate selection
     if (!selection.serviceType || !selection.selectedProviders || selection.selectedProviders.length === 0) {
       throw new Error("LLM selection missing required fields (serviceType or selectedProviders)");
+    }
+
+    // CRITICAL: Override serviceType with detected serviceType from query extraction if available
+    // This ensures autoparts queries don't get misclassified as movie
+    if (detectedServiceType && detectedServiceType !== selection.serviceType) {
+      console.log(`⚠️ [LLM Service Mapper] Service type mismatch: LLM selected "${selection.serviceType}", but query extraction detected "${detectedServiceType}". Using detected type.`);
+      selection.serviceType = detectedServiceType;
     }
 
     // Validate that selected providers actually exist in registry
