@@ -16,6 +16,32 @@ import { EdenUser } from './models/identity.models';
 import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
 import { CacheInterceptor } from './services/cache.interceptor';
 
+// System Architecture interfaces (moved from sidebar)
+interface ComponentStatus {
+  name: string;
+  status: 'idle' | 'active' | 'success' | 'error';
+  lastUpdate: number;
+  count: number;
+  category?: 'root' | 'indexer' | 'service-provider' | 'service-registry' | 'llm' | 'edencore' | 'user' | 'infrastructure';
+}
+
+interface ComponentGroup {
+  name: string;
+  icon: string;
+  components: ComponentStatus[];
+  expanded: boolean;
+  category: ComponentStatus['category'] | 'root';
+}
+
+interface GardenInfo {
+  id: string;
+  name: string;
+  stream: string;
+  active: boolean;
+  type?: 'root' | 'regular' | 'token';
+  serviceType?: string;
+}
+
 export interface ServiceProvider {
   id: string;
   name: string;
@@ -196,6 +222,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   isLoadingServices: boolean = false;
   hasServiceIndexers: boolean = false; // Track if there are any service gardens (non-root)
   
+  // System Architecture (moved from sidebar - visible to all users)
+  architectureComponents: Map<string, ComponentStatus> = new Map();
+  architectureGroups: ComponentGroup[] = [];
+  architectureGardens: GardenInfo[] = [];
+  selectedArchitectureGardenTab: string = '';
+  selectedArchitectureGardenComponents: ComponentStatus[] = [];
+  architectureServiceProviders: Map<string, {id: string, name: string, serviceType: string, gardenId: string}> = new Map();
+  architectureViewMode: 'tree' | 'table' = 'tree';
+  architectureGardensTableData: Array<{id: string, name: string, serviceType: string, ownerEmail: string, active: boolean, type?: string}> = [];
+  isLoadingArchitectureGardensTable: boolean = false;
+  rootCAServiceRegistry: ComponentStatus[] = [];
+  
   // Snake (Advertising) Service Providers
   snakeProviders: ServiceProvider[] = [];
   isLoadingSnakeProviders: boolean = false;
@@ -208,7 +246,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' = 'workflow';
+  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' = 'workflow-chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -808,7 +846,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.initTheme();
     // Debug toggle (keeps UI responsive by default)
     this.debugWebsocketEvents = String(localStorage.getItem('edenDebugWsEvents') || '').toLowerCase() === 'true';
-
+    
+    // Initialize System Architecture
+    this.initializeArchitectureHierarchy();
+    this.fetchArchitectureGardens();
+    this.fetchArchitectureGardensTableData();
+    
     // Subscribe to FlowWise decision requests
     console.log('🔌 [App] ========================================');
     console.log('🔌 [App] Subscribing to FlowWise decision requests');
@@ -1262,6 +1305,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
     }
     
+    // Subscribe to WebSocket events for System Architecture updates
+    this.wsService.events$.subscribe((event: SimulatorEvent) => {
+      this.updateArchitectureComponentStatus(event);
+      this.updateSelectedArchitectureGardenComponents();
+    });
+    
     // Listen for service provider creation events to refresh service types
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
       if (event.type === 'service_provider_created' || event.type === 'service_provider_registered') {
@@ -1274,6 +1323,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
         // Throttle refresh: garden creation can fan out into many provider events.
         this.requestGardensRefresh();
         this.requestServicesRefresh();
+        // Also refresh architecture gardens
+        this.fetchArchitectureGardens();
       }
 
       // Listen for DEX garden creation events to refresh DEX gardens list
@@ -1535,17 +1586,31 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     });
   }
 
-  private inferServiceTypeFromGarden(garden: { name?: string; serviceType?: string; type?: string } | null | undefined): string {
+  inferServiceTypeFromGarden(garden: { name?: string; serviceType?: string; type?: string; id?: string } | null | undefined): string {
     const raw = String((garden as any)?.serviceType || (garden as any)?.type || '').toLowerCase().trim();
     // 'regular' is the garden kind, not a workflow serviceType.
     if (raw && raw !== 'regular' && raw !== 'root' && raw !== 'token') return raw;
 
-    const name = String((garden as any)?.name || '');
+    const name = String((garden as any)?.name || '').toLowerCase();
+    const id = String((garden as any)?.id || '').toLowerCase();
+    
+    // Check name and id for service type patterns
+    if (name.includes('movie') || id.includes('movie')) return 'movie';
+    if (name.includes('dex') || id.includes('dex')) return 'dex';
+    if (name.includes('airline') || id.includes('airline')) return 'airline';
+    if (name.includes('autoparts') || id.includes('autoparts')) return 'autoparts';
+    if (name.includes('hotel') || id.includes('hotel')) return 'hotel';
+    if (name.includes('restaurant') || id.includes('restaurant')) return 'restaurant';
+    if (name.includes('snake') || id.includes('snake')) return 'snake';
+    if ((garden as any)?.type === 'root') return 'root';
+    if ((garden as any)?.type === 'token') return 'token';
+    
+    // Try to extract from name pattern
     const m = name.match(/garden[-_\s]+([a-z0-9]+)/i);
     const fromName = String(m?.[1] || '').toLowerCase().trim();
     if (fromName) return fromName;
 
-    return 'movie';
+    return 'movie'; // Default fallback
   }
 
   private getServiceTypePrompt(serviceType: string | undefined): { type: string; sampleQuery: string } {
@@ -4173,6 +4238,575 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   setActiveConversationPublic(conversationId: string): void {
     this.setActiveConversation(conversationId);
+  }
+
+  // ========== System Architecture Methods (moved from sidebar) ==========
+  
+  // Initialize System Architecture hierarchy
+  initializeArchitectureHierarchy() {
+    // 1. ROOT CA (Law / Moses) - Top level
+    this.addArchitectureComponent('root-ca', 'ROOT CA', 'root');
+    
+    // 2. Gardens (Knowledge Trees) - Federated nodes
+    this.addArchitectureComponent('garden-a', 'Garden A', 'indexer');
+    this.addArchitectureComponent('garden-b', 'Garden B', 'indexer');
+    this.addArchitectureComponent('redis', 'Replication Bus', 'indexer');
+    
+    // 3. Service Providers (Apples on Trees)
+    this.addArchitectureComponent('amc-api', 'AMC Theatres', 'service-provider');
+    this.addArchitectureComponent('moviecom-api', 'MovieCom', 'service-provider');
+    this.addArchitectureComponent('cinemark-api', 'Cinemark', 'service-provider');
+    
+    // 4. Service Registry & Routing
+    this.addArchitectureComponent('service-registry', 'Service Registry', 'service-registry');
+    
+    // 5. LLM (Intelligence Layer)
+    this.addArchitectureComponent('llm', 'LLM Intelligence', 'llm');
+    this.addArchitectureComponent('root-ca-llm-getdata', 'ROOT CA LLM getData() Converter', 'llm');
+    this.addArchitectureComponent('root-ca-llm-service-mapper', 'ROOT CA LLM Service Mapper', 'llm');
+    
+    // 5.5. ROOT CA Trading Infrastructure
+    this.addArchitectureComponent('root-ca-price-order-service', 'ROOT CA Price Order Service', 'infrastructure');
+    
+    // 6. EdenCore (Ledger + Snapshots)
+    this.addArchitectureComponent('ledger', 'Ledger', 'edencore');
+    this.addArchitectureComponent('cashier', 'Cashier', 'edencore');
+    this.addArchitectureComponent('snapshot', 'Snapshots', 'edencore');
+    this.addArchitectureComponent('transaction', 'Transactions', 'edencore');
+    
+    // 7. Users
+    this.addArchitectureComponent('user', 'Users', 'user');
+    
+    // 8. Infrastructure
+    this.addArchitectureComponent('websocket', 'WebSocket', 'infrastructure');
+    
+    this.updateArchitectureGroups();
+  }
+  
+  addArchitectureComponent(key: string, displayName: string, category: ComponentStatus['category']) {
+    this.architectureComponents.set(key, {
+      name: displayName,
+      status: 'idle',
+      lastUpdate: Date.now(),
+      count: 0,
+      category: category
+    });
+  }
+  
+  updateArchitectureGroups() {
+    // Group components by category in hierarchical order
+    const groups: ComponentGroup[] = [];
+    
+    // 1. ROOT CA (Top level - Law/Moses)
+    const rootComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'root');
+    if (rootComponents.length > 0) {
+      groups.push({
+        name: 'ROOT CA',
+        icon: '⚖️',
+        components: rootComponents,
+        expanded: true,
+        category: 'root'
+      });
+    }
+    
+    // 2. Indexers (Main entity - Knowledge Trees)
+    const indexerNodes = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'indexer' && !c.name.includes('Replication'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const replicationBus = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'indexer' && c.name.includes('Replication'));
+    
+    // Get all shared components that belong to each Indexer
+    const serviceRegistryComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'service-registry');
+    
+    const providerComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'service-provider')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const llmComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'llm');
+    
+    const edencoreComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'edencore')
+      .sort((a, b) => {
+        const order = ['Ledger', 'Cashier', 'Snapshots', 'Transactions'];
+        return (order.indexOf(a.name) === -1 ? 999 : order.indexOf(a.name)) - 
+               (order.indexOf(b.name) === -1 ? 999 : order.indexOf(b.name));
+      });
+    
+    const userComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'user');
+    
+    // Create Indexers group with nested structure
+    if (indexerNodes.length > 0 || replicationBus.length > 0) {
+      const allIndexerComponents = [
+        ...indexerNodes,
+        ...replicationBus,
+        ...serviceRegistryComponents,
+        ...providerComponents,
+        ...llmComponents,
+        ...edencoreComponents,
+        ...userComponents
+      ];
+      
+      groups.push({
+        name: 'Indexers',
+        icon: '🌳',
+        components: allIndexerComponents,
+        expanded: true,
+        category: 'indexer'
+      });
+    }
+    
+    // 3. Infrastructure (separate from Indexers)
+    const infraComponents = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'infrastructure');
+    if (infraComponents.length > 0) {
+      groups.push({
+        name: 'Infrastructure',
+        icon: '🔧',
+        components: infraComponents,
+        expanded: false,
+        category: 'infrastructure'
+      });
+    }
+    
+    this.architectureGroups = groups;
+    
+    // Update ROOT CA Service Registry
+    this.rootCAServiceRegistry = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'service-registry');
+  }
+  
+  // Fetch gardens for System Architecture
+  fetchArchitectureGardens() {
+    this.http.get<{success: boolean, gardens?: GardenInfo[], indexers?: GardenInfo[]}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
+      .subscribe({
+        next: (response) => {
+          const gardens = response.gardens || response.indexers || [];
+          if (response.success && gardens.length > 0) {
+            this.architectureGardens = gardens.filter(i => i.active);
+            
+            // Select first available garden
+            const filteredGardens = this.getFilteredArchitectureGardens();
+            if (filteredGardens.length > 0 && !this.selectedArchitectureGardenTab) {
+              this.selectedArchitectureGardenTab = filteredGardens[0].id;
+              this.updateSelectedArchitectureGardenComponents();
+            }
+            this.updateArchitectureGroups();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch architecture gardens:', err);
+        }
+      });
+  }
+  
+  // Fetch gardens table data
+  fetchArchitectureGardensTableData() {
+    this.isLoadingArchitectureGardensTable = true;
+    this.http.get<{success: boolean, gardens?: Array<{id: string, name: string, stream: string, active: boolean, type?: string, ownerEmail?: string, serviceType?: string}>}>(`${this.apiUrl}/api/gardens?ecosystem=all`)
+      .subscribe({
+        next: (response) => {
+          this.isLoadingArchitectureGardensTable = false;
+          if (response.success && response.gardens) {
+            this.architectureGardensTableData = response.gardens.map(garden => ({
+              id: garden.id,
+              name: garden.name,
+              serviceType: this.inferServiceTypeFromGarden(garden) || 'N/A',
+              ownerEmail: garden.ownerEmail || 'N/A',
+              active: garden.active,
+              type: garden.type
+            }));
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch architecture gardens table data:', err);
+          this.isLoadingArchitectureGardensTable = false;
+        }
+      });
+  }
+  
+  getFilteredArchitectureGardens(): GardenInfo[] {
+    // For now, show all gardens (can add filtering later)
+    return this.architectureGardens;
+  }
+  
+  selectArchitectureGardenTab(gardenId: string) {
+    this.selectedArchitectureGardenTab = gardenId;
+    this.updateSelectedArchitectureGardenComponents();
+  }
+  
+  updateSelectedArchitectureGardenComponents() {
+    if (this.selectedArchitectureGardenTab) {
+      this.selectedArchitectureGardenComponents = this.getArchitectureComponentsForGarden(this.selectedArchitectureGardenTab);
+    } else {
+      this.selectedArchitectureGardenComponents = [];
+    }
+  }
+  
+  getArchitectureComponentsForGarden(gardenId: string): ComponentStatus[] {
+    // Simplified version - return all components for now
+    // Can be enhanced later to filter by garden
+    return Array.from(this.architectureComponents.values())
+      .filter(c => c.category !== 'root' && c.category !== 'service-registry');
+  }
+  
+  toggleArchitectureGroup(group: ComponentGroup) {
+    group.expanded = !group.expanded;
+  }
+  
+  setArchitectureViewMode(mode: 'tree' | 'table') {
+    this.architectureViewMode = mode;
+    if (mode === 'table') {
+      this.fetchArchitectureGardensTableData();
+    }
+  }
+  
+  getArchitectureStatusClass(status: ComponentStatus['status']): string {
+    return `component-indicator ${status}`;
+  }
+  
+  getArchitectureStatusIcon(status: ComponentStatus['status']): string {
+    switch (status) {
+      case 'active': return '🔄';
+      case 'success': return '✅';
+      case 'error': return '❌';
+      default: return '⚪';
+    }
+  }
+  
+  getGardenIcon(garden?: GardenInfo): string {
+    if (!garden) return '🌳';
+    if (garden.type === 'root') return '✨';
+    if (garden.type === 'token') return '💰';
+    return '🌳';
+  }
+  
+  getServiceTypeBadgeClass(serviceType: string): string {
+    switch (serviceType) {
+      case 'movie': return 'bg-primary';
+      case 'dex': return 'bg-success';
+      case 'airline': return 'bg-info';
+      case 'autoparts': return 'bg-warning';
+      case 'hotel': return 'bg-danger';
+      case 'restaurant': return 'bg-secondary';
+      case 'snake': return 'bg-dark';
+      case 'root': return 'bg-light text-dark';
+      case 'token': return 'bg-primary';
+      case 'unknown':
+      case 'N/A':
+      default: return 'bg-secondary';
+    }
+  }
+  
+  // ========== System Architecture WebSocket Event Handlers ==========
+  
+  updateArchitectureComponentStatus(event: SimulatorEvent) {
+    // Handle null or undefined component
+    if (!event.component) {
+      return; // Silently skip events without component info
+    }
+    const componentName = event.component.toLowerCase();
+    let status: ComponentStatus['status'] = 'active';
+    
+    if (event.type === 'error') {
+      status = 'error';
+    } else if (event.type.includes('success') || event.type.includes('complete')) {
+      status = 'success';
+    }
+    
+    // Map event component names to our component keys
+    const componentKey = this.mapEventToArchitectureComponentKey(componentName, event.type);
+    
+    const component = this.architectureComponents.get(componentKey);
+    if (component) {
+      component.status = status;
+      component.lastUpdate = event.timestamp;
+      component.count++;
+      
+      // Reset to idle after 2 seconds if not error
+      if (status !== 'error') {
+        setTimeout(() => {
+          const comp = this.architectureComponents.get(componentKey);
+          if (comp && comp.status === status) {
+            comp.status = 'idle';
+            this.updateArchitectureGroups();
+          }
+        }, 2000);
+      }
+    } else {
+      // Dynamically add new components (e.g., new indexers or service providers)
+      const category = this.inferArchitectureCategory(componentName, event.type);
+      this.addArchitectureComponent(componentKey, this.formatArchitectureComponentName(componentName), category);
+      const newComponent = this.architectureComponents.get(componentKey);
+      if (newComponent) {
+        newComponent.status = status;
+        newComponent.lastUpdate = event.timestamp;
+        newComponent.count = 1;
+      }
+    }
+    
+    this.updateArchitectureGroups();
+  }
+  
+  mapEventToArchitectureComponentKey(eventComponent: string, eventType: string): string {
+    // Normalize component name
+    const normalized = eventComponent.toLowerCase().trim();
+    
+    // Map various event component names to our standardized keys
+    const mapping: { [key: string]: string } = {
+      'indexer-a': 'indexer-a',
+      'indexer-b': 'indexer-b',
+      'indexer': 'indexer-a',
+      'holy-ghost': 'holy-ghost',
+      'hg': 'holy-ghost',
+      'redis': 'redis',
+      'amc': 'amc-api',
+      'amc-api': 'amc-api',
+      'amc-001': 'amc-api',
+      'moviecom': 'moviecom-api',
+      'moviecom-api': 'moviecom-api',
+      'moviecom-002': 'moviecom-api',
+      'cinemark': 'cinemark-api',
+      'cinemark-api': 'cinemark-api',
+      'cinemark-003': 'cinemark-api',
+      'service-registry': 'service-registry',
+      'service-registry-001': 'service-registry',
+      'stripe-payment-rail-001': 'stripe-payment-rail',
+      'stripe-payment-rail': 'stripe-payment-rail',
+      'settlement-service-001': 'settlement-service',
+      'settlement-service': 'settlement-service',
+      'settlement': 'settlement-service',
+      'webserver-service-001': 'webserver-service',
+      'webserver-service': 'webserver-service',
+      'webserver': 'webserver-service',
+      'websocket-service-001': 'websocket-service',
+      'websocket-service': 'websocket-service',
+      'websocket': 'websocket-service',
+      'wallet-service-001': 'wallet-service',
+      'wallet-service': 'wallet-service',
+      'wallet': 'wallet-service',
+      'jsc': 'wallet-service',
+      'jesuscoin': 'wallet-service',
+      'accountant-service-001': 'accountant-service',
+      'accountant-service': 'accountant-service',
+      'accountant': 'accountant-service',
+      'llm': 'llm',
+      'ledger': 'ledger',
+      'cashier': 'cashier',
+      'snapshot': 'snapshot',
+      'transaction': 'transaction',
+      'user': 'user',
+      'igas': 'llm'
+    };
+    
+    // Check exact match first
+    if (mapping[normalized]) {
+      return mapping[normalized];
+    }
+    
+    // Check if it's a Snake service provider
+    if (normalized.startsWith('snake-')) {
+      const componentKey = normalized.replace(/-\d+$/, '-api');
+      if (!this.architectureComponents.has(componentKey)) {
+        const displayName = normalized.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        this.addArchitectureComponent(componentKey, displayName, 'service-provider');
+        this.updateArchitectureGroups();
+      }
+      return componentKey;
+    }
+    
+    // Check if it's a provider ID
+    if (normalized.startsWith('amc-')) return 'amc-api';
+    if (normalized.startsWith('moviecom-')) return 'moviecom-api';
+    if (normalized.startsWith('cinemark-')) return 'cinemark-api';
+    
+    // Check if it's a new garden
+    if (normalized.startsWith('garden-') || normalized.startsWith('indexer-')) {
+      if (!this.architectureComponents.has(normalized)) {
+        const gardenName = normalized.replace('garden-', 'Garden-').replace('indexer-', 'Garden-').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        this.addArchitectureComponent(normalized, gardenName, 'indexer');
+        this.updateArchitectureGroups();
+      }
+      return normalized;
+    }
+    
+    // Check if it's a token garden
+    if (normalized.startsWith('tokenindexer-') || normalized.startsWith('token-indexer-')) {
+      if (!this.architectureComponents.has(normalized)) {
+        const parts = normalized.split('-');
+        let gardenName = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        gardenName = gardenName.replace(/Tokenindexer/g, 'Garden');
+        this.addArchitectureComponent(normalized, gardenName, 'indexer');
+        this.updateArchitectureGroups();
+      }
+      return normalized;
+    }
+    
+    // Check if it's a new service provider
+    const providerMatch = normalized.match(/^([a-z]+)-\d+$/);
+    if (providerMatch) {
+      const providerName = providerMatch[1];
+      const providerKey = `${providerName}-api`;
+      if (!this.architectureComponents.has(providerKey)) {
+        const displayName = providerName.charAt(0).toUpperCase() + providerName.slice(1);
+        this.addArchitectureComponent(providerKey, displayName, 'service-provider');
+        this.updateArchitectureGroups();
+      }
+      return providerKey;
+    }
+    
+    return normalized;
+  }
+  
+  inferArchitectureCategory(componentName: string, eventType: string): ComponentStatus['category'] {
+    if (componentName.includes('indexer')) return 'indexer';
+    if (componentName.includes('api') || componentName.includes('provider')) return 'service-provider';
+    if (componentName.includes('registry')) return 'service-registry';
+    if (componentName.includes('llm')) return 'llm';
+    if (componentName.includes('ledger') || componentName.includes('cashier') || 
+        componentName.includes('snapshot') || componentName.includes('transaction')) return 'edencore';
+    if (componentName.includes('user')) return 'user';
+    return 'infrastructure';
+  }
+  
+  formatArchitectureComponentName(name: string): string {
+    return name.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  }
+  
+  // ========== System Architecture Tree View Getters ==========
+  
+  getArchitectureSelectedGardenIcon(): string {
+    const g = this.architectureGardens.find(x => x.id === this.selectedArchitectureGardenTab);
+    return g ? this.getArchitectureGardenIcon(g) : (this.selectedArchitectureGardenTab === 'HG' ? '✨' : '🌳');
+  }
+  
+  getArchitectureSelectedGardenName(): string {
+    const garden = this.architectureGardens.find(i => i.id === this.selectedArchitectureGardenTab);
+    return garden ? garden.name : 'Garden';
+  }
+  
+  getArchitectureRootCAServiceRegistry(): ComponentStatus[] {
+    return Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'service-registry');
+  }
+  
+  getArchitectureSelectedGardenInfrastructureServices(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'price-order', 'root-ca-llm'];
+    const infrastructureComponents: ComponentStatus[] = [];
+    
+    // For Holy Ghost (HG), include ROOT CA Price Order Service component
+    if (this.selectedArchitectureGardenTab === 'HG') {
+      const priceOrderService = this.architectureComponents.get('root-ca-price-order-service');
+      if (priceOrderService) {
+        infrastructureComponents.push(priceOrderService);
+      }
+    }
+    
+    // Add infrastructure service providers from selected garden components
+    const providerComponents = this.selectedArchitectureGardenComponents.filter(c => {
+      if (c.category !== 'service-provider') return false;
+      const provider = this.findArchitectureProviderForComponent(c);
+      return provider !== null && infrastructureServiceTypes.includes(provider.serviceType);
+    });
+    
+    infrastructureComponents.push(...providerComponents);
+    return infrastructureComponents;
+  }
+  
+  getArchitectureSelectedGardenRegularServiceProviders(): ComponentStatus[] {
+    const infrastructureServiceTypes = ['payment-rail', 'settlement', 'registry', 'webserver', 'websocket', 'wallet', 'accountant', 'root-ca-llm'];
+    return this.selectedArchitectureGardenComponents.filter(c => {
+      if (c.category !== 'service-provider') return false;
+      const provider = this.findArchitectureProviderForComponent(c);
+      if (provider === null) return false;
+      return !infrastructureServiceTypes.includes(provider.serviceType);
+    });
+  }
+  
+  getArchitectureSelectedGardenLLM(): ComponentStatus[] {
+    const llmComponents = this.selectedArchitectureGardenComponents.filter(c => c.category === 'llm');
+    // For Holy Ghost (HG), also include ROOT CA LLM services
+    if (this.selectedArchitectureGardenTab === 'HG') {
+      const rootCALlmGetData = this.architectureComponents.get('root-ca-llm-getdata');
+      const rootCALlmServiceMapper = this.architectureComponents.get('root-ca-llm-service-mapper');
+      if (rootCALlmGetData && !llmComponents.find(c => c.name === rootCALlmGetData.name)) {
+        llmComponents.push(rootCALlmGetData);
+      }
+      if (rootCALlmServiceMapper && !llmComponents.find(c => c.name === rootCALlmServiceMapper.name)) {
+        llmComponents.push(rootCALlmServiceMapper);
+      }
+    }
+    return llmComponents;
+  }
+  
+  getArchitectureSelectedGardenEdenCore(): ComponentStatus[] {
+    return this.selectedArchitectureGardenComponents.filter(c => c.category === 'edencore');
+  }
+  
+  getArchitectureSelectedGardenUsers(): ComponentStatus[] {
+    return this.selectedArchitectureGardenComponents.filter(c => c.category === 'user');
+  }
+  
+  getArchitectureSelectedGardenNodeCount(): number {
+    const nodes = Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'indexer' && c.name.includes('Replication'));
+    return nodes.length > 0 ? nodes[0].count : 0;
+  }
+  
+  getArchitectureReplicationBus(): ComponentStatus[] {
+    return Array.from(this.architectureComponents.values())
+      .filter(c => c.category === 'indexer' && c.name.includes('Replication'));
+  }
+  
+  findArchitectureProviderForComponent(component: ComponentStatus): {id: string, name: string, serviceType: string, gardenId: string} | null {
+    // Try to find component key by matching component object reference
+    const componentEntry = Array.from(this.architectureComponents.entries()).find(([_, comp]) => comp === component);
+    if (!componentEntry) {
+      // Fallback: try matching by name
+      for (const [providerId, provider] of this.architectureServiceProviders.entries()) {
+        if (provider.name === component.name) {
+          return provider;
+        }
+      }
+      return null;
+    }
+    const [componentKey] = componentEntry;
+    
+    // Match component key to provider ID
+    for (const [providerId, provider] of this.architectureServiceProviders.entries()) {
+      // Simple matching - can be enhanced later
+      if (componentKey.includes(providerId.toLowerCase()) || provider.name === component.name) {
+        return provider;
+      }
+    }
+    return null;
+  }
+  
+  getArchitectureGardenIcon(garden?: GardenInfo): string {
+    if (!garden) return '🌳';
+    if (garden.type === 'root') return '✨';
+    if (garden.type === 'token') return '💰';
+    return '🌳';
+  }
+  
+  getArchitectureCategoryColor(category: ComponentStatus['category']): string {
+    switch (category) {
+      case 'root': return 'text-danger';
+      case 'indexer': return 'text-success';
+      case 'service-provider': return 'text-primary';
+      case 'service-registry': return 'text-info';
+      case 'llm': return 'text-warning';
+      case 'edencore': return 'text-secondary';
+      case 'user': return 'text-dark';
+      default: return 'text-muted';
+    }
   }
 
 }

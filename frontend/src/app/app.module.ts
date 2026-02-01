@@ -83,7 +83,7 @@ const routes: Routes = [
       multi: true
     }
   ],
-  bootstrap: [HomeComponent]
+  bootstrap: [AppComponent]
 })
 export class AppModule { }
 
