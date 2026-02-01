@@ -1703,52 +1703,68 @@ async function executeStepActions(
           }
           
           // CRITICAL: Inject videoUrl into movie listings if this is a movie service
-          // Get videoUrl from garden configuration (if available)
+          // Get videoUrl from listings themselves (they should already have videoUrl from getAllMoviesAsListings)
           const currentServiceType = context.serviceType || 'movie';
           if ((currentServiceType === 'movie' || currentServiceType === 'amc') && context.listings && context.listings.length > 0) {
-            // Try to get videoUrl from garden config
-            // Import GARDENS from state to find the current garden
-            const { GARDENS } = await import("../state");
-            const currentGarden = Array.isArray(GARDENS) ? GARDENS.find((g: any) => (g as any).serviceType === currentServiceType) : undefined;
-            const videoUrl = (currentGarden as any)?.videoUrl || '/api/movie/video/2025-12-09-144801890.mp4'; // Default fallback
-            
-            console.log(`🎬 [FlowWiseService] Injecting videoUrl into movie listings: ${videoUrl}`);
-            
-            // Inject videoUrl into all listings
-            context.listings = context.listings.map((listing: any) => ({
-              ...listing,
-              videoUrl: videoUrl
-            }));
-            
-            // Also update llmResponse.listings
-            if (llmResponse.listings) {
-              llmResponse.listings = llmResponse.listings.map((listing: any) => ({
-                ...listing,
-                videoUrl: videoUrl
-              }));
+            // Listings should already have videoUrl from getAllMoviesAsListings
+            // Only inject if listings are missing videoUrl (shouldn't happen, but safety check)
+            const listingsWithVideoUrl = context.listings.filter((l: any) => l.videoUrl);
+            if (listingsWithVideoUrl.length > 0) {
+              console.log(`🎬 [FlowWiseService] Listings already have videoUrl - no injection needed`);
+              // Ensure all listings have videoUrl (use first listing's videoUrl as template if needed)
+              context.listings = context.listings.map((listing: any) => {
+                if (!listing.videoUrl && listingsWithVideoUrl[0]?.videoUrl) {
+                  // Extract filename from listing and construct videoUrl
+                  const filename = listing.filename || listing.movieTitle?.replace(/\s+/g, '_') || listing.id;
+                  return {
+                    ...listing,
+                    videoUrl: `/api/movie/video/${filename}`
+                  };
+                }
+                return listing;
+              });
+            } else {
+              console.warn(`⚠️ [FlowWiseService] No listings have videoUrl - this shouldn't happen`);
             }
             
-            // Inject videoUrl into selectedListing
-            if (context.selectedListing) {
+            // Also update llmResponse.listings to ensure they have videoUrl
+            if (llmResponse.listings) {
+              llmResponse.listings = llmResponse.listings.map((listing: any) => {
+                if (!listing.videoUrl) {
+                  const filename = listing.filename || listing.movieTitle?.replace(/\s+/g, '_') || listing.id;
+                  return {
+                    ...listing,
+                    videoUrl: `/api/movie/video/${filename}`
+                  };
+                }
+                return listing;
+              });
+            }
+            
+            // Ensure selectedListing has videoUrl (use from listing itself)
+            if (context.selectedListing && !context.selectedListing.videoUrl) {
+              const filename = context.selectedListing.filename || context.selectedListing.movieTitle?.replace(/\s+/g, '_') || context.selectedListing.id;
               context.selectedListing = {
                 ...context.selectedListing,
-                videoUrl: videoUrl
+                videoUrl: `/api/movie/video/${filename}`
               };
             }
-            if (llmResponse.selectedListing) {
+            if (llmResponse.selectedListing && !llmResponse.selectedListing.videoUrl) {
+              const filename = llmResponse.selectedListing.filename || llmResponse.selectedListing.movieTitle?.replace(/\s+/g, '_') || llmResponse.selectedListing.id;
               llmResponse.selectedListing = {
                 ...llmResponse.selectedListing,
-                videoUrl: videoUrl
+                videoUrl: `/api/movie/video/${filename}`
               };
             }
-            if (llmResponse.selectedListing2) {
+            if (llmResponse.selectedListing2 && !llmResponse.selectedListing2.videoUrl) {
+              const filename = llmResponse.selectedListing2.filename || llmResponse.selectedListing2.movieTitle?.replace(/\s+/g, '_') || llmResponse.selectedListing2.id;
               llmResponse.selectedListing2 = {
                 ...llmResponse.selectedListing2,
-                videoUrl: videoUrl
+                videoUrl: `/api/movie/video/${filename}`
               };
             }
             
-            console.log(`✅ [FlowWiseService] Injected videoUrl into ${context.listings.length} movie listings`);
+            console.log(`✅ [FlowWiseService] Ensured videoUrl is set in all movie listings`);
           }
           
           // CRITICAL: Use llmResponse.selectedListing if available (LLM functions now ensure it's always set)

@@ -446,6 +446,9 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
         const listings = llmResponse.listings || context['listings'] || [];
         const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
         
+        // Check if this is a "list all videos" request by checking the message content
+        const isListAllRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(llmResponse.message || userInput || '');
+        
         const videoUrl = llmResponse.selectedListing?.videoUrl || 
                         llmResponse.selectedListing2?.videoUrl ||
                         context['selectedListing']?.['videoUrl'] ||
@@ -466,8 +469,21 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           movieTitle: movieTitle,
           hasListings: listings.length > 0,
           firstListingVideoUrl: firstListing?.videoUrl,
-          selectedListingVideoUrl: llmResponse.selectedListing?.videoUrl
+          selectedListingVideoUrl: llmResponse.selectedListing?.videoUrl,
+          isListAllRequest: isListAllRequest
         });
+        
+        // For "list all videos" requests, convert listings to videos array for thumbnail display
+        let videos: Video[] | undefined = undefined;
+        if (listings.length > 0 && isListAllRequest) {
+          videos = listings.map((listing: any) => ({
+            id: listing.id || listing.movieId || `video-${Date.now()}-${Math.random()}`,
+            title: listing.movieTitle || listing.title || 'Untitled Video',
+            videoUrl: listing.videoUrl || listing.movieUrl || `/api/movie/video/${listing.filename || ''}`,
+            thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || ''
+          }));
+          console.log(`📋 [WorkflowChat] Converted ${listings.length} listings to videos array for thumbnail display`);
+        }
         
         const llmMessage: ChatMessage = {
           id: `llm-${Date.now()}`,
@@ -476,7 +492,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           timestamp: llmTimestamp,
           data: listings.length > 0 ? { listings: listings } : undefined,
           videoUrl: videoUrl,
-          movieTitle: movieTitle
+          movieTitle: movieTitle,
+          videos: videos // Add videos array for thumbnail display
         };
         
         // Insert after user message if it exists, otherwise add at end
@@ -611,6 +628,10 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           const listings = event.data?.response?.listings || event.data?.listings || [];
           const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
           
+          // Check if this is a "list all videos" request
+          const messageContent = event.data?.response?.message || event.data?.message || '';
+          const isListAllRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(messageContent);
+          
           const videoUrl = event.data?.response?.videoUrl || 
                           event.data?.videoUrl || 
                           event.data?.response?.selectedListing?.videoUrl ||
@@ -624,11 +645,25 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
                             firstListing?.movieTitle ||
                             undefined;
           
+          // For "list all videos" requests, convert listings to videos array for thumbnail display
+          let videos: Video[] | undefined = undefined;
+          if (listings.length > 0 && isListAllRequest) {
+            videos = listings.map((listing: any) => ({
+              id: listing.id || listing.movieId || `video-${Date.now()}-${Math.random()}`,
+              title: listing.movieTitle || listing.title || 'Untitled Video',
+              videoUrl: listing.videoUrl || listing.movieUrl || `/api/movie/video/${listing.filename || ''}`,
+              thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || ''
+            }));
+            console.log(`📋 [WorkflowChat] Converted ${listings.length} listings to videos array for thumbnail display`);
+          }
+          
           console.log('🎬 [WorkflowChat] Extracted video info from llm_response:', {
             videoUrl: videoUrl,
             movieTitle: movieTitle,
             hasListings: listings.length > 0,
-            firstListingVideoUrl: firstListing?.videoUrl
+            firstListingVideoUrl: firstListing?.videoUrl,
+            isListAllRequest: isListAllRequest,
+            videosCount: videos?.length || 0
           });
           
           // CRITICAL: If videoUrl exists, check for duplicate video player
@@ -664,7 +699,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               timestamp: llmTimestamp,
               data: listings.length > 0 ? { listings: listings } : undefined,
               videoUrl: videoUrl,
-              movieTitle: movieTitle
+              movieTitle: movieTitle,
+              videos: videos // Add videos array for thumbnail display when listing all videos
             };
             
             // Insert after last user message if it exists
@@ -1782,7 +1818,14 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       
       const response = await this.http.get<any>(url).toPromise();
       if (response && response.success && response.data) {
-        return response.data;
+        // Map API response to Video format
+        return response.data.map((v: any) => ({
+          id: v.id || v.filename,
+          filename: v.filename || v.id || 'unknown.mp4',
+          title: v.title || v.filename || 'Untitled Video',
+          videoUrl: v.videoUrl || `/api/movie/video/${v.filename || ''}`,
+          thumbnailUrl: v.thumbnailUrl || v.videoUrl || `/api/movie/video/${v.filename || ''}`
+        }));
       }
       return [];
     } catch (error: any) {
@@ -1823,6 +1866,55 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
       // Clear input
       const messageToSend = message;
       this.chatInput = '';
+
+      // Check if this is a "list all videos" request - handle directly without WebSocket
+      const isListAllVideos = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(messageToSend);
+      
+      if (isListAllVideos) {
+        console.log('📋 [WorkflowChat] Detected "list all videos" request - fetching directly from API');
+        
+        try {
+          // Fetch all videos directly from API
+          const videos = await this.fetchAllVideos();
+          
+          if (videos.length > 0) {
+            // Convert API videos to Video format for display
+            const displayVideos: Video[] = videos.map((v: any) => ({
+              id: v.id || `video-${Date.now()}-${Math.random()}`,
+              filename: v.filename || v.id || 'unknown.mp4',
+              title: v.title || v.filename || 'Untitled Video',
+              videoUrl: v.videoUrl || `/api/movie/video/${v.filename || ''}`,
+              thumbnailUrl: v.thumbnailUrl || v.videoUrl || `/api/movie/video/${v.filename || ''}`
+            }));
+            
+            // Add assistant message with video thumbnails
+            this.addChatMessage({
+              type: 'assistant',
+              content: `Here are all ${videos.length} videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.`,
+              timestamp: Date.now(),
+              videos: displayVideos
+            });
+          } else {
+            // No videos found
+            this.addChatMessage({
+              type: 'assistant',
+              content: 'No videos found in the library.',
+              timestamp: Date.now()
+            });
+          }
+        } catch (error: any) {
+          console.error('❌ [WorkflowChat] Error fetching videos:', error);
+          this.addChatMessage({
+            type: 'assistant',
+            content: `Error loading videos: ${error.message || 'Unknown error'}`,
+            timestamp: Date.now()
+          });
+        }
+        
+        this.isSendingChat = false;
+        this.cdr.detectChanges();
+        return; // Don't send to WebSocket
+      }
 
       // Check if this is a video listing request
       const videoRequest = this.extractGenreFromMessage(messageToSend);

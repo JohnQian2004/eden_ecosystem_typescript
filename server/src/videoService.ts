@@ -40,7 +40,8 @@ const LIBRARY_JSON = path.join(serverDir, 'data', 'videos', 'library.json');
 export function getAllVideoFiles(): string[] {
   try {
     if (!fs.existsSync(VIDEOS_DIR)) {
-      console.warn(`⚠️ [VideoService] Videos directory not found: ${VIDEOS_DIR}`);
+      const relativeVideosDir = path.relative(process.cwd(), VIDEOS_DIR);
+      console.warn(`⚠️ [VideoService] Videos directory not found: ${relativeVideosDir}`);
       return [];
     }
     
@@ -52,7 +53,8 @@ export function getAllVideoFiles(): string[] {
       file.toLowerCase().endsWith('.mkv')
     );
     
-    console.log(`🎬 [VideoService] Found ${videoFiles.length} video files in ${VIDEOS_DIR}`);
+    const relativeVideosDir = path.relative(process.cwd(), VIDEOS_DIR);
+    console.log(`🎬 [VideoService] Found ${videoFiles.length} video files in ${relativeVideosDir}`);
     return videoFiles;
   } catch (error: any) {
     console.error(`❌ [VideoService] Error reading videos directory:`, error.message);
@@ -66,9 +68,11 @@ export function getAllVideoFiles(): string[] {
 function loadVideoLibrary(): any {
   try {
     if (!fs.existsSync(LIBRARY_JSON)) {
-      console.warn(`⚠️ [VideoService] Library file not found: ${LIBRARY_JSON}`);
-      console.warn(`   Current __dirname: ${__dirname}`);
-      console.warn(`   Resolved path: ${LIBRARY_JSON}`);
+      const relativeLibraryPath = path.relative(process.cwd(), LIBRARY_JSON);
+      const relativeDirname = path.relative(process.cwd(), __dirname);
+      console.warn(`⚠️ [VideoService] Library file not found: ${relativeLibraryPath}`);
+      console.warn(`   Current __dirname: ${relativeDirname}`);
+      console.warn(`   Resolved path: ${relativeLibraryPath}`);
       return { videos: [] };
     }
     
@@ -77,8 +81,9 @@ function loadVideoLibrary(): any {
     console.log(`✅ [VideoService] Loaded ${library.videos?.length || 0} videos from library.json`);
     return library;
   } catch (error: any) {
+    const relativeLibraryPath = path.relative(process.cwd(), LIBRARY_JSON);
     console.error(`❌ [VideoService] Error loading library.json:`, error.message);
-    console.error(`   Path attempted: ${LIBRARY_JSON}`);
+    console.error(`   Path attempted: ${relativeLibraryPath}`);
     return { videos: [] };
   }
 }

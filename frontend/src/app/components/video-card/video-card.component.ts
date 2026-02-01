@@ -19,6 +19,8 @@ export class VideoCardComponent implements OnInit, OnDestroy {
 
   constructor(private videoLibraryService: VideoLibraryService) {}
 
+  videoLoadError = false;
+
   ngOnInit(): void {
     // Backend /api/movie/video/ endpoint expects just the filename
     // The backend will automatically look in data/videos/ directory
@@ -111,6 +113,13 @@ export class VideoCardComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.playVideo();
     }, 200);
+  }
+
+  onVideoError(event: any): void {
+    console.error('Video load error:', event);
+    this.videoLoadError = true;
+    this.showVideo = false;
+    // Don't retry - the file doesn't exist
   }
 }
 

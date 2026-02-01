@@ -6435,6 +6435,218 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769956372715_821b600ed40e",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956372715,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956380700_257de30677ff28",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769956380700,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956380763_3ce180dafa676",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769956380763,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956637368_58cd759598bd18",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "ist all videos",
+        "timestamp": 1769956637368,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956682112_2c8dbc190701a",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769956682112,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956711974_3cde5fddc4fd1",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956711974,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956717567_927ef90c2c449",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769956717567,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956717597_c1353b32d6ae5",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769956717597,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956736215_b32d1730c2ed98",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"2025 12 09 144801890\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769956736215,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956897143_a0d1e0acd74a78",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956897143,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956902489_bfe93a3cb1791",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769956902489,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769956902520_c91e91ac09707",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769956902520,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957303347_04e7e04155073",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769957303347,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957309043_816b552e9c251",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769957309043,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957309083_0f75b2d9f700b",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769957309083,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957314242_1c95ad428a91f",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"2025 12 09 144801890\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769957314242,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957707182_52d1c8e96de748",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769957707182,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957713402_5611352edd8a38",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1769957713402,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957713461_dcef91f4e03e7",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1769957713461,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769957719090_8c49cc19802af8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"2025 12 09 144801890\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769957719090,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -7221,6 +7433,66 @@
         "role": "USER",
         "content": "list all videos",
         "timestamp": 1769950764769,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769956375607_3e356b2e0f522",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956375607,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769956637796_56b090c82d4a7",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "ist all videos",
+        "timestamp": 1769956637796,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769956713409_a735580511183",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956713409,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769956899731_c8bb852f06a82",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769956899731,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769957304988_2e2c8f3c4d1e3",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769957304988,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769957708986_d3a5f5419f304",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1769957708986,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

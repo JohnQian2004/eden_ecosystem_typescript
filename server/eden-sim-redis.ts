@@ -10534,39 +10534,78 @@ httpServer.on("request", async (req, res) => {
       return;
     }
     
-    // Debug logging
+    // Debug logging - use relative paths
+    const relativeVideoPath = path.relative(process.cwd(), resolvedPath);
+    const relativeVideoPath2 = path.relative(process.cwd(), videoPath);
     console.log(`   🎬 [${requestId}] Video request: ${pathname}`);
     console.log(`   🎬 [${requestId}] Extracted filename: ${videoFile}`);
-    console.log(`   🎬 [${requestId}] Resolved path: ${resolvedPath}`);
-    console.log(`   🎬 [${requestId}] File exists: ${fs.existsSync(resolvedPath)}`);
+    console.log(`   🎬 [${requestId}] Resolved path: ${relativeVideoPath}`);
+    console.log(`   🎬 [${requestId}] Video path: ${relativeVideoPath2}`);
+    console.log(`   🎬 [${requestId}] Resolved path exists: ${fs.existsSync(resolvedPath)}`);
+    console.log(`   🎬 [${requestId}] Video path exists: ${fs.existsSync(videoPath)}`);
     
-    fs.access(videoPath, fs.constants.F_OK, (err) => {
-      if (err) {
-        console.log(`   ❌ [${requestId}] Video file not found: ${videoPath}`);
-        console.log(`   ❌ [${requestId}] Resolved path: ${resolvedPath}`);
-        console.log(`   ❌ [${requestId}] __dirname: ${__dirname}`);
-        console.log(`   ❌ [${requestId}] Server dir: ${serverDir}`);
-        console.log(`   ❌ [${requestId}] Data dir: ${dataDir}`);
-        // List available files for debugging
-        const videosDir = path.join(serverDir, "data", "videos");
-        if (fs.existsSync(videosDir)) {
-          try {
-            const files = fs.readdirSync(videosDir);
-            const videoFiles = files.filter((f: string) => /\.(mp4|mov|avi|mkv)$/i.test(f));
-            console.log(`   📁 [${requestId}] Available video files (${videoFiles.length}): ${videoFiles.slice(0, 5).join(', ')}${videoFiles.length > 5 ? '...' : ''}`);
-          } catch (listErr: any) {
-            console.log(`   ⚠️ [${requestId}] Could not list video files: ${listErr.message}`);
+    // Check if file exists before attempting to serve - check both paths
+    const fileExists = fs.existsSync(resolvedPath) || fs.existsSync(videoPath);
+    if (!fileExists) {
+      console.log(`   ❌ [${requestId}] Video file not found: ${relativeVideoPath}`);
+      console.log(`   ⚠️ [${requestId}] This file may have been removed from library.json. Frontend should refresh listings.`);
+      
+      // Also check if it's in library.json (it shouldn't be after cleanup)
+      const libraryPath = path.join(serverDir, "data", "videos", "library.json");
+      if (fs.existsSync(libraryPath)) {
+        try {
+          const library = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'));
+          const inLibrary = library.videos?.some((v: any) => v.filename === videoFile);
+          if (inLibrary) {
+            console.log(`   ⚠️ [${requestId}] File is in library.json but doesn't exist on disk - library may need cleanup`);
           }
-        } else {
-          console.log(`   ⚠️ [${requestId}] Videos directory does not exist: ${videosDir}`);
+        } catch (libErr: any) {
+          // Ignore library read errors
         }
-        res.writeHead(404, { "Content-Type": "text/plain" });
+      }
+      
+      res.writeHead(404, { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({ 
+        error: "Video file not found", 
+        filename: videoFile,
+        message: "This video file no longer exists. Please refresh the video listings."
+      }));
+      return;
+    }
+    
+    // Use the path that actually exists
+    const actualVideoPath = fs.existsSync(resolvedPath) ? resolvedPath : (fs.existsSync(videoPath) ? videoPath : null);
+    if (!actualVideoPath) {
+      console.log(`   ❌ [${requestId}] Video file does not exist at either path`);
+      res.writeHead(404, { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({ 
+        error: "Video file not found", 
+        filename: videoFile,
+        message: "This video file no longer exists. Please refresh the video listings."
+      }));
+      return;
+    }
+    
+    fs.access(actualVideoPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        const relativePath = path.relative(process.cwd(), actualVideoPath);
+        console.log(`   ❌ [${requestId}] Video file access error: ${relativePath}`);
+        res.writeHead(404, { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
         res.end("Video not found");
         return;
       }
       
       // Check if it's actually a video file (not a placeholder text file)
-      const stat = fs.statSync(videoPath);
+      const stat = fs.statSync(actualVideoPath);
       // Allow small files for development (they might be placeholders, but serve them anyway)
       // In production, you should replace placeholders with actual video files
       if (videoPath.endsWith('.txt')) {
@@ -10593,7 +10632,7 @@ httpServer.on("request", async (req, res) => {
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
         const chunksize = (end - start) + 1;
-        const file = fs.createReadStream(videoPath, { start, end });
+        const file = fs.createReadStream(actualVideoPath, { start, end });
         const head = {
           "Content-Range": `bytes ${start}-${end}/${stat.size}`,
           "Accept-Ranges": "bytes",
@@ -10613,7 +10652,7 @@ httpServer.on("request", async (req, res) => {
           "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
           "Access-Control-Allow-Headers": "Range",
         });
-        fs.createReadStream(videoPath).pipe(res);
+        fs.createReadStream(actualVideoPath).pipe(res);
       }
     });
     return;
@@ -10676,7 +10715,7 @@ httpServer.on("request", async (req, res) => {
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
         const chunksize = (end - start) + 1;
-        const file = fs.createReadStream(videoPath, { start, end });
+        const file = fs.createReadStream(actualVideoPath, { start, end });
 
         res.writeHead(206, {
           "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -10697,7 +10736,7 @@ httpServer.on("request", async (req, res) => {
           "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
           "Access-Control-Allow-Headers": "Range",
         });
-        fs.createReadStream(videoPath).pipe(res);
+        fs.createReadStream(actualVideoPath).pipe(res);
       }
     });
     return;
@@ -10721,7 +10760,8 @@ httpServer.on("request", async (req, res) => {
   if (pathname === "/" || pathname === "/index.html") {
     console.log(`   📁 [${requestId}] Frontend path: ${FRONTEND_PATH}`);
     console.log(`   📁 [${requestId}] Full path: ${fullPath}`);
-    console.log(`   📁 [${requestId}] Resolved path: ${resolvedPath}`);
+    const relativeResolvedPath = path.relative(process.cwd(), resolvedPath);
+    console.log(`   📁 [${requestId}] Resolved path: ${relativeResolvedPath}`);
     console.log(`   📁 [${requestId}] Path exists: ${fs.existsSync(fullPath)}`);
   }
 
