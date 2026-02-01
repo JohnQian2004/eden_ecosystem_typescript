@@ -1,0 +1,235 @@
+<div class="workflow-chat-container">
+  <div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        💬 FlowWise Workflows Chat
+        <span class="ms-3 badge bg-warning text-dark" *ngIf="walletBalance !== undefined">
+          Current Wallet Balance: {{ walletBalance.toFixed(2) }} 🍎 APPLES
+        </span>
+        <span class="ms-3 spinner-border spinner-border-sm text-white-50" *ngIf="walletBalance === undefined" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </span>
+      </h5>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-light" (click)="newChatAndSend()" title="New Chat (Send)">
+          ➕ New Chat
+        </button>
+        <small class="text-white-50">Last 10 chats</small>
+      </div>
+    </div>
+    
+    <!-- Chat Input Box (Above Chat History) -->
+    <!-- Available in all modes: USER, PRIEST, and GOD -->
+    <!-- CRITICAL: This input box must always be visible, regardless of message count or view mode -->
+    <div class="card-body border-bottom p-3 bg-light">
+      <div class="d-flex gap-2">
+        <input 
+          type="text" 
+          class="form-control" 
+          placeholder="Type your message here (e.g., 'book a movie', 'buy TOKENA', 'how GOD works in Eden')..."
+          [(ngModel)]="chatInput"
+          (keyup.enter)="sendChatMessage()"
+          [disabled]="isSendingChat"
+          name="chatInput">
+        <button 
+          class="btn btn-primary" 
+          type="button"
+          (click)="sendChatMessage()"
+          [disabled]="!chatInput.trim() || isSendingChat">
+          <span *ngIf="!isSendingChat">📤 Send</span>
+          <span *ngIf="isSendingChat">
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            Sending...
+          </span>
+        </button>
+      </div>
+      <small class="text-muted d-block mt-2">
+        💡 Ask questions about Eden, request services, or start workflows
+      </small>
+    </div>
+    
+    <!-- Chat Messages -->
+    <div class="card-body p-0">
+      <div class="chat-messages-container" style="padding: 20px;">
+        <!-- Thread Stack (newest on top, like ChatGPT) -->
+        <div *ngFor="let thread of renderedThreads; let idx = index; trackBy: trackByThreadId" class="mb-4" [ngClass]="{'opacity-75': idx>0}">
+          <!-- Always show Current thread header (even if empty) so "New Chat" feels instant -->
+          <div *ngIf="idx === 0" class="small text-muted mb-2">
+            <strong>Current:</strong>
+            {{ thread.title || 'New chat' }}
+            <span class="ms-2">·</span>
+            <span class="ms-2">{{ thread.startedAt | date:'shortTime' }}</span>
+            <span *ngIf="thread.executionId" class="ms-2 badge bg-secondary">{{ thread.executionId }}</span>
+          </div>
+
+          <!-- Only show Previous thread headers if they have messages -->
+          <div *ngIf="idx > 0 && thread.messages.length > 0" class="small text-muted mb-2">
+            <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" (click)="toggleArchivedThread(thread)">
+              <strong>Previous:</strong>
+              {{ thread.title || 'Chat' }}
+              <span class="ms-2">·</span>
+              <span class="ms-2">{{ thread.startedAt | date:'shortTime' }}</span>
+              <span *ngIf="thread.executionId" class="ms-2 badge bg-secondary">{{ thread.executionId }}</span>
+              <span class="ms-2">({{ isThreadExpanded(thread, idx) ? 'hide' : 'show' }})</span>
+            </button>
+          </div>
+
+          <!-- Empty current thread placeholder -->
+          <div *ngIf="idx === 0 && thread.messages.length === 0" class="text-center text-muted py-4">
+            <div class="fw-semibold">New chat ready.</div>
+            <div class="small">Send a message below to start.</div>
+          </div>
+
+          <div *ngIf="isThreadExpanded(thread, idx)">
+            <div *ngFor="let message of thread.messages; trackBy: trackByMessageId" class="mb-3">
+          <!-- User Message -->
+          <div *ngIf="message.type === 'user'" class="d-flex justify-content-end">
+            <div class="chat-bubble chat-bubble-user">
+              <div class="chat-content" [innerHTML]="renderMarkdown(message.content)"></div>
+              <small class="chat-timestamp">{{ message.timestamp | date:'shortTime' }}</small>
+            </div>
+          </div>
+
+          <!-- Assistant Message -->
+          <div *ngIf="message.type === 'assistant'" class="d-flex justify-content-start">
+            <div class="chat-bubble chat-bubble-assistant">
+              <div class="chat-content" [innerHTML]="renderMarkdown(message.content)"></div>
+              
+              <!-- Debug: Video URL info -->
+              <div *ngIf="message.showOptions" class="small text-muted mb-2" style="background: #fff3cd; padding: 5px; border-radius: 4px; font-size: 0.75rem;">
+                🔍 DEBUG: message.videoUrl = "{{ message.videoUrl || 'undefined' }}", message.movieTitle = "{{ message.movieTitle || 'undefined' }}"
+                <br>
+                🔍 DEBUG: videoUrl truthy = {{ !!message.videoUrl }}, videoUrl length = {{ message.videoUrl ? message.videoUrl.length : 0 }}
+              </div>
+              
+              <!-- Video Player for Movie Viewing -->
+              <!-- Use *ngIf with videoUrl to force video element recreation when URL changes (fixes Windows player issue) -->
+              <div *ngIf="message.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
+                <div class="card" style="display: block !important; visibility: visible !important;">
+                  <div class="card-body" style="display: block !important; visibility: visible !important;">
+                    <h6 class="card-title" *ngIf="message.movieTitle">🎬 {{ message.movieTitle }}</h6>
+                    <!-- Wrapping video in *ngIf with unique condition forces recreation when videoUrl changes (Windows player fix) -->
+                    <div *ngIf="message.videoUrl; let videoUrl">
+                      <video 
+                        #videoPlayer
+                        controls 
+                        autoplay
+                        class="w-100" 
+                        style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                        [src]="getVideoUrl(videoUrl)"
+                        [attr.data-video-url]="videoUrl"
+                        [attr.data-message-id]="message.id"
+                        preload="auto"
+                        (loadstart)="onVideoLoadStart($event, videoUrl)"
+                        (error)="onVideoError($event, videoUrl)"
+                        (loadeddata)="onVideoLoadedData($event, videoUrl)">
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                    <div class="small text-muted mt-1">
+                      Video Source: {{ getVideoUrl(message.videoUrl) }}
+                    </div>
+                    <small class="text-muted d-block mt-1">Video URL: {{ message.videoUrl }}</small>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Show listings if available -->
+              <div *ngIf="message.data?.listings && message.data.listings.length > 0" class="mt-2">
+                <div class="listings-preview">
+                  <small class="text-muted">Found {{ message.data.listings.length }} option(s)</small>
+                </div>
+              </div>
+
+              <!-- Decision/Selection Options -->
+              <div *ngIf="message.showOptions && message.options && message.options.length > 0" class="mt-3">
+                <div class="selection-options">
+                  <div *ngFor="let option of message.options" class="option-card mb-2">
+                    <div class="option-content">
+                      <strong>{{ option.label }}</strong>
+                      <button 
+                        class="btn btn-sm float-end"
+                        [ngClass]="{
+                          'btn-success': message.data?.isDecision && (option.label.toUpperCase() === 'YES' || option.value.toUpperCase() === 'YES'),
+                          'btn-danger': message.data?.isDecision && (option.label.toUpperCase() === 'NO' || option.value.toUpperCase() === 'NO'),
+                          'btn-primary': !message.data?.isDecision || (option.label.toUpperCase() !== 'YES' && option.label.toUpperCase() !== 'NO' && option.value.toUpperCase() !== 'YES' && option.value.toUpperCase() !== 'NO')
+                        }"
+                        (click)="onOptionSelected(option, message)">
+                        {{ message.data?.isDecision ? 'Choose' : 'Select' }}
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Cancel Button -->
+                  <div class="mt-2 text-center">
+                    <button 
+                      class="btn btn-sm btn-outline-secondary"
+                      (click)="onCancelOption(message)">
+                      ❌ Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <small class="chat-timestamp">{{ message.timestamp | date:'shortTime' }}</small>
+            </div>
+          </div>
+
+          <!-- System Message -->
+          <div *ngIf="message.type === 'system'" class="d-flex justify-content-center">
+            <div class="chat-bubble chat-bubble-system" [ngClass]="{'chat-bubble-wallet': message.content.includes('Wallet Balance')}">
+              <div class="chat-content" [innerHTML]="message.content.replace('**', '<strong>').replace('**', '</strong>')"></div>
+              <div *ngIf="message.data?.balance !== undefined && message.data?.previousBalance !== undefined" class="mt-2 small">
+                <span *ngIf="message.data?.previousBalance !== undefined && message.data?.previousBalance !== message.data?.balance" class="text-muted">
+                  Previous: {{ message.data?.previousBalance?.toFixed(2) }} 🍎 APPLES → 
+                  <span [ngClass]="{'text-success': message.data?.balance > message.data?.previousBalance, 'text-danger': message.data?.balance < message.data?.previousBalance}">
+                    Current: {{ message.data?.balance?.toFixed(2) }} 🍎 APPLES
+                  </span>
+                </span>
+              </div>
+              <small class="chat-timestamp">{{ message.timestamp | date:'shortTime' }}</small>
+            </div>
+          </div>
+
+          <!-- Ledger Message -->
+          <div *ngIf="message.type === 'ledger'" class="d-flex justify-content-start">
+            <div class="chat-bubble chat-bubble-ledger">
+              <div class="ledger-message-header">
+                <strong>💳 {{ message.content }}</strong>
+              </div>
+              <div class="ledger-message-content mt-2">
+                <div class="ledger-row">
+                  <span class="ledger-label">Service:</span>
+                  <span class="badge bg-secondary">{{ message.data?.serviceType || 'N/A' }}</span>
+                </div>
+                <div class="ledger-row">
+                  <span class="ledger-label">Merchant:</span>
+                  <span>{{ message.data?.merchant || 'N/A' }}</span>
+                </div>
+                <div class="ledger-row">
+                  <span class="ledger-label">Amount:</span>
+                  <strong class="text-primary">{{ formatAmount(message.data?.amount) }} 🍎 APPLES</strong>
+                </div>
+                <div class="ledger-row">
+                  <span class="ledger-label">iGas Cost:</span>
+                  <strong class="text-info">{{ formatIGasCost(message.data?.iGasCost ?? message.data?.entry?.iGasCost) }}</strong>
+                </div>
+                <div class="ledger-row" *ngIf="message.data?.details">
+                  <span class="ledger-label">Details:</span>
+                  <small class="text-muted" [innerHTML]="message.data.details"></small>
+                </div>
+                <div class="ledger-row">
+                  <span class="ledger-label">Date:</span>
+                  <small class="text-muted">{{ formatDate(message.timestamp) }}</small>
+                </div>
+              </div>
+              <small class="chat-timestamp">{{ message.timestamp | date:'shortTime' }}</small>
+            </div>
+          </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

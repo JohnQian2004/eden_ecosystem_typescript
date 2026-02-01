@@ -1,0 +1,535 @@
+<!-- Eden Home Component - New UI/UX with Cursor-style Chat -->
+<div class="eden-home-container" [ngClass]="{'dark-theme': !isUserSignedIn}" [attr.data-user-signed-in]="isUserSignedIn">
+  <!-- Eden Background with Overlay -->
+  <div class="eden-background-overlay"></div>
+  
+  <!-- Global Loading Overlay -->
+  <div *ngIf="isGlobalLoading" class="global-loading-overlay">
+    <div class="global-loading-card">
+      <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
+      <div class="mt-3 fw-semibold">{{ globalLoadingMessage }}</div>
+      <div class="small text-muted mt-1">Please wait…</div>
+    </div>
+  </div>
+
+  <!-- Router Outlet for DEX Garden Wizard -->
+  <div style="position: relative; z-index: 10;" *ngIf="isDexWizardRoute">
+    <router-outlet></router-outlet>
+  </div>
+
+  <!-- Main Content (hidden when on DEX wizard route) -->
+  <div *ngIf="!isDexWizardRoute" class="eden-main-content" [attr.data-render-key]="renderKey">
+    
+    <!-- Header Navigation Bar -->
+    <header class="eden-header">
+      <div class="eden-header-content">
+        <div class="eden-logo">
+          <span class="eden-logo-icon">🌳</span>
+          <span class="eden-logo-text">EDEN</span>
+        </div>
+        <nav class="eden-nav" *ngIf="isUserSignedIn">
+          <a href="#" class="eden-nav-link">Docs</a>
+          <a href="#" class="eden-nav-link">Gardens</a>
+          <a href="#" class="eden-nav-link">Governance</a>
+        </nav>
+        <div class="eden-header-actions">
+          <button class="btn btn-sm eden-theme-toggle" type="button" (click)="toggleTheme()" title="Toggle theme">
+            <span *ngIf="theme === 'dark'">🌙</span>
+            <span *ngIf="theme === 'light'">☀️</span>
+          </button>
+          <button class="btn eden-signin-btn" [ngClass]="{'btn-primary': isUserSignedIn, 'btn-success': !isUserSignedIn}" (click)="openSignInModal()">
+            <span *ngIf="!isUserSignedIn">🔐 Sign In</span>
+            <span *ngIf="isUserSignedIn">👤 {{ userEmail }}</span>
+          </button>
+          <button *ngIf="isUserSignedIn" class="btn btn-sm eden-signout-btn" (click)="signOut()" title="Sign Out">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section (shown when not signed in or as welcome banner) -->
+    <section class="eden-hero" *ngIf="!isUserSignedIn">
+      <div class="eden-hero-content">
+        <h1 class="eden-hero-title">🌿 Welcome to Eden</h1>
+        <h2 class="eden-hero-subtitle">Garden-First Intelligence Marketplace</h2>
+        <p class="eden-hero-tagline">"Conversation as the native interface"</p>
+        <div class="eden-hero-actions" *ngIf="!isUserSignedIn">
+          <button class="btn btn-lg eden-btn-primary" (click)="openSignInModal()">Start Chatting</button>
+          <button class="btn btn-lg eden-btn-secondary">Explore Whitepaper</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <div class="eden-content-wrapper">
+      
+      <!-- Chat History Sidebar (Right Side) -->
+      <aside class="eden-chat-history" *ngIf="isUserSignedIn && showSidebar">
+        <div class="eden-chat-history-header">
+          <h6 class="mb-0">📜 Chat History</h6>
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearChatHistoryPanel()" [disabled]="chatHistoryMessages.length === 0 && !isLoadingChatHistory" title="Clear chat history">
+            🗑️
+          </button>
+        </div>
+        <div class="eden-chat-history-search">
+          <input type="text" class="form-control form-control-sm" placeholder="🔍 Search conversations..." />
+        </div>
+        <div class="eden-chat-history-list">
+          <div *ngIf="isLoadingChatHistory" class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+          </div>
+            <div *ngFor="let msg of chatHistoryMessages; let i = index" class="eden-chat-history-item" [class.active]="msg.id === activeConversationId" (click)="setActiveConversationPublic(msg.id || '')">
+            <div class="eden-chat-history-item-header">
+              <span class="eden-context-badge badge-system">SYSTEM</span>
+              <span class="eden-chat-history-time">{{ msg.timestamp | date:'shortTime' }}</span>
+            </div>
+            <div class="eden-chat-history-item-content">{{ msg.content | slice:0:50 }}{{ msg.content.length > 50 ? '...' : '' }}</div>
+          </div>
+          <div *ngIf="!isLoadingChatHistory && chatHistoryMessages.length === 0" class="eden-chat-history-empty">
+            <p class="text-muted small">No chat history yet. Start a conversation!</p>
+          </div>
+        </div>
+        <div class="eden-chat-history-filters">
+          <button class="btn btn-sm eden-filter-btn active">Active</button>
+          <button class="btn btn-sm eden-filter-btn">Forgiven</button>
+          <button class="btn btn-sm eden-filter-btn">Redacted</button>
+        </div>
+      </aside>
+
+      <!-- Main Chat Interface (Cursor-style) -->
+      <main class="eden-chat-main" [ngClass]="{'with-sidebar': isUserSignedIn && showSidebar}">
+        
+        <!-- iGas Display (Top of Chat Area) -->
+        <div class="eden-igas-display" *ngIf="isUserSignedIn">
+          <app-igas-display 
+            [priesthoodStats]="priesthoodStats"
+            [walletBalance]="walletBalance"
+            [onOpenStripeModal]="openStripePaymentModal.bind(this)">
+          </app-igas-display>
+        </div>
+
+        <!-- Cursor-Style Chat Window -->
+        <div class="eden-chat-window">
+          <div class="eden-chat-header">
+            <div class="eden-chat-header-left">
+              <span class="eden-chat-cert-icon">🔐</span>
+              <span class="eden-chat-title">Eden Chat</span>
+              <span class="eden-chat-subtitle">• Certified Session</span>
+            </div>
+            <div class="eden-chat-header-right">
+              <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history">
+                🔄
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Messages Area -->
+          <div class="eden-chat-messages" #chatMessagesContainer>
+            <!-- Empty State -->
+            <div *ngIf="chatHistoryMessages.length === 0 && !isProcessing" class="eden-chat-empty">
+              <div class="eden-chat-empty-icon">🌿</div>
+              <h3 class="eden-chat-empty-title">Welcome to Eden Chat</h3>
+              <p class="eden-chat-empty-text">Start a conversation by typing a message below. You can ask questions, request services, or start workflows.</p>
+            </div>
+
+            <!-- Chat Messages (from chatHistoryMessages or workflow-chat-display) -->
+            <div *ngFor="let msg of chatHistoryMessages" class="eden-chat-message" [ngClass]="'eden-chat-message-' + (msg.role || 'system').toLowerCase()">
+              <div class="eden-chat-message-content">
+                <div class="eden-chat-message-role" *ngIf="msg.role">
+                  <span *ngIf="msg.role === 'USER'">You:</span>
+                  <span *ngIf="msg.role === 'ASSISTANT'">🌿 Eden:</span>
+                  <span *ngIf="msg.role === 'SYSTEM'">System:</span>
+                </div>
+                <div class="eden-chat-message-text" [innerHTML]="msg.content"></div>
+                
+                <!-- Video Player for Movie Messages -->
+                <div *ngIf="msg.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
+                  <div class="card" style="display: block !important; visibility: visible !important;">
+                    <div class="card-body" style="display: block !important; visibility: visible !important;">
+                      <h6 class="card-title" *ngIf="msg.movieTitle">🎬 {{ msg.movieTitle }}</h6>
+                      <video 
+                        controls 
+                        autoplay
+                        class="w-100" 
+                        style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                        [src]="getVideoUrl(msg.videoUrl)"
+                        preload="auto">
+                        Your browser does not support the video tag.
+                      </video>
+                      <div class="small text-muted mt-1">
+                        Video Source: {{ getVideoUrl(msg.videoUrl) }}
+                      </div>
+                      <small class="text-muted d-block mt-1">Video URL: {{ msg.videoUrl }}</small>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="eden-chat-message-actions">
+                  <button class="eden-chat-action-btn" title="Copy message">📋</button>
+                  <button class="eden-chat-action-btn" *ngIf="msg.role === 'USER'" title="Edit message">✏️</button>
+                  <button class="eden-chat-action-btn" *ngIf="msg.role === 'USER'" title="Delete message">🗑️</button>
+                </div>
+              </div>
+              <div class="eden-chat-message-timestamp">{{ msg.timestamp | date:'short' }}</div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div *ngIf="isProcessing" class="eden-chat-typing">
+              <div class="eden-chat-typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span class="eden-chat-typing-text">Eden is thinking...</span>
+            </div>
+
+            <!-- FlowWise Decision Prompt with Video Player -->
+            <div *ngIf="showDecisionPrompt && pendingDecision" class="eden-chat-message eden-chat-message-assistant mb-3">
+              <div class="eden-chat-message-content">
+                <div class="eden-chat-message-role">
+                  <span>🌿 Eden:</span>
+                </div>
+                <div class="alert alert-info mb-0" role="alert">
+                  <h5 class="alert-heading">🤔 {{ pendingDecision.prompt }}</h5>
+                  <hr>
+                  <!-- Debug Info -->
+                  <div class="small text-muted mb-2" *ngIf="pendingDecision">
+                    🔍 DEBUG: videoUrl = "{{ pendingDecision.videoUrl || 'undefined' }}", movieTitle = "{{ pendingDecision.movieTitle || 'undefined' }}"
+                    <br>
+                    🔍 DEBUG: showDecisionPrompt = {{ showDecisionPrompt }}, pendingDecision exists = {{ !!pendingDecision }}
+                    <br>
+                    🔍 DEBUG: videoUrl truthy = {{ !!pendingDecision.videoUrl }}, videoUrl length = {{ pendingDecision.videoUrl?.length || 0 }}
+                  </div>
+                  <!-- Video Player for Movie Viewing Decision -->
+                  <div *ngIf="pendingDecision?.videoUrl" class="mb-3" style="display: block !important; visibility: visible !important; min-height: 250px;">
+                    <div class="card" style="display: block !important; visibility: visible !important;">
+                      <div class="card-body" style="display: block !important; visibility: visible !important;">
+                        <h6 class="card-title" *ngIf="pendingDecision.movieTitle">🎬 {{ pendingDecision.movieTitle }}</h6>
+                        <video 
+                          controls 
+                          autoplay
+                          class="w-100" 
+                          style="max-height: 400px; min-height: 200px; width: 100%; display: block !important; visibility: visible !important; border-radius: 4px; background-color: #000;"
+                          [src]="getVideoUrl(pendingDecision.videoUrl)"
+                          preload="auto">
+                          Your browser does not support the video tag.
+                        </video>
+                        <div class="small text-muted mt-1">
+                          Video Source: {{ getVideoUrl(pendingDecision.videoUrl) }}
+                        </div>
+                        <small class="text-muted d-block mt-1">Video URL: {{ pendingDecision.videoUrl }}</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button
+                      *ngFor="let option of pendingDecision.options"
+                      class="btn btn-primary"
+                      (click)="submitDecision(option.value)">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <small class="text-muted mt-2 d-block">
+                    This decision will advance the workflow
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input Area (Cursor-style) -->
+          <div class="eden-chat-input-area">
+            <div class="eden-chat-input-wrapper">
+              <textarea 
+                class="eden-chat-input"
+                [(ngModel)]="userInput"
+                (keydown.enter)="onChatInputEnter($event)"
+                (keydown.shift.enter)="true"
+                placeholder="💬 Type your workflow or question..."
+                [disabled]="isProcessing"
+                rows="1"
+                #chatInput>
+              </textarea>
+              <button 
+                class="btn eden-chat-clear-btn"
+                type="button"
+                (click)="clearChat()"
+                [disabled]="chatHistoryMessages.length === 0 || isProcessing"
+                title="Clear chat">
+                🗑️
+              </button>
+              <button 
+                class="btn eden-chat-send-btn"
+                type="button"
+                (click)="onEdenChatSubmit()"
+                [disabled]="!userInput.trim() || isProcessing"
+                title="Send message (Enter)">
+                <span *ngIf="!isProcessing">📤</span>
+                <span *ngIf="isProcessing" class="spinner-border spinner-border-sm"></span>
+              </button>
+            </div>
+            <div class="eden-chat-input-hint">
+              <small class="text-muted">💡 Ask questions about Eden, request services, or start workflows</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Garden of Eden Main Street (Service Type Cards) - Below Chat -->
+        <div class="eden-main-street" *ngIf="isUserSignedIn && (isLoadingAppleGardens || appleGardens.length > 0 || dexGardens.length > 0)">
+          <div class="eden-main-street-header">
+            <h5 class="mb-0">🌳 Garden of Eden Main Street</h5>
+            <p class="small mb-3 text-muted">Click a service type - ROOT CA ServiceRegistry will find the best providers</p>
+          </div>
+          
+          <!-- Apple Ecosystem -->
+          <div *ngIf="isLoadingAppleGardens || appleGardens.length > 0" class="eden-garden-section">
+            <h6 class="mb-2">🍎 Apple Ecosystem</h6>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of appleGardens; let idx = index; trackBy: trackByGardenId">
+                <div class="card service-card-compact h-100" (click)="selectAppleGarden(garden)" style="cursor: pointer;" [attr.data-garden-id]="garden.id">
+                  <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle(garden.serviceType)">
+                    <div class="small mb-1">
+                      <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                    </div>
+                    <div class="small fw-bold mb-1">{{ garden.name || garden.id }}</div>
+                    <div class="small text-muted mt-1">
+                      <span *ngIf="garden.serviceType">
+                        {{ getServiceTypeIcon(garden.serviceType) }}
+                        <span class="ms-1">{{ (garden.serviceType || '').toString().toUpperCase() }}</span>
+                      </span>
+                    </div>
+                    <div class="mt-1">
+                      <span class="badge bg-dark-subtle text-body small">
+                        Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DEX Ecosystem -->
+          <div *ngIf="dexGardens.length > 0" class="eden-garden-section">
+            <h6 class="mb-2">💰 DEX Ecosystem</h6>
+            <div class="row g-2">
+              <div class="col-6 col-md-4 col-lg-2" *ngFor="let garden of dexGardens; let idx = index; trackBy: trackByGardenId">
+                <div class="card service-card-compact h-100 dex-service" (click)="selectDexGarden(garden)" style="cursor: pointer;" [attr.data-garden-id]="garden.id">
+                  <div class="card-body text-center p-2" [ngStyle]="getGardenCardStyle('dex')">
+                    <div class="small mb-1">
+                      <span class="badge bg-secondary-subtle text-body-emphasis">#{{ idx + 1 }}</span>
+                    </div>
+                    <div class="small fw-bold mb-1">{{ garden.name || garden.id }}</div>
+                    <div class="small text-muted mt-1">
+                      {{ getServiceTypeIcon('dex') }}
+                      <span class="ms-1">DEX</span>
+                    </div>
+                    <div class="mt-1">
+                      <span class="badge bg-dark-subtle text-body small">
+                        Providers: {{ providerCountsByGardenId[garden.id] || 0 }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabbed Interface (for other views) -->
+        <div class="eden-tabs-container" *ngIf="isUserSignedIn && activeTab !== 'workflow-chat'">
+          <ul class="nav nav-tabs mb-3">
+            <li class="nav-item" *ngIf="!isUserMode">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'workflow'}" (click)="activeTab = 'workflow'">🔄 FlowWise Workflows</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" [ngClass]="{'active': $any(activeTab) === 'workflow-chat'}" (click)="setActiveTab('workflow-chat')">💬 FlowWise Workflows Chat</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'workflow2'}" (click)="activeTab = 'workflow2'">🎬 FlowWise Workflow2</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'ledger'}" (click)="activeTab = 'ledger'">
+                <span *ngIf="!isUserMode">📋 Ledger - All Eden Bookings</span>
+                <span *ngIf="isUserMode">📋 Ledger - All User Bookings</span>
+              </button>
+            </li>
+            <li class="nav-item" *ngIf="isUserMode">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'ledger-cards'}" (click)="activeTab = 'ledger-cards'">📋 My Bookings (Cards)</button>
+            </li>
+            <li class="nav-item" *ngIf="!isUserMode">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'certificates'}" (click)="activeTab = 'certificates'">🔐 Certificates</button>
+            </li>
+            <li class="nav-item" *ngIf="!isUserMode">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'chat'}" (click)="activeTab = 'chat'">💬 Simulator Chat</button>
+            </li>
+            <li class="nav-item" *ngIf="currentViewMode !== 'user'">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'config'}" (click)="activeTab = 'config'">⚙️ System Configuration</button>
+            </li>
+            <li class="nav-item" *ngIf="currentViewMode !== 'user'">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'governance'}" (click)="activeTab = 'governance'">🜂 LLM Governess</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'god-inbox'}" (click)="activeTab = 'god-inbox'">⚡ GOD's Inbox</button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'workflow'}" *ngIf="!isUserMode">
+              <app-workflow-display></app-workflow-display>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': $any(activeTab) === 'workflow-chat'}">
+              <app-workflow-chat-display></app-workflow-chat-display>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'workflow2'}">
+              <app-workflow-display2></app-workflow-display2>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'ledger'}">
+              <app-ledger-display></app-ledger-display>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'ledger-cards'}" *ngIf="isUserMode">
+              <app-ledger-card-deck></app-ledger-card-deck>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'certificates'}" *ngIf="!isUserMode">
+              <app-certificate-display></app-certificate-display>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'chat'}" *ngIf="!isUserMode">
+              <app-chat-box></app-chat-box>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'config'}" *ngIf="currentViewMode !== 'user'">
+              <app-system-config (gardensRefreshed)="refreshGardens()"></app-system-config>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'governance'}" *ngIf="currentViewMode !== 'user'">
+              <app-llm-governance *ngIf="activeTab === 'governance'"></app-llm-governance>
+            </div>
+            <div class="tab-pane fade" [ngClass]="{'show active': activeTab === 'god-inbox'}">
+              <app-god-inbox *ngIf="activeTab === 'god-inbox'"></app-god-inbox>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Status Bar (Fixed Bottom) -->
+    <footer class="eden-status-bar">
+      <div class="eden-status-content">
+        <div class="eden-status-left">
+          <span class="eden-status-indicator" [ngClass]="{'connected': true, 'disconnected': false}">●</span>
+          <span class="eden-status-text">Connected to Garden Network</span>
+          <span class="eden-status-separator">•</span>
+          <span class="eden-status-indicator active">●</span>
+          <span class="eden-status-text">Certified Identity: Active</span>
+          <span class="eden-status-separator">•</span>
+          <span class="eden-status-text">iGas: {{ walletBalance.toFixed(1) }}</span>
+        </div>
+        <div class="eden-status-right">
+          <span class="eden-status-text">Version: Eden v1.28</span>
+          <span class="eden-status-separator">•</span>
+          <span class="eden-status-text">Last Sync: Just now</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Include all modals from original app component -->
+  <!-- Sign In Modal -->
+  <div class="modal fade" id="signInModal" tabindex="-1" [class.show]="showSignInModal" [style.display]="showSignInModal ? 'block' : 'none'">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <span *ngIf="!isGoogleSignedIn">👤 Guest</span>
+            <span *ngIf="isGoogleSignedIn">👤 Account Settings</span>
+          </h5>
+          <button type="button" class="btn-close" (click)="closeSignInModal()" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Mode Selection and Login Form (same as app.component.html) -->
+          <div *ngIf="!isGoogleSignedIn">
+            <div *ngIf="showModeSelection && !showLoginForm" class="mb-4">
+              <div class="text-center mb-4">
+                <h5 class="mb-2">🌳 Welcome to Eden Simulator</h5>
+                <p class="text-muted mb-3">Please select your view mode before signing in</p>
+              </div>
+              <div class="row g-3">
+                <div class="col-12">
+                  <button type="button" class="btn w-100 text-start p-3" [ngClass]="{'btn-primary': selectedMode === 'god', 'btn-outline-primary': selectedMode !== 'god'}" (click)="selectedMode = 'god'; proceedToLogin()">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div>
+                        <strong class="fs-5">⛪ GOD Mode</strong>
+                        <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                      </div>
+                      <span *ngIf="selectedMode === 'god'" class="badge bg-light text-dark">Selected</span>
+                    </div>
+                    <small class="d-block text-muted">Shows ROOT CA and all infrastructure. Full system access for administrators.</small>
+                  </button>
+                </div>
+                <div class="col-12">
+                  <button type="button" class="btn w-100 text-start p-3" [ngClass]="{'btn-success': selectedMode === 'priest', 'btn-outline-success': selectedMode !== 'priest'}" (click)="selectedMode = 'priest'; proceedToLogin()">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div>
+                        <strong class="fs-5">🛐 Priest Mode</strong>
+                        <span class="badge bg-warning text-dark ms-2">Admin Only</span>
+                      </div>
+                      <span *ngIf="selectedMode === 'priest'" class="badge bg-light text-dark">Selected</span>
+                    </div>
+                    <small class="d-block text-muted">Hides system architecture sidebar (like User mode). For administrators who want a cleaner view without infrastructure details.</small>
+                  </button>
+                </div>
+                <div class="col-12">
+                  <button type="button" class="btn w-100 text-start p-3" [ngClass]="{'btn-secondary': selectedMode === 'user', 'btn-outline-secondary': selectedMode !== 'user'}" (click)="selectedMode = 'user'; proceedToLogin()">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div>
+                        <strong class="fs-5">👤 USER Mode</strong>
+                        <span class="badge bg-info text-white ms-2">Standard</span>
+                      </div>
+                      <span *ngIf="selectedMode === 'user'" class="badge bg-light text-dark">Selected</span>
+                    </div>
+                    <small class="d-block text-muted">Standard user view with no sidebar. Filtered views showing only your bookings and services.</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div *ngIf="showLoginForm || isGoogleSignedIn">
+              <form (ngSubmit)="signInWithEmail()" class="mb-4">
+                <div class="mb-3">
+                  <label for="email" class="form-label">Email Address</label>
+                  <input type="email" class="form-control form-control-lg" id="email" [(ngModel)]="signInEmail" name="email" placeholder="Enter your email" required>
+                </div>
+                <div class="mb-3">
+                  <label for="password" class="form-label">Password</label>
+                  <input type="password" class="form-control form-control-lg" id="password" [(ngModel)]="signInPassword" name="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" [disabled]="isSigningIn">
+                  <span *ngIf="!isSigningIn">Sign In</span>
+                  <span *ngIf="isSigningIn">
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    Signing In...
+                  </span>
+                </button>
+              </form>
+              <div class="text-center mb-3">
+                <span class="text-muted">OR</span>
+              </div>
+              <div class="text-center">
+                <p class="mb-3">Sign in with your Google account</p>
+                <div id="google-signin-button-modal" style="min-width: 200px; min-height: 40px; margin: 0 auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeSignInModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="showSignInModal" class="modal-backdrop fade show" (click)="closeSignInModal()"></div>
+
+  <!-- Include other modals (Stripe Payment, Garden Shutdown, etc.) from app.component.html -->
+  <!-- For brevity, these are referenced but should be copied from app.component.html -->
+  
+  <!-- Popup Chat Component -->
+  <app-popup-chat *ngIf="showPopupChat" [userEmail]="userEmail" (close)="closePopupChat()"></app-popup-chat>
+</div>
