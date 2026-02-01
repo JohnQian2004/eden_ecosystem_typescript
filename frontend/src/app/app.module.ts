@@ -5,6 +5,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
 import { HomeComponent } from './home.component';
+import { HomeMobileComponent } from './home-mobile.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { IgasDisplayComponent } from './components/igas-display/igas-display.component';
@@ -52,6 +53,7 @@ const routes: Routes = [
   declarations: [
     AppComponent,
     HomeComponent,
+    HomeMobileComponent,
     ChatBoxComponent,
     SidebarComponent,
     IgasDisplayComponent,

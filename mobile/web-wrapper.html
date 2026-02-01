@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garden of Eden - Mobile</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    #eden-mobile-wrapper {
+      width: 100%;
+      height: 100vh;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <iframe 
+    id="eden-mobile-wrapper"
+    src="http://localhost:4200/?mobile=true"
+    frameborder="0"
+    allowfullscreen>
+  </iframe>
+  
+  <script>
+    // Auto-resize iframe to match content
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'eden-mobile-height') {
+        const iframe = document.getElementById('eden-mobile-wrapper');
+        if (iframe && event.data.height) {
+          iframe.style.height = event.data.height + 'px';
+        }
+      }
+    });
+    
+    // Handle navigation within iframe
+    const iframe = document.getElementById('eden-mobile-wrapper');
+    iframe.addEventListener('load', function() {
+      console.log('Eden mobile app loaded');
+    });
+  </script>
+</body>
+</html>
+

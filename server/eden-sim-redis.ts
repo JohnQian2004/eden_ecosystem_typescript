@@ -15750,12 +15750,15 @@ async function main() {
 
   // Start the server
   const PORT = process.env.PORT || 3000;
+  const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces (0.0.0.0) for remote access
   const protocol = ENABLE_HTTPS ? "https" : "http";
   const wsProtocol = ENABLE_HTTPS ? "wss" : "ws";
   
-  httpServer.listen(PORT, () => {
-    console.log(`\n🚀 Eden Ecosystem Server running on ${protocol}://localhost:${PORT}`);
-    console.log(`📡 WebSocket server ready for connections (${wsProtocol}://localhost:${PORT}/ws)`);
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`\n🚀 Eden Ecosystem Server running on ${protocol}://${HOST}:${PORT}`);
+    console.log(`   Accessible at: ${protocol}://localhost:${PORT} (local)`);
+    console.log(`   Accessible at: ${protocol}://[your-ip]:${PORT} (network)`);
+    console.log(`📡 WebSocket server ready for connections (${wsProtocol}://${HOST}:${PORT}/ws)`);
     if (DEPLOYED_AS_ROOT) {
       console.log(`🌳 ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
     } else {

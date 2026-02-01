@@ -6647,6 +6647,59 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769982475008_71a89908977ee8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769982475008,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769982477483_ec0c9e3f8fde18",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. He is often depicted as a divine, omnipotent, and omniscient figure, with characteristics like love, justice, and mercy. The concept of God varies across different denominations and beliefs within Christianity, Judaism, and other religions.",
+        "timestamp": 1769982477483,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769982595051_63cc58d8c9c5e",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769982595051,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769982575577_088a9aa3c4487",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the context of the Bible, God is considered the supreme being, the creator of the universe, and the source of all life. He is often depicted as a divine, all-powerful, and all-knowing entity, who is worshipped by many different religious traditions. In other cultures and belief systems, the concept of God may vary, but it often represents a supreme being or a force that is beyond human comprehension.",
+        "timestamp": 1769982575577,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769982601589_c049be3aa1c2c8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the context of the Bible, God is considered the supreme being, the creator of the universe, and the source of all life. He is often depicted as a divine, all-powerful, and all-knowing entity, who is worshipped by many different religious traditions. In other cultures and belief systems, the concept of God may vary, but it often represents a supreme being or a force that is beyond human comprehension.",
+        "timestamp": 1769982601589,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -7493,6 +7546,57 @@
         "role": "USER",
         "content": "list all videos",
         "timestamp": 1769957708986,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769982450460_65fbc96967e47",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://50.76.0.85:3000/api/chat: 0 Unknown Error. Please try again.",
+        "timestamp": 1769982450460,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "user",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769982476423_48872ee7407dd",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769982476423,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769982477475_9ba8abeb3e4ad",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. He is often depicted as a divine, omnipotent, and omniscient figure, with characteristics like love, justice, and mercy. The concept of God varies across different denominations and beliefs within Christianity, Judaism, and other religions.",
+        "timestamp": 1769982477475,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769982574342_e5b9e2ad1fbfc",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769982574342,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769982575568_df8b0f3444d8f",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the context of the Bible, God is considered the supreme being, the creator of the universe, and the source of all life. He is often depicted as a divine, all-powerful, and all-knowing entity, who is worshipped by many different religious traditions. In other cultures and belief systems, the concept of God may vary, but it often represents a supreme being or a force that is beyond human comprehension.",
+        "timestamp": 1769982575568,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

@@ -98,10 +98,12 @@ echo 📍 Running from: %CD%
 echo 📍 Command: npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 echo.
 echo ========================================
-echo ✅ Server starting...
+echo ✅ Server starting on 0.0.0.0 (all interfaces)...
 echo ========================================
 echo.
 
+REM Set HOST environment variable to bind to all interfaces
+set HOST=0.0.0.0
 npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
 
 if errorlevel 1 (

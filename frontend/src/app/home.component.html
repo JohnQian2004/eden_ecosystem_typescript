@@ -1,5 +1,9 @@
 <!-- Eden Home Component - New UI/UX with Cursor-style Chat -->
-<div class="eden-home-container" [ngClass]="{'dark-theme': !isUserSignedIn}" [attr.data-user-signed-in]="isUserSignedIn">
+<!-- Mobile Version -->
+<app-home-mobile *ngIf="isMobile"></app-home-mobile>
+
+<!-- Desktop Version -->
+<div *ngIf="!isMobile" class="eden-home-container" [ngClass]="{'dark-theme': !isUserSignedIn}" [attr.data-user-signed-in]="isUserSignedIn">
   <!-- Eden Background with Overlay -->
   <div class="eden-background-overlay"></div>
   
@@ -1073,3 +1077,4 @@
   <!-- Popup Chat Component -->
   <app-popup-chat *ngIf="showPopupChat" [userEmail]="userEmail" (close)="closePopupChat()"></app-popup-chat>
 </div>
+<!-- End Desktop Version -->

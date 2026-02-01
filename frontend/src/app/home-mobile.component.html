@@ -1,0 +1,111 @@
+<!-- Mobile Home Component - Eden Mobile Interface -->
+<div class="mobile-home-container">
+  <!-- Header -->
+  <header class="mobile-header">
+    <div class="mobile-greeting">
+      {{ userName }}, peace be with you this {{ greeting }}
+    </div>
+    <div class="mobile-weather">☀️ Eden's Climate: Perfect</div>
+  </header>
+
+  <!-- Tab Selector -->
+  <div class="mobile-tab-container">
+    <button 
+      class="mobile-tab" 
+      [class.active]="activeTab === 'chat'"
+      (click)="setActiveTab('chat')">
+      💬 Chat
+    </button>
+    <button 
+      class="mobile-tab" 
+      [class.active]="activeTab === 'features'"
+      (click)="setActiveTab('features')">
+      🌿 Features
+    </button>
+  </div>
+
+  <!-- Content Area -->
+  <div class="mobile-content">
+    <!-- Chat Tab -->
+    <div *ngIf="activeTab === 'chat'" class="mobile-chat-container">
+      <!-- Messages -->
+      <div class="mobile-messages">
+        <div 
+          *ngFor="let msg of messages" 
+          class="mobile-message"
+          [class.user]="msg.role === 'USER'"
+          [class.assistant]="msg.role === 'ASSISTANT'"
+          [class.system]="msg.role === 'SYSTEM'">
+          <div class="mobile-message-content">{{ msg.content }}</div>
+          <div class="mobile-message-time">{{ msg.timestamp | date:'shortTime' }}</div>
+        </div>
+        <div *ngIf="isProcessing" class="mobile-message assistant">
+          <div class="mobile-message-content">
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+            Thinking...
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="mobile-input-container">
+        <input 
+          type="text" 
+          class="mobile-input"
+          [(ngModel)]="userInput"
+          (keyup.enter)="sendMessage()"
+          placeholder="Type your message..."
+          [disabled]="isProcessing">
+        <button 
+          class="mobile-send-button"
+          (click)="sendMessage()"
+          [disabled]="!userInput.trim() || isProcessing">
+          Send
+        </button>
+      </div>
+    </div>
+
+    <!-- Features Tab -->
+    <div *ngIf="activeTab === 'features'" class="mobile-features-container">
+      <div class="mobile-scroll-view">
+        <!-- Fruit of Wisdom Today -->
+        <div class="mobile-card">
+          <div class="mobile-card-title">🍎 Fruit of Wisdom Today</div>
+          <div class="mobile-card-content">
+            "And the Lord God planted a garden eastward in Eden; and there he put the man whom he had formed."
+            <br><br>
+            — Genesis 2:8
+          </div>
+        </div>
+
+        <!-- River Sounds -->
+        <div class="mobile-card">
+          <div class="mobile-card-title">🌊 River Sounds</div>
+          <div class="mobile-card-content">
+            Listen to the gentle flow of Eden's rivers
+          </div>
+        </div>
+
+        <!-- Garden Walk -->
+        <div class="mobile-card">
+          <div class="mobile-card-title">🚶 Garden Walk</div>
+          <div class="mobile-card-content">
+            Take a virtual walk through the Garden
+          </div>
+        </div>
+
+        <!-- Animal Friends -->
+        <div class="mobile-card">
+          <div class="mobile-card-title">🦁 Animal Friends</div>
+          <div class="mobile-card-content">
+            Interact with the creatures of Eden
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Prayer Button -->
+      <button class="mobile-prayer-button">🙏</button>
+    </div>
+  </div>
+</div>
+

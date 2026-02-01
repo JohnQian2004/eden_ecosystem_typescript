@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Garden of Eden",
+    "slug": "garden-of-eden",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF3E0"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.eden.garden"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FAF3E0"
+      },
+      "package": "com.eden.garden",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
+

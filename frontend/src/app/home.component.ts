@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { timeout, finalize } from 'rxjs/operators';
@@ -262,6 +262,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   
   // Flag to prevent duplicate renders during sign out
   private isSigningOut: boolean = false;
+  
+  // Mobile detection
+  isMobile: boolean = false;
+  mobileBreakpoint: number = 768; // pixels
+  
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any): void {
+    this.checkMobile();
+  }
+  
+  private checkMobile(): void {
+    this.isMobile = window.innerWidth <= this.mobileBreakpoint;
+    this.cdr.detectChanges();
+  }
   
   // Helper getter to check if user is actually signed in (has saved email in localStorage)
   get isUserSignedIn(): boolean {
@@ -823,6 +837,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   ngOnInit() {
+    // Check mobile on init
+    this.checkMobile();
     // Initialize sign-in state from localStorage
     this.updateSignInState();
     // Check initial route for DEX wizard - check multiple times to catch route initialization
