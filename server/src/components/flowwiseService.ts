@@ -435,8 +435,41 @@ export async function executeNextStep(executionId: string): Promise<{
   console.log(`🔄 [FlowWiseService] executeStepActions completed for step: ${step.id}`);
 
   // Broadcast WebSocket events
+  // CRITICAL: ROOT CA steps (ledger, payment, settlement) should execute silently
+  // Only broadcast events that are user-facing (not internal ROOT CA operations)
+  const isROOTCAStep = step.component === "root-ca" || 
+                       step.id === "root_ca_ledger_and_payment" ||
+                       step.id === "root_ca_ledger_settlement" ||
+                       step.id === "root_ca_cashier_oversight";
+  
   if (step.websocketEvents) {
-    console.log(`📡 [FlowWiseService] Broadcasting ${step.websocketEvents.length} websocket events for step: ${step.id}`);
+    // Filter out user-visible events for ROOT CA steps - they should execute silently
+    // BUT: Allow video/movie events to pass through so video links are shown
+    const eventsToBroadcast = isROOTCAStep 
+      ? step.websocketEvents.filter((event: any) => {
+          // Only allow purchase and video-related events to be visible
+          // Suppress all ledger, payment, certificate, cashier internal events
+          // BUT allow movie/video events that contain video links
+          const allowedTypes = [
+            'purchase', 
+            'video_ready', 
+            'movie_ready', 
+            'view_movie',
+            'movie_started',
+            'movie_finished',
+            'llm_response', // For video links in chat
+            'user_decision_required' // For video viewing step
+          ];
+          return allowedTypes.includes(event.type);
+        })
+      : step.websocketEvents;
+    
+    if (eventsToBroadcast.length > 0) {
+      console.log(`📡 [FlowWiseService] Broadcasting ${eventsToBroadcast.length} websocket events for step: ${step.id}${isROOTCAStep ? ' (ROOT CA - filtered)' : ''}`);
+    } else if (isROOTCAStep && step.websocketEvents.length > 0) {
+      console.log(`📡 [FlowWiseService] Suppressing ${step.websocketEvents.length} ROOT CA internal events for step: ${step.id} (executing silently)`);
+    }
+    
     // Ensure executionId and workflowId are in context for template variables
     // CRITICAL: Also ensure selectedListing is accessible for template variable replacement
     const contextWithIds = {
@@ -454,7 +487,7 @@ export async function executeNextStep(executionId: string): Promise<{
       console.log(`🎬 [FlowWiseService] Prepared context for view_movie with videoUrl: ${contextWithIds.videoUrl}, movieTitle: ${contextWithIds.movieTitle}`);
     }
     
-    for (const event of step.websocketEvents) {
+    for (const event of eventsToBroadcast) {
       const processedEvent = replaceTemplateVariables(event, contextWithIds);
       // CRITICAL: Preserve options array from original event if it exists
       // Template variable replacement might corrupt arrays, so we preserve the original
@@ -527,6 +560,9 @@ export async function executeNextStep(executionId: string): Promise<{
     }
     if (step.id === 'view_movie') {
       console.log(`🎬 [FlowWiseService] ✅ All websocket events broadcasted for view_movie step`);
+    }
+    if (isROOTCAStep && eventsToBroadcast.length === 0) {
+      console.log(`📡 [FlowWiseService] ✅ ROOT CA step ${step.id} executed silently (no user-visible events)`);
     }
   }
 
@@ -852,6 +888,9 @@ export async function executeNextStep(executionId: string): Promise<{
     console.log(`🔄 [FlowWiseService] Current step: ${currentStep}`);
     console.log(`🔄 [FlowWiseService] Context listings count: ${context.listings?.length || 0}`);
     console.log(`🔄 [FlowWiseService] Context listings exists: ${!!context.listings}`);
+    console.log(`🔄 [FlowWiseService] Context llmResponse exists: ${!!context.llmResponse}`);
+    console.log(`🔄 [FlowWiseService] Context llmResponse.selectedListing exists: ${!!context.llmResponse?.selectedListing}`);
+    console.log(`🔄 [FlowWiseService] Context selectedListing exists: ${!!context.selectedListing}`);
     console.log(`🔄 [FlowWiseService] Available transitions:`, transitions.map((t: any) => `${t.from} → ${t.to} (${t.condition || 'always'})`));
   }
 
@@ -868,6 +907,18 @@ export async function executeNextStep(executionId: string): Promise<{
   }
   
   for (const transition of transitions) {
+    // Add specific logging for llm_resolution → user_confirm_listing transition
+    if (currentStep === 'llm_resolution' && transition.to === 'user_confirm_listing') {
+      console.log(`🔄 [FlowWiseService] ⚠️⚠️⚠️ EVALUATING TRANSITION: llm_resolution → user_confirm_listing ⚠️⚠️⚠️`);
+      console.log(`🔄 [FlowWiseService] Condition: ${transition.condition}`);
+      console.log(`🔄 [FlowWiseService] Context llmResponse: ${!!context.llmResponse}`);
+      console.log(`🔄 [FlowWiseService] Context llmResponse.selectedListing: ${!!context.llmResponse?.selectedListing}`);
+      console.log(`🔄 [FlowWiseService] Context llmResponse.selectedListing2: ${!!context.llmResponse?.selectedListing2}`);
+      if (context.llmResponse?.selectedListing2) {
+        console.log(`🔄 [FlowWiseService] selectedListing2 keys: ${Object.keys(context.llmResponse.selectedListing2).join(', ')}`);
+      }
+    }
+    
     // CRITICAL: If we're at user_confirm_listing and the transition condition is {{userDecision}} === 'YES',
     // we need to ensure userDecision is NOT set (it should only be set when user actually clicks "Yes, proceed")
     // If userDecision is already set, it means the workflow is auto-continuing without waiting for user input
@@ -1020,7 +1071,7 @@ export async function executeNextStep(executionId: string): Promise<{
   // This prevents service providers from dictating ROOT CA level operations
   // ROOT CA steps broadcast all data to Angular but wait for explicit workflow progression
   const nextStep = workflow.steps.find((s: WorkflowStep) => s.id === nextStepId);
-  const isROOTCAStep = nextStep && (
+  const isNextStepROOTCA = nextStep && (
     nextStep.component === "root-ca" || 
     nextStep.id === "root_ca_ledger_and_payment" ||
     nextStep.id === "root_ca_ledger_settlement" ||
@@ -1067,7 +1118,7 @@ export async function executeNextStep(executionId: string): Promise<{
   
   // Auto-continue only for non-ROOT CA system steps (not requiring user input)
   // ROOT CA steps execute silently but do NOT auto-continue - they broadcast and wait
-  if (nextStep && nextStep.type !== "decision" && nextStep.type !== "input" && !isROOTCAStep) {
+  if (nextStep && nextStep.type !== "decision" && nextStep.type !== "input" && !isNextStepROOTCA) {
     // System step - auto-execute
     execution.currentStep = nextStepId!;
     return await executeNextStep(executionId); // Recursively execute next step
@@ -1075,7 +1126,7 @@ export async function executeNextStep(executionId: string): Promise<{
   
   // ROOT CA steps: Execute silently, broadcast all data, but do NOT auto-continue
   // This ensures ROOT CA maintains control and service providers cannot dictate these steps
-  if (isROOTCAStep) {
+  if (isNextStepROOTCA) {
     console.log(`🔐 [FlowWiseService] ROOT CA step detected: ${nextStepId}`);
     console.log(`🔐 [FlowWiseService] Executing ROOT CA step atomically (all actions in one shot)`);
     console.log(`🔐 [FlowWiseService] This step will execute payment processing if it's root_ca_ledger_and_payment`);
@@ -1096,9 +1147,20 @@ export async function executeNextStep(executionId: string): Promise<{
     // Find transitions from the current step after ROOT CA
     const transitionsAfterROOTCA = workflowAfterROOTCA.transitions.filter((t: any) => t.from === currentStepAfterROOTCA);
     let nextStepIdAfterROOTCA: string | null = null;
+    console.log(`🔐 [FlowWiseService] Evaluating ${transitionsAfterROOTCA.length} transitions from ${currentStepAfterROOTCA}`);
     for (const transition of transitionsAfterROOTCA) {
       try {
         const conditionMet = !transition.condition || evaluateCondition(transition.condition, execution.context);
+        console.log(`🔐 [FlowWiseService] Transition: ${currentStepAfterROOTCA} → ${transition.to}, condition: ${transition.condition || 'always'}, met: ${conditionMet}`);
+        
+        // Special logging for watch_movie transition
+        if (transition.to === 'watch_movie') {
+          console.log(`🎬 [FlowWiseService] 🎯🎯🎯 WATCH_MOVIE TRANSITION CHECK! 🎯🎯🎯`);
+          console.log(`🎬 [FlowWiseService] Condition: ${transition.condition}`);
+          console.log(`🎬 [FlowWiseService] Condition met: ${conditionMet}`);
+          console.log(`🎬 [FlowWiseService] Context paymentAuthorized: ${execution.context.paymentAuthorized}`);
+        }
+        
         if (conditionMet) {
           nextStepIdAfterROOTCA = transition.to;
           break;
@@ -1124,7 +1186,29 @@ export async function executeNextStep(executionId: string): Promise<{
       }
     }
     
-    // Return the instruction but do NOT auto-continue - workflow progression is explicit
+    // After ROOT CA step, continue to next step if it's not a decision step
+    // This allows workflow to progress to watch_movie and view_movie steps
+    if (nextStepIdAfterROOTCA) {
+      const nextStepAfterROOTCADef = workflowAfterROOTCA.steps.find((s: WorkflowStep) => s.id === nextStepIdAfterROOTCA);
+      console.log(`🔐 [FlowWiseService] Next step after ROOT CA: ${nextStepIdAfterROOTCA}, type: ${nextStepAfterROOTCADef?.type}`);
+      
+      // CRITICAL: watch_movie and view_movie steps should execute immediately after ROOT CA
+      // These are process/decision steps that show video links to the user
+      if (nextStepIdAfterROOTCA === 'watch_movie' || nextStepIdAfterROOTCA === 'view_movie') {
+        console.log(`🎬 [FlowWiseService] 🎯🎯🎯 ROOT CA completed - transitioning to ${nextStepIdAfterROOTCA} to show video links! 🎯🎯🎯`);
+        execution.currentStep = nextStepIdAfterROOTCA;
+        return await executeNextStep(executionId);
+      }
+      
+      if (nextStepAfterROOTCADef && nextStepAfterROOTCADef.type !== "decision" && nextStepAfterROOTCADef.type !== "input") {
+        // Next step is a system step (like watch_movie) - continue to it
+        console.log(`🔐 [FlowWiseService] ROOT CA step completed, continuing to next system step: ${nextStepIdAfterROOTCA}`);
+        execution.currentStep = nextStepIdAfterROOTCA;
+        return await executeNextStep(executionId);
+      }
+    }
+    
+    // Return the instruction but do NOT auto-continue for decision steps
     return rootCAInstruction;
   }
 
@@ -1175,7 +1259,8 @@ async function executeStepActions(
     formatResponseWithOpenAI,
     formatResponseWithDeepSeek
   } = await import("../llm");
-  const { queryROOTCAServiceRegistry } = await import("../serviceProvider");
+  const serviceProviderModule = await import("../serviceProvider");
+  const queryROOTCAServiceRegistry = serviceProviderModule.queryROOTCAServiceRegistry;
   const { debitWallet, getWalletBalance } = await import("../wallet");
   
   // Certificate functions (local to this function)
@@ -1513,9 +1598,41 @@ async function executeStepActions(
             const formatFn = ENABLE_OPENAI ? formatResponseWithOpenAI : formatResponseWithDeepSeek;
             console.log(`🔍 [FlowWiseService] About to call formatFn: ${ENABLE_OPENAI ? 'formatResponseWithOpenAI' : 'formatResponseWithDeepSeek'}`);
             
+            // CRITICAL: Construct a better user query that includes context
+            // If userInput is just "yes, proceed" or similar confirmation, use the original query or selected listing details
+            let userQueryForFormatting = context.userInput || "";
+            if (!userQueryForFormatting || 
+                userQueryForFormatting.toLowerCase().includes("yes") || 
+                userQueryForFormatting.toLowerCase().includes("proceed") ||
+                userQueryForFormatting.toLowerCase().includes("confirm")) {
+              // Use original query if available, or construct from selected listing
+              if (context.originalUserInput) {
+                userQueryForFormatting = context.originalUserInput;
+              } else if (context.selectedListing) {
+                // Construct query from selected listing details
+                const listing = context.selectedListing;
+                if (serviceType === 'movie' || serviceType === 'amc') {
+                  userQueryForFormatting = `Show me details for ${listing.movieTitle || 'this movie'} at ${listing.showtime || 'the showtime'} for $${listing.price || 0}`;
+                } else {
+                  userQueryForFormatting = `Show me details for the selected option`;
+                }
+              } else {
+                userQueryForFormatting = "Format the selected listing with all details including showtime, price, and location";
+              }
+            }
+            
+            // Preserve original user input if not already preserved
+            if (!context.originalUserInput && context.userInput && 
+                !context.userInput.toLowerCase().includes("yes") && 
+                !context.userInput.toLowerCase().includes("proceed")) {
+              context.originalUserInput = context.userInput;
+            }
+            
+            console.log(`🔍 [FlowWiseService] Using userQuery for formatting: "${userQueryForFormatting}"`);
+            
             llmResponse = await formatFn(
               context.listings,
-              context.userInput || "",
+              userQueryForFormatting,
               context.queryResult?.query?.filters
             );
           }
@@ -1972,6 +2089,22 @@ async function executeStepActions(
           const { getDefaultProviderName, getDefaultProviderId } = await import("../serviceTypeFields");
           const defaultProviderName = getDefaultProviderName(ledgerServiceType);
           const defaultProviderId = getDefaultProviderId(ledgerServiceType);
+          
+          // CRITICAL: Check if ledger entry already exists in context to prevent duplicates
+          if (context.ledgerEntry && context.ledgerEntry.entryId) {
+            console.warn(`   ⚠️ [FlowWiseService] Ledger entry already exists in context! entryId: ${context.ledgerEntry.entryId}`);
+            // Verify the entry exists in LEDGER array
+            const existingEntryInArray = LEDGER_ARRAY.find((e: any) => e.entryId === context.ledgerEntry.entryId);
+            if (existingEntryInArray) {
+              console.warn(`   ⚠️ [FlowWiseService] Entry found in LEDGER array - using existing entry`);
+              context.ledgerEntry = existingEntryInArray; // Update to reference from LEDGER array
+              break; // Skip creating a new entry
+            } else {
+              console.warn(`   ⚠️ [FlowWiseService] Entry NOT found in LEDGER array - will create new entry`);
+              // Clear the invalid entry and continue to create a new one
+              context.ledgerEntry = undefined;
+            }
+          }
           
           console.log(`   💰 [FlowWiseService] Creating ledger entry with:`, {
             snapshotAmount: context.snapshot.amount,
@@ -2738,8 +2871,28 @@ export async function submitUserDecision(
       flightNumber: selectedListing.flightNumber,
       poolId: selectedListing.poolId,
       tokenSymbol: selectedListing.tokenSymbol,
-      price: selectedListing.price
+      price: selectedListing.price,
+      videoUrl: selectedListing.videoUrl || 'missing'
     });
+    
+    // CRITICAL: Ensure videoUrl is preserved for movie listings
+    // If videoUrl is missing but we have it in llmResponse, restore it
+    if (selectedListing.movieTitle && !selectedListing.videoUrl) {
+      const llmResponse = execution.context.llmResponse;
+      if (llmResponse?.selectedListing?.videoUrl) {
+        selectedListing.videoUrl = llmResponse.selectedListing.videoUrl;
+        console.log(`   🎬 [FlowWiseService] ✅ Restored videoUrl from llmResponse: ${selectedListing.videoUrl}`);
+      } else if (execution.context.videoUrl) {
+        selectedListing.videoUrl = execution.context.videoUrl;
+        console.log(`   🎬 [FlowWiseService] ✅ Restored videoUrl from context: ${selectedListing.videoUrl}`);
+      } else {
+        // Fallback: use default video URL
+        selectedListing.videoUrl = '/api/movie/video/2025-12-09-144801890.mp4';
+        console.log(`   🎬 [FlowWiseService] ⚠️ Using default videoUrl: ${selectedListing.videoUrl}`);
+      }
+      // Update context to preserve the videoUrl
+      execution.context.selectedListing = selectedListing;
+    }
   } else if (selectionData) {
     // If selectionData is provided, use it as the selected listing
     // But also try to find the full listing from the listings array if available
@@ -2753,6 +2906,13 @@ export async function submitUserDecision(
       if (foundListing) {
         selectedListing = foundListing;
         console.log(`   🎬 [FlowWiseService] Found full listing from listings array for ID: ${selectionData}`);
+        // Ensure videoUrl is present for movie listings
+        if (selectedListing.movieTitle && !selectedListing.videoUrl) {
+          selectedListing.videoUrl = execution.context.videoUrl || 
+                                     execution.context.llmResponse?.selectedListing?.videoUrl ||
+                                     '/api/movie/video/2025-12-09-144801890.mp4';
+          console.log(`   🎬 [FlowWiseService] ✅ Added videoUrl to selectedListing: ${selectedListing.videoUrl}`);
+        }
       } else {
         console.warn(`   ⚠️ [FlowWiseService] Could not find listing in context.listings for ID: ${selectionData}`);
       }
@@ -2764,9 +2924,19 @@ export async function submitUserDecision(
         (selectionData.id && listing.providerId === selectionData.id)
       );
       if (foundListing) {
-        // Merge to ensure all fields are present
+        // Merge to ensure all fields are present, preserving videoUrl from foundListing if available
         selectedListing = { ...foundListing, ...selectionData };
+        // Ensure videoUrl is preserved (foundListing should have it from llm_format_response)
+        if (foundListing.videoUrl && !selectedListing.videoUrl) {
+          selectedListing.videoUrl = foundListing.videoUrl;
+        } else if (selectedListing.movieTitle && !selectedListing.videoUrl) {
+          // Fallback: get videoUrl from context or use default
+          selectedListing.videoUrl = execution.context.videoUrl || 
+                                     execution.context.llmResponse?.selectedListing?.videoUrl ||
+                                     '/api/movie/video/2025-12-09-144801890.mp4';
+        }
         console.log(`   🎬 [FlowWiseService] Merged selectionData with full listing from listings array`);
+        console.log(`   🎬 [FlowWiseService] Selected listing videoUrl: ${selectedListing.videoUrl || 'missing'}`);
       }
     }
   } else if (execution.context.listings && typeof decision === 'string') {

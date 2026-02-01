@@ -423,27 +423,8 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
   processedCondition = processedCondition.replace(/__ARRAY_LENGTH_(\d+)__/g, '$1');
   processedCondition = processedCondition.replace(/__OBJECT_KEYS_(\d+)__/g, '$1');
 
-  // Handle comparison operators (===, !==, ==, !=)
-  if (processedCondition.includes(' === ')) {
-    const [left, right] = processedCondition.split(' === ').map(s => s.trim());
-    // Remove quotes if present (handle both single and double quotes)
-    const leftValue = left.replace(/^['"]|['"]$/g, '');
-    const rightValue = right.replace(/^['"]|['"]$/g, '');
-    const result = leftValue === rightValue;
-    console.log(`   🔍 [evaluateCondition] Comparison: "${leftValue}" === "${rightValue}" = ${result}`);
-    return result;
-  }
-  
-  if (processedCondition.includes(' !== ')) {
-    const [left, right] = processedCondition.split(' !== ').map(s => s.trim());
-    const leftValue = left.replace(/^'|'$/g, '');
-    const rightValue = right.replace(/^'|'$/g, '');
-    return leftValue !== rightValue;
-  }
-
-  // Handle logical operators (&&, ||)
-  // CRITICAL: We need to split carefully to avoid splitting within template variable replacements
-  // First, check if we have && or || operators
+  // Handle logical operators (&&, ||) FIRST, before comparison operators
+  // This ensures proper operator precedence
   if (processedCondition.includes(' && ') || processedCondition.includes(' || ')) {
     // Split by && first, then by ||
     if (processedCondition.includes(' && ')) {

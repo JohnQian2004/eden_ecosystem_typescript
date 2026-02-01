@@ -3914,7 +3914,6 @@ httpServer.on("request", async (req, res) => {
         
         console.log(`📨 Processing Eden chat request from ${email}: "${input.trim()}"`);
         
-        // NEW ARCHITECTURE: Use FlowWiseService (ROOT CA service) to orchestrate workflow
         // Find or create user
         let user = USERS_STATE.find(u => u.email === email);
         if (!user) {
@@ -3931,6 +3930,49 @@ httpServer.on("request", async (req, res) => {
         // Sync user balance with wallet (wallet is source of truth)
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
+        
+        // CRITICAL: Check if user has an active workflow waiting for a decision
+        // If so, treat the input as a decision submission instead of starting a new workflow
+        const workflowExecutions = (global as any).workflowExecutions as Map<string, any> | undefined;
+        let activeExecution: any = null;
+        if (workflowExecutions && workflowExecutions.size > 0) {
+          for (const [execId, execution] of workflowExecutions.entries()) {
+            const executionUserEmail = execution.context?.user?.email || execution.userEmail || execution.user?.email;
+            if (executionUserEmail === email) {
+              const currentStepDef = execution.workflow?.steps?.find((s: any) => s.id === execution.currentStep);
+              if (currentStepDef && currentStepDef.type === "decision" && currentStepDef.requiresUserDecision) {
+                activeExecution = execution;
+                console.log(`🔄 [${requestId}] Found active workflow at decision step: ${execution.currentStep} (executionId: ${execId})`);
+                break;
+              }
+            }
+          }
+        }
+        
+        if (activeExecution) {
+          // User has an active workflow waiting for a decision - submit the decision instead of starting new workflow
+          console.log(`🔄 [${requestId}] Submitting decision "${input.trim()}" to existing workflow: ${activeExecution.executionId}`);
+          try {
+            const result = await submitUserDecisionToFlowWise(activeExecution.executionId, input.trim());
+            console.log(`✅ [${requestId}] Decision submitted successfully, instruction type: ${result.instruction.type}`);
+            
+            sendResponse(200, {
+              success: true,
+              message: "Decision submitted successfully",
+              decision: input.trim(),
+              executionId: activeExecution.executionId,
+              instruction: result.instruction
+            });
+            return;
+          } catch (error: any) {
+            console.error(`❌ [${requestId}] Error submitting decision:`, error.message);
+            sendResponse(500, { success: false, error: error.message || "Failed to submit decision" });
+            return;
+          }
+        }
+        
+        // No active workflow - start a new one
+        console.log(`🔄 [${requestId}] No active workflow found, starting new workflow for: "${input.trim()}"`);
         
         // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
         // This eliminates the need for pre-canned prompts and manual serviceType detection

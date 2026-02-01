@@ -452,7 +452,19 @@ CRITICAL REQUIREMENTS:
 CRITICAL: Never output "service type not supported" or similar errors.
 Always format the response for ANY service type provided.
 
-For ANY OTHER SERVICE TYPE (not movie or dex):
+For MOVIE service type:
+- ALWAYS include ALL key information: movie title, showtime, price, location, rating, review count
+- The message MUST include the showtime (e.g., "10:30 PM", "8:00 PM")
+- Format as: "[Movie Title] is available at [showtime] for $[price] at [location/theater name]"
+- Example: "Back to the Future is available at 10:30 PM for $2 at AMC Theatres in Baltimore, Maryland"
+- Include rating and review information if available
+- Select the best option based on user query (best price, preferred time, etc.)
+
+For DEX service type:
+- Include token symbols, prices, pool information, and action (BUY/SELL)
+- Format trading information clearly
+
+For ANY OTHER SERVICE TYPE:
 - Extract key information from listings (name, price, location, rating, etc.)
 - Format as a natural language message
 - Select the best option based on user query

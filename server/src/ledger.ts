@@ -142,6 +142,16 @@ export function addLedgerEntry(
   console.log(`📝 [Ledger]   payer: ${entry.payer}`);
   console.log(`📝 [Ledger]   status: ${entry.status}`);
 
+  // CRITICAL: Check for duplicate entries before adding
+  // Check if an entry with the same txId already exists (same transaction)
+  const existingEntry = LEDGER.find(e => e.txId === entry.txId && e.payer === entry.payer);
+  if (existingEntry) {
+    console.warn(`⚠️ [Ledger] Duplicate ledger entry detected! txId: ${entry.txId}, payer: ${entry.payer}`);
+    console.warn(`⚠️ [Ledger] Existing entryId: ${existingEntry.entryId}, status: ${existingEntry.status}`);
+    console.warn(`⚠️ [Ledger] Skipping duplicate entry creation - returning existing entry`);
+    return existingEntry;
+  }
+
   // Push ledger entry to local ledger (for immediate access)
   LEDGER.push(entry);
   
