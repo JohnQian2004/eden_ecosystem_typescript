@@ -106,6 +106,7 @@
 }
 
 .eden-nav {
+  opacity: 0.85;
   display: flex;
   gap: 24px;
   align-items: center;
@@ -1014,12 +1015,205 @@
   }
 }
 
-// Tabs Container
+// Tabs Container - Same opacity pattern as Main Street
 .eden-tabs-container {
+  opacity: 0.85;
   margin-top: 32px;
-  background-color: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
   padding: 24px;
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+  border-radius: 12px;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(245, 247, 246, 0.1); // Using 0.1 opacity like Main Street pattern
+    backdrop-filter: blur(5px);
+    border-radius: 12px;
+    z-index: 0;
+  }
+  
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+  
+  // Tab content - Apply Main Street opacity pattern to each tab pane and ALL content
+  .tab-content {
+    position: relative;
+    z-index: 1;
+    
+    .tab-pane {
+      position: relative;
+      background-image: url('/assets/images/eden-2028-background.png');
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      min-height: 400px;
+      padding: 24px;
+      border-radius: 0 0 12px 12px;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(245, 247, 246, 0.1);
+        backdrop-filter: blur(5px);
+        border-radius: 0 0 12px 12px;
+        z-index: 0;
+      }
+      
+      // Apply Main Street pattern to ALL direct children and nested content
+      > * {
+        position: relative;
+        z-index: 1;
+      }
+      
+      // Apply Main Street opacity pattern to ALL content - every element inside tab panes
+      * {
+        position: relative;
+        z-index: 1;
+      }
+      
+      // Apply Main Street opacity pattern to each component wrapper
+      app-workflow-display,
+      app-workflow-chat-display,
+      app-workflow-display2,
+      app-ledger-display,
+      app-ledger-card-deck,
+      app-certificate-display,
+      app-chat-box,
+      app-system-config,
+      app-llm-governance,
+      app-god-inbox {
+        display: block;
+        position: relative;
+        z-index: 1;
+        background-image: url('/assets/images/eden-2028-background.png');
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        min-height: 200px;
+        
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(245, 247, 246, 0.1) !important;
+          backdrop-filter: blur(5px);
+          z-index: 0;
+          pointer-events: none;
+        }
+        
+        > * {
+          position: relative;
+          z-index: 1;
+        }
+      }
+      
+      // Apply to all direct content divs, cards, alerts, containers
+      > div,
+      > .card,
+      > .alert,
+      > .container,
+      > .row,
+      > .col,
+      .p-3 {
+        position: relative;
+        z-index: 1;
+        background-image: url('/assets/images/eden-2028-background.png');
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(245, 247, 246, 0.1) !important;
+          backdrop-filter: blur(5px);
+          z-index: 0;
+          pointer-events: none;
+        }
+        
+        > * {
+          position: relative;
+          z-index: 1;
+        }
+      }
+    }
+  }
+  
+  // Nav tabs - Same opacity pattern as Main Street
+  .nav-tabs {
+    opacity: 0.85;
+    position: relative;
+    z-index: 1;
+    
+    .nav-item {
+      .nav-link {
+        position: relative;
+        background-image: url('/assets/images/eden-2028-background.png');
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        border-radius: 8px 8px 0 0;
+        
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(245, 247, 246, 0.1);
+          backdrop-filter: blur(5px);
+          border-radius: 8px 8px 0 0;
+          z-index: 0;
+        }
+        
+        > * {
+          position: relative;
+          z-index: 1;
+        }
+        
+        transition: all 0.2s ease;
+        
+        &:hover {
+          &::before {
+            background-color: rgba(245, 247, 246, 0.3);
+          }
+        }
+        
+        &.active {
+          &::before {
+            background-color: rgba(245, 247, 246, 0.1);
+          }
+        }
+      }
+    }
+  }
 }
 
 // Responsive Design
