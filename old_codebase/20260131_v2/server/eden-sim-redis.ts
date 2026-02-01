@@ -4206,6 +4206,127 @@ httpServer.on("request", async (req, res) => {
         const { buildConversationId } = await import("./src/chatHistory");
         const conversationId = buildConversationId('service', 'chat', 'user');
         
+        // ⚡ GOD INBOX DETECTION: Use LLM to detect if message is directed to GOD
+        const { detectGodMessage } = await import("./src/llm");
+        const godDetection = await detectGodMessage(input.trim());
+        
+        if (godDetection.shouldRouteToGodInbox && godDetection.confidence > 0.5) {
+          console.log(`⚡ [Chat] Detected message to GOD - routing to GOD's inbox for ${email}`);
+          
+          try {
+            const { createConversation, sendMessage, getConversations } = await import("./src/messaging/conversationService");
+            
+            // Find existing GOD inbox conversation for this user
+            const existingConversations = getConversations({
+              scopeType: 'GOVERNANCE',
+              participantId: email
+            });
+            
+            // Look for conversation with ROOT_AUTHORITY as participant
+            let godConversation = existingConversations.find(conv => 
+              conv.participants.includes('ROOT_AUTHORITY') && 
+              conv.participants.includes(email) &&
+              conv.state === 'OPEN'
+            );
+            
+            if (!godConversation) {
+              // Create new GOVERNANCE conversation with ROOT_AUTHORITY and include initial message
+              godConversation = createConversation({
+                scope: {
+                  type: 'GOVERNANCE',
+                  referenceId: `god_inbox_${Date.now()}`
+                },
+                participants: [email, 'ROOT_AUTHORITY'],
+                policy: {
+                  readPermissions: [
+                    { entityType: 'USER', entityId: email },
+                    { entityType: 'ROOT_AUTHORITY', entityId: 'ROOT_AUTHORITY' }
+                  ],
+                  writePermissions: [
+                    { entityType: 'USER', entityId: email },
+                    { entityType: 'ROOT_AUTHORITY', entityId: 'ROOT_AUTHORITY' }
+                  ],
+                  invitePermissions: [
+                    { entityType: 'ROOT_AUTHORITY', entityId: 'ROOT_AUTHORITY' }
+                  ],
+                  escalatePermissions: [
+                    { entityType: 'ROOT_AUTHORITY', entityId: 'ROOT_AUTHORITY' }
+                  ],
+                  closePermissions: [
+                    { entityType: 'ROOT_AUTHORITY', entityId: 'ROOT_AUTHORITY' }
+                  ]
+                },
+                initialMessage: {
+                  messageType: 'TEXT',
+                  payload: { text: input.trim() },
+                  senderId: email,
+                  senderType: 'USER',
+                  senderRole: 'USER'
+                }
+              }, email, 'USER');
+              
+              console.log(`✅ [Chat] Created new GOD inbox conversation: ${godConversation.conversationId} with initial message`);
+            } else {
+              // Send message to existing GOD's inbox conversation
+              sendMessage({
+                conversationId: godConversation.conversationId,
+                messageType: 'TEXT',
+                payload: { text: input.trim() }
+              }, email, 'USER', 'USER');
+              
+              console.log(`✅ [Chat] Sent message to existing GOD inbox conversation: ${godConversation.conversationId}`);
+            }
+            
+            console.log(`✅ [Chat] Message sent to GOD's inbox: ${godConversation.conversationId}`);
+            
+            // Broadcast WebSocket event to notify Angular to refresh GOD's inbox
+            broadcastEvent({
+              type: 'god_message_received',
+              component: 'messaging',
+              message: 'New message sent to GOD\'s inbox',
+              timestamp: Date.now(),
+              data: {
+                conversationId: godConversation.conversationId,
+                senderEmail: email,
+                messageText: input.trim(),
+                scopeType: 'GOVERNANCE'
+              }
+            });
+            
+            // Append to chat history for user's reference
+            const { appendChatMessage } = await import("./src/chatHistory");
+            appendChatMessage({
+              conversationId: conversationId,
+              role: 'USER',
+              content: input.trim(),
+              userEmail: email,
+              serviceType: 'chat'
+            });
+            
+            // Send response indicating message was sent to GOD's inbox
+            appendChatMessage({
+              conversationId: conversationId,
+              role: 'ASSISTANT',
+              content: "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+              userEmail: email,
+              serviceType: 'chat'
+            });
+            
+            sendResponse(200, {
+              success: true,
+              message: "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
+              routedToGodInbox: true,
+              conversationId: godConversation.conversationId
+            });
+            
+            console.log(`✅ [Chat] Message routed to GOD's inbox for ${email}`);
+            return;
+          } catch (error: any) {
+            console.error(`❌ [Chat] Error routing to GOD's inbox:`, error);
+            // Fall through to regular chat processing if GOD inbox routing fails
+          }
+        }
+        
         // Append user message to chat history
         const { appendChatMessage } = await import("./src/chatHistory");
         appendChatMessage({
@@ -4337,6 +4458,159 @@ httpServer.on("request", async (req, res) => {
       } catch (error: any) {
         console.error(`   ❌ [${requestId}] Error processing chat request:`, error.message);
         sendResponse(500, { success: false, error: error.message });
+      }
+    });
+    return;
+  }
+
+  // ========== Messaging API Endpoints ==========
+  
+  // GET /api/messaging/conversations - Get conversations with filters
+  if (pathname === "/api/messaging/conversations" && req.method === "GET") {
+    console.log(`   📨 [${requestId}] GET /api/messaging/conversations`);
+    try {
+      const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+      const scopeType = queryParams.get("scopeType") || undefined;
+      const referenceId = queryParams.get("referenceId") || undefined;
+      const participantId = queryParams.get("participantId") || undefined;
+      const state = queryParams.get("state") || undefined;
+      const gardenId = queryParams.get("gardenId") || undefined;
+      
+      const { getConversations } = await import("./src/messaging/conversationService");
+      const conversations = getConversations({
+        scopeType: scopeType as any,
+        referenceId,
+        participantId,
+        state: state as any,
+        gardenId
+      });
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, conversations }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting conversations:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+    return;
+  }
+  
+  // GET /api/messaging/conversations/:conversationId - Get conversation by ID
+  if (pathname.startsWith("/api/messaging/conversations/") && req.method === "GET" && !pathname.includes("/messages")) {
+    console.log(`   📨 [${requestId}] GET /api/messaging/conversations/:id`);
+    try {
+      const conversationId = pathname.replace("/api/messaging/conversations/", "");
+      const { getConversation } = await import("./src/messaging/conversationService");
+      const conversation = getConversation(conversationId);
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, conversation }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting conversation:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+    return;
+  }
+  
+  // GET /api/messaging/conversations/:conversationId/messages - Get messages for a conversation
+  if (pathname.startsWith("/api/messaging/conversations/") && pathname.endsWith("/messages") && req.method === "GET") {
+    console.log(`   📨 [${requestId}] GET /api/messaging/conversations/:id/messages`);
+    try {
+      const conversationId = pathname.replace("/api/messaging/conversations/", "").replace("/messages", "");
+      const queryParams = new URL(req.url || "", `http://${req.headers.host}`).searchParams;
+      const entityId = queryParams.get("entityId") || undefined;
+      const entityType = queryParams.get("entityType") as any || undefined;
+      const entityRole = queryParams.get("entityRole") || undefined;
+      
+      const { getConversationMessages } = await import("./src/messaging/conversationService");
+      const messages = getConversationMessages(conversationId, entityId || '', entityType || 'USER', entityRole);
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, messages }));
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting messages:`, error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+    return;
+  }
+  
+  // POST /api/messaging/conversations - Create a new conversation
+  if (pathname === "/api/messaging/conversations" && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/messaging/conversations`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) return;
+      bodyReceived = true;
+      
+      try {
+        const parsedBody = JSON.parse(body);
+        const { createConversation } = await import("./src/messaging/conversationService");
+        const conversation = createConversation(
+          {
+            scope: parsedBody.scope,
+            participants: parsedBody.participants,
+            policy: parsedBody.policy,
+            initialMessage: parsedBody.initialMessage
+          },
+          parsedBody.creatorId,
+          parsedBody.creatorType
+        );
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, conversation }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error creating conversation:`, error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+  
+  // POST /api/messaging/conversations/:conversationId/messages - Send a message
+  if (pathname.startsWith("/api/messaging/conversations/") && pathname.endsWith("/messages") && req.method === "POST") {
+    console.log(`   📨 [${requestId}] POST /api/messaging/conversations/:id/messages`);
+    let body = "";
+    let bodyReceived = false;
+    
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    
+    req.on("end", async () => {
+      if (bodyReceived) return;
+      bodyReceived = true;
+      
+      try {
+        const conversationId = pathname.replace("/api/messaging/conversations/", "").replace("/messages", "");
+        const parsedBody = JSON.parse(body);
+        const { sendMessage } = await import("./src/messaging/conversationService");
+        const message = sendMessage(
+          {
+            conversationId,
+            messageType: parsedBody.messageType,
+            payload: parsedBody.payload,
+            replyTo: parsedBody.replyTo
+          },
+          parsedBody.senderId,
+          parsedBody.senderType,
+          parsedBody.senderRole
+        );
+        
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, message }));
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error sending message:`, error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: error.message }));
       }
     });
     return;

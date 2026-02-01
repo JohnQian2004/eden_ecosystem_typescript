@@ -2,7 +2,10 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { MessagingService, Conversation, Message } from '../../services/messaging.service';
 import { IdentityService } from '../../services/identity.service';
+import { WebSocketService } from '../../services/websocket.service';
 import { getApiBaseUrl } from '../../services/api-base';
+import { SimulatorEvent } from '../../app.component';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-god-inbox',
@@ -26,11 +29,13 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   private lastLoadTime: number = 0;
   private readonly LOAD_COOLDOWN = 2000; // 2 seconds cooldown between loads
   private loadTimeout: any = null;
+  private wsSubscription: Subscription | null = null;
 
   constructor(
     private http: HttpClient,
     private messagingService: MessagingService,
     private identityService: IdentityService,
+    private webSocketService: WebSocketService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -53,6 +58,25 @@ export class GodInboxComponent implements OnInit, OnDestroy {
     }
     
     this.loadConversations();
+    
+    // Subscribe to WebSocket events to refresh inbox when new GOD messages arrive
+    this.wsSubscription = this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
+      if (event.type === 'god_message_received') {
+        console.log('📨 [GOD Inbox] Received god_message_received event, refreshing inbox...');
+        const eventData = event.data as any;
+        
+        // Refresh conversations to show the new message
+        this.loadConversations(true);
+        
+        // If a conversation is currently selected and the new message is for that conversation,
+        // also refresh the messages
+        if (this.selectedConversation && 
+            eventData?.conversationId === this.selectedConversation.conversationId) {
+          console.log('📨 [GOD Inbox] New message for selected conversation, refreshing messages...');
+          this.loadMessages(this.selectedConversation.conversationId);
+        }
+      }
+    });
   }
   
   // Helper methods for template
@@ -75,6 +99,9 @@ export class GodInboxComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.loadTimeout) {
       clearTimeout(this.loadTimeout);
+    }
+    if (this.wsSubscription) {
+      this.wsSubscription.unsubscribe();
     }
   }
 

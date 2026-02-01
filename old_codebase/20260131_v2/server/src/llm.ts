@@ -561,6 +561,116 @@ Return JSON format:
 `;
 
 /**
+ * Detect if message should be routed to GOD's inbox using LLM
+ */
+export async function detectGodMessage(userInput: string): Promise<{ shouldRouteToGodInbox: boolean; confidence: number }> {
+  // Handle MOCKED_LLM mode
+  if (MOCKED_LLM) {
+    const inputLower = userInput.toLowerCase();
+    const hasGodDirect = /\b(god|root\s*ca|roca|root\s*authority)\b/i.test(inputLower) && 
+      (/\b(can\s+you|will\s+you|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)\b/i.test(inputLower) ||
+       /\b(god|root\s*ca|roca)\s+(can|will|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)/i.test(inputLower));
+    
+    return {
+      shouldRouteToGodInbox: hasGodDirect,
+      confidence: hasGodDirect ? 0.8 : 0.2
+    };
+  }
+
+  const GOD_MESSAGE_DETECTION_PROMPT = `
+You are Eden message classifier.
+Determine if a user message is directed to GOD (ROOT_AUTHORITY) and should be routed to GOD's inbox.
+
+GOD messages are:
+- Direct requests to GOD (e.g., "GOD can you bless me", "GOD please help", "ROOT CA I need mercy")
+- Appeals, petitions, or requests for judgment
+- Requests for blessing, forgiveness, mercy, or divine intervention
+- Questions or requests specifically addressed to GOD, ROOT CA, or ROOT_AUTHORITY
+- Messages that ask GOD to do something or answer something
+
+NOT GOD messages:
+- General questions about GOD (e.g., "who is GOD", "what is GOD in Bible")
+- Questions about Eden that mention GOD in context (e.g., "how does GOD work in Eden")
+- Service requests that happen to mention GOD (e.g., "book a movie with GOD")
+- General informational queries
+
+Return JSON only with: shouldRouteToGodInbox (boolean), confidence (number 0-1)
+
+Examples:
+Input: "GOD can you bless me"
+Output: {"shouldRouteToGodInbox": true, "confidence": 0.95}
+
+Input: "GOD please help me"
+Output: {"shouldRouteToGodInbox": true, "confidence": 0.95}
+
+Input: "ROOT CA I need mercy"
+Output: {"shouldRouteToGodInbox": true, "confidence": 0.95}
+
+Input: "who is GOD"
+Output: {"shouldRouteToGodInbox": false, "confidence": 0.9}
+
+Input: "what is GOD in Bible"
+Output: {"shouldRouteToGodInbox": false, "confidence": 0.9}
+
+Input: "how does GOD work in Eden"
+Output: {"shouldRouteToGodInbox": false, "confidence": 0.85}
+
+Input: "book a movie"
+Output: {"shouldRouteToGodInbox": false, "confidence": 0.95}
+`;
+
+  try {
+    const messages = [
+      { role: "system", content: GOD_MESSAGE_DETECTION_PROMPT },
+      { role: "user", content: userInput }
+    ];
+
+    const content = await callCohereAPI(messages, {
+      temperature: 0.3,
+      max_tokens: 200
+    });
+
+    // Try to parse JSON response
+    let parsed: any;
+    try {
+      // Remove markdown code blocks if present
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || content.match(/(\{[\s\S]*\})/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : content;
+      parsed = JSON.parse(jsonStr);
+    } catch (parseError: any) {
+      console.warn(`⚠️ [detectGodMessage] Failed to parse JSON response. Content: ${content.substring(0, 200)}`);
+      // Fallback: use keyword-based detection
+      const queryLower = userInput.toLowerCase();
+      const hasGodDirect = /\b(god|root\s*ca|roca|root\s*authority)\b/i.test(queryLower) && 
+        (/\b(can\s+you|will\s+you|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)\b/i.test(queryLower) ||
+         /\b(god|root\s*ca|roca)\s+(can|will|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)/i.test(queryLower));
+      
+      return {
+        shouldRouteToGodInbox: hasGodDirect,
+        confidence: hasGodDirect ? 0.7 : 0.3
+      };
+    }
+
+    return {
+      shouldRouteToGodInbox: parsed.shouldRouteToGodInbox === true,
+      confidence: parsed.confidence || 0.5
+    };
+  } catch (error: any) {
+    console.error(`❌ [detectGodMessage] Error:`, error);
+    // Fallback: use keyword-based detection
+    const queryLower = userInput.toLowerCase();
+    const hasGodDirect = /\b(god|root\s*ca|roca|root\s*authority)\b/i.test(queryLower) && 
+      (/\b(can\s+you|will\s+you|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)\b/i.test(queryLower) ||
+       /\b(god|root\s*ca|roca)\s+(can|will|please|help|bless|pray|forgive|mercy|judgment|appeal|petition)/i.test(queryLower));
+    
+    return {
+      shouldRouteToGodInbox: hasGodDirect,
+      confidence: hasGodDirect ? 0.6 : 0.2
+    };
+  }
+}
+
+/**
  * Extract query from user input using OpenAI
  */
 export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQueryResult> {

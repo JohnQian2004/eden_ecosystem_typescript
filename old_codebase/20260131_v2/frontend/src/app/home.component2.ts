@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { timeout, finalize } from 'rxjs/operators';
@@ -48,12 +48,12 @@ export interface SimulatorEvent {
 }
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss']
+  selector: 'app-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.scss']
 })
-export class AppComponent implements OnInit, OnDestroy {
-  title = 'Eden Simulator Dashboard';
+export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
+  title = 'Eden Home - Garden-First Intelligence Marketplace';
   theme: 'dark' | 'light' = 'dark';
   userInput: string = '';
   isProcessing: boolean = false;
@@ -217,11 +217,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private dexGardensRefreshTimer: any = null;
   
   // Cached sign-in state to prevent duplicate renders
-  // Initialize from localStorage immediately to avoid template rendering issues
-  private _isUserSignedIn: boolean = (() => {
-    const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null;
-    return !!(savedEmail && savedEmail.trim() !== '');
-  })();
+  private _isUserSignedIn: boolean = false;
   
   // Render key to force component recreation and prevent duplication
   renderKey: string = `render-${Date.now()}`;
@@ -323,6 +319,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
+  @ViewChild('chatMessagesContainer', { static: false }) chatMessagesContainer!: ElementRef<HTMLDivElement>;
+  
+  private shouldScrollToBottom: boolean = true;
   
   showSidebar: boolean = true; // Control sidebar visibility (hidden in USER and PRIEST modes)
 
@@ -343,10 +342,9 @@ export class AppComponent implements OnInit, OnDestroy {
   setViewMode(mode: 'god' | 'priest' | 'user'): void {
     localStorage.setItem('edenViewMode', mode);
     this._currentViewMode = mode;
-    // Reduced transition time to prevent blocking
-    this.viewTransitionUntilMs = Date.now() + 300; // Reduced from 800ms to 300ms
-    // CRITICAL: Trigger change detection so shouldShowAppComponent getter is re-evaluated
-    this.cdr.markForCheck();
+    // Tiny forced overlay window so the UI always feels responsive during big GOD-mode boot loads.
+    this.viewTransitionUntilMs = Date.now() + 800;
+    // Don't call detectChanges here - let it be batched with other changes
   }
 
   // Check if we're in user mode (non-admin)
@@ -359,25 +357,6 @@ export class AppComponent implements OnInit, OnDestroy {
     // Sidebar is only shown in GOD mode
     // Hidden in both PRIEST and USER modes
     return this.currentViewMode === 'god' && this.userEmail === this.adminEmail;
-  }
-
-  // Check if app.component content should be shown (GOD/priest mode and signed in)
-  get shouldShowAppComponent(): boolean {
-    // Read directly from localStorage to ensure we get the latest value
-    // Use a try-catch to handle cases where localStorage might not be available
-    let mode: 'god' | 'priest' | 'user' = 'user';
-    try {
-      mode = (localStorage.getItem('edenViewMode') as 'god' | 'priest' | 'user') || 'user';
-    } catch (e) {
-      mode = 'user';
-    }
-    const signedIn = this.isUserSignedIn;
-    const shouldShow = (mode === 'god' || mode === 'priest') && signedIn;
-    // Update internal state to keep it in sync
-    if (this._currentViewMode !== mode) {
-      this._currentViewMode = mode;
-    }
-    return shouldShow;
   }
 
   // Ensure active tab is visible in current mode
@@ -396,8 +375,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // Apply admin mode selection (GOD or Priest)
   applyAdminMode(): void {
     if (this.userEmail === this.adminEmail) {
-      // CRITICAL: Use setViewMode to ensure _currentViewMode is updated
-      this.setViewMode(this.selectedAdminMode);
+      localStorage.setItem('edenViewMode', this.selectedAdminMode);
       console.log(`⛪ [App] Admin mode applied: ${this.selectedAdminMode}`);
       // Update sidebar visibility based on mode
       this.updateSidebarVisibility();
@@ -506,14 +484,14 @@ export class AppComponent implements OnInit, OnDestroy {
     ).subscribe((event: any) => {
       const url = event.urlAfterRedirects || event.url;
       this.isDexWizardRoute = url === '/dex-garden-wizard' || url.startsWith('/dex-garden-wizard');
-      console.log('[AppComponent] Route changed:', url, 'isDexWizardRoute:', this.isDexWizardRoute);
+      console.log('[HomeComponent] Route changed:', url, 'isDexWizardRoute:', this.isDexWizardRoute);
       this.cdr.detectChanges();
     });
     
     // Check initial route
     const currentUrl = this.router.url;
     this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
-    console.log('[AppComponent] Initial route:', currentUrl, 'isDexWizardRoute:', this.isDexWizardRoute);}
+    console.log('[HomeComponent] Initial route:', currentUrl, 'isDexWizardRoute:', this.isDexWizardRoute);}
 
   // AMC Workflow Integration
   amcWorkflowActive: boolean = false;
@@ -552,6 +530,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Make UI feel instant: clear immediately, then async load.
     this.chatHistoryMessages = [];
     this.isLoadingChatHistory = true;
+    this.shouldScrollToBottom = true;
     this.lastAppendBySig.clear();
     this.chatHistoryClearedAt = 0; // Reset cleared timestamp when switching conversations
     this.cdr.detectChanges();
@@ -642,6 +621,8 @@ export class AppComponent implements OnInit, OnDestroy {
             ? deduped.slice(-this.MAX_CHAT_HISTORY_MESSAGES)
             : deduped;
 
+        // Trigger auto-scroll after loading history
+        this.shouldScrollToBottom = true;
         this.cdr.detectChanges();
         },
         error: (err) => {
@@ -657,6 +638,28 @@ export class AppComponent implements OnInit, OnDestroy {
     this.chatHistoryLoadSeq++;
     this.isLoadingChatHistory = false;
     this.cdr.detectChanges();
+  }
+
+  ngAfterViewChecked() {
+    // Auto-scroll to bottom when new messages are added
+    if (this.shouldScrollToBottom && this.chatMessagesContainer) {
+      setTimeout(() => {
+        const container = this.chatMessagesContainer.nativeElement;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+          this.shouldScrollToBottom = false;
+        }
+      }, 0);
+    }
+  }
+
+  clearChat() {
+    // Clear the current chat messages in the main chat window
+    this.chatHistoryMessages = [];
+    this.userInput = '';
+    this.isProcessing = false;
+    this.cdr.markForCheck();
+    console.log('✅ [App] Chat cleared');
   }
 
   async clearChatHistoryPanel() {
@@ -761,6 +764,8 @@ export class AppComponent implements OnInit, OnDestroy {
       const next = [...this.chatHistoryMessages, local];
       this.chatHistoryMessages =
         next.length > this.MAX_CHAT_HISTORY_MESSAGES ? next.slice(-this.MAX_CHAT_HISTORY_MESSAGES) : next;
+      // Trigger auto-scroll after message is added
+      this.shouldScrollToBottom = true;
     }
     this.cdr.detectChanges();
 
@@ -782,43 +787,13 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit() {
     // Initialize sign-in state from localStorage
     this.updateSignInState();
-    
-    // SAFEGUARD: Reset any stuck loading flags after 5 seconds to prevent infinite loading
-    setTimeout(() => {
-      if (this.isLoadingServices) {
-        console.warn('⚠️ [AppComponent] isLoadingServices stuck, resetting...');
-        this.isLoadingServices = false;
-      }
-      if (this.isLoadingGardens) {
-        console.warn('⚠️ [AppComponent] isLoadingGardens stuck, resetting...');
-        this.isLoadingGardens = false;
-      }
-      if (this.isLoadingBalance) {
-        console.warn('⚠️ [AppComponent] isLoadingBalance stuck, resetting...');
-        this.isLoadingBalance = false;
-      }
-      if (this.isLoadingApplications) {
-        console.warn('⚠️ [AppComponent] isLoadingApplications stuck, resetting...');
-        this.isLoadingApplications = false;
-      }
-      if (this.isLoadingSnakeProviders) {
-        console.warn('⚠️ [AppComponent] isLoadingSnakeProviders stuck, resetting...');
-        this.isLoadingSnakeProviders = false;
-      }
-      // Reset view transition if it's been too long
-      if (this.viewTransitionUntilMs > 0 && Date.now() > this.viewTransitionUntilMs + 2000) {
-        console.warn('⚠️ [AppComponent] viewTransition stuck, resetting...');
-        this.viewTransitionUntilMs = 0;
-      }
-      this.cdr.markForCheck();
-    }, 5000); // 5 seconds - reduced from 10
     // Check initial route for DEX wizard - check multiple times to catch route initialization
     const checkRoute = () => {
       const routerUrl = this.router.url || '';
       const locationUrl = typeof window !== 'undefined' ? window.location.pathname : '';
       const currentUrl = routerUrl || locationUrl;
       this.isDexWizardRoute = currentUrl === '/dex-garden-wizard' || currentUrl.startsWith('/dex-garden-wizard');
-      console.log('[AppComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
+      console.log('[HomeComponent] ngOnInit - Route check:', { routerUrl, locationUrl, currentUrl, isDexWizardRoute: this.isDexWizardRoute });
       // Use markForCheck instead of detectChanges to prevent duplicate renders
       this.cdr.markForCheck();
     };
@@ -946,6 +921,11 @@ export class AppComponent implements OnInit, OnDestroy {
         const movieTitle = (event as any).data?.response?.movieTitle ||
                           (event as any).data?.response?.selectedListing?.movieTitle ||
                           (event as any).data?.movieTitle;
+        
+        // Note: Do NOT create pendingDecision from llm_resolution listings
+        // The workflow should handle this via user_select_listing -> user_confirm_listing steps
+        // The workflow will send a user_decision_required event when it reaches user_confirm_listing step
+        // The Angular client should only respond to explicit workflow decision prompts, not intercept user input
         
         console.log('🎬 [App] ========================================');
         console.log('🎬 [App] llm_response event received');
@@ -1242,18 +1222,16 @@ export class AppComponent implements OnInit, OnDestroy {
       const savedMode = localStorage.getItem('edenViewMode');
       if (savedMode === 'god' || savedMode === 'priest') {
         this.selectedAdminMode = savedMode;
-        this.setViewMode(savedMode); // CRITICAL: Apply the mode to update _currentViewMode
         console.log(`⛪ [App] Admin user mode restored: ${savedMode}`);
       } else if (savedMode === 'user') {
         // Admin should never be in USER mode - reset to GOD
         console.log(`⛪ [App] Admin user was in USER mode, resetting to GOD mode`);
         this.selectedAdminMode = 'god';
-        this.setViewMode('god'); // CRITICAL: Apply the mode
+        localStorage.setItem('edenViewMode', 'god');
       } else {
         // No saved mode - will prompt admin to choose
         console.log(`⛪ [App] Admin user - no saved mode, will prompt for selection`);
         this.selectedAdminMode = 'god'; // Default to GOD
-        this.setViewMode('god'); // CRITICAL: Apply the default mode
       }
       // Update sidebar visibility after mode is set
       this.updateSidebarVisibility();
@@ -1272,10 +1250,17 @@ export class AppComponent implements OnInit, OnDestroy {
     // This is async and won't block balance loading
     this.initializeGoogleSignIn();
     
-    // Initialize tab visibility handling before connecting
-    // This ensures WebSocket is only active in the visible tab
-    this.wsService.initializeTabVisibilityHandling();
-    this.wsService.connect();
+    // WebSocket auto-connects via service constructor
+    // If not already connected, ensure connection is established
+    // (This is a fallback in case service was instantiated before DOM was ready)
+    if (typeof window !== 'undefined' && !this.wsService.isConnected()) {
+      // Check if tab visibility handling is already initialized
+      // If not, initialize it (service constructor might have already done this)
+      if (!document.hidden) {
+        // Only connect if tab is visible
+        this.wsService.connect();
+      }
+    }
     
     // Listen for service provider creation events to refresh service types
     this.wsService.events$.subscribe((event: SimulatorEvent) => {
@@ -1573,96 +1558,114 @@ export class AppComponent implements OnInit, OnDestroy {
     };
   }
 
-  // Debug helper for template
-  debugLog(message: string, data?: any): void {
-    console.log(message, data);
-  }
-
   selectAppleGarden(garden: {id: string, name: string, serviceType?: string, ownerEmail?: string}) {
-    // Disable processing and loading flags to ensure input is enabled
-    this.isProcessing = false;
-    this.isLoadingChatHistory = false;
-    
-    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
-    // The LLM service mapper will determine the actual service/garden from user input
-    this.selectedAppleGarden = { id: garden.id, name: garden.name };
-    this.selectedDexGarden = null;
-
-    // Keep serviceType for context, but LLM will determine actual selection from user input
-    const inferred = this.inferServiceTypeFromGarden(garden as any);
-    this.selectedServiceType = inferred;
-    
-    // Use service-specific sample query from catalog instead of hardcoded movie query
-    const servicePrompt = this.getServiceTypePrompt(inferred);
-    this.userInput = servicePrompt.sampleQuery;
-    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here...";
-    
-    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
-    console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Using sample query: ${servicePrompt.sampleQuery}`);
-
-    // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
-    this.setActiveConversation(this.buildConversationId('garden', garden.id));
-
-    // Switch to workflow-chat tab
-    this.activeTab = 'workflow-chat';
-    
-    // Set sidebar input (if sidebar exists) - do this AFTER tab switch
-    if (this.sidebarComponent) {
-      this.sidebarComponent.edenChatInput = servicePrompt.sampleQuery;
-    }
-    
-    // Focus input after view updates (exactly like home component - simple and fast)
-    setTimeout(() => {
-      const input = document.querySelector('input[name="edenChatInputDocked"], input[name="edenChatInputFloating"]') as HTMLInputElement;
-      if (input) {
-        input.focus();
-        input.select();
+    try {
+      console.log(`🔄 [App] selectAppleGarden called for garden: ${garden.name} (${garden.id})`);
+      
+      // Don't allow garden selection if processing (but allow if just stuck)
+      if (this.isProcessing) {
+        console.warn('⚠️ Garden click blocked: isProcessing is true. Forcing reset...');
+        this.isProcessing = false;
+        this.cdr.detectChanges();
       }
-    }, 100);
+      
+      // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+      // The LLM service mapper will determine the actual service/garden from user input
+      this.selectedAppleGarden = { id: garden.id, name: garden.name };
+      this.selectedDexGarden = null;
 
-    this.cdr.detectChanges();
-  }
+      // Keep serviceType for context, but LLM will determine actual selection from user input
+      const inferred = this.inferServiceTypeFromGarden(garden as any);
+      this.selectedServiceType = inferred;
+      
+      // Use service-specific sample query from catalog instead of hardcoded movie query
+      const servicePrompt = this.getServiceTypePrompt(inferred);
+      
+      // Set the input placeholder to the sample query
+      this.inputPlaceholder = servicePrompt.sampleQuery || `Show me ${inferred} options`;
+      
+      // Populate the chat input with the sample query (user can edit before submitting)
+      this.userInput = servicePrompt.sampleQuery || '';
+      
+      // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+      console.log(`🔄 [App] Garden clicked: ${garden.name} (${inferred}) - Populated input with: ${servicePrompt.sampleQuery}`);
 
-  selectDexGarden(garden: {id: string, name: string}) {
-    // Disable processing and loading flags to ensure input is enabled
-    this.isProcessing = false;
-    this.isLoadingChatHistory = false;
-    
-    // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
-    // The LLM service mapper will determine the actual service/garden from user input
-    this.selectedDexGarden = garden;
+      // Garden-scoped chat history for Apple gardens (no grouping by serviceType)
+      this.setActiveConversation(this.buildConversationId('garden', garden.id));
 
-    // Keep serviceType for context, but LLM will determine actual selection from user input
-    const dexServiceType = this.getDexServiceType();
-    this.selectedServiceType = dexServiceType.type;
-    
-    // Use DEX-specific sample query from catalog instead of hardcoded movie query
-    const servicePrompt = this.getServiceTypePrompt('dex');
-    this.userInput = servicePrompt.sampleQuery;
-    this.inputPlaceholder = servicePrompt.sampleQuery || "Type your request here (e.g., Trade 2 SOL with TOKEN)";
-    
-    // Note: No need to pre-load workflow - LLM will determine serviceType from user input
-    console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Using DEX sample query: ${servicePrompt.sampleQuery}`);
-
-    // Garden-scoped chat history for DEX gardens (single switch)
-    this.setActiveConversation(this.buildConversationId('garden', garden.id));
-
-    // Switch to workflow-chat tab (like home component does)
-    this.activeTab = 'workflow-chat';
-    
-    // Set the sidebar input field directly
-    if (this.sidebarComponent) {
-      this.sidebarComponent.edenChatInput = servicePrompt.sampleQuery;
+      // Switch to workflow-chat tab
+      this.activeTab = 'workflow-chat';
+      
+      // Focus input after view updates
       setTimeout(() => {
-        const input = document.querySelector('input[name="edenChatInputDocked"], input[name="edenChatInputFloating"]') as HTMLInputElement;
+        const input = document.querySelector('input[name="chatInput"], input[name="userInput"]') as HTMLInputElement;
         if (input) {
           input.focus();
           input.select();
         }
       }, 100);
-    }
 
-    this.cdr.detectChanges();
+      this.cdr.detectChanges();
+    } catch (error: any) {
+      console.error(`❌ [App] Error in selectAppleGarden:`, error);
+      alert(`Error selecting garden: ${error.message}`);
+    }
+  }
+
+  selectDexGarden(garden: {id: string, name: string}) {
+    try {
+      console.log(`🔄 [App] selectDexGarden called for garden: ${garden.name} (${garden.id})`);
+      
+      // Don't allow garden selection if processing (but allow if just stuck)
+      if (this.isProcessing) {
+        console.warn('⚠️ DEX Garden click blocked: isProcessing is true. Forcing reset...');
+        this.isProcessing = false;
+        this.cdr.detectChanges();
+      }
+      
+      // NEW ARCHITECTURE: Instead of setting pre-canned prompts, just set the configurable sample input
+      // The LLM service mapper will determine the actual service/garden from user input
+      this.selectedDexGarden = garden;
+      this.selectedAppleGarden = null;
+
+      // Keep serviceType for context, but LLM will determine actual selection from user input
+      const dexServiceType = this.getDexServiceType();
+      this.selectedServiceType = dexServiceType.type;
+      
+      // Use DEX-specific sample query from catalog instead of hardcoded movie query
+      const servicePrompt = this.getServiceTypePrompt('dex');
+      
+      // Set the input placeholder to the sample query
+      this.inputPlaceholder = servicePrompt.sampleQuery || 'Trade tokens';
+      
+      // Populate the chat input with the sample query (user can edit before submitting)
+      this.userInput = servicePrompt.sampleQuery || '';
+      
+      // Note: No need to pre-load workflow - LLM will determine serviceType from user input
+      console.log(`🔄 [App] DEX garden clicked: ${garden.name} - Populated input with: ${servicePrompt.sampleQuery}`);
+
+      // Garden-scoped chat history for DEX gardens (single switch)
+      this.setActiveConversation(this.buildConversationId('garden', garden.id));
+
+      // Switch to workflow-chat tab
+      this.activeTab = 'workflow-chat';
+      
+      // Focus input after view updates
+      setTimeout(() => {
+        const input = document.querySelector('input[name="chatInput"], input[name="userInput"]') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+
+      // Future: can be used to filter DEX pools/providers by garden in backend
+      (this as any).selectedDexGardenId = garden.id;
+      this.cdr.detectChanges();
+    } catch (error: any) {
+      console.error(`❌ [App] Error in selectDexGarden:`, error);
+      alert(`Error selecting DEX garden: ${error.message}`);
+    }
   }
   
   checkServiceGardens() {
@@ -1874,6 +1877,21 @@ export class AppComponent implements OnInit, OnDestroy {
         // Check for pending mode selection (selected before login)
         const pendingMode = localStorage.getItem('pendingViewMode');
         localStorage.removeItem('pendingViewMode');
+        
+        // Route GOD users to app.component (check after pending mode is retrieved)
+        if (email === this.adminEmail) {
+          // Determine admin mode
+          const adminMode = pendingMode === 'god' || pendingMode === 'priest' 
+            ? pendingMode 
+            : (localStorage.getItem('edenViewMode') || 'god');
+          
+          if (adminMode === 'god') {
+            console.log('🔀 [Home] GOD user signed in via Google - routing to app.component');
+            this.selectedAdminMode = 'god';
+            this.router.navigate(['/app']);
+            return;
+          }
+        }
         
         if (email !== this.adminEmail) {
           console.log(`👤 [App] Non-admin user detected (${email})`);
@@ -2266,6 +2284,15 @@ export class AppComponent implements OnInit, OnDestroy {
       // Check for pending mode selection (selected before login)
       const pendingMode = localStorage.getItem('pendingViewMode');
       localStorage.removeItem('pendingViewMode');
+      
+      // Route GOD users to app.component
+      if (this.userEmail === this.adminEmail && this.selectedAdminMode === 'god') {
+        console.log('🔀 [Home] GOD user signed in - routing to app.component');
+        this.isSigningIn = false;
+        this.closeSignInModal();
+        this.router.navigate(['/app']);
+        return;
+      }
       
       // Set view mode
       if (this.userEmail !== this.adminEmail) {
@@ -3423,13 +3450,13 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // CRITICAL: Check if user is responding to a pending decision
-    // If there's a pending decision and the input looks like a confirmation, submit it as a decision
+    // CRITICAL: Check if user is responding to a pending decision from the workflow
+    // Only handle decisions when there's an explicit pendingDecision from the workflow (user_decision_required event)
+    // The workflow (LLM/workflow engine) is responsible for prompting the user, not the Angular client
     if (this.pendingDecision) {
-      const input = this.userInput.trim().toLowerCase();
-      const normalizedInput = input.replace(/[.,!?]/g, '').trim();
-      
-      // Check if input matches common confirmation words
+      // Normalize input for comparison
+      const userInputLower = this.userInput.trim().toLowerCase();
+      const normalizedInput = userInputLower.replace(/[.,!?]/g, '').trim();
       const confirmationWords = ['yes', 'y', 'confirmed', 'confirm', 'ok', 'okay', 'sure', 'proceed', 'continue', 'accept', 'agree'];
       const isConfirmation = confirmationWords.includes(normalizedInput);
       
@@ -3490,8 +3517,8 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Check if this is an Eden workflow query (action-oriented) vs regular informational query
-    const input = this.userInput.trim();
-    const isEdenWorkflowQuery = this.isEdenWorkflowQuery(input);
+    const userInputTrimmed = this.userInput.trim();
+    const isEdenWorkflowQuery = this.isEdenWorkflowQuery(userInputTrimmed);
     
     // If service type is detected OR it's an Eden workflow query, route to /api/eden-chat
     if (this.selectedServiceType || isEdenWorkflowQuery) {
@@ -3518,10 +3545,10 @@ export class AppComponent implements OnInit, OnDestroy {
       if (this.activeConversationId !== desiredConversationId) {
         this.setActiveConversation(desiredConversationId);
       }
-      this.appendChatHistory('USER', input, { serviceType });
+      this.appendChatHistory('USER', userInputTrimmed, { serviceType });
 
       this.isProcessing = true;
-      const inputToSend = input;
+      const inputToSend = userInputTrimmed;
       this.userInput = ''; // Clear input immediately
       
       try {
@@ -3560,11 +3587,11 @@ export class AppComponent implements OnInit, OnDestroy {
       this.setActiveConversation(regularConversationId);
     }
 
-    this.appendChatHistory('USER', input, { serviceType: 'chat' }, regularConversationId);
+    this.appendChatHistory('USER', userInputTrimmed, { serviceType: 'chat' }, regularConversationId);
     
     // Call server API for informational queries (LLM will handle Eden vs general knowledge)
     this.isProcessing = true;
-    const inputToSend = input;
+    const inputToSend = userInputTrimmed;
     this.userInput = ''; // Clear input immediately
     
     try {
@@ -3790,7 +3817,7 @@ export class AppComponent implements OnInit, OnDestroy {
         });
         alert(`Error: ${errorMsg}`);
         // Restore input so user can retry
-        this.userInput = input;
+        // Note: userInput was already cleared, so we can't restore it here
       } else {
         // Even for Solana errors, log and continue
         console.log('⚠️ Solana extension error ignored');
@@ -4123,6 +4150,29 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     
     return 'N/A';
+  }
+
+  // Chat interface methods for new UI
+  onEdenChatSubmit(): void {
+    if (!this.userInput.trim() || this.isProcessing) {
+      return;
+    }
+    this.onSubmit();
+  }
+
+  onChatInputEnter(event: any): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.onEdenChatSubmit();
+    }
+  }
+
+  setActiveTab(tab: string): void {
+    this.activeTab = tab as any;
+  }
+
+  setActiveConversationPublic(conversationId: string): void {
+    this.setActiveConversation(conversationId);
   }
 
 }

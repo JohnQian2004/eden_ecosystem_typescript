@@ -1,0 +1,1084 @@
+// Eden Home Component Styles - New UI/UX with Cursor-style Chat
+
+// Import base styles from app.component.scss
+@import './app.component.scss';
+
+// Local CSS variables for transparency
+.eden-home-container {
+  --eden-opacity: 0.85;
+}
+
+// Eden Background
+.eden-home-container {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.eden-background-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  z-index: 0;
+  
+  // Crop and focus on top section (Bill Draper figure and garden landscape)
+  // The image will be cropped to focus on the upper portion with the landscape
+  @media (min-width: 1920px) {
+    background-size: cover;
+    background-position: center top;
+  }
+  
+  @media (max-width: 1024px) {
+    background-size: cover;
+    background-position: center top;
+  }
+  
+  @media (max-width: 768px) {
+    background-size: cover;
+    background-position: center top;
+  }
+  
+  // Dark overlay for text readability - adjusted for Eden 2028 poster colors
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    // Gradient overlay that preserves the utopian feel while ensuring text readability
+    background: linear-gradient(
+      to bottom,
+      rgba(11, 61, 44, 0.75) 0%,
+      rgba(11, 61, 44, 0.65) 30%,
+      rgba(26, 92, 69, 0.55) 60%,
+      rgba(26, 92, 69, 0.65) 100%
+    );
+    z-index: 1;
+  }
+}
+
+// Header Navigation
+.eden-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 64px;
+  background-color: #0B3D2C;
+  color: #FFFFFF;
+  z-index: 1000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.eden-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 24px;
+  max-width: 100%;
+}
+
+.eden-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 18px;
+  
+  .eden-logo-icon {
+    font-size: 24px;
+  }
+  
+  .eden-logo-text {
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 1px;
+  }
+}
+
+.eden-nav {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.eden-nav-link {
+  color: #FFFFFF;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.eden-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.eden-theme-toggle,
+.eden-signin-btn,
+.eden-signout-btn {
+  border: none;
+  background: transparent;
+  color: #FFFFFF;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.eden-signin-btn.btn-success {
+  background-color: #238636;
+  border-color: #238636;
+  
+  &:hover {
+    background-color: #2ea043;
+  }
+}
+
+// Hero Section
+.eden-hero {
+  position: relative;
+  z-index: 1;
+  padding: 120px 24px 80px;
+  text-align: center;
+  background: linear-gradient(to bottom, rgba(11, 61, 44, 0.9), rgba(26, 92, 69, 0.7));
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  @media (max-width: 768px) {
+    min-height: 200px;
+    padding: 100px 16px 60px;
+  }
+}
+
+.eden-hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.eden-hero-title {
+  font-size: 48px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 16px;
+  font-family: 'Inter', sans-serif;
+  
+  @media (max-width: 768px) {
+    font-size: 32px;
+  }
+}
+
+.eden-hero-subtitle {
+  font-size: 32px;
+  font-weight: 400;
+  color: #F0F9F0;
+  margin-bottom: 24px;
+  font-family: 'Inter', sans-serif;
+  
+  @media (max-width: 768px) {
+    font-size: 24px;
+  }
+}
+
+.eden-hero-tagline {
+  font-size: 18px;
+  color: #8FBC8F;
+  font-style: italic;
+  margin-bottom: 32px;
+}
+
+.eden-hero-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.eden-btn-primary {
+  background-color: #2E8B57;
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #1A5C45;
+  }
+}
+
+.eden-btn-secondary {
+  background-color: transparent;
+  color: #2E8B57;
+  border: 2px solid #2E8B57;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: rgba(46, 139, 87, 0.1);
+  }
+}
+
+// Main Content Wrapper
+.eden-content-wrapper {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: calc(100vh - 64px - 48px);
+  padding-top: 64px;
+  padding-bottom: 48px;
+}
+
+// Chat History Sidebar
+.eden-chat-history {
+  position: fixed;
+  right: 0;
+  top: 64px;
+  width: 300px;
+  height: calc(100vh - 64px - 48px);
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  border-left: 1px solid rgba(46, 139, 87, 0.2);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(245, 247, 246, var(--eden-opacity));
+    backdrop-filter: blur(5px);
+    z-index: 0;
+  }
+  
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+  
+  @media (max-width: 1024px) {
+    position: fixed;
+    right: -300px;
+    transition: right 0.3s ease-in-out;
+    
+    &.open {
+      right: 0;
+    }
+  }
+}
+
+.eden-chat-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(46, 139, 87, 0.2);
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(3px);
+  
+  h6 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0B3D2C;
+    margin: 0;
+  }
+}
+
+.eden-chat-history-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(46, 139, 87, 0.2);
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(3px);
+  
+  input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid rgba(46, 139, 87, 0.2);
+    border-radius: 8px;
+    font-size: 13px;
+    background-color: rgba(255, 255, 255, var(--eden-opacity));
+    backdrop-filter: blur(2px);
+    
+    &:focus {
+      outline: none;
+      border-color: #2E8B57;
+    }
+  }
+}
+
+.eden-chat-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #F5F7F6;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #8FBC8F;
+    border-radius: 3px;
+  }
+}
+
+.eden-chat-history-item {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(3px);
+  
+  &:hover {
+    background-color: rgba(46, 139, 87, 0.2);
+  }
+  
+  &.active {
+    background-color: rgba(46, 139, 87, 0.3);
+    border-left: 4px solid #2E8B57;
+  }
+}
+
+.eden-chat-history-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.eden-context-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  
+  &.badge-order {
+    background-color: #FFEB3B;
+    color: #333;
+  }
+  
+  &.badge-trade {
+    background-color: #2196F3;
+    color: #FFFFFF;
+  }
+  
+  &.badge-service {
+    background-color: #9C27B0;
+    color: #FFFFFF;
+  }
+  
+  &.badge-dispute {
+    background-color: #FF9800;
+    color: #FFFFFF;
+  }
+  
+  &.badge-system {
+    background-color: #795548;
+    color: #FFFFFF;
+  }
+  
+  &.badge-governance {
+    background-color: #F44336;
+    color: #FFFFFF;
+  }
+}
+
+.eden-chat-history-time {
+  font-size: 11px;
+  color: #666666;
+}
+
+.eden-chat-history-item-content {
+  font-size: 13px;
+  color: #333333;
+  line-height: 1.4;
+}
+
+.eden-chat-history-empty {
+  padding: 24px;
+  text-align: center;
+  color: #666666;
+}
+
+.eden-chat-history-filters {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(46, 139, 87, 0.2);
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(3px);
+}
+
+.eden-filter-btn {
+  flex: 1;
+  background-color: #FFFFFF;
+  border: 1px solid #2E8B57;
+  color: #2E8B57;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &.active {
+    background-color: #2E8B57;
+    color: #FFFFFF;
+  }
+  
+  &:hover {
+    background-color: rgba(46, 139, 87, 0.1);
+  }
+}
+
+// Main Chat Area
+.eden-chat-main {
+  flex: 1;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 24px;
+  max-width: 100%;
+  
+  &.with-sidebar {
+    margin-right: 300px;
+    
+    @media (max-width: 1024px) {
+      margin-right: 0;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+}
+
+.eden-igas-display {
+  margin-bottom: 24px;
+}
+
+// Cursor-Style Chat Window
+.eden-chat-window {
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(46, 139, 87, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 600px;
+  max-height: calc(100vh - 200px);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(245, 247, 246, var(--eden-opacity));
+    backdrop-filter: blur(5px);
+    border-radius: 12px;
+    z-index: 0;
+  }
+  
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.eden-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: rgba(11, 61, 44, var(--eden-opacity));
+  backdrop-filter: blur(5px);
+  color: #FFFFFF;
+  border-radius: 12px 12px 0 0;
+}
+
+.eden-chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.eden-chat-cert-icon {
+  font-size: 16px;
+}
+
+.eden-chat-title {
+  font-weight: 600;
+}
+
+.eden-chat-subtitle {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.eden-chat-header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.eden-chat-header-btn {
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+// Chat Messages Area
+.eden-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(3px);
+  min-height: 400px;
+  max-height: 60vh;
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('/assets/images/eden-2028-background.png');
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    opacity: 0.3;
+    z-index: -1;
+  }
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #F5F7F6;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #8FBC8F;
+    border-radius: 3px;
+  }
+}
+
+.eden-chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
+}
+
+.eden-chat-empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.eden-chat-empty-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #0B3D2C;
+  margin-bottom: 8px;
+}
+
+.eden-chat-empty-text {
+  font-size: 14px;
+  color: #666666;
+  max-width: 400px;
+}
+
+// Chat Message Bubbles
+.eden-chat-message {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  
+  &.eden-chat-message-user {
+    align-items: flex-end;
+    
+    .eden-chat-message-content {
+      background-color: #E8F5E9;
+      border: 1px solid #2E8B57;
+      border-radius: 18px 18px 4px 18px;
+      max-width: 70%;
+    }
+  }
+  
+  &.eden-chat-message-assistant {
+    align-items: flex-start;
+    
+    .eden-chat-message-content {
+      background-color: #F0F9F0;
+      border: 1px solid #8FBC8F;
+      border-radius: 18px 18px 18px 4px;
+      max-width: 70%;
+    }
+  }
+  
+  &.eden-chat-message-system {
+    align-items: center;
+    
+    .eden-chat-message-content {
+      background-color: rgba(46, 139, 87, 0.1);
+      border: 1px solid rgba(46, 139, 87, 0.3);
+      border-radius: 8px;
+      max-width: 80%;
+      text-align: center;
+    }
+  }
+}
+
+.eden-chat-message-content {
+  padding: 12px 16px;
+  position: relative;
+  
+  &:hover .eden-chat-message-actions {
+    opacity: 1;
+  }
+}
+
+.eden-chat-message-role {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #0B3D2C;
+}
+
+.eden-chat-message-text {
+  font-size: 14px;
+  color: #333333;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.eden-chat-message-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.eden-chat-action-btn {
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 1);
+  }
+}
+
+.eden-chat-message-timestamp {
+  font-size: 11px;
+  color: #666666;
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+// Typing Indicator
+.eden-chat-typing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #F0F9F0;
+  border-radius: 18px;
+  max-width: 120px;
+  margin-left: 0;
+}
+
+.eden-chat-typing-dots {
+  display: flex;
+  gap: 4px;
+  
+  span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #2E8B57;
+    animation: typing-dot 1.4s infinite ease-in-out;
+    
+    &:nth-child(1) {
+      animation-delay: 0s;
+    }
+    
+    &:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    &:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+  }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+.eden-chat-typing-text {
+  font-size: 12px;
+  color: #666666;
+}
+
+// Chat Input Area
+.eden-chat-input-area {
+  padding: 16px;
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(5px);
+  border-top: 1px solid rgba(46, 139, 87, 0.2);
+  border-radius: 0 0 12px 12px;
+}
+
+.eden-chat-input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.eden-chat-clear-btn {
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(2px);
+  border: 2px solid #dc3545;
+  border-radius: 24px;
+  color: #dc3545;
+  padding: 12px 16px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover:not(:disabled) {
+    background-color: #dc3545;
+    color: #FFFFFF;
+    transform: scale(1.05);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #999;
+    color: #999;
+  }
+  
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+}
+
+.eden-chat-input {
+  flex: 1;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 12px 20px;
+  border: 2px solid #2E8B57;
+  border-radius: 24px;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  resize: none;
+  overflow-y: auto;
+  background-color: rgba(255, 255, 255, var(--eden-opacity));
+  backdrop-filter: blur(2px);
+  
+  &:focus {
+    outline: none;
+    border-color: #1A5C45;
+    box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.1);
+  }
+  
+  &::placeholder {
+    color: #999999;
+  }
+}
+
+.eden-chat-send-btn {
+  background-color: #2E8B57;
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  min-width: 80px;
+  
+  &:hover:not(:disabled) {
+    background-color: #1A5C45;
+  }
+  
+  &:disabled {
+    background-color: #8FBC8F;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: not-allowed;
+  }
+}
+
+.eden-chat-input-hint {
+  margin-top: 8px;
+  padding-left: 4px;
+}
+
+// Status Bar
+.eden-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  background-color: #0B3D2C;
+  color: #FFFFFF;
+  z-index: 1000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.eden-status-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  padding: 12px 24px;
+  font-size: 12px;
+}
+
+.eden-status-left,
+.eden-status-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eden-status-indicator {
+  font-size: 8px;
+  
+  &.connected {
+    color: #4CAF50;
+  }
+  
+  &.disconnected {
+    color: #F44336;
+  }
+  
+  &.active {
+    color: #4CAF50;
+  }
+}
+
+.eden-status-text {
+  color: #FFFFFF;
+  opacity: 0.9;
+}
+
+.eden-status-separator {
+  color: #8FBC8F;
+  margin: 0 4px;
+}
+
+// Main Street Section
+.eden-main-street {
+  margin-top: 32px;
+  padding: 24px;
+  background-image: url('/assets/images/eden-2028-background.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+  border-radius: 12px;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(245, 247, 246, var(--eden-opacity));
+    backdrop-filter: blur(5px);
+    border-radius: 12px;
+    z-index: 0;
+  }
+  
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.eden-main-street-header {
+  margin-bottom: 24px;
+  
+  h5 {
+    color: #0B3D2C;
+    font-weight: 600;
+  }
+}
+
+.eden-garden-section {
+  margin-bottom: 24px;
+  
+  h6 {
+    color: #0B3D2C;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+}
+
+// Tabs Container
+.eden-tabs-container {
+  margin-top: 32px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+// Responsive Design
+@media (max-width: 1024px) {
+  .eden-chat-history {
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+    
+    &.open {
+      transform: translateX(0);
+    }
+  }
+  
+  .eden-chat-main.with-sidebar {
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .eden-hero-title {
+    font-size: 32px;
+  }
+  
+  .eden-hero-subtitle {
+    font-size: 24px;
+  }
+  
+  .eden-chat-window {
+    min-height: 500px;
+    max-height: calc(100vh - 150px);
+  }
+  
+  .eden-chat-message-content {
+    max-width: 85% !important;
+  }
+  
+  .eden-main-street {
+    padding: 16px;
+  }
+}
+
+// Dark Theme Support
+.eden-home-container.dark-theme {
+  .eden-chat-window {
+    background-color: #161b22;
+    border-color: #30363d;
+  }
+  
+  .eden-chat-messages {
+    background-color: #0d1117;
+  }
+  
+  .eden-chat-input {
+    background-color: #161b22;
+    color: #c9d1d9;
+    border-color: #30363d;
+  }
+  
+  .eden-chat-message-text {
+    color: #c9d1d9;
+  }
+}
