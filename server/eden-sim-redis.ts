@@ -3931,6 +3931,95 @@ httpServer.on("request", async (req, res) => {
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
         
+        // Build conversation ID for chat history
+        const { buildConversationId } = await import("./src/chatHistory");
+        const conversationId = buildConversationId('service', 'chat', 'user');
+        
+        // Append user message to chat history
+        const { appendChatMessage } = await import("./src/chatHistory");
+        appendChatMessage({
+          conversationId: conversationId,
+          role: 'USER',
+          content: input.trim(),
+          userEmail: email,
+          serviceType: 'chat'
+        });
+        
+        // 🚨 DUAL CHAT SYSTEM: Check if this is an informational query first
+        // For Eden chat, we handle Eden-related informational queries with RAG
+        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
+        const queryLower = input.trim().toLowerCase();
+        
+        // Check for explicit Eden context (eden, garden, or Eden-specific terms)
+        const hasExplicitEdenContext = /\b(eden|garden\s+of\s+eden|garden\s+of\s+eden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower);
+        
+        // Check if "god" appears with Eden context (e.g., "god in eden", "god in garden")
+        const hasGodWithEdenContext = /\b(god|root\s*ca|roca)\b/i.test(queryLower) && 
+          (/\b(eden|garden|root\s*ca|roca)\b/i.test(queryLower) || 
+           queryLower.includes('in garden') || 
+           queryLower.includes('in eden'));
+        
+        // Eden-related if it has explicit Eden context OR god with Eden context
+        const isEdenRelated = hasExplicitEdenContext || hasGodWithEdenContext;
+        
+        const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve)\b/i.test(queryLower);
+        const isWorkflowQuery = hasActionVerbs && !hasQuestionPattern;
+        const isInformationalQuery = hasQuestionPattern || (!isWorkflowQuery && !hasActionVerbs);
+        
+        if (isInformationalQuery) {
+          // Informational query - handle both Eden-related (with RAG) and general knowledge (without RAG)
+          const isEdenInfoQuery = isEdenRelated;
+          console.log(`💬 [Eden-Chat] Detected informational query - ${isEdenInfoQuery ? 'Eden-related (using RAG)' : 'general knowledge (no RAG)'}`);
+          
+          try {
+            const { formatResponseWithOpenAI } = await import("./src/llm");
+            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { 
+              serviceType: 'informational',
+              useRAG: isEdenInfoQuery // Only use RAG for Eden-related queries
+            });
+            
+            // Append assistant response to chat history
+            const { appendChatMessage } = await import("./src/chatHistory");
+            appendChatMessage({
+              conversationId: conversationId,
+              role: 'ASSISTANT',
+              content: llmResponse.message,
+              userEmail: email,
+              serviceType: 'chat'
+            });
+            
+            // Broadcast LLM response
+            broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: llmResponse.message,
+              timestamp: Date.now(),
+              data: {
+                query: input.trim(),
+                response: llmResponse,
+                isRAG: isEdenInfoQuery,
+                isInformational: true
+              }
+            });
+            
+            sendResponse(200, {
+              success: true,
+              message: llmResponse.message,
+              isRAG: isEdenInfoQuery,
+              isInformational: true
+            });
+            console.log(`✅ [Eden-Chat] Informational query answered for ${email}`);
+            return;
+          } catch (error: any) {
+            console.error(`❌ [Eden-Chat] Error processing informational query:`, error);
+            sendResponse(500, {
+              success: false,
+              error: error.message || 'Failed to process informational query'
+            });
+            return;
+          }
+        }
+        
         // CRITICAL: Check if user has an active workflow waiting for a decision
         // If so, treat the input as a decision submission instead of starting a new workflow
         const workflowExecutions = (global as any).workflowExecutions as Map<string, any> | undefined;
@@ -4112,6 +4201,105 @@ httpServer.on("request", async (req, res) => {
         // Sync user balance with wallet (wallet is source of truth)
         const currentWalletBalance = await getWalletBalance(email);
         user.balance = currentWalletBalance;
+        
+        // Build conversation ID for chat history
+        const { buildConversationId } = await import("./src/chatHistory");
+        const conversationId = buildConversationId('service', 'chat', 'user');
+        
+        // Append user message to chat history
+        const { appendChatMessage } = await import("./src/chatHistory");
+        appendChatMessage({
+          conversationId: conversationId,
+          role: 'USER',
+          content: input.trim(),
+          userEmail: email,
+          serviceType: 'chat'
+        });
+        
+        // 🚨 DUAL CHAT SYSTEM: Detect if this is an informational query vs workflow query
+        // Step 1: Check if it's an informational query (Eden-related or general knowledge)
+        const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(input.trim());
+        const queryLower = input.trim().toLowerCase();
+        
+        // Check for explicit Eden context (eden, garden, or Eden-specific terms)
+        const hasExplicitEdenContext = /\b(eden|garden\s+of\s+eden|workflow|service|messaging|token|movie|ticket|pharmacy|flight|hotel|restaurant|autopart|dex|pool|trade|swap|buy|sell|book|find|order|root\s*ca|roca|judgment|settlement)\b/i.test(queryLower) ||
+          /\b(book|buy|sell|find|order|trade|swap)\s+(a|an|the|some|my|your)?\s*(movie|ticket|token|pharmacy|flight|hotel|restaurant|autopart)\b/i.test(queryLower);
+        
+        // Check if "god" appears with Eden context (e.g., "god in eden", "god in garden")
+        const hasGodWithEdenContext = /\b(god|root\s*ca|roca)\b/i.test(queryLower) && 
+          (/\b(eden|garden|root\s*ca|roca)\b/i.test(queryLower) || 
+           queryLower.includes('in garden') || 
+           queryLower.includes('in eden'));
+        
+        // Eden-related if it has explicit Eden context OR god with Eden context
+        const isEdenRelated = hasExplicitEdenContext || hasGodWithEdenContext;
+        
+        // Detect if it's a workflow/service action query (has action verbs but not a question)
+        const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve)\b/i.test(queryLower);
+        const isWorkflowQuery = hasActionVerbs && !hasQuestionPattern;
+        
+        // If it's a question pattern, treat as informational query
+        // If it has action verbs without question pattern, treat as workflow query
+        const isInformationalQuery = hasQuestionPattern || (!isWorkflowQuery && !hasActionVerbs);
+        
+        if (isInformationalQuery) {
+          // REGULAR TEXT CHAT (Informational Query) - Answer directly using LLM + RAG
+          console.log(`💬 [Chat] Detected informational query - answering directly`);
+          
+          // Check if it's Eden-related (use RAG) or general knowledge
+          const isEdenInfoQuery = hasQuestionPattern && isEdenRelated;
+          const serviceType = "informational";
+          
+          try {
+            const { formatResponseWithOpenAI } = await import("./src/llm");
+            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { 
+              serviceType,
+              useRAG: isEdenInfoQuery // Only use RAG for Eden-related queries
+            });
+            
+            // Append assistant response to chat history
+            appendChatMessage({
+              conversationId: conversationId,
+              role: 'ASSISTANT',
+              content: llmResponse.message,
+              userEmail: email,
+              serviceType: 'chat'
+            });
+            
+            // Broadcast LLM response
+            broadcastEvent({
+              type: "llm_response",
+              component: "llm",
+              message: llmResponse.message,
+              timestamp: Date.now(),
+              data: {
+                query: input.trim(),
+                response: llmResponse,
+                isRAG: isEdenInfoQuery,
+                isInformational: true
+              }
+            });
+            
+            sendResponse(200, {
+              success: true,
+              message: llmResponse.message,
+              isRAG: isEdenInfoQuery,
+              isInformational: true
+            });
+            console.log(`✅ [Chat] Informational query answered for ${email}`);
+            return;
+          } catch (error: any) {
+            console.error(`❌ [Chat] Error processing informational query:`, error);
+            sendResponse(500, {
+              success: false,
+              error: error.message || 'Failed to process informational query'
+            });
+            return;
+          }
+        }
+        
+        // EDEN CHAT (Workflow/Service Query) - Start workflow
+        console.log(`🔄 [Chat] Detected EDEN CHAT (workflow/service query) - starting workflow`);
         
         // NEW ARCHITECTURE: Use LLM service mapper to determine service/garden from user input
         // This eliminates the need for pre-canned prompts and manual serviceType detection

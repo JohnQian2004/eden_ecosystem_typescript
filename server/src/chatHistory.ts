@@ -62,6 +62,11 @@ function scheduleSave() {
 
 safeLoad();
 
+export function buildConversationId(scope: 'garden' | 'service', id: string, mode: string = 'user'): string {
+  const safeId = String(id || '').trim().replace(/\s+/g, '-');
+  return `conv:${scope}:${safeId}:${mode}`;
+}
+
 export function appendChatMessage(msg: Omit<ChatMessage, "id" | "timestamp"> & { id?: string; timestamp?: number }): ChatMessage {
   const conversationId = String(msg.conversationId || "").trim();
   if (!conversationId.startsWith("conv:")) {

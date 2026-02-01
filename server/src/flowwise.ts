@@ -530,6 +530,68 @@ export function evaluateCondition(condition: string, context: WorkflowContext): 
     }
   }
   
+  // Handle equality comparisons (=== and ==)
+  // Note: Template variables should already be replaced at this point
+  if (processedCondition.includes(' === ')) {
+    const [left, right] = processedCondition.split(' === ').map(s => s.trim());
+    // Remove quotes if present (for string comparisons)
+    const leftValue = left.startsWith("'") && left.endsWith("'") ? left.slice(1, -1) : 
+                      left.startsWith('"') && left.endsWith('"') ? left.slice(1, -1) : left;
+    const rightValue = right.startsWith("'") && right.endsWith("'") ? right.slice(1, -1) : 
+                       right.startsWith('"') && right.endsWith('"') ? right.slice(1, -1) : right;
+    // Try numeric comparison first
+    const leftNum = Number(leftValue);
+    const rightNum = Number(rightValue);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum === rightNum;
+    }
+    // String comparison
+    return String(leftValue) === String(rightValue);
+  }
+  
+  if (processedCondition.includes(' == ')) {
+    const [left, right] = processedCondition.split(' == ').map(s => s.trim());
+    const leftValue = left.startsWith("'") && left.endsWith("'") ? left.slice(1, -1) : 
+                      left.startsWith('"') && left.endsWith('"') ? left.slice(1, -1) : left;
+    const rightValue = right.startsWith("'") && right.endsWith("'") ? right.slice(1, -1) : 
+                       right.startsWith('"') && right.endsWith('"') ? right.slice(1, -1) : right;
+    const leftNum = Number(leftValue);
+    const rightNum = Number(rightValue);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum == rightNum;
+    }
+    return String(leftValue) == String(rightValue);
+  }
+  
+  // Handle inequality comparisons (!== and !=)
+  if (processedCondition.includes(' !== ')) {
+    const [left, right] = processedCondition.split(' !== ').map(s => s.trim());
+    const leftValue = left.startsWith("'") && left.endsWith("'") ? left.slice(1, -1) : 
+                      left.startsWith('"') && left.endsWith('"') ? left.slice(1, -1) : left;
+    const rightValue = right.startsWith("'") && right.endsWith("'") ? right.slice(1, -1) : 
+                       right.startsWith('"') && right.endsWith('"') ? right.slice(1, -1) : right;
+    const leftNum = Number(leftValue);
+    const rightNum = Number(rightValue);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum !== rightNum;
+    }
+    return String(leftValue) !== String(rightValue);
+  }
+  
+  if (processedCondition.includes(' != ')) {
+    const [left, right] = processedCondition.split(' != ').map(s => s.trim());
+    const leftValue = left.startsWith("'") && left.endsWith("'") ? left.slice(1, -1) : 
+                      left.startsWith('"') && left.endsWith('"') ? left.slice(1, -1) : left;
+    const rightValue = right.startsWith("'") && right.endsWith("'") ? right.slice(1, -1) : 
+                       right.startsWith('"') && right.endsWith('"') ? right.slice(1, -1) : right;
+    const leftNum = Number(leftValue);
+    const rightNum = Number(rightValue);
+    if (!isNaN(leftNum) && !isNaN(rightNum)) {
+      return leftNum != rightNum;
+    }
+    return String(leftValue) != String(rightValue);
+  }
+  
   // Check if processedCondition is just a number (after template replacement)
   if (!isNaN(Number(processedCondition.trim()))) {
     return Number(processedCondition.trim()) !== 0;

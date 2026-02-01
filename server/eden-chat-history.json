@@ -5331,6 +5331,292 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1769907867442_02e5f056e5edc",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "what is eden",
+        "timestamp": 1769907867442,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769907868698_7effd6955afbb8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/eden-chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769907868698,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908408486_e54e3d29999d38",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908408486,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908413132_30bae7e6ef6678",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/eden-chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769908413132,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908584414_5f6e82280d0608",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769908584414,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908584509_b722956cde32f8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/eden-chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769908584509,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910219736_93de8a0a097ee8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910219736,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910225076_0615b8ec8da478",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "You can watch *Back to the Future* at AMC Theatres in Baltimore, Maryland for just $2. It has a high rating of 5 stars and 100 reviews.",
+        "timestamp": 1769910225076,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910383967_28648e2312047",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910383967,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910388732_f6e630baa2aac",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "You can watch 'Back to the Future' at AMC Theatres in Baltimore, Maryland for just $2. It's a sci-fi classic with a 5-star rating and 100 reviews. Showtime is at 10:30 PM tonight.",
+        "timestamp": 1769910388732,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910527424_302cf09a8108f",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910527424,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910531077_5061e79b5e859",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "You can watch *Back to the Future* at AMC Theatres in Baltimore, Maryland for $2. It has a high rating of 5 and 100 reviews.",
+        "timestamp": 1769910531077,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910664786_202fde15807ca8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910664786,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910668735_5354c10e9e4238",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Here's a great sci-fi movie option for tonight at a fantastic price! You can catch *Back to the Future* at 10:30 PM at AMC Theatres in Baltimore, Maryland for just $2. This film has received excellent reviews with a 5-star rating and over 100 reviews.",
+        "timestamp": 1769910668735,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910704945_c5a32aecffd2b8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"Back to the Future\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769910704945,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769911987857_031630a26fdc68",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769911987857,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769911991992_8b45276494e738",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Here's a great sci-fi movie option for tonight at the best price: The Matrix at AMC Theatres in Baltimore, Maryland. It's showing at 8:00 PM and has a high rating of 4.9 based on 150 reviews.",
+        "timestamp": 1769911991992,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769912125354_45223ecfc1e9f8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769912125354,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769912137238_5824a4302cb86",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "You can watch 'Back to the Future' at AMC Theatres in Baltimore, Maryland for just $2. It's highly rated with 5 stars and has 100 reviews.",
+        "timestamp": 1769912137238,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913750975_67211bfdb60d28",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769913750975,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913755473_175fca3c2b337",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "I found two sci-fi movies showing tonight at AMC Theatres in Baltimore, Maryland. The best-rated option is 'The Matrix' with a 4.9 rating and a price of $2. It's showing at 8:00 PM. You can also catch 'Back to the Future' for the same price, but it's showing at 10:30 PM.",
+        "timestamp": 1769913755473,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913762591_109e0940c27748",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"The Matrix\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769913762591,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913781171_d85f9a3e44b2c",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769913781171,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913781234_590c08daed0868",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/eden-chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769913781234,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913947741_3b29e0c0b757",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769913947741,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913955046_22dffa6fca3ec8",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "I found two sci-fi movies playing tonight at AMC Theatres in Baltimore, Maryland. Both are priced at $2. You can choose between 'Back to the Future' at 10:30 PM or 'The Matrix' at 8:00 PM. Both movies have great reviews, with 'Back to the Future' having 100 reviews and a 5-star rating, and 'The Matrix' having 150 reviews and a 4.9-star rating.",
+        "timestamp": 1769913955046,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913957860_956ddfdb8fd11",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "🎬 Movie \"Back to the Future\" is ready to watch! The video will play in the chat console.",
+        "timestamp": 1769913957860,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [
@@ -5382,6 +5668,81 @@
         "role": "ASSISTANT",
         "content": "For a sci-fi movie experience this evening, consider watching 'The Matrix' at AMC Theatres in Baltimore, Maryland. The showtime is at 8:00 PM, and it's highly rated with a 4.9 out of 5 from 150 reviews. Tickets are priced at $2.",
         "timestamp": 1769015511450,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908993041_59cb786d395a1",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "book a movie for tonight around 10PM",
+        "timestamp": 1769908993041,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769909154774_433203da6fc0b",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "book a movie for tonight around 10PM",
+        "timestamp": 1769909154774,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769909219965_7bd499e90491e",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769909219965,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769909855423_f5eef4e35a436",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769909855423,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769909860870_20aa3e580c79d8",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "You can watch Back to the Future at 10:30 PM at AMC Theatres in Baltimore, Maryland for $2. This movie has a high rating and many reviews.",
+        "timestamp": 1769909860870,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910052015_f607f1ff973a68",
+        "conversationId": "conv:service:movie:god",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769910052015,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1769910056865_cdf0780e007eb8",
+        "conversationId": "conv:service:movie:god",
+        "role": "ASSISTANT",
+        "content": "You can catch 'Back to the Future' at 10:30 PM at AMC Theatres in Baltimore, Maryland. It's rated 5 stars and has 100 reviews.",
+        "timestamp": 1769910056865,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
@@ -5589,6 +5950,422 @@
         "timestamp": 1769044421499,
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:chat:god": [
+      {
+        "id": "c_1769908615604_526dcac8332d88",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is GOD in Garden of Eden",
+        "timestamp": 1769908615604,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908615653_dcf3f2ba7f9fb8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Sorry, I encountered an error: Http failure response for https://localhost:3000/api/chat: 500 Internal Server Error. Please try again.",
+        "timestamp": 1769908615653,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908695685_37434b3a7687b",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is GOD in Garden of Eden",
+        "timestamp": 1769908695685,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908697236_ff23cbd956fb9",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In Eden, the term 'GOD' refers to the ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA is responsible for validating identities, verifying capability boundaries, accepting or rejecting ledger entries, settling balances, finalizing fees, revoking certificates, and writing immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and ensuring trust and quality for services.",
+        "timestamp": 1769908697236,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908706400_5e6716cafc93e8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908706400,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908707636_7821064db9355",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In Eden, GOD refers to ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA has the power to validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and handling settlement.",
+        "timestamp": 1769908707636,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908845619_e3dd826c3cfee8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908845619,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908846968_8424bfb0b01aa8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the context of Eden, GOD refers to ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA has the power to validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and handling settlement.",
+        "timestamp": 1769908846968,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908961638_4deaa5550c5028",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908961638,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769908963808_f8d12561f44738",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "GOD is a term used in various contexts and religions to refer to a supreme being or a divine entity. In the Christian, Islamic, and Jewish traditions, GOD is often associated with the concept of a single, all-powerful, and all-encompassing deity. In other cultures and belief systems, the term may be used to describe different concepts of divinity or spiritual forces.",
+        "timestamp": 1769908963808,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913908140_63293854c11a38",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769913908140,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913909560_29bf9c00aa7e08",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is considered the supreme being and the creator of the universe. He is often depicted as a divine, omnipotent, and omniscient entity, who is all-powerful and all-knowing. The concept of God varies across different Christian, Islamic, and Jewish traditions, but He is generally seen as a benevolent and just ruler who cares for His creation.",
+        "timestamp": 1769913909560,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913924596_866b647f564008",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769913924596,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1769913928987_e0b136e7ca866",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. He is often associated with attributes such as love, justice, and power. God is a central figure in Christianity, Judaism, and other religions, and is often depicted as a divine, all-powerful, and all-knowing entity.",
+        "timestamp": 1769913928987,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      }
+    ],
+    "conv:service:chat:user": [
+      {
+        "id": "m_1769908695975_dbfe83d8dc44a",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is GOD in Garden of Eden",
+        "timestamp": 1769908695975,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908697232_4c84a07a95d46",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In Eden, the term 'GOD' refers to the ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA is responsible for validating identities, verifying capability boundaries, accepting or rejecting ledger entries, settling balances, finalizing fees, revoking certificates, and writing immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and ensuring trust and quality for services.",
+        "timestamp": 1769908697232,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908706422_2e0407922f5aa",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908706422,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908707632_fe289e4ff9c95",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In Eden, GOD refers to ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA has the power to validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and handling settlement.",
+        "timestamp": 1769908707632,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908845683_7101275fd704c",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908845683,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908846963_e3027414c33b5",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the context of Eden, GOD refers to ROOT CA (Root Certificate Authority), which is the supreme authority and law of the Eden ecosystem. ROOT CA has the power to validate identity, verify capability boundaries, accept or reject ledger entries, settle balances, finalize fees, revoke certificates, and write immutable judgment records. It acts as a global certification authority, managing the ServiceRegistry and handling settlement.",
+        "timestamp": 1769908846963,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908961700_a4faa5378e583",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769908961700,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908963803_d8fef254a0fed",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "GOD is a term used in various contexts and religions to refer to a supreme being or a divine entity. In the Christian, Islamic, and Jewish traditions, GOD is often associated with the concept of a single, all-powerful, and all-encompassing deity. In other cultures and belief systems, the term may be used to describe different concepts of divinity or spiritual forces.",
+        "timestamp": 1769908963803,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769908993063_c093657ba7c0e",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "book a movie for tonight around 10PM",
+        "timestamp": 1769908993063,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769909154840_97da3b0b2fd5b",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "book a movie for tonight around 10PM",
+        "timestamp": 1769909154840,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769909219979_fbdfd046c05de",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769909219979,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769909855449_f6267351d82e1",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769909855449,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769910052040_146d8f06063c5",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "book a movie tonight at 10PM",
+        "timestamp": 1769910052040,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769910219752_b7d265374cc5",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910219752,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769910383982_4c7a1db3b69f7",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910383982,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769910527440_42e367786621d",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910527440,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769910664802_4e1ea68c1f21c",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769910664802,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769911987882_763d74c45c6fa",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769911987882,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769912125373_e1abf35a1287",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769912125373,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913750990_f90b44735afb1",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769913750990,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913781191_5c371d3229563",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is GOD",
+        "timestamp": 1769913781191,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913908163_fabd9824a5c0d",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769913908163,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913909555_8da49f1b11168",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is considered the supreme being and the creator of the universe. He is often depicted as a divine, omnipotent, and omniscient entity, who is all-powerful and all-knowing. The concept of God varies across different Christian, Islamic, and Jewish traditions, but He is generally seen as a benevolent and just ruler who cares for His creation.",
+        "timestamp": 1769913909555,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913924610_3ed71bc45e9c5",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "who is god",
+        "timestamp": 1769913924610,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913928982_0d0e66fe2c804",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. He is often associated with attributes such as love, justice, and power. God is a central figure in Christianity, Judaism, and other religions, and is often depicted as a divine, all-powerful, and all-knowing entity.",
+        "timestamp": 1769913928982,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1769913947761_0c5128f580ee4",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "I want a sci-fi movie to watch tonight at the best price",
+        "timestamp": 1769913947761,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
         "status": "active"
       }
     ]

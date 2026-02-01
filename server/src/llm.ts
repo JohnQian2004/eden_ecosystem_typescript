@@ -388,19 +388,43 @@ async function callCohereAPI(
         res.on("data", (c) => (data += c));
         res.on("end", () => {
           try {
-            const parsed = JSON.parse(data);
-            if (parsed.message || parsed.error) {
-              reject(new Error(parsed.message || parsed.error?.message || "Cohere API error"));
+            // Try to parse as JSON first
+            let parsed: any;
+            try {
+              parsed = JSON.parse(data);
+            } catch (parseErr) {
+              // If not JSON, check if it's a plain text error message
+              if (data.trim().startsWith("I'm sorry") || data.trim().toLowerCase().includes("error")) {
+                reject(new Error(`Cohere API returned error: ${data.substring(0, 200)}`));
+                return;
+              }
+              // Try to extract text content from non-JSON response
+              reject(new Error(`Cohere API returned invalid response (not JSON): ${data.substring(0, 200)}`));
               return;
             }
-            const content = parsed.text || parsed.message;
+            
+            // Check for API errors
+            if (parsed.error || parsed.message) {
+              const errorMsg = parsed.error?.message || parsed.message || parsed.error || "Cohere API error";
+              reject(new Error(errorMsg));
+              return;
+            }
+            
+            // Extract content from response
+            // Cohere response format: { text: "...", ... } or { message: "...", ... }
+            const content = parsed.text || parsed.message || parsed.content;
             if (!content) {
-              reject(new Error("No content in Cohere response"));
+              // If no content field, check if the entire response is a string
+              if (typeof parsed === 'string') {
+                resolve(parsed);
+                return;
+              }
+              reject(new Error(`No content in Cohere response. Response structure: ${JSON.stringify(parsed).substring(0, 200)}`));
               return;
             }
             resolve(content);
           } catch (err: any) {
-            reject(new Error(`Failed to parse Cohere response: ${err.message}`));
+            reject(new Error(`Failed to parse Cohere response: ${err.message}. Raw response: ${data.substring(0, 200)}`));
           }
         });
       }
@@ -439,37 +463,91 @@ export async function callLLM(prompt: string, useOpenAI: boolean = true): Promis
 // LLM Response Formatting Prompt
 export const LLM_RESPONSE_FORMATTING_PROMPT = `
 You are Eden Core AI response formatter.
-Format service listings into a user-friendly message.
-Return JSON only with: message (string), selectedListing (object), selectedListing2 (object), listings (array).
+Format service listings into a user-friendly message, OR answer informational questions about Eden or general knowledge.
 
-CRITICAL REQUIREMENTS:
-1. selectedListing is REQUIRED and MUST NOT be null or undefined
-2. selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
-3. selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
-4. selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
-5. If you cannot find a better match, pick the FIRST listing from the provided listings array
+🚨 CRITICAL DISTINCTION: There are TWO types of user queries in Eden:
+
+1. **EDEN CHAT (Workflow/Service Queries)** - These trigger workflows:
+   - Examples: "book a movie", "buy movie tickets", "trade 2 SOL with TOKEN", "find a pharmacy", "buy TOKENA"
+   - These are ACTION queries that should trigger Eden workflows
+   - When listings are provided, these are SERVICE QUERIES
+   - Format service listings into a user-friendly message
+   - Return JSON with: message (string), selectedListing (object), selectedListing2 (object), listings (array)
+   - CRITICAL REQUIREMENTS:
+     * selectedListing is REQUIRED and MUST NOT be null or undefined
+     * selectedListing2 is REQUIRED and MUST NOT be null or undefined - it MUST be the same as selectedListing
+     * selectedListing MUST be one of the listings from the provided listings array (use the original object, do not invent)
+     * selectedListing2 MUST be the same object as selectedListing (copy the exact same object)
+     * If you cannot find a better match, pick the FIRST listing from the provided listings array
+
+2. **REGULAR TEXT CHAT (Informational Queries)** - These are answered directly:
+   
+   A. **EDEN-RELATED INFORMATIONAL QUERIES** (about Eden itself):
+   - Examples: "how to messaging", "how eden works", "what is the garden of eden", "how do I use this", "who eden works"
+   - These are INFORMATION queries about Eden that should be answered directly WITHOUT triggering workflows
+   - Answer using your knowledge of Eden's architecture and messaging system
+   - Use the provided RAG context (Eden knowledge base) to answer accurately
+   - Return JSON with: message (string), selectedListing (null), selectedListing2 (null), listings (empty array)
+   - The message should be helpful and explain Eden's features, philosophy, or how to use the interface
+   - Reference the Universal Messaging System when relevant
+   - Guide users on how to use the UI interface (Workflow Display Component)
+   - DO NOT suggest triggering workflows for informational queries
+   
+   B. **GENERAL KNOWLEDGE QUERIES** (NOT about Eden):
+   - Examples: "what is GOD in Bible", "what is today", "what is the weather", "who is the president", "explain quantum physics"
+   - These are general knowledge questions that are NOT related to Eden services or workflows
+   - Answer these questions naturally and helpfully
+   - Return JSON with: message (string with the answer), selectedListing (null), selectedListing2 (null), listings (empty array)
+   - Provide clear, accurate answers to general knowledge questions
+
+CRITICAL CLASSIFICATION RULES:
+- If user asks "how to messaging", "how eden works", "what is eden", "who eden works" → EDEN-RELATED INFORMATIONAL QUERY
+- If user asks "what is GOD in Bible", "what is the weather", "who is the president" (NOT about Eden) → GENERAL KNOWLEDGE QUERY
+- If user asks "book a movie", "trade tokens", "buy TOKEN" → EDEN CHAT (workflow/service query)
+- If listings are provided → EDEN CHAT (service query)
+- If NO listings AND user asks question about Eden → EDEN-RELATED INFORMATIONAL QUERY
+- If NO listings AND user asks general knowledge question (NOT about Eden) → GENERAL KNOWLEDGE QUERY
 
 CRITICAL: Never output "service type not supported" or similar errors.
-Always format the response for ANY service type provided.
+Always format the response for ANY service type provided, OR provide helpful informational answers.
 
-For MOVIE service type:
-- ALWAYS include ALL key information: movie title, showtime, price, location, rating, review count
-- The message MUST include the showtime (e.g., "10:30 PM", "8:00 PM")
-- Format as: "[Movie Title] is available at [showtime] for $[price] at [location/theater name]"
-- Example: "Back to the Future is available at 10:30 PM for $2 at AMC Theatres in Baltimore, Maryland"
-- Include rating and review information if available
-- Select the best option based on user query (best price, preferred time, etc.)
-
-For DEX service type:
-- Include token symbols, prices, pool information, and action (BUY/SELL)
-- Format trading information clearly
-
-For ANY OTHER SERVICE TYPE:
+For ANY OTHER SERVICE TYPE (not movie or dex):
 - Extract key information from listings (name, price, location, rating, etc.)
 - Format as a natural language message
 - Select the best option based on user query
 - Return the selected listing and all listings
 - selectedListing2 MUST be set to the same value as selectedListing
+
+## About Eden and Messaging System
+
+When users ask questions about Eden, the messaging system, or how to use the interface, you should:
+
+1. **Explain Eden**: Describe Eden as a garden-first economic and intelligence system that replaces blockchain with LLM-governed intelligence fees, federated gardens, and ROOT CA governance.
+
+2. **Explain Messaging**: Mention that Eden has a Universal Messaging System for governed, auditable communication. Conversations are scoped to contexts (ORDER, TRADE, SERVICE, DISPUTE, SYSTEM) and messages are never deleted (only state changes).
+
+3. **Guide UI Usage**: Explain that users can:
+   - Type natural language requests in the chat input (EDEN CHAT for workflows, REGULAR TEXT CHAT for questions)
+   - Follow workflow prompts and make decisions
+   - View transactions in the ledger display
+   - Watch videos (for movie services) in the video player modal
+
+4. **Distinguish Chat Types**: 
+   - EDEN CHAT: Use the input box to request services (movies, tokens, etc.) - these trigger workflows
+   - REGULAR TEXT CHAT: Use the input box to ask questions about Eden - these get direct answers
+
+5. **Suggest Conversations**: If users need ongoing help, suggest creating a conversation via the messaging system.
+
+## Response Formatting Requirements
+
+**CRITICAL**: Always format responses in a structured, readable way using:
+- **Clear sections with headers** (use ## or ### for markdown)
+- **Bullet points** for lists (use - or *)
+- **Numbered lists** for step-by-step instructions
+- **Bold text** for important terms or concepts
+- **Line breaks** between sections for readability
+- **Short paragraphs** (2-3 sentences max per paragraph)
+- **Avoid long walls of text** - break information into digestible chunks
 
 Service type: {serviceType}
 
@@ -477,8 +555,8 @@ Return JSON format:
 {
   "message": "...",
   "listings": [...],
-  "selectedListing": { /* complete listing object with ALL fields */ },
-  "selectedListing2": { /* MUST be the same as selectedListing */ }
+  "selectedListing": { /* complete listing object with ALL fields, or null for informational queries */ },
+  "selectedListing2": { /* MUST be the same as selectedListing, or null for informational queries */ }
 }
 `;
 
@@ -542,14 +620,78 @@ export async function extractQueryWithOpenAI(userInput: string): Promise<LLMQuer
       temperature: 0.7
     });
     
-    const parsed = JSON.parse(content);
+    // Try to parse as JSON
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseErr: any) {
+      // If JSON parsing fails, check if it's an error message or non-JSON response
+      console.error(`❌ [extractQueryWithOpenAI] Failed to parse JSON response. Content: ${content.substring(0, 200)}`);
+      
+      // Check if it looks like an error message
+      if (content.toLowerCase().includes('error') || content.toLowerCase().includes('sorry') || content.toLowerCase().startsWith('i\'m sorry')) {
+        throw new Error(`Cohere API returned an error message: ${content.substring(0, 200)}`);
+      }
+      
+      // Try to extract JSON from markdown code blocks if present
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          parsed = JSON.parse(jsonMatch[1]);
+        } catch (e) {
+          throw new Error(`Failed to parse JSON from markdown code block: ${parseErr.message}`);
+        }
+      } else {
+        // If no JSON found, provide a fallback based on user input
+        console.warn(`⚠️ [extractQueryWithOpenAI] Cohere returned non-JSON response, using fallback classification`);
+        const inputLower = userInput.toLowerCase();
+        let fallbackServiceType = "movie";
+        let fallbackFilters: any = {};
+        
+        // Simple keyword-based fallback classification
+        if (inputLower.includes("token") || inputLower.includes("dex") || inputLower.includes("pool") || inputLower.includes("trade") || inputLower.includes("swap")) {
+          fallbackServiceType = "dex";
+          fallbackFilters = {
+            tokenSymbol: inputLower.includes("tokenb") || inputLower.includes("token b") ? "TOKENB" : "TOKENA",
+            baseToken: "SOL",
+            action: inputLower.includes("sell") ? "SELL" : "BUY"
+          };
+        } else if (inputLower.includes("flight") || inputLower.includes("airline")) {
+          fallbackServiceType = "airline";
+        } else if (inputLower.includes("pharmacy") || inputLower.includes("prescription")) {
+          fallbackServiceType = "pharmacy";
+        } else if (inputLower.includes("hotel")) {
+          fallbackServiceType = "hotel";
+        } else if (inputLower.includes("restaurant")) {
+          fallbackServiceType = "restaurant";
+        } else if (inputLower.includes("autopart") || inputLower.includes("car")) {
+          fallbackServiceType = "autoparts";
+        }
+        
+        return {
+          query: { serviceType: fallbackServiceType, filters: fallbackFilters },
+          serviceType: fallbackServiceType,
+          confidence: 0.7 // Lower confidence for fallback
+        };
+      }
+    }
+    
+    // Validate parsed response structure
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error(`Invalid response structure from Cohere: expected object, got ${typeof parsed}`);
+    }
+    
     return {
-      query: parsed.query || { serviceType: "movie", filters: {} },
+      query: parsed.query || { serviceType: parsed.serviceType || "movie", filters: parsed.filters || {} },
       serviceType: parsed.serviceType || "movie",
       confidence: parsed.confidence || 0.9
     };
   } catch (err: any) {
-    throw new Error(`Failed to parse Cohere response: ${err.message}`);
+    // If it's already our formatted error, re-throw it
+    if (err.message && err.message.includes('Cohere API')) {
+      throw err;
+    }
+    throw new Error(`Failed to extract query from user input: ${err.message}`);
   }
 }
 
@@ -566,14 +708,51 @@ export async function formatResponseWithOpenAI(
       message: "Mock LLM response",
       listings: listings.slice(0, 1),
       selectedListing: listings[0] || null,
+      selectedListing2: listings[0] || null,
       iGasCost: 0.001
     };
   }
 
   const serviceType = queryFilters?.serviceType || "movie";
-  const listingsJson = JSON.stringify(listings);
-  const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
-  const userMessage = `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\nQuery filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  
+  // Check if this is an informational query (no listings and serviceType is informational or god_chat)
+  const isInformational = listings.length === 0 && (serviceType === "informational" || serviceType === "god_chat");
+  
+  // Check if this is Eden-related (use RAG) or general knowledge (no RAG)
+  // Only use RAG if explicitly marked as Eden-related OR if query contains Eden context
+  const useRAG = queryFilters?.useRAG === true || 
+    (isInformational && /\b(eden|garden\s+of\s+eden|workflow|root\s*ca|roca)\b/i.test(userQuery));
+  
+  // For Eden-related informational queries, get RAG context
+  let ragContext = "";
+  if (isInformational && useRAG) {
+    try {
+      const { getKnowledgeContext } = await import("./rag/edenKnowledgeBase");
+      ragContext = getKnowledgeContext(userQuery);
+      console.log(`📚 [RAG] Retrieved ${ragContext ? 'RAG context' : 'no RAG context'} for query: "${userQuery}"`);
+    } catch (error: any) {
+      console.warn(`⚠️ [RAG] Failed to get knowledge context: ${error.message}`);
+      ragContext = "";
+    }
+  } else if (isInformational && !useRAG) {
+    console.log(`💬 [LLM] General knowledge query (no RAG): "${userQuery}"`);
+  }
+  
+  // Build user message
+  let userMessage = `Service type: ${serviceType}\n\nUser query: ${userQuery}\n\n`;
+  
+  if (isInformational) {
+    // For informational queries, include RAG context if available
+    if (ragContext) {
+      userMessage += `${ragContext}\n\n`;
+    }
+    userMessage += `Answer the user's question directly. If this is about Eden, use the RAG context provided above. If this is general knowledge, answer using your knowledge.`;
+  } else {
+    // For service queries, include listings and filters
+    const listingsJson = JSON.stringify(listings);
+    const filtersJson = queryFilters ? JSON.stringify(queryFilters) : "{}";
+    userMessage += `Query filters: ${filtersJson}\n\nAvailable listings:\n${listingsJson}\n\nFilter listings based on the query filters and format the best option as a user-friendly message.`;
+  }
 
   const messages = [
     { role: "system", content: LLM_RESPONSE_FORMATTING_PROMPT.replace("{serviceType}", serviceType) },
@@ -587,13 +766,30 @@ export async function formatResponseWithOpenAI(
       temperature: 0.7
     });
     
-    const content = JSON.parse(contentStr);
+    let content: any;
+    try {
+      content = JSON.parse(contentStr);
+    } catch (parseErr: any) {
+      // If JSON parsing fails, try to extract message from response
+      console.warn(`⚠️ [LLM] Failed to parse JSON response, attempting to extract message: ${contentStr.substring(0, 200)}`);
+      // For informational queries, we can return the raw response as message
+      if (isInformational) {
+        return {
+          message: contentStr || "I apologize, but I couldn't process your request properly. Please try again.",
+          listings: [],
+          selectedListing: null,
+          selectedListing2: null,
+          iGasCost: 0.001
+        };
+      }
+      throw new Error(`Failed to parse LLM response as JSON: ${parseErr.message}`);
+    }
     
     return {
       message: content.message || "No response",
-      listings: content.listings || listings,
-      selectedListing: content.selectedListing || listings[0] || null,
-      selectedListing2: content.selectedListing2 || content.selectedListing || listings[0] || null,
+      listings: content.listings || (isInformational ? [] : listings),
+      selectedListing: content.selectedListing || (isInformational ? null : listings[0] || null),
+      selectedListing2: content.selectedListing2 || content.selectedListing || (isInformational ? null : listings[0] || null),
       iGasCost: content.iGasCost || 0.001
     };
   } catch (err: any) {
