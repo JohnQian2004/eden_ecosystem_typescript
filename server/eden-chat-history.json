@@ -7208,6 +7208,27 @@
         "mode": "god",
         "serviceType": "chat",
         "status": "active"
+      },
+      {
+        "id": "c_1770034819295_0dac6b40a9b608",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "Who is God",
+        "timestamp": 1770034819295,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770034821336_d61ff74ae50af",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. God is often depicted as a divine, all-powerful, and all-knowing entity, with characteristics such as omniscience, omnipotence, and omnibenevolence. The concept of God varies across different Christian, Jewish, and Islamic traditions, each with its own unique interpretation and understanding of this divine figure.",
+        "timestamp": 1770034821336,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -8575,6 +8596,26 @@
         "role": "ASSISTANT",
         "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
         "timestamp": 1770026588108,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770034818865_6cfbd61cbf2b4",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "Who is God",
+        "timestamp": 1770034818865,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770034820276_cf7ce2dd616c",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "In the Bible, God is the supreme being and the creator of the universe. God is often depicted as a divine, all-powerful, and all-knowing entity, with characteristics such as omniscience, omnipotence, and omnibenevolence. The concept of God varies across different Christian, Jewish, and Islamic traditions, each with its own unique interpretation and understanding of this divine figure.",
+        "timestamp": 1770034820276,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

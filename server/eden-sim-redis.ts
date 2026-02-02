@@ -329,6 +329,36 @@ httpServer.on("request", async (req, res) => {
   
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
+  
+  // Proxy media server requests (if media server is running separately)
+  // Media server runs on port 3001 as a separate service
+  if (pathname.startsWith('/api/media/')) {
+    const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
+    const proxyUrl = new URL(pathname, MEDIA_SERVER_URL);
+    
+    // Simple proxy to media server
+    const proxyModule = require('http');
+    const proxyReq = proxyModule.request(proxyUrl, {
+      method: req.method,
+      headers: req.headers
+    }, (proxyRes: any) => {
+      // Copy headers
+      Object.keys(proxyRes.headers).forEach(key => {
+        res.setHeader(key, proxyRes.headers[key]);
+      });
+      res.writeHead(proxyRes.statusCode || 200);
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err: any) => {
+      console.warn(`⚠️ [${requestId}] Media server not available at ${MEDIA_SERVER_URL}, falling back to legacy video serving`);
+      // Fall through to legacy video serving - don't return here
+    });
+    
+    // Pipe request body if present
+    req.pipe(proxyReq);
+    return; // Request is being proxied
+  }
 
   // WebSocket upgrade requests are handled automatically by WebSocketServer
   // No need to intercept them here
