@@ -4,9 +4,36 @@
 .mobile-home-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh; // Changed from height to min-height to prevent compression
+  height: auto; // Allow container to grow
+  overflow-y: scroll; // Always show scrollbar
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   background-color: #FAF3E0; // lightCream
   font-family: 'Georgia', 'Times New Roman', serif;
+  // Ensure scrollbar is visible
+  scrollbar-width: thin; // Firefox
+  scrollbar-color: rgba(46, 139, 87, 0.5) rgba(0, 0, 0, 0.1); // Firefox
+  
+  // Webkit scrollbar styling
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(46, 139, 87, 0.5);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(46, 139, 87, 0.7);
+    }
+  }
 }
 
 .mobile-header {
@@ -63,15 +90,17 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible; // Changed from hidden to visible to allow content to expand
+  min-height: 0; // Prevent flex compression
 }
 
 // Chat Tab Styles
 .mobile-chat-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: calc(100vh - 200px); // Ensure minimum height, accounting for header and tabs
   background-color: #FAF3E0;
+  flex-shrink: 0; // Prevent compression
 }
 
 .mobile-messages {
@@ -177,6 +206,8 @@
   flex: 1;
   position: relative;
   background-color: #FAF3E0;
+  min-height: calc(100vh - 200px); // Ensure minimum height, accounting for header and tabs
+  flex-shrink: 0; // Prevent compression
 }
 
 .mobile-scroll-view {

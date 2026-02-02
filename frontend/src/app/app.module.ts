@@ -5,7 +5,6 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
 import { HomeComponent } from './home.component';
-import { HomeMobileComponent } from './home-mobile.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { IgasDisplayComponent } from './components/igas-display/igas-display.component';
@@ -32,6 +31,7 @@ import { VideoDetailsComponent } from './components/video-details/video-details.
 import { VideoUploadComponent } from './components/video-upload/video-upload.component';
 import { EdenUniversityComponent } from './components/eden-university/eden-university.component';
 import { EdenNewsComponent } from './components/eden-news/eden-news.component';
+import { EdenTEDComponent } from './components/eden-ted/eden-ted.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -55,7 +55,6 @@ const routes: Routes = [
   declarations: [
     AppComponent,
     HomeComponent,
-    HomeMobileComponent,
     ChatBoxComponent,
     SidebarComponent,
     IgasDisplayComponent,
@@ -77,7 +76,8 @@ const routes: Routes = [
     VideoDetailsComponent,
     VideoUploadComponent,
     EdenUniversityComponent,
-    EdenNewsComponent
+    EdenNewsComponent,
+    EdenTEDComponent
   ],
   imports: [
     BrowserModule,

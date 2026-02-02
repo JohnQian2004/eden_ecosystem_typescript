@@ -10876,6 +10876,88 @@ Return your response as plain text (no JSON, no markdown formatting).`;
     return;
   }
 
+  // GET /api/ted/talks - Get TED talks
+  if (pathname === "/api/ted/talks" && req.method === "GET") {
+    console.log(`   🎤 [${requestId}] GET /api/ted/talks - Get TED talks`);
+    try {
+      const { parseTEDFeed } = await import("./src/tedParser");
+      const talks = await parseTEDFeed();
+      
+      // Sort by publishedDate (newest first)
+      talks.sort((a, b) => {
+        const dateA = new Date(a.publishedDate).getTime();
+        const dateB = new Date(b.publishedDate).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to 50 most recent talks
+      const limitedTalks = talks.slice(0, 50);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        talks: limitedTalks,
+        count: limitedTalks.length
+      }));
+      console.log(`   ✅ [${requestId}] Returned ${limitedTalks.length} TED talks`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting TED talks:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // POST /api/ted/refresh - Refresh TED talks
+  if (pathname === "/api/ted/refresh" && req.method === "POST") {
+    console.log(`   🎤 [${requestId}] POST /api/ted/refresh - Refresh TED talks`);
+    try {
+      const { parseTEDFeed } = await import("./src/tedParser");
+      const talks = await parseTEDFeed();
+      
+      // Sort by publishedDate (newest first)
+      talks.sort((a, b) => {
+        const dateA = new Date(a.publishedDate).getTime();
+        const dateB = new Date(b.publishedDate).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to 50 most recent talks
+      const limitedTalks = talks.slice(0, 50);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        talks: limitedTalks,
+        count: limitedTalks.length
+      }));
+      console.log(`   ✅ [${requestId}] Refreshed and returned ${limitedTalks.length} TED talks`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error refreshing TED talks:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
   // GET /api/video-library/listings - Get all video listings (Angular pulls instead of WebSocket)
   if (pathname === "/api/video-library/listings" && req.method === "GET") {
     console.log(`   📚 [${requestId}] GET /api/video-library/listings - Fetching video listings`);

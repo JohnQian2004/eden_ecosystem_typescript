@@ -257,8 +257,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   // Active tab for main content area
   activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' | 'university' = 'workflow-chat';
   
-  // Active tab for Eden Chat window (chat, video-library, university, or news)
-  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' = 'chat';
+  // Active tab for Eden Chat window (chat, video-library, university, news, or ted)
+  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' | 'ted' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -274,20 +274,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   
   // Flag to prevent duplicate renders during sign out
   private isSigningOut: boolean = false;
-  
-  // Mobile detection
-  isMobile: boolean = false;
-  mobileBreakpoint: number = 768; // pixels
-  
-  @HostListener('window:resize', ['$event'])
-  onResize(event: any): void {
-    this.checkMobile();
-  }
-  
-  private checkMobile(): void {
-    this.isMobile = window.innerWidth <= this.mobileBreakpoint;
-    this.cdr.detectChanges();
-  }
   
   // Helper getter to check if user is actually signed in (has saved email in localStorage)
   get isUserSignedIn(): boolean {
@@ -850,8 +836,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   ngOnInit() {
-    // Check mobile on init
-    this.checkMobile();
+    // Listen for TED talk selection events
+    window.addEventListener('ted-talk-selected', this.handleTEDTalkSelectedWrapper.bind(this) as EventListener);
     // Initialize sign-in state from localStorage
     this.updateSignInState();
     // Check initial route for DEX wizard - check multiple times to catch route initialization
@@ -3613,6 +3599,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (this.servicesRefreshTimer) clearTimeout(this.servicesRefreshTimer);
     if (this.gardensRefreshTimer) clearTimeout(this.gardensRefreshTimer);
     if (this.dexGardensRefreshTimer) clearTimeout(this.dexGardensRefreshTimer);
+    // Remove TED talk event listener
+    window.removeEventListener('ted-talk-selected', this.handleTEDTalkSelectedWrapper.bind(this) as EventListener);
     this.wsService.disconnect();
   }
 
@@ -4131,6 +4119,24 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
       movieTitle: video.title
     });
     
+    this.cdr.detectChanges();
+  }
+
+  handleTEDTalkSelectedWrapper(event: Event): void {
+    const customEvent = event as CustomEvent;
+    this.handleTEDTalkSelected(customEvent);
+  }
+
+  handleTEDTalkSelected(event: CustomEvent): void {
+    const talk = event.detail.talk;
+    console.log('🎤 [App] TED talk selected:', talk);
+    // Add a new assistant message with the TED talk video player
+    this.appendChatHistory('ASSISTANT', `🎤 TED Talk: ${talk.title}${talk.speaker ? ` by ${talk.speaker}` : ''}`, {
+      videoUrl: talk.videoUrl,
+      movieTitle: talk.title
+    });
+    // Switch to chat tab to show the player
+    this.edenChatTab = 'chat';
     this.cdr.detectChanges();
   }
 

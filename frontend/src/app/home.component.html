@@ -1,9 +1,5 @@
 <!-- Eden Home Component - New UI/UX with Cursor-style Chat -->
-<!-- Mobile Version -->
-<app-home-mobile *ngIf="isMobile"></app-home-mobile>
-
-<!-- Desktop Version -->
-<div *ngIf="!isMobile" class="eden-home-container" [ngClass]="{'dark-theme': !isUserSignedIn}" [attr.data-user-signed-in]="isUserSignedIn">
+<div class="eden-home-container" [ngClass]="{'dark-theme': !isUserSignedIn}" [attr.data-user-signed-in]="isUserSignedIn">
   <!-- Eden Background with Overlay -->
   <div class="eden-background-overlay"></div>
   
@@ -155,6 +151,14 @@
                   (click)="edenChatTab = 'news'"
                   title="Eden News">
                   📰 News
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'ted'}"
+                  (click)="edenChatTab = 'ted'"
+                  title="TED Talks">
+                  🎤 TED
                 </button>
               </div>
               <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
@@ -358,6 +362,12 @@
             <app-eden-news></app-eden-news>
           </div>
           <!-- End Eden News Tab Content -->
+
+          <!-- TED Talks Tab Content -->
+          <div *ngIf="edenChatTab === 'ted'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-ted></app-eden-ted>
+          </div>
+          <!-- End TED Talks Tab Content -->
         </div>
 
         <!-- Garden of Eden Main Street (Service Type Cards) - Below Chat -->
