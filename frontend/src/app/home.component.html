@@ -131,6 +131,14 @@
                 <button 
                   type="button" 
                   class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'bible'}"
+                  (click)="edenChatTab = 'bible'"
+                  title="Eden Bible">
+                  📜 Bible
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
                   [ngClass]="{'active': edenChatTab === 'video-library'}"
                   (click)="edenChatTab = 'video-library'"
                   title="Video Library">
@@ -159,6 +167,14 @@
                   (click)="edenChatTab = 'ted'"
                   title="TED Talks">
                   🎤 TED
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'autoparts'}"
+                  (click)="edenChatTab = 'autoparts'"
+                  title="AutoParts Search">
+                  🔧 AutoParts
                 </button>
                 <button 
                   type="button" 
@@ -377,6 +393,18 @@
           </div>
           <!-- End TED Talks Tab Content -->
 
+          <!-- Eden Bible Tab Content -->
+          <div *ngIf="edenChatTab === 'bible'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-bible></app-eden-bible>
+          </div>
+          <!-- End Eden Bible Tab Content -->
+          
+          <!-- AutoParts Tab Content -->
+          <div *ngIf="edenChatTab === 'autoparts'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-autoparts></app-eden-autoparts>
+          </div>
+          <!-- End AutoParts Tab Content -->
+          
           <!-- Eden Books Tab Content -->
           <div *ngIf="edenChatTab === 'books'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
             <app-eden-books></app-eden-books>

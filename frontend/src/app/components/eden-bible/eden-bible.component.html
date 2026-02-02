@@ -1,0 +1,123 @@
+<div class="eden-bible-container">
+  <div class="eden-bible-header">
+    <h2>📜 Eden Bible</h2>
+  </div>
+
+  <div class="eden-bible-content">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
+
+    <!-- Bible Books List View (Layer 1: 66 Bible Books) -->
+    <div *ngIf="selectedBook && !selectedBibleBook && !selectedChapter && !isLoading" class="bible-books-grid">
+      <div class="bible-header">
+        <h3>{{ selectedBook.title }}</h3>
+        <p class="bible-subtitle">Select a book to view its chapters</p>
+      </div>
+      <div 
+        *ngFor="let bibleBook of bibleBooks" 
+        class="bible-book-card"
+        (click)="selectBibleBook(bibleBook)">
+        <div class="bible-book-content">
+          <div class="bible-book-number">{{ bibleBook.bookNumber }}</div>
+          <h4 class="bible-book-name">{{ bibleBook.name }}</h4>
+          <p class="bible-book-chapters">{{ bibleBook.chapters }} chapter{{ bibleBook.chapters !== 1 ? 's' : '' }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chapter List View (Layer 2: Chapters within a Bible Book) -->
+    <div *ngIf="selectedBibleBook && !selectedChapter && !isLoading" class="chapters-list">
+      <div class="back-button" (click)="goBack()">
+        ← Back to Books
+      </div>
+      <h3>{{ selectedBibleBook.name }}</h3>
+      
+      <!-- Chapter Search Bar -->
+      <div class="chapter-search-bar">
+        <input 
+          type="text" 
+          [(ngModel)]="chapterSearchQuery" 
+          (keyup.enter)="searchChapters()"
+          (input)="searchChapters()"
+          placeholder="Search chapters (e.g., 'Garden Of Eden', 'Catch me if you can 13')..."
+          class="chapter-search-input">
+        <button 
+          *ngIf="chapterSearchQuery" 
+          (click)="clearChapterSearch()" 
+          class="clear-search-btn"
+          title="Clear search">
+          ✕
+        </button>
+      </div>
+      
+      <div class="chapters-grid">
+        <div 
+          *ngFor="let chapter of filteredChapters" 
+          class="chapter-card"
+          (click)="selectChapter(chapter)">
+          <div class="chapter-number">Chapter {{ chapter.number }}</div>
+          <div class="chapter-title">{{ chapter.title }}</div>
+        </div>
+      </div>
+      
+      <!-- No results message -->
+      <div *ngIf="filteredChapters.length === 0 && chapterSearchQuery" class="no-results">
+        <p>No chapters found matching "{{ chapterSearchQuery }}"</p>
+        <button (click)="clearChapterSearch()" class="clear-search-link">Clear search</button>
+      </div>
+    </div>
+
+    <!-- Chapter Content View -->
+    <div *ngIf="selectedChapter" class="chapter-content">
+      <div class="chapter-header">
+        <button class="back-button" (click)="goBack()">← Back</button>
+        <h3>{{ selectedChapter.title || (selectedBook?.title + ' - Chapter ' + selectedChapter.number) }}</h3>
+        <button 
+          class="audio-button" 
+          (click)="playAudio()"
+          [class.playing]="isPlaying"
+          [disabled]="!selectedChapter.content || selectedChapter.content.trim() === '' || isLoading">
+          {{ isPlaying ? '⏸️ Pause' : '🔊 Play' }}
+        </button>
+      </div>
+      
+      <div class="chapter-text">
+        <!-- Loading state for chapter content -->
+        <div *ngIf="isLoading" class="chapter-loading">
+          <div class="spinner"></div>
+          <p>Generating chapter content with AI...</p>
+          <p class="text-muted small mt-2">This may take up to 30 seconds...</p>
+        </div>
+        
+        <!-- Error state -->
+        <div *ngIf="!isLoading && selectedChapter && selectedChapter.content && selectedChapter.content.includes('Failed to load')" class="alert alert-warning">
+          <strong>Error:</strong> {{ selectedChapter.content }}
+        </div>
+        
+        <!-- Verses display (for Bible) -->
+        <div *ngIf="!isLoading && selectedChapter.verses && selectedChapter.verses.length > 0" class="verses">
+          <div *ngFor="let verse of selectedChapter.verses" class="verse">
+            <span class="verse-number">{{ verse.number }}</span>
+            <span class="verse-text">{{ verse.text }}</span>
+          </div>
+        </div>
+        
+        <!-- Regular text content -->
+        <div *ngIf="!isLoading && selectedChapter.content && selectedChapter.content.trim() !== '' && (!selectedChapter.verses || selectedChapter.verses.length === 0)" class="chapter-text-content">
+          <p *ngFor="let paragraph of getChapterParagraphs(selectedChapter.content)">
+            {{ paragraph }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!isLoading && books.length === 0 && !selectedBook" class="empty-state">
+      <p>No Bible books found.</p>
+    </div>
+  </div>
+</div>
+

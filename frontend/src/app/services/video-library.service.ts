@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 
 export interface Video {
   id: string;
@@ -138,12 +138,49 @@ export class VideoLibraryService {
    * Upload video
    */
   uploadVideo(file: File): Observable<ApiResponse<Video>> {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📤 [VideoLibraryService] ========== UPLOAD VIDEO SERVICE ==========');
+    console.log('📤 [VideoLibraryService] API URL:', this.apiUrl);
+    console.log('📤 [VideoLibraryService] Full endpoint:', `${this.apiUrl}/videos/upload`);
+    console.log('📤 [VideoLibraryService] File details:');
+    console.log('📤 [VideoLibraryService]   Name:', file.name);
+    console.log('📤 [VideoLibraryService]   Size:', file.size, 'bytes', `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log('📤 [VideoLibraryService]   Type:', file.type);
+    
+    console.log('📤 [VideoLibraryService] Creating FormData...');
     const formData = new FormData();
     formData.append('video', file);
+    console.log('📤 [VideoLibraryService] ✅ FormData created');
+    console.log('📤 [VideoLibraryService] FormData entry: video =', file.name, `(${file.size} bytes, ${file.type})`);
 
+    console.log('📤 [VideoLibraryService] Making HTTP POST request...');
+    const requestStartTime = Date.now();
+    
     return this.http.post<ApiResponse<Video>>(
       `${this.apiUrl}/videos/upload`,
       formData
+    ).pipe(
+      tap({
+        next: (value) => {
+          const requestDuration = Date.now() - requestStartTime;
+          console.log('📤 [VideoLibraryService] ✅ HTTP Response received:', requestDuration, 'ms');
+          console.log('📤 [VideoLibraryService]   Response value:', value);
+        },
+        error: (error) => {
+          const requestDuration = Date.now() - requestStartTime;
+          console.error('📤 [VideoLibraryService] ❌ HTTP Error:', requestDuration, 'ms');
+          console.error('📤 [VideoLibraryService]   Error status:', error.status);
+          console.error('📤 [VideoLibraryService]   Error status text:', error.statusText);
+          console.error('📤 [VideoLibraryService]   Error message:', error.message);
+          console.error('📤 [VideoLibraryService]   Error error:', error.error);
+          console.error('📤 [VideoLibraryService]   Error URL:', error.url);
+          console.error('📤 [VideoLibraryService]   Full error:', JSON.stringify(error, null, 2));
+        },
+        complete: () => {
+          console.log('📤 [VideoLibraryService] ✅ HTTP Request completed');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+      })
     );
   }
 

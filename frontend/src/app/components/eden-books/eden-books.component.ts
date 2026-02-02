@@ -65,26 +65,30 @@ export class EdenBooksComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           const books = response.data || [];
-          // Sort: Bible books ALWAYS first, then others
+          // Sort: Eden Bible ALWAYS first, then other Bible books, then others
           this.books = books.sort((a, b) => {
             const aIsBible = a.type === 'bible' || a.title.toLowerCase().includes('bible');
             const bIsBible = b.type === 'bible' || b.title.toLowerCase().includes('bible');
             
-            // Bible books ALWAYS come first
+            // Check if it's specifically "Eden Bible"
+            const aIsEdenBible = a.title.toLowerCase() === 'eden bible' || (a.id === 'eden-bible');
+            const bIsEdenBible = b.title.toLowerCase() === 'eden bible' || (b.id === 'eden-bible');
+            
+            // Eden Bible is ALWAYS first
+            if (aIsEdenBible && !bIsEdenBible) return -1;
+            if (!aIsEdenBible && bIsEdenBible) return 1;
+            
+            // Bible books come after Eden Bible but before other books
             if (aIsBible && !bIsBible) return -1;
             if (!aIsBible && bIsBible) return 1;
             
-            // If both are Bible, Eden Bible should be first
+            // If both are Bible (but not Eden Bible), sort by title
             if (aIsBible && bIsBible) {
-              const aIsEdenBible = a.title.toLowerCase().includes('eden');
-              const bIsEdenBible = b.title.toLowerCase().includes('eden');
-              if (aIsEdenBible && !bIsEdenBible) return -1;
-              if (!aIsEdenBible && bIsEdenBible) return 1;
               return a.title.localeCompare(b.title);
             }
             
-            // If both are not Bible, maintain original order
-            return 0;
+            // If both are not Bible, sort by title
+            return a.title.localeCompare(b.title);
           });
           console.log(`[EdenBooks] Books loaded in order: ${this.books.map(b => b.title).join(', ')}`);
           this.isLoading = false;

@@ -321,6 +321,370 @@ function bigIntReplacer(key: string, value: any): any {
   return value;
 }
 
+// Gemini API key (hardcoded for video analysis - from old codebase)
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDS2xqcodc56CHKHBj6-ExyBBUSfnS1VH4';
+
+/**
+ * Analyze video with Gemini API
+ */
+async function analyzeVideoWithGemini(videoId: string, videoPath: string, filename: string, requestId: string): Promise<any> {
+  console.log(`   ──────────────────────────────────────────────`);
+  console.log(`   🔍 [${requestId}] ========== GEMINI ANALYSIS FUNCTION ==========`);
+  console.log(`   🔍 [${requestId}] Video ID: ${videoId}`);
+  console.log(`   🔍 [${requestId}] Video path: ${videoPath}`);
+  console.log(`   🔍 [${requestId}] Filename: ${filename}`);
+  
+  try {
+    // Read video file and convert to base64
+    console.log(`   📖 [${requestId}] Reading video file from disk...`);
+    const readStartTime = Date.now();
+    const videoBuffer = fs.readFileSync(videoPath);
+    const readDuration = Date.now() - readStartTime;
+    console.log(`   ✅ [${requestId}] Video file read: ${videoBuffer.length} bytes in ${readDuration}ms`);
+    
+    console.log(`   🔄 [${requestId}] Converting video to base64...`);
+    const encodeStartTime = Date.now();
+    const videoBase64 = videoBuffer.toString('base64');
+    const encodeDuration = Date.now() - encodeStartTime;
+    const fileSizeMB = (videoBase64.length * 3 / 4 / 1024 / 1024).toFixed(2);
+    console.log(`   ✅ [${requestId}] Base64 encoding complete:`);
+    console.log(`   ✅ [${requestId}]   Original size: ${videoBuffer.length} bytes`);
+    console.log(`   ✅ [${requestId}]   Base64 size: ${videoBase64.length} chars`);
+    console.log(`   ✅ [${requestId}]   Estimated size: ~${fileSizeMB} MB`);
+    console.log(`   ✅ [${requestId}]   Encode duration: ${encodeDuration}ms`);
+    
+    // Get MIME type from file extension
+    console.log(`   🔧 [${requestId}] Determining MIME type...`);
+    const ext = path.extname(filename).toLowerCase();
+    console.log(`   🔧 [${requestId}]   File extension: ${ext}`);
+    const mimeTypes: Record<string, string> = {
+      '.mp4': 'video/mp4',
+      '.mov': 'video/quicktime',
+      '.avi': 'video/x-msvideo',
+      '.mkv': 'video/x-matroska',
+      '.webm': 'video/webm',
+    };
+    const mimeType = mimeTypes[ext] || 'video/mp4';
+    console.log(`   ✅ [${requestId}]   MIME type: ${mimeType}`);
+    
+    console.log(`   📹 [${requestId}] Video preparation complete:`);
+    console.log(`   📹 [${requestId}]   Size: ~${fileSizeMB} MB (base64 encoded)`);
+    console.log(`   📹 [${requestId}]   MIME: ${mimeType}`);
+    
+    // Analysis prompt (from old codebase)
+    const analysisPrompt = `Analyze this video in detail. Watch the video carefully and describe what you see throughout the entire duration.
+
+CONTENT ANALYSIS (most important - describe what is actually in the video in DETAIL):
+1. Main Subject: What is the primary focus throughout the video? (person, object, scene, animal, etc.) - Be very specific
+2. Activity: What is happening? What are people doing? (walking, talking, sitting, dancing, cooking, working, etc.) - Describe actions in detail
+3. Objects: List ALL visible objects in detail (vehicles, buildings, furniture, electronics, nature, clothing, accessories, etc.)
+4. Environment: Describe the setting in detail (street, room, park, beach, office, kitchen, etc.) - Include architectural details, weather, time period
+5. People: How many people? Detailed description of each person (age, gender, appearance, clothing, expressions, body language, what they're doing)
+6. Mood/Atmosphere: What feeling does this video convey? (happy, serious, calm, energetic, etc.) - Be specific about emotional tone
+7. Video Progression: Describe in detail any changes, movements, or progression throughout the video - second by second if significant
+8. Colors: Describe the color palette, dominant colors, color temperature
+9. Composition: Describe the visual composition, framing, rule of thirds, visual balance
+10. Details: Any small details, text visible, brands, logos, signs, etc.
+
+TECHNICAL ANALYSIS (be very specific):
+- Scene type: indoor/outdoor/nature/urban/industrial/residential/commercial - be specific
+- Shot type: extreme-close-up/close-up/medium/wide/extreme-wide/aerial - be precise
+- Camera angle: eye-level/high-angle/low-angle/bird-eye/dutch-angle - describe the angle
+- Camera movement: static/pan-left/pan-right/tilt-up/tilt-down/zoom-in/zoom-out/tracking/dolly/steady-cam/handheld - describe movement
+- Lighting brightness: very-dark/dark/dim/normal/bright/very-bright - be specific
+- Lighting temperature: very-warm/warm/neutral/cool/very-cool - describe color temperature
+- Lighting quality: hard/soft/diffused/dramatic/natural/artificial - describe lighting style
+- Time of day: dawn/sunrise/morning/day/afternoon/dusk/sunset/night/midnight - be specific
+- Video quality: resolution estimate, stability (stable/shaky), focus (sharp/soft/blurry), grain/noise level
+- Frame rate: smooth/jerky/normal
+- Depth of field: shallow/deep/mixed
+
+STYLE AND AESTHETICS:
+- Visual style: cinematic/documentary/amateur/professional/vintage/modern
+- Genre indicators: what type of content this could be (vlog, commercial, movie, documentary, etc.)
+- Production value: high/medium/low
+
+IMPORTANT: Respond with ONLY valid JSON. No markdown, no code blocks, no explanations. Just the JSON object. Include as much detail as possible.
+
+For main_subject, activity, environment, and mood, provide them as JSON objects with a "description" field containing the detailed text:
+{
+  "scene_type": "outdoor",
+  "shot_type": "close-up",
+  "camera_angle": "eye-level",
+  "camera_movement": "static",
+  "lighting_brightness": "normal",
+  "lighting_temperature": "neutral",
+  "lighting_quality": "soft",
+  "time_of_day": "day",
+  "detected_objects": ["person", "phone", "street", "building", "car", "tree"],
+  "content_tags": ["walking", "urban", "casual", "daylight", "person", "technology"],
+  "main_subject": {
+    "description": "detailed description of main subject"
+  },
+  "activity": {
+    "description": "detailed description of what is happening"
+  },
+  "environment": {
+    "description": "detailed description of the setting"
+  },
+  "people": [{"count": 1, "description": "detailed person description", "age_estimate": "20s", "gender": "female", "clothing": "casual", "expression": "smiling"}],
+  "mood": {
+    "description": "detailed description of the mood and atmosphere"
+  },
+  "video_progression": "detailed second-by-second description of changes",
+  "colors": ["dominant colors in the video"],
+  "composition": "description of visual composition",
+  "details": ["any small details, text, brands visible"],
+  "visual_style": "cinematic",
+  "production_value": "high",
+  "genre_indicators": ["vlog", "lifestyle"],
+  "depth_of_field": "shallow",
+  "video_quality": "high resolution, stable, sharp focus"
+}`;
+
+    // Build request payload
+    console.log(`   📝 [${requestId}] Building Gemini API request payload...`);
+    console.log(`   📝 [${requestId}]   Prompt length: ${analysisPrompt.length} chars`);
+    console.log(`   📝 [${requestId}]   Video data length: ${videoBase64.length} chars (base64)`);
+    
+    const requestPayload = JSON.stringify({
+      contents: [{
+        parts: [
+          { text: analysisPrompt },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: videoBase64,
+            },
+          },
+        ],
+      }],
+    });
+    
+    const payloadSize = requestPayload.length;
+    const payloadSizeMB = (payloadSize / 1024 / 1024).toFixed(2);
+    console.log(`   ✅ [${requestId}] Request payload created:`);
+    console.log(`   ✅ [${requestId}]   Payload size: ${payloadSize} chars (${payloadSizeMB} MB)`);
+    
+    // Try different Gemini models (from old codebase)
+    const modelsToTry = [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+    ];
+    
+    console.log(`   🔵 [${requestId}] Models to try:`, modelsToTry.join(', '));
+    console.log(`   🔑 [${requestId}] API Key: ${GEMINI_API_KEY.substring(0, 10)}...${GEMINI_API_KEY.substring(GEMINI_API_KEY.length - 4)}`);
+    
+    let lastError: any = null;
+    let attemptCount = 0;
+    
+    for (const modelName of modelsToTry) {
+      attemptCount++;
+      console.log(`   ──────────────────────────────────────────────`);
+      console.log(`   🔵 [${requestId}] Attempt ${attemptCount}/${modelsToTry.length}: Trying Gemini model: ${modelName}`);
+      
+      // Try v1beta first, then v1 (from old codebase pattern)
+      const versions = ['v1beta', 'v1'];
+      let modelSuccess = false;
+      let lastModelError: any = null;
+      
+      for (const version of versions) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+          console.log(`   🔵 [${requestId}]   Trying ${version} API URL: ${apiUrl.replace(GEMINI_API_KEY, 'API_KEY_HIDDEN')}`);
+          
+          const requestStartTime = Date.now();
+          const response = await new Promise<any>((resolve, reject) => {
+          const options = {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 120000, // 2 minutes
+          };
+          
+          console.log(`   📤 [${requestId}]   Sending HTTP request to Gemini API...`);
+          const req = https.request(apiUrl, options, (res: any) => {
+            console.log(`   📥 [${requestId}]   Response received:`);
+            console.log(`   📥 [${requestId}]     Status code: ${res.statusCode}`);
+            console.log(`   📥 [${requestId}]     Headers:`, JSON.stringify(res.headers, null, 2));
+            
+            let data = '';
+            let chunkCount = 0;
+            
+            res.on('data', (chunk: Buffer) => {
+              chunkCount++;
+              data += chunk.toString();
+              if (chunkCount % 10 === 0) {
+                console.log(`   📥 [${requestId}]     Received chunk ${chunkCount}: ${chunk.length} bytes (total: ${data.length} chars)`);
+              }
+            });
+            
+            res.on('end', () => {
+              const responseDuration = Date.now() - requestStartTime;
+              console.log(`   📥 [${requestId}]     Response complete:`);
+              console.log(`   📥 [${requestId}]       Total chunks: ${chunkCount}`);
+              console.log(`   📥 [${requestId}]       Response size: ${data.length} chars`);
+              console.log(`   📥 [${requestId}]       Duration: ${responseDuration}ms`);
+              
+              if (res.statusCode === 200) {
+                try {
+                  const parsed = JSON.parse(data);
+                  console.log(`   ✅ [${requestId}]     Response parsed successfully`);
+                  resolve(parsed);
+                } catch (parseError: any) {
+                  console.error(`   ❌ [${requestId}]     Failed to parse response JSON:`, parseError.message);
+                  reject(new Error(`Failed to parse response: ${parseError.message}`));
+                }
+              } else {
+                console.error(`   ❌ [${requestId}]     HTTP error: ${res.statusCode}`);
+                console.error(`   ❌ [${requestId}]     Response body: ${data.substring(0, 500)}`);
+                reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 200)}`));
+              }
+            });
+          });
+          
+          req.on('error', (error: any) => {
+            console.error(`   ❌ [${requestId}]   Request error:`, error.message);
+            reject(error);
+          });
+          
+          req.on('timeout', () => {
+            console.error(`   ❌ [${requestId}]   Request timeout after 120 seconds`);
+            req.destroy();
+            reject(new Error('Request timeout'));
+          });
+          
+          console.log(`   📤 [${requestId}]   Writing request payload (${payloadSize} chars)...`);
+          req.write(requestPayload);
+          req.end();
+          console.log(`   📤 [${requestId}]   Request sent, waiting for response...`);
+        });
+        
+          const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          console.log(`   📝 [${requestId}]   Extracted text from response: ${text.length} chars`);
+          
+          if (text) {
+            console.log(`   ✅ [${requestId}] ✅✅✅ GEMINI ANALYSIS SUCCESSFUL ✅✅✅`);
+            console.log(`   ✅ [${requestId}]   Model: ${modelName} (${version})`);
+            console.log(`   ✅ [${requestId}]   Response text length: ${text.length} chars`);
+            console.log(`   ✅ [${requestId}]   Response preview: ${text.substring(0, 200)}...`);
+            
+            // Parse JSON from response
+            console.log(`   🔍 [${requestId}] Extracting JSON from response...`);
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              console.log(`   ✅ [${requestId}]   JSON pattern found, length: ${jsonMatch[0].length} chars`);
+              try {
+                const parsedData = JSON.parse(jsonMatch[0]);
+                console.log(`   ✅ [${requestId}]   JSON parsed successfully`);
+                console.log(`   📊 [${requestId}]   Parsed data keys:`, Object.keys(parsedData));
+                
+                // Build analysis object
+                console.log(`   🔧 [${requestId}] Building analysis object...`);
+                const analysis: any = {
+                  content_tags: Array.isArray(parsedData.content_tags) ? parsedData.content_tags : [],
+                  detected_objects: Array.isArray(parsedData.detected_objects) ? parsedData.detected_objects : [],
+                  scene_type: parsedData.scene_type || '',
+                  shot_type: parsedData.shot_type || '',
+                  camera_angle: parsedData.camera_angle || '',
+                  camera_movement: parsedData.camera_movement || '',
+                  lighting_brightness: parsedData.lighting_brightness || '',
+                  lighting_temperature: parsedData.lighting_temperature || '',
+                  time_of_day: parsedData.time_of_day || '',
+                  main_subject: parsedData.main_subject ? (typeof parsedData.main_subject === 'object' ? parsedData.main_subject : { description: String(parsedData.main_subject) }) : undefined,
+                  activity: parsedData.activity ? (typeof parsedData.activity === 'object' ? parsedData.activity : { description: String(parsedData.activity) }) : undefined,
+                  environment: parsedData.environment ? (typeof parsedData.environment === 'object' ? parsedData.environment : { description: String(parsedData.environment) }) : undefined,
+                  mood: parsedData.mood ? (typeof parsedData.mood === 'object' ? parsedData.mood : { description: String(parsedData.mood) }) : undefined,
+                  analysis_metadata: {
+                    lighting_quality: parsedData.lighting_quality || '',
+                    video_progression: parsedData.video_progression || '',
+                    colors: parsedData.colors || [],
+                    composition: parsedData.composition || '',
+                    details: parsedData.details || [],
+                    visual_style: parsedData.visual_style || '',
+                    production_value: parsedData.production_value || '',
+                    genre_indicators: parsedData.genre_indicators || [],
+                    depth_of_field: parsedData.depth_of_field || '',
+                    video_quality: parsedData.video_quality || '',
+                    people: parsedData.people || [],
+                    raw_analysis: text,
+                  },
+                  analyzed_at: new Date().toISOString(),
+                };
+                
+                console.log(`   ✅ [${requestId}] Analysis object created:`);
+                console.log(`   ✅ [${requestId}]   Content tags: ${analysis.content_tags.length}`);
+                console.log(`   ✅ [${requestId}]   Detected objects: ${analysis.detected_objects.length}`);
+                console.log(`   ✅ [${requestId}]   Scene type: ${analysis.scene_type}`);
+                console.log(`   ✅ [${requestId}]   Shot type: ${analysis.shot_type}`);
+                
+                modelSuccess = true;
+                return analysis; // Return from the async function
+              } catch (parseError: any) {
+                console.error(`   ❌ [${requestId}]   Failed to parse JSON from Gemini response:`);
+                console.error(`   ❌ [${requestId}]     Error: ${parseError.message}`);
+                console.error(`   ❌ [${requestId}]     JSON preview: ${jsonMatch[0].substring(0, 500)}`);
+                // Return basic analysis with raw text
+                console.warn(`   ⚠️ [${requestId}]   Returning basic analysis with raw text`);
+                modelSuccess = true;
+                return {
+                  content_tags: [],
+                  detected_objects: [],
+                  analysis_metadata: {
+                    raw_analysis: text,
+                    parse_error: parseError.message,
+                  },
+                  analyzed_at: new Date().toISOString(),
+                };
+              }
+            } else {
+              console.warn(`   ⚠️ [${requestId}]   Could not extract JSON from Gemini response`);
+              console.warn(`   ⚠️ [${requestId}]   Response text: ${text.substring(0, 500)}`);
+              modelSuccess = true;
+              return {
+              content_tags: [],
+              detected_objects: [],
+              analysis_metadata: {
+                raw_analysis: text,
+              },
+              analyzed_at: new Date().toISOString(),
+            };
+          }
+        } else {
+          console.warn(`   ⚠️ [${requestId}]   Empty response text from model ${modelName} (${version})`);
+          // Continue to next version
+        }
+        } catch (versionError: any) {
+          console.error(`   ❌ [${requestId}]   ${version} API failed for ${modelName}:`, versionError.message);
+          lastModelError = versionError;
+          continue; // Try next version
+        }
+      }
+      
+      if (!modelSuccess) {
+        console.error(`   ❌ [${requestId}]   Model ${modelName} failed on all API versions`);
+        lastError = lastModelError;
+        // Continue to next model
+      } else {
+        // Model succeeded, break out of model loop
+        break;
+      }
+    }
+    
+    console.error(`   ❌ [${requestId}] All Gemini models failed`);
+    throw lastError || new Error('All Gemini models failed');
+  } catch (error: any) {
+    console.error(`   ──────────────────────────────────────────────`);
+    console.error(`   ❌ [${requestId}] ========== GEMINI ANALYSIS FUNCTION ERROR ==========`);
+    console.error(`   ❌ [${requestId}] Error message:`, error.message);
+    console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+    throw error;
+  }
+}
+
 // HTTP Server Routes
 httpServer.on("request", async (req, res) => {
   const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -346,6 +710,10 @@ httpServer.on("request", async (req, res) => {
   // Media server runs on port 3001 as a separate service
   // Use localhost for connection (0.0.0.0 is only for binding, not connecting)
   const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
+  
+  // Proxy autoparts search service requests
+  // AutoParts service runs on remote server at 50.76.0.83:5001
+  const AUTOPARTS_SERVER_URL = process.env.AUTOPARTS_SERVER_URL || 'http://50.76.0.83:5001';
   
   // Proxy /image route to media server (for HTTPS compatibility)
   // Note: /image/ai is disabled until it's working
@@ -415,6 +783,46 @@ httpServer.on("request", async (req, res) => {
     });
     
     // Pipe request body if present
+    req.pipe(proxyReq);
+    return; // Request is being proxied
+  }
+
+  // Proxy /api/autoparts/ routes to autoparts search service
+  if (pathname.startsWith('/api/autoparts/')) {
+    const queryString = parsedUrl.search || '';
+    const proxyPath = pathname.replace('/api/autoparts', '') + queryString;
+    const proxyUrl = new URL(proxyPath, AUTOPARTS_SERVER_URL);
+    
+    console.log(`🔧 [${requestId}] Proxying autoparts request: ${req.url} -> ${proxyUrl.toString()}`);
+    
+    const proxyModule = require('http');
+    const proxyReq = proxyModule.request(proxyUrl, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: proxyUrl.host
+      }
+    }, (proxyRes: any) => {
+      console.log(`✅ [${requestId}] Autoparts service responded with status: ${proxyRes.statusCode}`);
+      // Copy headers
+      Object.keys(proxyRes.headers).forEach(key => {
+        res.setHeader(key, proxyRes.headers[key]);
+      });
+      res.writeHead(proxyRes.statusCode || 200);
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err: any) => {
+      console.error(`❌ [${requestId}] Autoparts service proxy error:`, err.message);
+      console.error(`❌ [${requestId}] Autoparts service URL: ${AUTOPARTS_SERVER_URL}`);
+      console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'Autoparts service unavailable',
+        message: 'The autoparts search service is not running or not accessible'
+      }));
+    });
+    
     req.pipe(proxyReq);
     return; // Request is being proxied
   }
@@ -11044,6 +11452,714 @@ Return your response as plain text (no JSON, no markdown formatting).`;
         error: error.message
       }));
     }
+    return;
+  }
+
+  // Handle CORS preflight for upload endpoint
+  if (pathname === "/api/v1/library/videos/upload" && req.method === "OPTIONS") {
+    console.log(`   ✅ [${requestId}] CORS preflight for upload endpoint`);
+    res.writeHead(200, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    });
+    res.end();
+    return;
+  }
+
+  // POST /api/v1/library/videos/upload - Upload video file
+  if (pathname === "/api/v1/library/videos/upload" && req.method === "POST") {
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`📤 [${requestId}] ========== VIDEO UPLOAD REQUEST ==========`);
+    console.log(`   📤 [${requestId}] POST /api/v1/library/videos/upload - Uploading video`);
+    console.log(`   📤 [${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+    
+    try {
+      console.log(`   🔧 [${requestId}] Initializing Busboy for multipart form data parsing...`);
+      const Busboy = require('busboy');
+      const busboy = Busboy({ headers: req.headers });
+      let videoFile: { filename: string; buffer: Buffer } | null = null;
+      let originalFilename = '';
+      let totalBytesReceived = 0;
+      let chunkCount = 0;
+      
+      console.log(`   📥 [${requestId}] Setting up Busboy event handlers...`);
+      
+      busboy.on('file', (name: string, file: any, info: any) => {
+        const { filename, encoding, mimeType } = info;
+        originalFilename = filename;
+        console.log(`   📥 [${requestId}] ──────────────────────────────────────────────`);
+        console.log(`   📥 [${requestId}] FILE FIELD DETECTED:`);
+        console.log(`   📥 [${requestId}]   Field name: ${name}`);
+        console.log(`   📥 [${requestId}]   Original filename: ${filename}`);
+        console.log(`   📥 [${requestId}]   MIME type: ${mimeType}`);
+        console.log(`   📥 [${requestId}]   Encoding: ${encoding}`);
+        
+        const chunks: Buffer[] = [];
+        const startTime = Date.now();
+        
+        file.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+          totalBytesReceived += chunk.length;
+          chunkCount++;
+          if (chunkCount % 100 === 0) {
+            const mbReceived = (totalBytesReceived / 1024 / 1024).toFixed(2);
+            console.log(`   📥 [${requestId}]   Received chunk ${chunkCount}: ${chunk.length} bytes (total: ${mbReceived} MB)`);
+          }
+        });
+        
+        file.on('end', () => {
+          const duration = Date.now() - startTime;
+          const mbReceived = (totalBytesReceived / 1024 / 1024).toFixed(2);
+          console.log(`   📥 [${requestId}]   File upload complete:`);
+          console.log(`   📥 [${requestId}]     Total chunks: ${chunkCount}`);
+          console.log(`   📥 [${requestId}]     Total size: ${totalBytesReceived} bytes (${mbReceived} MB)`);
+          console.log(`   📥 [${requestId}]     Duration: ${duration}ms`);
+          console.log(`   📥 [${requestId}]     Average speed: ${(totalBytesReceived / 1024 / duration).toFixed(2)} KB/s`);
+          
+          videoFile = {
+            filename: filename,
+            buffer: Buffer.concat(chunks)
+          };
+          console.log(`   ✅ [${requestId}]   Video file buffer created: ${videoFile.buffer.length} bytes`);
+        });
+      });
+      
+      busboy.on('finish', async () => {
+        console.log(`   ✅ [${requestId}] Busboy parsing finished`);
+        console.log(`   🔍 [${requestId}] Checking if video file was received...`);
+        
+        if (!videoFile) {
+          console.error(`   ❌ [${requestId}] No video file received in upload`);
+          res.writeHead(400, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify({
+            status: 'error',
+            message: 'No video file uploaded'
+          }));
+          return;
+        }
+        
+        console.log(`   ✅ [${requestId}] Video file received: ${videoFile.filename} (${videoFile.buffer.length} bytes)`);
+        
+        try {
+          // Determine server directory
+          console.log(`   🔧 [${requestId}] Determining server directory...`);
+          let serverDir = __dirname;
+          console.log(`   🔧 [${requestId}]   Initial __dirname: ${serverDir}`);
+          
+          if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+            serverDir = path.dirname(serverDir);
+            console.log(`   🔧 [${requestId}]   Adjusted serverDir (was in dist/build): ${serverDir}`);
+          }
+          
+          const videosDir = path.join(serverDir, "data", "videos");
+          console.log(`   🔧 [${requestId}]   Videos directory: ${videosDir}`);
+          
+          // Ensure videos directory exists
+          if (!fs.existsSync(videosDir)) {
+            console.log(`   📁 [${requestId}] Creating videos directory: ${videosDir}`);
+            fs.mkdirSync(videosDir, { recursive: true });
+            console.log(`   ✅ [${requestId}] Videos directory created`);
+          } else {
+            console.log(`   ✅ [${requestId}] Videos directory already exists`);
+          }
+          
+          // Generate unique filename (preserve extension)
+          console.log(`   🔧 [${requestId}] Generating unique filename...`);
+          const ext = path.extname(originalFilename);
+          const baseName = path.basename(originalFilename, ext);
+          const sanitizedName = baseName.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const timestamp = Date.now();
+          const uniqueFilename = `${sanitizedName}_${timestamp}${ext}`;
+          const videoPath = path.join(videosDir, uniqueFilename);
+          
+          console.log(`   🔧 [${requestId}]   Original filename: ${originalFilename}`);
+          console.log(`   🔧 [${requestId}]   Extension: ${ext}`);
+          console.log(`   🔧 [${requestId}]   Base name: ${baseName}`);
+          console.log(`   🔧 [${requestId}]   Sanitized name: ${sanitizedName}`);
+          console.log(`   🔧 [${requestId}]   Unique filename: ${uniqueFilename}`);
+          console.log(`   🔧 [${requestId}]   Full video path: ${videoPath}`);
+          
+          // Save video file
+          console.log(`   💾 [${requestId}] Writing video file to disk...`);
+          const writeStartTime = Date.now();
+          fs.writeFileSync(videoPath, videoFile.buffer);
+          const writeDuration = Date.now() - writeStartTime;
+          const fileSize = videoFile.buffer.length;
+          const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
+          console.log(`   ✅ [${requestId}] Video saved successfully:`);
+          console.log(`   ✅ [${requestId}]   Filename: ${uniqueFilename}`);
+          console.log(`   ✅ [${requestId}]   Size: ${fileSize} bytes (${fileSizeMB} MB)`);
+          console.log(`   ✅ [${requestId}]   Write duration: ${writeDuration}ms`);
+          console.log(`   ✅ [${requestId}]   Write speed: ${(fileSize / 1024 / writeDuration).toFixed(2)} KB/s`);
+          
+          // Verify file was written
+          if (fs.existsSync(videoPath)) {
+            const stats = fs.statSync(videoPath);
+            console.log(`   ✅ [${requestId}] File verification: exists, size: ${stats.size} bytes`);
+            if (stats.size !== fileSize) {
+              console.warn(`   ⚠️ [${requestId}] File size mismatch! Expected: ${fileSize}, Actual: ${stats.size}`);
+            }
+          } else {
+            console.error(`   ❌ [${requestId}] File was not written! Path: ${videoPath}`);
+          }
+          
+          // Load or create library.json
+          console.log(`   📚 [${requestId}] Loading library.json...`);
+          const libraryPath = path.join(videosDir, "library.json");
+          console.log(`   📚 [${requestId}]   Library path: ${libraryPath}`);
+          
+          let library: any = { videos: [], metadata: { total_videos: 0, last_updated: new Date().toISOString() } };
+          
+          if (fs.existsSync(libraryPath)) {
+            console.log(`   📚 [${requestId}]   Library.json exists, reading...`);
+            try {
+              const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
+              console.log(`   📚 [${requestId}]   Library.json size: ${libraryContent.length} bytes`);
+              library = JSON.parse(libraryContent);
+              console.log(`   ✅ [${requestId}]   Library.json parsed successfully`);
+              console.log(`   📚 [${requestId}]   Current videos in library: ${library.videos?.length || 0}`);
+            } catch (err: any) {
+              console.error(`   ❌ [${requestId}]   Failed to parse library.json:`, err.message);
+              console.error(`   ❌ [${requestId}]   Error stack:`, err.stack);
+            }
+          } else {
+            console.log(`   📚 [${requestId}]   Library.json does not exist, creating new one...`);
+          }
+          
+          // Generate video ID
+          const videoId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          console.log(`   🆔 [${requestId}] Generated video ID: ${videoId}`);
+          
+          // Create video entry
+          const videoEntry = {
+            id: videoId,
+            filename: uniqueFilename,
+            file_path: `videos\\${uniqueFilename}`,
+            file_size: fileSize,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            tags: [],
+            is_new: true
+          };
+          
+          console.log(`   📝 [${requestId}] Created video entry:`, JSON.stringify(videoEntry, null, 2));
+          
+          // Add to library
+          console.log(`   📚 [${requestId}] Adding video to library...`);
+          const videosBefore = library.videos?.length || 0;
+          library.videos.push(videoEntry);
+          library.metadata.total_videos = library.videos.length;
+          library.metadata.last_updated = new Date().toISOString();
+          console.log(`   📚 [${requestId}]   Videos before: ${videosBefore}, after: ${library.videos.length}`);
+          
+          // Save library.json
+          console.log(`   💾 [${requestId}] Saving library.json...`);
+          const librarySaveStartTime = Date.now();
+          fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+          const librarySaveDuration = Date.now() - librarySaveStartTime;
+          console.log(`   ✅ [${requestId}] Library.json saved (${librarySaveDuration}ms)`);
+          console.log(`   ✅ [${requestId}] Video added to library.json: ${videoId}`);
+          
+          // Automatically trigger analysis
+          console.log(`   ──────────────────────────────────────────────`);
+          console.log(`   🔍 [${requestId}] ========== STARTING AUTOMATIC VIDEO ANALYSIS ==========`);
+          console.log(`   🔍 [${requestId}] Video ID: ${videoId}`);
+          console.log(`   🔍 [${requestId}] Video path: ${videoPath}`);
+          console.log(`   🔍 [${requestId}] Filename: ${uniqueFilename}`);
+          
+          try {
+            const analysisStartTime = Date.now();
+            const analysis = await analyzeVideoWithGemini(videoId, videoPath, uniqueFilename, requestId);
+            const analysisDuration = Date.now() - analysisStartTime;
+            
+            console.log(`   ✅ [${requestId}] Analysis completed in ${analysisDuration}ms`);
+            console.log(`   📊 [${requestId}] Analysis result keys:`, Object.keys(analysis));
+            console.log(`   📊 [${requestId}] Content tags:`, analysis.content_tags?.length || 0);
+            console.log(`   📊 [${requestId}] Detected objects:`, analysis.detected_objects?.length || 0);
+            
+            // Update video entry with analysis
+            console.log(`   📚 [${requestId}] Updating library.json with analysis results...`);
+            const videoIndex = library.videos.findIndex((v: any) => v.id === videoId);
+            if (videoIndex !== -1) {
+              console.log(`   📚 [${requestId}]   Found video at index: ${videoIndex}`);
+              library.videos[videoIndex].analysis = analysis;
+              library.videos[videoIndex].analyzed_at = new Date().toISOString();
+              library.videos[videoIndex].updated_at = new Date().toISOString();
+              
+              // Save updated library.json
+              console.log(`   💾 [${requestId}] Saving updated library.json with analysis...`);
+              fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+              console.log(`   ✅ [${requestId}] Analysis completed and saved to library.json`);
+              console.log(`   ✅ [${requestId}] Total time: ${Date.now() - analysisStartTime}ms`);
+            } else {
+              console.error(`   ❌ [${requestId}] Video not found in library at index ${videoIndex}`);
+            }
+          } catch (analysisError: any) {
+            console.error(`   ──────────────────────────────────────────────`);
+            console.error(`   ❌ [${requestId}] ========== ANALYSIS FAILED ==========`);
+            console.error(`   ❌ [${requestId}] Error message:`, analysisError.message);
+            console.error(`   ❌ [${requestId}] Error stack:`, analysisError.stack);
+            console.error(`   ⚠️ [${requestId}] Analysis failed (non-blocking), upload will still succeed`);
+            // Continue even if analysis fails
+          }
+          
+          // Return success response
+          console.log(`   ──────────────────────────────────────────────`);
+          console.log(`   ✅ [${requestId}] ========== UPLOAD SUCCESSFUL ==========`);
+          console.log(`   ✅ [${requestId}] Returning success response to client...`);
+          res.writeHead(201, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify({
+            status: 'success',
+            data: videoEntry,
+            message: 'Video uploaded successfully'
+          }));
+          console.log(`   ✅ [${requestId}] Response sent to client`);
+          console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        } catch (error: any) {
+          console.error(`   ──────────────────────────────────────────────`);
+          console.error(`   ❌ [${requestId}] ========== UPLOAD PROCESSING ERROR ==========`);
+          console.error(`   ❌ [${requestId}] Error message:`, error.message);
+          console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+          res.writeHead(500, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify({
+            status: 'error',
+            message: error.message || 'Failed to upload video'
+          }));
+        }
+      });
+      
+      busboy.on('error', (error: any) => {
+        console.error(`   ❌ [${requestId}] Busboy error:`, error.message);
+        console.error(`   ❌ [${requestId}] Busboy error stack:`, error.stack);
+      });
+      
+      console.log(`   📥 [${requestId}] Piping request to Busboy...`);
+      req.pipe(busboy);
+    } catch (error: any) {
+      console.error(`   ──────────────────────────────────────────────`);
+      console.error(`   ❌ [${requestId}] ========== UPLOAD INITIALIZATION ERROR ==========`);
+      console.error(`   ❌ [${requestId}] Error message:`, error.message);
+      console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'error',
+        message: error.message || 'Failed to process upload'
+      }));
+    }
+    return;
+  }
+
+  // POST /api/v1/library/videos/:id/analyze - Analyze video with Gemini
+  if (pathname.match(/^\/api\/v1\/library\/videos\/([^\/]+)\/analyze$/) && req.method === "POST") {
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🔍 [${requestId}] ========== MANUAL VIDEO ANALYSIS REQUEST ==========`);
+    
+    const match = pathname.match(/^\/api\/v1\/library\/videos\/([^\/]+)\/analyze$/);
+    const videoId = match ? match[1] : null;
+    
+    console.log(`   🔍 [${requestId}] Pathname: ${pathname}`);
+    console.log(`   🔍 [${requestId}] Extracted video ID: ${videoId}`);
+    
+    if (!videoId) {
+      console.error(`   ❌ [${requestId}] Video ID is missing from URL`);
+      res.writeHead(400, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'error',
+        message: 'Video ID is required'
+      }));
+      return;
+    }
+    
+    console.log(`   🔍 [${requestId}] POST /api/v1/library/videos/${videoId}/analyze - Analyzing video`);
+    
+    try {
+      // Load library.json to find video
+      console.log(`   📚 [${requestId}] Loading library.json...`);
+      let serverDir = __dirname;
+      console.log(`   📚 [${requestId}]   Initial __dirname: ${serverDir}`);
+      
+      if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+        serverDir = path.dirname(serverDir);
+        console.log(`   📚 [${requestId}]   Adjusted serverDir (was in dist/build): ${serverDir}`);
+      }
+      
+      const libraryPath = path.join(serverDir, "data", "videos", "library.json");
+      console.log(`   📚 [${requestId}]   Library path: ${libraryPath}`);
+      
+      if (!fs.existsSync(libraryPath)) {
+        console.error(`   ❌ [${requestId}] Library.json not found at: ${libraryPath}`);
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: 'Library not found'
+        }));
+        return;
+      }
+      
+      console.log(`   📚 [${requestId}]   Library.json exists, reading...`);
+      const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
+      console.log(`   📚 [${requestId}]   Library.json size: ${libraryContent.length} bytes`);
+      const library = JSON.parse(libraryContent);
+      console.log(`   📚 [${requestId}]   Total videos in library: ${library.videos?.length || 0}`);
+      
+      console.log(`   🔍 [${requestId}] Searching for video with ID: ${videoId}`);
+      const video = library.videos.find((v: any) => v.id === videoId);
+      
+      if (!video) {
+        console.error(`   ❌ [${requestId}] Video not found in library`);
+        console.error(`   ❌ [${requestId}] Available video IDs:`, library.videos?.map((v: any) => v.id).slice(0, 10));
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: 'Video not found'
+        }));
+        return;
+      }
+      
+      console.log(`   ✅ [${requestId}] Video found:`);
+      console.log(`   ✅ [${requestId}]   ID: ${video.id}`);
+      console.log(`   ✅ [${requestId}]   Filename: ${video.filename}`);
+      console.log(`   ✅ [${requestId}]   File path: ${video.file_path}`);
+      console.log(`   ✅ [${requestId}]   File size: ${video.file_size} bytes`);
+      
+      // Find video file
+      console.log(`   📁 [${requestId}] Locating video file...`);
+      const videosDir = path.join(serverDir, "data", "videos");
+      const videoPath = path.join(videosDir, video.filename);
+      console.log(`   📁 [${requestId}]   Videos directory: ${videosDir}`);
+      console.log(`   📁 [${requestId}]   Video file path: ${videoPath}`);
+      
+      if (!fs.existsSync(videoPath)) {
+        console.error(`   ❌ [${requestId}] Video file not found at: ${videoPath}`);
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: 'Video file not found'
+        }));
+        return;
+      }
+      
+      const videoStats = fs.statSync(videoPath);
+      console.log(`   ✅ [${requestId}] Video file found:`);
+      console.log(`   ✅ [${requestId}]   Size: ${videoStats.size} bytes`);
+      console.log(`   ✅ [${requestId}]   Modified: ${videoStats.mtime}`);
+      
+      // Analyze video
+      console.log(`   ──────────────────────────────────────────────`);
+      console.log(`   🔍 [${requestId}] Starting Gemini analysis...`);
+      const analysisStartTime = Date.now();
+      const analysis = await analyzeVideoWithGemini(videoId, videoPath, video.filename, requestId);
+      const analysisDuration = Date.now() - analysisStartTime;
+      console.log(`   ✅ [${requestId}] Analysis completed in ${analysisDuration}ms`);
+      
+      // Update library.json
+      console.log(`   📚 [${requestId}] Updating library.json with analysis results...`);
+      const videoIndex = library.videos.findIndex((v: any) => v.id === videoId);
+      if (videoIndex !== -1) {
+        console.log(`   📚 [${requestId}]   Found video at index: ${videoIndex}`);
+        library.videos[videoIndex].analysis = analysis;
+        library.videos[videoIndex].analyzed_at = new Date().toISOString();
+        library.videos[videoIndex].updated_at = new Date().toISOString();
+        
+        console.log(`   💾 [${requestId}]   Saving updated library.json...`);
+        fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+        console.log(`   ✅ [${requestId}]   Library.json updated successfully`);
+      } else {
+        console.error(`   ❌ [${requestId}] Video not found in library at index ${videoIndex}`);
+      }
+      
+      console.log(`   ✅ [${requestId}] ========== ANALYSIS SUCCESSFUL ==========`);
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'success',
+        data: library.videos[videoIndex],
+        message: 'Video analyzed successfully'
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    } catch (error: any) {
+      console.error(`   ──────────────────────────────────────────────`);
+      console.error(`   ❌ [${requestId}] ========== ANALYSIS ERROR ==========`);
+      console.error(`   ❌ [${requestId}] Error message:`, error.message);
+      console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'error',
+        message: error.message || 'Failed to analyze video'
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    }
+    return;
+  }
+
+  // POST /api/v1/library/videos/analyze-batch - Analyze multiple videos in batch
+  if (pathname === "/api/v1/library/videos/analyze-batch" && req.method === "POST") {
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🔄 [${requestId}] ========== BATCH ANALYSIS REQUEST ==========`);
+    console.log(`   🔄 [${requestId}] POST /api/v1/library/videos/analyze-batch`);
+    
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    
+    req.on('end', async () => {
+      try {
+        console.log(`   📥 [${requestId}] Request body received: ${body.length} bytes`);
+        const requestData = JSON.parse(body);
+        const videoIds = requestData.video_ids;
+        
+        console.log(`   🔍 [${requestId}] Parsed request data:`);
+        console.log(`   🔍 [${requestId}]   video_ids type: ${Array.isArray(videoIds) ? 'array' : typeof videoIds}`);
+        console.log(`   🔍 [${requestId}]   video_ids count: ${Array.isArray(videoIds) ? videoIds.length : 'N/A'}`);
+        
+        if (!Array.isArray(videoIds) || videoIds.length === 0) {
+          console.error(`   ❌ [${requestId}] Invalid video_ids: must be a non-empty array`);
+          res.writeHead(400, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify({
+            status: 'error',
+            message: 'video_ids must be a non-empty array'
+          }));
+          return;
+        }
+        
+        console.log(`   ✅ [${requestId}] Valid request: ${videoIds.length} videos to analyze`);
+        console.log(`   📋 [${requestId}] Video IDs:`, videoIds);
+        
+        // Load library.json
+        console.log(`   📚 [${requestId}] Loading library.json...`);
+        let serverDir = __dirname;
+        if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+          serverDir = path.dirname(serverDir);
+        }
+        const libraryPath = path.join(serverDir, "data", "videos", "library.json");
+        const videosDir = path.join(serverDir, "data", "videos");
+        
+        console.log(`   📚 [${requestId}]   Library path: ${libraryPath}`);
+        console.log(`   📚 [${requestId}]   Videos directory: ${videosDir}`);
+        
+        if (!fs.existsSync(libraryPath)) {
+          console.error(`   ❌ [${requestId}] Library.json not found`);
+          res.writeHead(404, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          });
+          res.end(JSON.stringify({
+            status: 'error',
+            message: 'Library not found'
+          }));
+          return;
+        }
+        
+        const library = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'));
+        console.log(`   ✅ [${requestId}] Library loaded: ${library.videos?.length || 0} total videos`);
+        
+        // Process videos in batches
+        const CONCURRENT_LIMIT = 10;
+        const results: any[] = [];
+        const startTime = Date.now();
+        
+        console.log(`   🔄 [${requestId}] Starting batch analysis:`);
+        console.log(`   🔄 [${requestId}]   Total videos: ${videoIds.length}`);
+        console.log(`   🔄 [${requestId}]   Concurrent limit: ${CONCURRENT_LIMIT}`);
+        console.log(`   🔄 [${requestId}]   Total batches: ${Math.ceil(videoIds.length / CONCURRENT_LIMIT)}`);
+        
+        for (let i = 0; i < videoIds.length; i += CONCURRENT_LIMIT) {
+          const batch = videoIds.slice(i, i + CONCURRENT_LIMIT);
+          const batchNumber = Math.floor(i / CONCURRENT_LIMIT) + 1;
+          const totalBatches = Math.ceil(videoIds.length / CONCURRENT_LIMIT);
+          
+          console.log(`   ──────────────────────────────────────────────`);
+          console.log(`   🔄 [${requestId}] ========== BATCH ${batchNumber}/${totalBatches} ==========`);
+          console.log(`   🔄 [${requestId}] Processing ${batch.length} videos concurrently`);
+          console.log(`   🔄 [${requestId}] Video IDs in batch:`, batch);
+          
+          const batchPromises = batch.map(async (videoId: string) => {
+            const videoRequestId = `${requestId}-${videoId.substring(0, 8)}`;
+            try {
+              console.log(`   🔍 [${videoRequestId}] Looking up video: ${videoId}`);
+              const video = library.videos.find((v: any) => v.id === videoId);
+              
+              if (!video) {
+                console.error(`   ❌ [${videoRequestId}] Video not found in library`);
+                return {
+                  video_id: videoId,
+                  status: 'error',
+                  message: 'Video not found'
+                };
+              }
+              
+              console.log(`   ✅ [${videoRequestId}] Video found: ${video.filename}`);
+              
+              // Find video file
+              const videoPath = path.join(videosDir, video.filename);
+              if (!fs.existsSync(videoPath)) {
+                console.error(`   ❌ [${videoRequestId}] Video file not found: ${videoPath}`);
+                return {
+                  video_id: videoId,
+                  status: 'error',
+                  message: 'Video file not found'
+                };
+              }
+              
+              const videoStats = fs.statSync(videoPath);
+              console.log(`   ✅ [${videoRequestId}] Video file found: ${videoStats.size} bytes`);
+              
+              // Analyze video
+              console.log(`   🔍 [${videoRequestId}] Starting Gemini analysis...`);
+              const analysisStartTime = Date.now();
+              const analysis = await analyzeVideoWithGemini(videoId, videoPath, video.filename, videoRequestId);
+              const analysisDuration = ((Date.now() - analysisStartTime) / 1000).toFixed(1);
+              
+              console.log(`   ✅ [${videoRequestId}] Analysis completed in ${analysisDuration}s`);
+              console.log(`   📊 [${videoRequestId}] Analysis results:`);
+              console.log(`   📊 [${videoRequestId}]   Content tags: ${analysis.content_tags?.length || 0}`);
+              console.log(`   📊 [${videoRequestId}]   Detected objects: ${analysis.detected_objects?.length || 0}`);
+              console.log(`   📊 [${videoRequestId}]   Scene type: ${analysis.scene_type || 'N/A'}`);
+              console.log(`   📊 [${videoRequestId}]   Shot type: ${analysis.shot_type || 'N/A'}`);
+              
+              // Update library.json
+              console.log(`   📚 [${videoRequestId}] Updating library.json...`);
+              const videoIndex = library.videos.findIndex((v: any) => v.id === videoId);
+              if (videoIndex !== -1) {
+                library.videos[videoIndex].analysis = analysis;
+                library.videos[videoIndex].analyzed_at = new Date().toISOString();
+                library.videos[videoIndex].updated_at = new Date().toISOString();
+                
+                // Save library.json after each video (to persist progress)
+                fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+                console.log(`   ✅ [${videoRequestId}] Library.json updated`);
+              } else {
+                console.error(`   ❌ [${videoRequestId}] Video not found in library at index ${videoIndex}`);
+              }
+              
+              const result = {
+                video_id: videoId,
+                status: 'success',
+                message: `Analyzed successfully in ${analysisDuration}s (tags: ${analysis.content_tags?.length || 0}, objects: ${analysis.detected_objects?.length || 0})`,
+                duration_seconds: parseFloat(analysisDuration),
+                tags_count: analysis.content_tags?.length || 0,
+                objects_count: analysis.detected_objects?.length || 0,
+              };
+              
+              console.log(`   ✅ [${videoRequestId}] ✅✅✅ VIDEO ANALYSIS SUCCESSFUL ✅✅✅`);
+              return result;
+            } catch (error: any) {
+              console.error(`   ──────────────────────────────────────────────`);
+              console.error(`   ❌ [${requestId}-${videoId.substring(0, 8)}] ========== VIDEO ANALYSIS ERROR ==========`);
+              console.error(`   ❌ [${requestId}-${videoId.substring(0, 8)}] Video ID: ${videoId}`);
+              console.error(`   ❌ [${requestId}-${videoId.substring(0, 8)}] Error message:`, error.message);
+              console.error(`   ❌ [${requestId}-${videoId.substring(0, 8)}] Error stack:`, error.stack);
+              
+              return {
+                video_id: videoId,
+                status: 'error',
+                message: error.message || 'Analysis failed'
+              };
+            }
+          });
+          
+          // Wait for current batch to complete
+          console.log(`   ⏳ [${requestId}] Waiting for batch ${batchNumber} to complete...`);
+          const batchStartTime = Date.now();
+          const batchResults = await Promise.all(batchPromises);
+          const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(1);
+          
+          results.push(...batchResults);
+          
+          const batchSuccessCount = batchResults.filter(r => r.status === 'success').length;
+          const batchErrorCount = batchResults.filter(r => r.status === 'error').length;
+          
+          console.log(`   ✅ [${requestId}] Batch ${batchNumber} completed in ${batchDuration}s:`);
+          console.log(`   ✅ [${requestId}]   Successful: ${batchSuccessCount}/${batch.length}`);
+          console.log(`   ✅ [${requestId}]   Failed: ${batchErrorCount}/${batch.length}`);
+          
+          // Small delay between batches to respect rate limits
+          if (i + CONCURRENT_LIMIT < videoIds.length) {
+            console.log(`   ⏸️  [${requestId}] Waiting 1 second before next batch...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const successCount = results.filter(r => r.status === 'success').length;
+        const errorCount = results.filter(r => r.status === 'error').length;
+        const avgTimePerVideo = ((Date.now() - startTime) / 1000 / videoIds.length).toFixed(2);
+        
+        console.log(`   ──────────────────────────────────────────────`);
+        console.log(`   ✅ [${requestId}] ========== BATCH ANALYSIS COMPLETE ==========`);
+        console.log(`   ✅ [${requestId}] Total duration: ${totalDuration}s`);
+        console.log(`   ✅ [${requestId}] Successful: ${successCount}/${videoIds.length}`);
+        console.log(`   ✅ [${requestId}] Failed: ${errorCount}/${videoIds.length}`);
+        console.log(`   ✅ [${requestId}] Average time per video: ${avgTimePerVideo}s`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'success',
+          data: results,
+          summary: {
+            total: videoIds.length,
+            successful: successCount,
+            failed: errorCount,
+            total_duration_seconds: parseFloat(totalDuration),
+            average_time_per_video_seconds: parseFloat(avgTimePerVideo),
+          },
+          message: `Analyzed ${successCount} of ${videoIds.length} videos in ${totalDuration}s (avg ${avgTimePerVideo}s/video using Gemini)`
+        }));
+      } catch (error: any) {
+        console.error(`   ──────────────────────────────────────────────`);
+        console.error(`   ❌ [${requestId}] ========== BATCH ANALYSIS ERROR ==========`);
+        console.error(`   ❌ [${requestId}] Error message:`, error.message);
+        console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+        res.writeHead(500, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: error.message || 'Failed to analyze videos'
+        }));
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      }
+    });
     return;
   }
 

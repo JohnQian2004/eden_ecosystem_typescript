@@ -8,6 +8,7 @@ import { Video, VideoLibraryService } from '../../services/video-library.service
 })
 export class VideoDetailsComponent implements OnInit {
   @Input() video!: Video;
+  @Input() hideVideoPlayer = false; // Hide video player when used inside player overlay
   @Output() close = new EventEmitter<void>();
   videoStreamUrl: string = '';
   analyzing: boolean = false;
@@ -26,6 +27,7 @@ export class VideoDetailsComponent implements OnInit {
 
   closeModal(): void {
     this.close.emit();
+    // Only try to close modal if we're in a modal context
     const modalElement = document.querySelector('.modal.show');
     if (modalElement) {
       const modal = (window as any).bootstrap.Modal.getInstance(modalElement);
@@ -33,6 +35,7 @@ export class VideoDetailsComponent implements OnInit {
         modal.hide();
       }
     }
+    // If not in modal, the parent component will handle closing via the close event
   }
 
   removeAudio(): void {

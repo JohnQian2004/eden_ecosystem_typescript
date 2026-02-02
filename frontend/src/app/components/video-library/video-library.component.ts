@@ -16,6 +16,7 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   selectedVideo: Video | null = null;
   selectedVideoForPlayer: Video | null = null;
   showVideoPlayer = false;
+  showDetailsInPlayer = false;
   librarySize = 0; // Total size in bytes
   librarySizeFormatted = '0 MB';
   selectedFilters: {
@@ -82,12 +83,43 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   openDetailsModal(video: Video): void {
+    console.log('📋 [VideoLibrary] Opening details modal for video:', video.filename);
     this.selectedVideo = video;
-    const modalElement = document.getElementById('videoDetailsModal');
-    if (modalElement) {
-      const modal = new (window as any).bootstrap.Modal(modalElement);
-      modal.show();
-    }
+    this.cdr.detectChanges(); // Ensure Angular updates the view
+    
+    setTimeout(() => {
+      const modalElement = document.getElementById('videoDetailsModal');
+      if (modalElement) {
+        console.log('📋 [VideoLibrary] Modal element found, setting z-index...');
+        // Set high z-index to appear above video player (z-index: 99999)
+        modalElement.style.zIndex = '100000';
+        modalElement.style.display = 'block';
+        
+        const modal = new (window as any).bootstrap.Modal(modalElement, {
+          backdrop: true,
+          keyboard: true
+        });
+        
+        // After modal is shown, ensure backdrop also has high z-index
+        modalElement.addEventListener('shown.bs.modal', () => {
+          console.log('📋 [VideoLibrary] Modal shown event fired');
+          const backdrop = document.querySelector('.modal-backdrop');
+          if (backdrop) {
+            (backdrop as HTMLElement).style.zIndex = '99999';
+            console.log('📋 [VideoLibrary] Backdrop z-index set to 99999');
+          }
+          // Also ensure modal itself is above backdrop
+          modalElement.style.zIndex = '100000';
+          modalElement.classList.add('show');
+          console.log('📋 [VideoLibrary] Modal z-index set to 100000, should be visible now');
+        }, { once: true });
+        
+        console.log('📋 [VideoLibrary] Showing modal...');
+        modal.show();
+      } else {
+        console.error('📋 [VideoLibrary] Modal element not found!');
+      }
+    }, 100);
   }
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -162,8 +194,14 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.pauseVideo();
     this.showVideoPlayer = false;
     this.selectedVideoForPlayer = null;
+    this.showDetailsInPlayer = false;
     // Restore body scroll
     document.body.style.overflow = '';
+  }
+
+  toggleDetailsInPlayer(): void {
+    this.showDetailsInPlayer = !this.showDetailsInPlayer;
+    this.cdr.detectChanges();
   }
 
   ngOnDestroy(): void {
@@ -226,14 +264,24 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   analyzeAllVideos(): void {
-    const unanalyzedVideos = this.videos.filter(v => !v.analysis);
-    if (unanalyzedVideos.length === 0) {
-      alert('All videos are already analyzed!');
+    if (this.videos.length === 0) {
+      alert('No videos to analyze!');
       return;
     }
 
-    if (confirm(`Analyze ${unanalyzedVideos.length} unanalyzed videos? This may take several minutes.`)) {
-      const videoIds = unanalyzedVideos.map(v => v.id);
+    const analyzedCount = this.videos.filter(v => v.analysis).length;
+    const unanalyzedCount = this.videos.length - analyzedCount;
+    
+    let message = `Re-analyze ALL ${this.videos.length} videos?`;
+    if (unanalyzedCount > 0) {
+      message += `\n\n${unanalyzedCount} videos are not yet analyzed.\n${analyzedCount} videos will be re-analyzed.`;
+    } else {
+      message += `\n\nAll videos will be re-analyzed.`;
+    }
+    message += `\n\nThis may take several minutes.`;
+
+    if (confirm(message)) {
+      const videoIds = this.videos.map(v => v.id);
       this.videoLibraryService.analyzeVideosBatch(videoIds).subscribe({
         next: (response) => {
           const successCount = response.data?.filter((r: any) => r.status === 'success').length || 0;

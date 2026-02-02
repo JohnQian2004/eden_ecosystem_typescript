@@ -46,6 +46,22 @@
   }
 }
 
+// Ensure modal appears above video player
+#videoDetailsModal {
+  z-index: 100000 !important;
+  
+  &.show {
+    z-index: 100000 !important;
+    display: block !important;
+  }
+}
+
+.modal-backdrop {
+  &.show {
+    z-index: 99999 !important;
+  }
+}
+
 // Fullscreen Video Player Overlay Styles
 .video-player-overlay {
   position: fixed;
@@ -142,6 +158,11 @@
         background-color: rgba(255, 255, 255, 0.1);
         border-color: rgba(255, 255, 255, 0.5);
       }
+
+      &.active {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+      }
     }
   }
 
@@ -153,12 +174,123 @@
     justify-content: center;
     flex: 1;
     overflow: hidden;
+    position: relative;
+    min-height: 0; // Critical for flex children to allow scrolling
 
     video {
       width: 100%;
       height: 100%;
       object-fit: contain;
       outline: none;
+    }
+
+    &.with-details {
+      background-color: #1a1a1a;
+      overflow: hidden; // Keep overflow hidden on body
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 0;
+    }
+
+    .video-section {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .details-section {
+      width: 100%;
+      flex: 1;
+      min-height: 0; // Critical for scrolling in flex container
+      padding: 1.5rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      color: #fff;
+      -webkit-overflow-scrolling: touch;
+
+      ::ng-deep {
+        .modal-header,
+        .modal-body,
+        .modal-footer {
+          background-color: transparent;
+          border: none;
+          padding: 0;
+        }
+
+        .modal-header {
+          margin-bottom: 1.5rem;
+          
+          .modal-title {
+            color: #fff;
+            font-size: 1.25rem;
+          }
+
+          .btn-close {
+            filter: invert(1);
+          }
+        }
+
+        .modal-body {
+          .card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+
+            .card-body {
+              color: #fff;
+            }
+          }
+
+          .badge {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+          }
+
+          .nav-tabs {
+            border-bottom-color: rgba(255, 255, 255, 0.2);
+
+            .nav-link {
+              color: rgba(255, 255, 255, 0.7);
+              border-color: transparent;
+
+              &.active {
+                color: #fff;
+                background-color: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.2);
+              }
+
+              &:hover {
+                color: #fff;
+                border-color: rgba(255, 255, 255, 0.3);
+              }
+            }
+          }
+
+          h5 {
+            color: #fff;
+          }
+
+          strong {
+            color: rgba(255, 255, 255, 0.9);
+          }
+
+          pre {
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          }
+        }
+
+        .modal-footer {
+          margin-top: 1.5rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+      }
     }
   }
 

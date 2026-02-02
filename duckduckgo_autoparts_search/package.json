@@ -1,0 +1,33 @@
+{
+  "name": "duckduckgo-autoparts-search",
+  "version": "1.0.0",
+  "description": "DuckDuckGo AutoParts Search Service - TypeScript conversion",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "autoparts",
+    "search",
+    "duckduckgo"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/busboy": "^1.5.4",
+    "busboy": "^1.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "puppeteer": "^21.5.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

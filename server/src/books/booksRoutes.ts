@@ -8,6 +8,7 @@ import * as url from 'url';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
+import * as http from 'http';
 import { parsePDF } from './pdfParser';
 import { fetchBooksFromRSS, fetchBooksFromFeed } from './bookRssParser';
 
@@ -45,6 +46,17 @@ let rssBooksCache: Book[] = [];
 let rssBooksCacheTime: number = 0;
 const RSS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
+// Bible chapters cache file
+const BIBLE_CACHE_DIR = path.join(BOOKS_DIR, 'bible-cache');
+if (!fs.existsSync(BIBLE_CACHE_DIR)) {
+  fs.mkdirSync(BIBLE_CACHE_DIR, { recursive: true });
+}
+const BIBLE_CHAPTERS_CACHE_FILE = path.join(BIBLE_CACHE_DIR, 'chapters.json');
+const BIBLE_CHAPTER_CONTENT_CACHE_DIR = path.join(BIBLE_CACHE_DIR, 'chapters');
+if (!fs.existsSync(BIBLE_CHAPTER_CONTENT_CACHE_DIR)) {
+  fs.mkdirSync(BIBLE_CHAPTER_CONTENT_CACHE_DIR, { recursive: true });
+}
+
 /**
  * Load books metadata (from local files and RSS feeds)
  */
@@ -57,15 +69,20 @@ async function loadBooks(): Promise<Book[]> {
     try {
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
       const localBooks = metadata.books || [];
+      console.log(`📚 [BooksAPI] Loaded ${localBooks.length} book(s) from books.json`);
+      console.log(`📚 [BooksAPI] Book IDs from JSON: ${localBooks.map((b: Book) => b.id).join(', ')}`);
+      
       // Sort: Bible books first, then others
       const bibleBooks = localBooks.filter((b: Book) => b.type === 'bible' || b.title.toLowerCase().includes('bible'));
       const otherBooks = localBooks.filter((b: Book) => !b.type || (b.type !== 'bible' && !b.title.toLowerCase().includes('bible')));
       // ALWAYS put Bible books first
       books.push(...bibleBooks, ...otherBooks);
-      console.log(`📚 [BooksAPI] Loaded ${bibleBooks.length} Bible book(s) and ${otherBooks.length} other book(s)`);
+      console.log(`📚 [BooksAPI] Loaded ${bibleBooks.length} Bible book(s) and ${otherBooks.length} other book(s) from JSON`);
     } catch (error) {
       console.error('Failed to load books metadata:', error);
     }
+  } else {
+    console.warn(`⚠️ [BooksAPI] books.json not found at ${metadataPath}`);
   }
 
   // Scan for PDF files (Bible PDFs should be added to Bible section)
@@ -114,21 +131,25 @@ async function loadBooks(): Promise<Book[]> {
   // Add RSS books after local books (Bible stays first)
   books.push(...rssBooksCache);
 
-  // Final sort: Bible books ALWAYS first, then others (by title)
+  // Final sort: Bible books ALWAYS first, with Eden Bible as the absolute first
   books.sort((a, b) => {
     const aIsBible = a.type === 'bible' || a.title.toLowerCase().includes('bible');
     const bIsBible = b.type === 'bible' || b.title.toLowerCase().includes('bible');
     
-    // Bible books ALWAYS come first
+    // Check if it's specifically "Eden Bible"
+    const aIsEdenBible = a.title.toLowerCase() === 'eden bible' || (a.id === 'eden-bible');
+    const bIsEdenBible = b.title.toLowerCase() === 'eden bible' || (b.id === 'eden-bible');
+    
+    // Eden Bible is ALWAYS first
+    if (aIsEdenBible && !bIsEdenBible) return -1;
+    if (!aIsEdenBible && bIsEdenBible) return 1;
+    
+    // Bible books come after Eden Bible but before other books
     if (aIsBible && !bIsBible) return -1;
     if (!aIsBible && bIsBible) return 1;
     
-    // If both are Bible, sort by title (Eden Bible should be first)
+    // If both are Bible (but not Eden Bible), sort by title
     if (aIsBible && bIsBible) {
-      const aIsEdenBible = a.title.toLowerCase().includes('eden');
-      const bIsEdenBible = b.title.toLowerCase().includes('eden');
-      if (aIsEdenBible && !bIsEdenBible) return -1;
-      if (!aIsEdenBible && bIsEdenBible) return 1;
       return a.title.localeCompare(b.title);
     }
     
@@ -141,16 +162,42 @@ async function loadBooks(): Promise<Book[]> {
 }
 
 /**
- * Generate Bible chapters using LLM
+ * Load Bible chapters from cache file (if exists) or generate them
  */
-async function generateBibleChapters(book: Book): Promise<Chapter[]> {
+async function loadBibleChapters(book: Book): Promise<Chapter[]> {
   const cacheKey = `bible-chapters-${book.id}`;
+  
+  // Check in-memory cache first
   if (bookCache.has(cacheKey)) {
     return bookCache.get(cacheKey);
   }
 
+  // Try to load from disk cache
+  if (fs.existsSync(BIBLE_CHAPTERS_CACHE_FILE)) {
+    try {
+      const cachedData = JSON.parse(fs.readFileSync(BIBLE_CHAPTERS_CACHE_FILE, 'utf-8'));
+      if (cachedData.chapters && Array.isArray(cachedData.chapters) && cachedData.chapters.length > 0) {
+        console.log(`📖 [BooksAPI] Loaded ${cachedData.chapters.length} Bible chapters from cache file`);
+        bookCache.set(cacheKey, cachedData.chapters);
+        return cachedData.chapters;
+      }
+    } catch (error) {
+      console.warn(`⚠️ [BooksAPI] Failed to load Bible chapters from cache: ${error}`);
+    }
+  }
+
+  // If no cache exists, generate chapters structure (without content)
+  return generateBibleChaptersStructure(book);
+}
+
+/**
+ * Generate Bible chapters structure (without content) - this is the chapter list
+ */
+async function generateBibleChaptersStructure(book: Book): Promise<Chapter[]> {
+  const cacheKey = `bible-chapters-${book.id}`;
+  
   try {
-    console.log(`📖 [BooksAPI] Generating Bible chapters for ${book.title} using LLM...`);
+    console.log(`📖 [BooksAPI] Creating Bible chapters structure for ${book.title}...`);
     
     // Bible has 66 books with varying chapters
     const bibleBooks = [
@@ -238,8 +285,16 @@ async function generateBibleChapters(book: Book): Promise<Chapter[]> {
       }
     }
 
+    // Save to disk cache
+    try {
+      fs.writeFileSync(BIBLE_CHAPTERS_CACHE_FILE, JSON.stringify({ chapters }, null, 2), 'utf-8');
+      console.log(`💾 [BooksAPI] Saved ${chapters.length} Bible chapters to cache file`);
+    } catch (error) {
+      console.warn(`⚠️ [BooksAPI] Failed to save Bible chapters to cache: ${error}`);
+    }
+    
     bookCache.set(cacheKey, chapters);
-    console.log(`✅ [BooksAPI] Generated ${chapters.length} Bible chapters`);
+    console.log(`✅ [BooksAPI] Created ${chapters.length} Bible chapters structure`);
     return chapters;
   } catch (error: any) {
     console.error(`Failed to generate Bible chapters:`, error);
@@ -252,53 +307,90 @@ async function generateBibleChapters(book: Book): Promise<Chapter[]> {
  */
 async function generateBibleChapterContent(book: Book, chapterNumber: number): Promise<Chapter> {
   const cacheKey = `bible-chapter-${book.id}-${chapterNumber}`;
-  if (bookCache.has(cacheKey)) {
-    return bookCache.get(cacheKey);
-  }
-
+  const chapterCacheFile = path.join(BIBLE_CHAPTER_CONTENT_CACHE_DIR, `${book.id}-chapter-${chapterNumber}.json`);
+  
+  // Always call LLM - skip cache for now to ensure LLM is called
+  console.log(`📖 [BooksAPI] Generating content for Bible chapter ${chapterNumber} using LLM (skipping cache)...`);
+  
+  // Get the chapter title from the chapters list (outside try block so it's accessible in catch)
+  let chapterTitle = `Chapter ${chapterNumber}`;
   try {
-    console.log(`📖 [BooksAPI] Generating content for Bible chapter ${chapterNumber} using LLM...`);
-    
-    // Get the chapter title from the chapters list
-    const chapters = await generateBibleChapters(book);
+    const chapters = await loadBibleChapters(book);
     const chapter = chapters.find(c => c.number === chapterNumber);
-    const chapterTitle = chapter?.title || `Chapter ${chapterNumber}`;
+    chapterTitle = chapter?.title || `Chapter ${chapterNumber}`;
 
-    // Call Cohere API to generate Bible chapter content
-    const COHERE_API_KEY = "tHJAN4gUTZ4GM1IJ25FQFbKydqBp6LCVbsAxXggB";
-    const COHERE_API_HOST = "api.cohere.ai";
+    // Call Ollama API to generate Bible chapter content
+    const OLLAMA_HOST = process.env.OLLAMA_HOST || 'localhost';
+    const OLLAMA_PORT = process.env.OLLAMA_PORT || '11434';
+    const OLLAMA_MODEL = 'deepseek-r1:latest';
     
-    const prompt = `Please provide the complete text of ${chapterTitle} from the Bible. Include all verses with their verse numbers. Format it clearly with each verse on a new line.`;
+    const prompt = `Please provide key highlights and summaries of ${chapterTitle} from the Bible. Focus on the main themes, important verses, and key messages. Do not include the entire chapter text - only provide highlights, summaries, and key takeaways. Format it clearly with bullet points or numbered highlights.`;
 
+    // Ollama Chat API format
     const requestBody = JSON.stringify({
-      message: prompt,
-      model: 'command-r7b-12-2024',
-      temperature: 0.3, // Lower temperature for more accurate Bible text
-      max_tokens: 4000
+      model: OLLAMA_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      stream: false,
+      options: {
+        temperature: 0.3, // Lower temperature for more accurate Bible text
+        num_predict: 4000 // max_tokens equivalent
+      }
     });
 
+    // Add timeout (120 seconds - Ollama can be slower)
+    const timeout = 120000;
     const fullChapter = await new Promise<Chapter>((resolve, reject) => {
-      const req = https.request(
+      const req = http.request(
         {
-          hostname: COHERE_API_HOST,
-          port: 443,
-          path: '/v1/chat',
+          hostname: OLLAMA_HOST,
+          port: parseInt(OLLAMA_PORT, 10),
+          path: '/api/chat', // Ollama chat endpoint
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${COHERE_API_KEY}`,
             'Content-Length': Buffer.byteLength(requestBody)
-          }
+          },
+          timeout: timeout
         },
         (res) => {
           let data = '';
+          
+          // Check for errors
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`Ollama API error: ${res.statusCode} ${res.statusMessage}`));
+            return;
+          }
+          
           res.on('data', (chunk) => {
             data += chunk.toString();
           });
           res.on('end', () => {
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.text || parsed.message || '';
+              
+              // Ollama Chat API returns text in message.content field
+              let content = '';
+              if (parsed.message && parsed.message.content) {
+                content = parsed.message.content;
+              } else if (parsed.message && typeof parsed.message === 'string') {
+                content = parsed.message;
+              } else if (parsed.response) {
+                content = parsed.response;
+              } else if (parsed.text) {
+                content = parsed.text;
+              } else if (parsed.content) {
+                content = parsed.content;
+              }
+              
+              if (!content || content.trim() === '') {
+                reject(new Error(`No content in LLM response. Response: ${JSON.stringify(parsed).substring(0, 500)}`));
+                return;
+              }
               
               // Parse verses from the content (look for verse numbers)
               const verses: Array<{ number: number; text: string }> = [];
@@ -340,6 +432,14 @@ async function generateBibleChapterContent(book: Book, chapterNumber: number): P
                 verses: verses.length > 0 ? verses : undefined
               };
 
+              // Save to disk cache
+              try {
+                fs.writeFileSync(chapterCacheFile, JSON.stringify(fullChapter, null, 2), 'utf-8');
+                console.log(`💾 [BooksAPI] Saved Bible chapter ${chapterNumber} content to cache file`);
+              } catch (error) {
+                console.warn(`⚠️ [BooksAPI] Failed to save Bible chapter ${chapterNumber} to cache: ${error}`);
+              }
+              
               bookCache.set(cacheKey, fullChapter);
               resolve(fullChapter);
             } catch (error: any) {
@@ -350,9 +450,17 @@ async function generateBibleChapterContent(book: Book, chapterNumber: number): P
       );
 
       req.on('error', (error) => {
+        console.error(`❌ [BooksAPI] Ollama API request error:`, error);
         reject(error);
       });
+      
+      req.on('timeout', () => {
+        console.error(`⏱️ [BooksAPI] Cohere API request timeout after ${timeout}ms`);
+        req.destroy();
+        reject(new Error(`Request timeout after ${timeout}ms`));
+      });
 
+      req.setTimeout(timeout);
       req.write(requestBody);
       req.end();
     });
@@ -398,12 +506,16 @@ async function parseBookChapters(book: Book): Promise<Chapter[]> {
  * Handle books API requests
  */
 export function handleBooksRequest(req: IncomingMessage, res: ServerResponse, pathname: string): boolean {
+  console.log(`📚 [BooksAPI] handleBooksRequest called with pathname: ${pathname}, method: ${req.method}`);
+  
   if (!pathname.startsWith(BOOKS_API_PREFIX)) {
+    console.log(`📚 [BooksAPI] Pathname doesn't start with ${BOOKS_API_PREFIX}, returning false`);
     return false;
   }
 
   const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
   console.log(`📚 [BooksAPI] Handling request: ${req.method} ${req.url}`);
+  console.log(`📚 [BooksAPI] Pathname: ${pathname}`);
 
   // Helper for sending JSON responses
   const sendJsonResponse = (statusCode: number, data: any) => {
@@ -457,74 +569,48 @@ export function handleBooksRequest(req: IncomingMessage, res: ServerResponse, pa
     return true;
   }
 
-  // GET /api/books/:bookId/chapters
-  const chaptersMatch = pathname.match(/^\/api\/books\/([^\/]+)\/chapters$/);
-  if (chaptersMatch && req.method === 'GET') {
-    const bookId = chaptersMatch[1];
-    loadBooks().then(books => {
-      const book = books.find(b => b.id === bookId);
-      
-      if (!book) {
-        sendJsonResponse(404, { success: false, error: 'Book not found' });
-        return;
-      }
-
-      // For Bible books, generate chapters using LLM
-      if (book.type === 'bible' || book.title.toLowerCase().includes('bible')) {
-        generateBibleChapters(book).then(chapters => {
-          sendJsonResponse(200, { success: true, data: chapters });
-        }).catch(error => {
-          sendJsonResponse(500, { success: false, error: error.message });
-        });
-        return;
-      }
-
-      // For RSS books, return placeholder chapters
-      if ((book as any).source === 'rss') {
-        const chapters: Chapter[] = [];
-        for (let i = 1; i <= 20; i++) {
-          chapters.push({
-            id: `chapter-${i}`,
-            bookId: book.id,
-            number: i,
-            title: `Chapter ${i}`,
-            content: `This is Chapter ${i} of ${book.title}. This book is available from a free RSS feed. To read the full content, please visit: ${(book as any).downloadUrl || (book as any).feedUrl || 'N/A'}`
-          });
-        }
-        sendJsonResponse(200, { success: true, data: chapters });
-        return;
-      }
-
-      parseBookChapters(book).then(chapters => {
-        sendJsonResponse(200, { success: true, data: chapters });
-      }).catch(error => {
-        sendJsonResponse(500, { success: false, error: error.message });
-      });
-    }).catch(error => {
-      sendJsonResponse(500, { success: false, error: error.message });
-    });
-    return true;
-  }
-
   // GET /api/books/:bookId/chapters/:chapterNumber (get specific chapter content)
+  // CHECK THIS FIRST - more specific route must come before less specific
+  console.log(`📖 [BooksAPI] Checking chapter content route for pathname: ${pathname}`);
   const chapterContentMatch = pathname.match(/^\/api\/books\/([^\/]+)\/chapters\/(\d+)$/);
+  console.log(`📖 [BooksAPI] Regex match result: ${chapterContentMatch ? 'MATCHED' : 'NO MATCH'}, method: ${req.method}`);
   if (chapterContentMatch && req.method === 'GET') {
     const bookId = chapterContentMatch[1];
     const chapterNumber = parseInt(chapterContentMatch[2], 10);
     
+    console.log(`📖 [BooksAPI] Route matched! bookId=${bookId}, chapterNumber=${chapterNumber}, pathname=${pathname}`);
+    
     loadBooks().then(books => {
-      const book = books.find(b => b.id === bookId);
+      let book = books.find(b => b.id === bookId);
+      
+      // If book not found, create default Eden Bible
+      if (!book && (bookId === 'eden-bible' || bookId.toLowerCase().includes('bible'))) {
+        console.log(`📖 [BooksAPI] Creating default Eden Bible book`);
+        book = {
+          id: 'eden-bible',
+          title: 'Eden Bible',
+          author: 'Various',
+          description: 'The complete Bible with all 66 books and 1,189 chapters.',
+          chapters: 1189,
+          type: 'bible'
+        };
+      }
       
       if (!book) {
-        sendJsonResponse(404, { success: false, error: 'Book not found' });
+        console.error(`❌ [BooksAPI] Book not found: ${bookId}. Available books: ${books.map(b => b.id).join(', ')}`);
+        sendJsonResponse(404, { success: false, error: `Book not found: ${bookId}` });
         return;
       }
+
+      console.log(`✅ [BooksAPI] Found book: ${book.title} (${book.id}), type: ${book.type}. Calling LLM...`);
 
       // For Bible, generate chapter content using LLM
       if (book.type === 'bible' || book.title.toLowerCase().includes('bible')) {
         generateBibleChapterContent(book, chapterNumber).then(chapter => {
+          console.log(`✅ [BooksAPI] LLM returned chapter content, length: ${chapter.content?.length || 0}`);
           sendJsonResponse(200, { success: true, data: chapter });
         }).catch(error => {
+          console.error(`❌ [BooksAPI] LLM generation failed:`, error);
           sendJsonResponse(500, { success: false, error: error.message });
         });
         return;
@@ -532,6 +618,7 @@ export function handleBooksRequest(req: IncomingMessage, res: ServerResponse, pa
 
       sendJsonResponse(404, { success: false, error: 'Chapter not found' });
     }).catch(error => {
+      console.error(`❌ [BooksAPI] loadBooks failed:`, error);
       sendJsonResponse(500, { success: false, error: error.message });
     });
     return true;
@@ -561,6 +648,10 @@ export function handleBooksRequest(req: IncomingMessage, res: ServerResponse, pa
     return true;
   }
 
-  return false;
+  // No route matched
+  console.log(`❌ [BooksAPI] No route matched for pathname: ${pathname}, method: ${req.method}`);
+  console.log(`❌ [BooksAPI] Tried to match: /api/books/:bookId/chapters/:chapterNumber`);
+  sendJsonResponse(404, { success: false, error: `Route not found: ${pathname}` });
+  return true; // We handled it (returned 404)
 }
 

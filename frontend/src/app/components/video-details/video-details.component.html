@@ -5,7 +5,7 @@
 
 <div class="modal-body">
   <!-- Video Player -->
-  <div class="mb-4">
+  <div class="mb-4" *ngIf="!hideVideoPlayer">
     <video
       class="w-100"
       controls
