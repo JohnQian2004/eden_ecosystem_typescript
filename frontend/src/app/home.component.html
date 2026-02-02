@@ -140,6 +140,22 @@
                   title="Video Library">
                   🎬 Video Library
                 </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'university'}"
+                  (click)="edenChatTab = 'university'"
+                  title="Eden University">
+                  🎓 University
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'news'}"
+                  (click)="edenChatTab = 'news'"
+                  title="Eden News">
+                  📰 News
+                </button>
               </div>
               <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
                 🔄
@@ -330,6 +346,18 @@
             <app-video-library></app-video-library>
           </div>
           <!-- End Video Library Tab Content -->
+
+          <!-- Eden University Tab Content -->
+          <div *ngIf="edenChatTab === 'university'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-university></app-eden-university>
+          </div>
+          <!-- End Eden University Tab Content -->
+
+          <!-- Eden News Tab Content -->
+          <div *ngIf="edenChatTab === 'news'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-news></app-eden-news>
+          </div>
+          <!-- End Eden News Tab Content -->
         </div>
 
         <!-- Garden of Eden Main Street (Service Type Cards) - Below Chat -->
@@ -463,6 +491,10 @@
             <!-- Video Library Tab -->
             <li class="nav-item">
               <button class="nav-link" [ngClass]="{'active': activeTab === 'video-library'}" (click)="activeTab = 'video-library'">🎬 Video Library</button>
+            </li>
+            <!-- Eden University Tab -->
+            <li class="nav-item">
+              <button class="nav-link" [ngClass]="{'active': activeTab === 'university'}" (click)="activeTab = 'university'">🎓 Eden University</button>
             </li>
           </ul>
 

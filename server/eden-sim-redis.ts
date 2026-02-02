@@ -10567,6 +10567,315 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // POST /api/university/subjects - Get subjects/topics for Eden University
+  if (pathname === "/api/university/subjects" && req.method === "POST") {
+    console.log(`   🎓 [${requestId}] POST /api/university/subjects - Subject discovery`);
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { action, subjectId, subjectName, path } = data;
+
+        // Use LLM to discover subjects
+        const { callLLM } = await import("./src/llm");
+        
+        let prompt = '';
+        if (action === 'list_main_subjects') {
+          prompt = `You are an educational AI assistant for Eden University. List the main academic subjects/fields of study that are available.
+
+Return a JSON array of subjects. Each subject should have:
+- id: unique identifier (e.g., "chemistry", "physics", "biology")
+- name: subject name (e.g., "Chemistry", "Physics", "Biology")
+- description: brief description (optional)
+- type: "subject"
+
+Examples of subjects to include: Chemistry, Physics, Biology, Mathematics, Computer Science, History, Literature, Philosophy, Psychology, Economics, etc.
+
+Return ONLY a valid JSON array, no markdown, no explanations. Format:
+[{"id": "chemistry", "name": "Chemistry", "description": "Study of matter and its properties", "type": "subject"}, ...]`;
+        } else if (action === 'drill_down') {
+          const pathStr = path ? path.join(' > ') : subjectName;
+          prompt = `You are an educational AI assistant for Eden University. The user is exploring: ${pathStr}
+
+Based on this subject/topic, list the subtopics, concepts, or questions that can be explored further.
+
+Return a JSON array. Each item should have:
+- id: unique identifier
+- name: topic/concept/question name
+- description: brief explanation (optional)
+- type: "topic" (for subtopics), "concept" (for specific concepts), or "answer" (if this is a final answer/explanation)
+
+If the topic is specific enough to provide a direct answer, return one item with type: "answer" and provide the explanation in the description.
+
+Examples:
+- For "Chemistry" → subtopics like "Organic Chemistry", "Inorganic Chemistry", "Physical Chemistry"
+- For "What is a molecule?" → type: "answer" with explanation
+- For "DNA" → concepts like "DNA structure", "DNA replication", "DNA function"
+
+Return ONLY a valid JSON array, no markdown, no explanations.`;
+        }
+
+        const llmResponse = await callLLM(prompt, true);
+        
+        // Parse LLM response (should be JSON array)
+        let subjects: any[] = [];
+        try {
+          // Try to extract JSON from response
+          const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            subjects = JSON.parse(jsonMatch[0]);
+          } else {
+            subjects = JSON.parse(llmResponse);
+          }
+        } catch (parseError: any) {
+          console.error(`❌ [${requestId}] Error parsing LLM response:`, parseError);
+          // Fallback: create a single subject from the response
+          subjects = [{
+            id: `subject-${Date.now()}`,
+            name: llmResponse.substring(0, 100),
+            description: llmResponse,
+            type: 'answer'
+          }];
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          success: true,
+          subjects: subjects,
+          count: subjects.length
+        }));
+        console.log(`   ✅ [${requestId}] Returned ${subjects.length} subjects`);
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing subject discovery:`, error.message);
+        res.writeHead(500, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          success: false,
+          error: error.message
+        }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/university/chat - Educational chat for Eden University
+  if (pathname === "/api/university/chat" && req.method === "POST") {
+    console.log(`   🎓 [${requestId}] POST /api/university/chat - Educational chat`);
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { message, context } = data;
+
+        // Use LLM for educational responses
+        const { callLLM } = await import("./src/llm");
+        
+        const contextStr = context ? `\nCurrent exploration path: ${context.currentPath?.join(' > ') || 'Root'}\nCurrent subjects: ${context.currentSubjects?.join(', ') || 'None'}` : '';
+        
+        const prompt = `You are an educational AI assistant for Eden University. Answer the user's question in an educational, clear, and comprehensive manner.
+
+${contextStr}
+
+User question: ${message}
+
+Provide a detailed, educational answer. If the question relates to a specific subject, provide context and explanations. If the user asks to explore a topic, suggest relevant subtopics or concepts.
+
+Return your response as plain text (no JSON, no markdown formatting).`;
+
+        const llmResponse = await callLLM(prompt, true);
+
+        // Broadcast educational response via WebSocket
+        broadcastEvent({
+          type: "llm_response",
+          component: "university",
+          message: llmResponse,
+          timestamp: Date.now(),
+          data: {
+            query: message,
+            response: { message: llmResponse },
+            isEducational: true
+          }
+        });
+
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          success: true,
+          message: llmResponse
+        }));
+        console.log(`   ✅ [${requestId}] Educational chat response sent`);
+      } catch (error: any) {
+        console.error(`   ❌ [${requestId}] Error processing educational chat:`, error.message);
+        res.writeHead(500, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          success: false,
+          error: error.message
+        }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/news/feeds - Get list of RSS feeds
+  if (pathname === "/api/news/feeds" && req.method === "GET") {
+    console.log(`   📰 [${requestId}] GET /api/news/feeds - Get RSS feeds`);
+    try {
+      const { getDefaultFeeds } = await import("./src/rssParser");
+      const feeds = getDefaultFeeds();
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        feeds: feeds
+      }));
+      console.log(`   ✅ [${requestId}] Returned ${feeds.length} RSS feeds`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting feeds:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // GET /api/news/items - Get news items from all enabled feeds
+  if (pathname === "/api/news/items" && req.method === "GET") {
+    console.log(`   📰 [${requestId}] GET /api/news/items - Get news items`);
+    try {
+      const { getDefaultFeeds, parseRSSFeed } = await import("./src/rssParser");
+      const feeds = getDefaultFeeds().filter(f => f.enabled);
+      
+      // Fetch all feeds in parallel
+      const feedPromises = feeds.map(feed => 
+        parseRSSFeed(feed.url, feed.name, feed.id)
+      );
+      
+      const feedResults = await Promise.allSettled(feedPromises);
+      const allItems: any[] = [];
+      
+      feedResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          allItems.push(...result.value);
+        } else {
+          console.error(`   ⚠️ [${requestId}] Failed to fetch feed ${feeds[index].name}:`, result.reason);
+        }
+      });
+      
+      // Sort by pubDate (newest first)
+      allItems.sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime();
+        const dateB = new Date(b.pubDate).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to 100 most recent items
+      const limitedItems = allItems.slice(0, 100);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        items: limitedItems,
+        count: limitedItems.length
+      }));
+      console.log(`   ✅ [${requestId}] Returned ${limitedItems.length} news items`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error getting news items:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
+  // POST /api/news/refresh - Refresh news items from all feeds
+  if (pathname === "/api/news/refresh" && req.method === "POST") {
+    console.log(`   📰 [${requestId}] POST /api/news/refresh - Refresh news items`);
+    try {
+      const { getDefaultFeeds, parseRSSFeed } = await import("./src/rssParser");
+      const feeds = getDefaultFeeds().filter(f => f.enabled);
+      
+      // Fetch all feeds in parallel
+      const feedPromises = feeds.map(feed => 
+        parseRSSFeed(feed.url, feed.name, feed.id)
+      );
+      
+      const feedResults = await Promise.allSettled(feedPromises);
+      const allItems: any[] = [];
+      
+      feedResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          allItems.push(...result.value);
+        } else {
+          console.error(`   ⚠️ [${requestId}] Failed to fetch feed ${feeds[index].name}:`, result.reason);
+        }
+      });
+      
+      // Sort by pubDate (newest first)
+      allItems.sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime();
+        const dateB = new Date(b.pubDate).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to 100 most recent items
+      const limitedItems = allItems.slice(0, 100);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        items: limitedItems,
+        count: limitedItems.length
+      }));
+      console.log(`   ✅ [${requestId}] Refreshed and returned ${limitedItems.length} news items`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error refreshing news items:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
   // GET /api/video-library/listings - Get all video listings (Angular pulls instead of WebSocket)
   if (pathname === "/api/video-library/listings" && req.method === "GET") {
     console.log(`   📚 [${requestId}] GET /api/video-library/listings - Fetching video listings`);

@@ -1,0 +1,135 @@
+<div class="eden-university-container">
+  <div class="eden-university-header">
+    <h2>🎓 Eden University</h2>
+    <p class="text-muted">Explore knowledge through interactive subject discovery</p>
+  </div>
+
+  <div class="row g-3">
+    <!-- Subject Navigation Panel -->
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">📚 Subject Navigation</h5>
+        </div>
+        <div class="card-body">
+          <!-- Breadcrumb Navigation -->
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item">
+                <a href="#" (click)="navigateToPath(-1); $event.preventDefault()">Home</a>
+              </li>
+              <li class="breadcrumb-item" *ngFor="let subject of currentPath; let i = index">
+                <a href="#" (click)="navigateToPath(i); $event.preventDefault()">{{ subject.name }}</a>
+              </li>
+            </ol>
+          </nav>
+
+          <!-- Loading State -->
+          <div *ngIf="isLoadingSubjects" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">LLM is discovering subjects...</p>
+          </div>
+
+          <!-- Subject List -->
+          <div *ngIf="!isLoadingSubjects && currentSubjects.length > 0" class="subject-list">
+            <div 
+              *ngFor="let subject of currentSubjects" 
+              class="subject-item"
+              [class.subject-answer]="subject.type === 'answer'"
+              (click)="selectSubject(subject)">
+              <div class="subject-icon">
+                <span *ngIf="subject.type === 'subject'">📖</span>
+                <span *ngIf="subject.type === 'topic'">📝</span>
+                <span *ngIf="subject.type === 'concept'">💡</span>
+                <span *ngIf="subject.type === 'answer'">✅</span>
+              </div>
+              <div class="subject-content">
+                <div class="subject-name">{{ subject.name }}</div>
+                <div class="subject-description" *ngIf="subject.description">{{ subject.description }}</div>
+              </div>
+              <div class="subject-arrow" *ngIf="subject.type !== 'answer'">
+                →
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div *ngIf="!isLoadingSubjects && currentSubjects.length === 0" class="text-center py-4">
+            <p class="text-muted">No subjects found. Try asking a question in the chat!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Educational Chat Panel -->
+    <div class="col-md-8">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">💬 Educational Chat</h5>
+          <button class="btn btn-sm btn-outline-secondary" (click)="clearChat()" [disabled]="chatMessages.length === 0">
+            🗑️ Clear
+          </button>
+        </div>
+        <div class="card-body d-flex flex-column p-0">
+          <!-- Chat Messages -->
+          <div class="eden-university-chat-messages">
+            <div *ngIf="chatMessages.length === 0" class="chat-empty-state">
+              <div class="empty-icon">🎓</div>
+              <h4>Welcome to Eden University</h4>
+              <p>Start exploring by selecting a subject on the left, or ask a question directly!</p>
+            </div>
+
+            <div *ngFor="let msg of chatMessages" class="chat-message" [ngClass]="'chat-message-' + msg.role">
+              <div class="chat-message-role">
+                <span *ngIf="msg.role === 'user'">You:</span>
+                <span *ngIf="msg.role === 'assistant'">🎓 Eden University:</span>
+              </div>
+              <div class="chat-message-content" [innerHTML]="renderMarkdown(msg.content)"></div>
+              <div class="chat-message-timestamp">{{ msg.timestamp | date:'short' }}</div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div *ngIf="isProcessing" class="chat-message chat-message-assistant">
+              <div class="chat-message-content">
+                <span class="typing-indicator">
+                  <span></span><span></span><span></span>
+                </span>
+                Eden University is thinking...
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input -->
+          <div class="eden-university-chat-input">
+            <div class="input-group">
+              <input 
+                type="text" 
+                class="form-control" 
+                [(ngModel)]="userInput"
+                (keyup.enter)="sendMessage()"
+                [disabled]="isProcessing"
+                placeholder="Ask a question or explore a topic...">
+              <button 
+                class="btn btn-primary" 
+                type="button"
+                (click)="sendMessage()"
+                [disabled]="!userInput.trim() || isProcessing">
+                <span *ngIf="!isProcessing">📤 Send</span>
+                <span *ngIf="isProcessing">
+                  <span class="spinner-border spinner-border-sm me-1"></span>
+                  Sending...
+                </span>
+              </button>
+            </div>
+            <small class="text-muted d-block mt-2">
+              💡 Ask questions about any subject, or explore by clicking subjects on the left
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

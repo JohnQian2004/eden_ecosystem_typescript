@@ -30,6 +30,8 @@ import { VideoLibraryComponent } from './components/video-library/video-library.
 import { VideoCardComponent } from './components/video-card/video-card.component';
 import { VideoDetailsComponent } from './components/video-details/video-details.component';
 import { VideoUploadComponent } from './components/video-upload/video-upload.component';
+import { EdenUniversityComponent } from './components/eden-university/eden-university.component';
+import { EdenNewsComponent } from './components/eden-news/eden-news.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -73,7 +75,9 @@ const routes: Routes = [
     VideoLibraryComponent,
     VideoCardComponent,
     VideoDetailsComponent,
-    VideoUploadComponent
+    VideoUploadComponent,
+    EdenUniversityComponent,
+    EdenNewsComponent
   ],
   imports: [
     BrowserModule,

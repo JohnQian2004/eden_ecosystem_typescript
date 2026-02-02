@@ -1,0 +1,97 @@
+<div class="eden-news-container">
+  <div class="news-header">
+    <div class="news-header-left">
+      <h4 class="mb-0">📰 Eden News</h4>
+      <small class="text-muted">Stay informed with the latest news from trusted sources</small>
+    </div>
+    <div class="news-header-right">
+      <button 
+        class="btn btn-sm btn-outline-primary" 
+        (click)="refreshNews()" 
+        [disabled]="isRefreshing"
+        title="Refresh News">
+        <span *ngIf="!isRefreshing">🔄 Refresh</span>
+        <span *ngIf="isRefreshing" class="spinner-border spinner-border-sm"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="news-controls">
+    <div class="news-filter">
+      <label class="form-label">Filter by Feed:</label>
+      <select class="form-select form-select-sm" [(ngModel)]="selectedFeed">
+        <option value="all">All Feeds</option>
+        <option *ngFor="let feed of feeds" [value]="feed.id">{{ feed.name }}</option>
+      </select>
+    </div>
+    <div class="news-search">
+      <label class="form-label">Search:</label>
+      <input 
+        type="text" 
+        class="form-control form-control-sm" 
+        [(ngModel)]="searchQuery"
+        placeholder="Search news...">
+    </div>
+  </div>
+
+  <div class="news-content">
+    <div *ngIf="isLoading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading news...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading news...</p>
+    </div>
+
+    <div *ngIf="!isLoading && getFilteredNewsItems().length === 0" class="text-center py-5">
+      <i class="bi bi-newspaper" style="font-size: 64px; color: #ccc;"></i>
+      <h5 class="mt-3 text-muted">No news found</h5>
+      <p class="text-muted" *ngIf="searchQuery.trim()">Try adjusting your search query.</p>
+      <p class="text-muted" *ngIf="!searchQuery.trim()">No news items available. Click "Refresh" to fetch latest news.</p>
+    </div>
+
+    <div *ngIf="!isLoading && getFilteredNewsItems().length > 0" class="news-items-grid">
+      <div *ngFor="let item of getFilteredNewsItems()" 
+           class="news-item-card" 
+           [class.has-background-image]="item.imageUrl && item.mediaType === 'image'"
+           [style.background-image]="item.imageUrl && item.mediaType === 'image' ? 'url(' + item.imageUrl + ')' : null"
+           (click)="openArticle(item)">
+        <div class="news-item-overlay"></div>
+        
+        <div class="news-item-header">
+          <div class="news-item-feed-badge">{{ item.feedName }}</div>
+          <div class="news-item-date">{{ formatDate(item.pubDate) }}</div>
+        </div>
+        
+        <div *ngIf="item.videoUrl && item.mediaType === 'video'" class="news-item-media">
+          <video 
+                 [src]="item.videoUrl" 
+                 class="news-item-video"
+                 controls
+                 preload="metadata"
+                 (click)="$event.stopPropagation()">
+          </video>
+        </div>
+        
+        <div class="news-item-content">
+          <h5 class="news-item-title">{{ item.title }}</h5>
+          <p class="news-item-description" [innerHTML]="item.description"></p>
+          
+          <div *ngIf="item.category && item.category.length > 0" class="news-item-categories">
+            <span *ngFor="let cat of item.category" class="badge bg-secondary me-1">{{ cat }}</span>
+          </div>
+          
+          <div *ngIf="item.author" class="news-item-author">
+            <small>By {{ item.author }}</small>
+          </div>
+        </div>
+        
+        <div class="news-item-footer">
+          <button class="btn btn-sm btn-link" (click)="openArticle(item); $event.stopPropagation()">
+            Read More →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

@@ -255,10 +255,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   walletBalance: number = 0;
   
   // Active tab for main content area
-  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' = 'workflow-chat';
+  activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' | 'university' = 'workflow-chat';
   
-  // Active tab for Eden Chat window (chat or video-library)
-  edenChatTab: 'chat' | 'video-library' = 'chat';
+  // Active tab for Eden Chat window (chat, video-library, university, or news)
+  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
