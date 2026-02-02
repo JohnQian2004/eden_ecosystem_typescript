@@ -43,33 +43,16 @@ export class EdenBooksComponent implements OnInit, OnDestroy {
   currentAudio: HTMLAudioElement | null = null;
   speechSynthesis: SpeechSynthesis | null = null;
   private apiUrl = getApiBaseUrl();
-  private mediaServerUrl = 'http://localhost:5000'; // Media server URL
+  private mediaServerUrl = ''; // Media server URL - proxied through main server (HTTPS)
 
   constructor(
     private http: HttpClient
   ) {
     this.speechSynthesis = window.speechSynthesis;
-    // Get media server URL from API base URL (use same host, port 5000)
-    try {
-      const baseUrl = getApiBaseUrl();
-      const url = new URL(baseUrl);
-      // Use the same protocol and hostname, but port 5000 for media server
-      this.mediaServerUrl = `${url.protocol}//${url.hostname}:5000`;
-      console.log(`[EdenBooks] Media server URL: ${this.mediaServerUrl}`);
-    } catch (e) {
-      // Fallback: try to extract from baseUrl string if URL parsing fails
-      try {
-        const baseUrl = getApiBaseUrl();
-        const match = baseUrl.match(/^(https?:\/\/[^\/:]+)/);
-        if (match) {
-          this.mediaServerUrl = `${match[1]}:5000`;
-          console.log(`[EdenBooks] Media server URL (fallback): ${this.mediaServerUrl}`);
-        }
-      } catch (e2) {
-        // Use default localhost if all else fails
-        console.warn('[EdenBooks] Could not determine media server URL, using localhost:5000');
-      }
-    }
+    // Use the main API URL which proxies to port 5000 internally
+    // This avoids mixed content warnings by serving everything over HTTPS
+    this.mediaServerUrl = this.apiUrl; // Main server proxies /image to port 5000
+    console.log(`[EdenBooks] Media server URL (proxied via main server): ${this.mediaServerUrl}`);
   }
 
   ngOnInit(): void {

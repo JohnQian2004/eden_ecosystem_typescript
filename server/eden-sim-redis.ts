@@ -344,15 +344,62 @@ httpServer.on("request", async (req, res) => {
 
   // Proxy media server requests (if media server is running separately)
   // Media server runs on port 3001 as a separate service
+  // Use localhost for connection (0.0.0.0 is only for binding, not connecting)
+  const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
+  
+  // Proxy /image route to media server (for HTTPS compatibility)
+  // Note: /image/ai is disabled until it's working
+  // This MUST come before static file serving to avoid 404s
+  if (pathname === '/image') {
+    const queryString = parsedUrl.search || '';
+    const proxyPath = pathname + queryString;
+    const proxyUrl = new URL(proxyPath, MEDIA_SERVER_URL);
+    
+    console.log(`🖼️ [${requestId}] Proxying image request: ${req.url} -> ${proxyUrl.toString()}`);
+    
+    const proxyModule = require('http');
+    const proxyReq = proxyModule.request(proxyUrl, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: proxyUrl.host
+      }
+    }, (proxyRes: any) => {
+      console.log(`✅ [${requestId}] Media server responded with status: ${proxyRes.statusCode}`);
+      // Copy headers
+      Object.keys(proxyRes.headers).forEach(key => {
+        res.setHeader(key, proxyRes.headers[key]);
+      });
+      res.writeHead(proxyRes.statusCode || 200);
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err: any) => {
+      console.error(`❌ [${requestId}] Media server proxy error:`, err.message);
+      console.error(`❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
+      console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
+      console.error(`❌ [${requestId}] Error details:`, err);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Media server unavailable', details: err.message }));
+    });
+    
+    // Pipe request body if present
+    req.pipe(proxyReq);
+    return; // Request is being proxied - IMPORTANT: return here to prevent fallthrough
+  }
+  
+  // Proxy /api/media/ routes to media server
   if (pathname.startsWith('/api/media/')) {
-    const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
     const proxyUrl = new URL(pathname, MEDIA_SERVER_URL);
     
     // Simple proxy to media server
     const proxyModule = require('http');
     const proxyReq = proxyModule.request(proxyUrl, {
       method: req.method,
-      headers: req.headers
+      headers: {
+        ...req.headers,
+        host: proxyUrl.host
+      }
     }, (proxyRes: any) => {
       // Copy headers
       Object.keys(proxyRes.headers).forEach(key => {

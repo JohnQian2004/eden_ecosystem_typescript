@@ -31,10 +31,11 @@ app.use('/api/media', mediaRoutes(mediaServer));
 // GET /image?random=999999
 // GET /image/ai?text=sky
 app.get('/image', async (req, res) => {
+  console.log(`🖼️ [MediaServer] /image route hit, query:`, req.query);
   const random = req.query.random;
   if (random) {
-    const { imageGenerator } = await import('./services/imageGenerator');
     try {
+      const { imageGenerator } = await import('./services/imageGenerator');
       // Convert query parameter to string or number
       let randomValue: string | number;
       if (typeof random === 'string') {
@@ -47,15 +48,19 @@ app.get('/image', async (req, res) => {
         randomValue = String(random);
       }
       
+      console.log(`🖼️ [MediaServer] Generating random image with seed: ${randomValue}`);
       const imageBuffer = await imageGenerator.generateRandomImage(randomValue);
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=31536000');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.send(imageBuffer);
+      console.log(`✅ [MediaServer] Image generated successfully, size: ${imageBuffer.length} bytes`);
     } catch (error: any) {
+      console.error(`❌ [MediaServer] Failed to generate random image:`, error);
       res.status(500).json({ error: 'Failed to generate random image', message: error.message });
     }
   } else {
+    console.warn(`⚠️ [MediaServer] Missing random parameter in /image request`);
     res.status(400).json({ error: 'Missing random parameter' });
   }
 });
