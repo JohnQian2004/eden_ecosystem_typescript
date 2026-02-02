@@ -16,6 +16,15 @@ import { EdenUser } from './models/identity.models';
 import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
 import { CacheInterceptor } from './services/cache.interceptor';
 
+// Video interface for thumbnail display
+interface Video {
+  id: string;
+  filename: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
 // System Architecture interfaces (moved from sidebar)
 interface ComponentStatus {
   name: string;
@@ -557,7 +566,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   // Garden/Service Chat History
   // -----------------------------
   activeConversationId: string | null = null;
-  chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string; videoUrl?: string; movieTitle?: string }> = [];
+  chatHistoryMessages: Array<{ id?: string; role: 'USER' | 'ASSISTANT' | 'SYSTEM'; content: string; timestamp: number; userEmail?: string; videoUrl?: string; movieTitle?: string; videos?: Video[] }> = [];
   isLoadingChatHistory: boolean = false;
   private chatHistoryLoadSeq: number = 0;
   private lastAppendBySig: Map<string, number> = new Map();
@@ -800,7 +809,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
       timestamp: clientTs, 
       userEmail: this.userEmail,
       videoUrl: extra?.videoUrl,
-      movieTitle: extra?.movieTitle
+      movieTitle: extra?.movieTitle,
+      videos: extra?.videos
     };
     
     if (extra?.videoUrl) {
@@ -1098,18 +1108,92 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
           console.log('🎬 [App]   - targetConversationId:', targetConversationId);
           console.log('🎬 [App]   - activeConversationId:', this.activeConversationId);
           
+          // Extract listings and handle video listing requests
+          let listings: any[] = [];
+          const messageContent = (event as any).data?.response?.message || (event as any).data?.message || llmMsg || '';
+          const userQuery = (event as any).data?.query || (event as any).data?.userInput || '';
+          const isListAllRequest = /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(messageContent) ||
+                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(messageContent) ||
+                                   /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(userQuery) ||
+                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(userQuery);
+          
+          // Extract listings from event data
+          if ((event as any).data?.listings && Array.isArray((event as any).data.listings)) {
+            listings = (event as any).data.listings;
+          } else if ((event as any).data?.response?.listings && Array.isArray((event as any).data.response.listings)) {
+            listings = (event as any).data.response.listings;
+          } else if (Array.isArray((event as any).data?.response)) {
+            listings = (event as any).data.response;
+          }
+          
+          // CRITICAL: If backend indicates listings should be pulled (hasListings flag), pull from API
+          if ((event as any).data?.hasListings || (event as any).data?.pullListingsUrl || (isListAllRequest && listings.length === 0)) {
+            const pullUrl = (event as any).data?.pullListingsUrl || '/api/video-library/listings';
+            console.log(`📚 [App] Pulling listings from API: ${pullUrl}`);
+            
+            try {
+              const response = await this.http.get<{success: boolean, listings: any[], count: number}>(`${this.apiUrl}${pullUrl}`).toPromise();
+              if (response && response.success && response.listings) {
+                listings = response.listings;
+                console.log(`✅ [App] Pulled ${listings.length} listings from API`);
+              } else {
+                console.warn(`⚠️ [App] Failed to pull listings:`, response);
+              }
+            } catch (error: any) {
+              console.error(`❌ [App] Error pulling listings from API:`, error.message);
+            }
+          }
+          
+          // Convert listings to videos array for thumbnail display
+          let videos: Video[] | undefined = undefined;
+          const hasMultipleListings = listings.length >= 2;
+          const shouldShowVideoThumbnails = hasMultipleListings || (listings.length > 0 && isListAllRequest);
+          
+          // CRITICAL: Only extract videoUrl if we DON'T have multiple listings
+          // If we have multiple listings or it's a list all request, we should show thumbnails, not a single video
+          const finalVideoUrl = (hasMultipleListings || isListAllRequest) ? undefined : videoUrl;
+          
+          if (listings.length >= 2 || (listings.length > 0 && isListAllRequest)) {
+            console.log(`📋 [App] Creating videos array: ${listings.length} listings, isListAllRequest: ${isListAllRequest}`);
+            videos = listings.map((listing: any, index: number) => {
+              const listingVideoUrl = listing.videoUrl || 
+                              listing.movieUrl || 
+                              listing.url ||
+                              (listing.filename ? `/api/movie/video/${listing.filename}` : '') ||
+                              '';
+              const filename = listing.filename || 
+                              (listingVideoUrl ? listingVideoUrl.split('/').pop() || '' : '') ||
+                              `${listing.id || listing.movieId || `video-${index}`}.mp4`;
+              return {
+                id: listing.id || listing.movieId || `video-${Date.now()}-${index}`,
+                filename: filename,
+                title: listing.movieTitle || listing.title || listing.filename || listing.name || `Video ${index + 1}`,
+                videoUrl: listingVideoUrl,
+                thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || listing.url || ''
+              };
+            }).filter(v => v.videoUrl);
+            
+            if (videos && videos.length > 0) {
+              console.log(`📋 [App] Converted ${listings.length} listings to ${videos.length} videos for thumbnail display`);
+            }
+          }
+          
           if (!targetConversationId) {
             console.warn('⚠️ [App] No targetConversationId available, cannot append message to chat history');
           } else {
             this.appendChatHistory('ASSISTANT', llmMsg, { 
               executionId: evExecId,
-              videoUrl: videoUrl,
-              movieTitle: movieTitle
+              videoUrl: finalVideoUrl,
+              movieTitle: movieTitle,
+              videos: videos
             }, targetConversationId);
             
             console.log('🎬 [App] ✅ Called appendChatHistory for llm_response');
-            if (videoUrl) {
-              console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', videoUrl);
+            if (finalVideoUrl) {
+              console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', finalVideoUrl);
+            }
+            if (videos && videos.length > 0) {
+              console.log(`📋 [App] ✅ Added message with ${videos.length} video thumbnails to chat history`);
             }
           }
         } else {
@@ -3115,6 +3199,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
    * Eden workflow queries trigger workflows, while informational queries are answered directly
    */
   isEdenWorkflowQuery(input: string): boolean {
+    // NOTE: This is a simple heuristic for frontend routing
+    // The backend LLM (classifyQueryType) makes the final decision
+    // This is just to help route to the right endpoint initially
     const lowerInput = input.toLowerCase().trim();
     
     // Action verbs that indicate workflow queries
@@ -3151,6 +3238,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
     
     // Otherwise, it's likely an informational query
+    // Backend LLM will make the final classification
     return false;
   }
 
@@ -3598,13 +3686,16 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
 
     // Check if this is an Eden workflow query (action-oriented) vs regular informational query
+    // NOTE: We use simple heuristics here, but the backend LLM will make the final classification
     const userInputTrimmed = this.userInput.trim();
     const isEdenWorkflowQuery = this.isEdenWorkflowQuery(userInputTrimmed);
     
     // If service type is detected OR it's an Eden workflow query, route to /api/eden-chat
+    // The backend LLM will make the final decision on whether it's workflow or informational
     if (this.selectedServiceType || isEdenWorkflowQuery) {
-      // This is an Eden workflow query - route to /api/eden-chat
-      console.log(`🔄 Routing to /api/eden-chat (Eden workflow query)`);
+      // This might be an Eden workflow query - route to /api/eden-chat
+      // Backend LLM will classify and handle appropriately
+      console.log(`🔄 Routing to /api/eden-chat (backend LLM will classify)`);
       
       // Check balance before submitting workflow
       if (!this.hasSufficientBalance()) {
@@ -3662,7 +3753,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
 
     // If no service type detected and not an Eden workflow query, treat this as a regular chat message (informational query).
     // Call the /api/chat endpoint which handles informational queries with LLM + RAG
-    console.log(`💬 Routing to /api/chat (regular informational query)`);
+    // Backend LLM will make the final classification
+    console.log(`💬 Routing to /api/chat (backend LLM will classify)`);
     const regularConversationId = this.buildConversationId('service', 'chat');
     if (this.activeConversationId !== regularConversationId) {
       this.setActiveConversation(regularConversationId);
@@ -3997,6 +4089,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.workflowMessages = [];
     this.showDecisionPrompt = false;
     this.pendingDecision = null;
+    this.cdr.detectChanges();
+  }
+
+  playVideo(video: Video): void {
+    console.log('🎬 [App] Playing video:', video);
+    
+    // Add a new assistant message with the video player
+    this.appendChatHistory('ASSISTANT', `Playing: ${video.title}`, { 
+      videoUrl: video.videoUrl,
+      movieTitle: video.title
+    });
+    
     this.cdr.detectChanges();
   }
 

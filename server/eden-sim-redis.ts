@@ -78,6 +78,7 @@ import {
   queryCinemarkAPI,
   queryDEXPoolAPI,
   querySnakeAPI,
+  queryVideoLibraryAPI,
   issueServiceProviderCertificate,
   createServiceProvidersForGarden
 } from "./src/serviceProvider";
@@ -3971,11 +3972,47 @@ httpServer.on("request", async (req, res) => {
           const isEdenInfoQuery = isEdenRelated;
           console.log(`💬 [Eden-Chat] LLM classified as informational query (confidence: ${queryClassification.confidence.toFixed(2)}) - ${isEdenInfoQuery ? 'Eden-related (using RAG)' : 'general knowledge (no RAG)'}`);
           
+          // Check if this is a "list all videos" request - if so, fetch video listings
+          const isListAllVideosRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(input.trim().toLowerCase());
+          let videoListings: any[] = [];
+          
+          if (isListAllVideosRequest) {
+            try {
+              const { getAllMoviesAsListings } = await import("./src/videoService");
+              // Get the movie provider from service registry
+              // CRITICAL: Prefer ROOT CA controlled movie library (gardenId: "HG") over garden-based providers like AMC
+              const { queryROOTCAServiceRegistry } = await import("./src/serviceProvider");
+              const movieProviders = queryROOTCAServiceRegistry({ serviceType: 'movie' });
+              
+              // Find ROOT CA controlled movie library first (gardenId: "HG" or undefined)
+              let provider = movieProviders.find(p => p.gardenId === "HG" || !p.gardenId);
+              
+              // If no ROOT CA library found, fall back to first provider (but log warning)
+              if (!provider && movieProviders.length > 0) {
+                provider = movieProviders[0];
+                console.warn(`⚠️ [Eden-Chat] No ROOT CA movie library found, using garden-based provider: ${provider.id} (${provider.gardenId})`);
+              }
+              
+              if (provider) {
+                videoListings = getAllMoviesAsListings(
+                  provider.id,
+                  provider.name,
+                  provider.gardenId || 'HG'
+                );
+                console.log(`📋 [Eden-Chat] Fetched ${videoListings.length} video listings from ${provider.name} (${provider.id}, gardenId: ${provider.gardenId || 'HG'})`);
+              } else {
+                console.warn(`⚠️ [Eden-Chat] No movie providers found in service registry`);
+              }
+            } catch (error: any) {
+              console.warn(`⚠️ [Eden-Chat] Failed to fetch video listings:`, error.message);
+            }
+          }
+          
           try {
             const { formatResponseWithOpenAI } = await import("./src/llm");
-            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { 
-              serviceType: 'informational',
-              useRAG: isEdenInfoQuery // Only use RAG for Eden-related queries
+            const llmResponse = await formatResponseWithOpenAI(videoListings, input.trim(), { 
+              serviceType: isListAllVideosRequest ? 'movie' : 'informational',
+              useRAG: isEdenInfoQuery && !isListAllVideosRequest // Only use RAG for Eden-related queries, not for video listing
             });
             
             // Append assistant response to chat history
@@ -4366,15 +4403,57 @@ httpServer.on("request", async (req, res) => {
           // REGULAR TEXT CHAT (Informational Query) - Answer directly using LLM + RAG
           console.log(`💬 [Chat] LLM classified as informational query (confidence: ${queryClassification.confidence.toFixed(2)}) - answering directly`);
           
+          // Check if this is a "list all videos" request - if so, fetch video listings
+          const isListAllVideosRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(input.trim().toLowerCase());
+          let videoListings: any[] = [];
+          
+          if (isListAllVideosRequest) {
+            try {
+              // CRITICAL: Use FlowWise Video Library Service (controlled by video-library.json)
+              // This ensures the service is invoked through FlowWise, not directly
+              const { queryROOTCAServiceRegistry, queryVideoLibraryAPI } = await import("./src/serviceProvider");
+              const movieProviders = queryROOTCAServiceRegistry({ serviceType: 'movie' });
+              
+              // Find ROOT CA controlled movie library first (gardenId: "HG" or undefined)
+              let provider = movieProviders.find(p => p.gardenId === "HG" || !p.gardenId);
+              
+              // If no ROOT CA library found, fall back to first provider (but log warning)
+              if (!provider && movieProviders.length > 0) {
+                provider = movieProviders[0];
+                console.warn(`⚠️ [Chat] No ROOT CA movie library found, using garden-based provider: ${provider.id} (${provider.gardenId})`);
+              }
+              
+              if (provider && provider.id === "eden-movie-library-001") {
+                // Use FlowWise Video Library Service (controlled by video-library.json)
+                console.log(`📚 [Chat] Invoking FlowWise Video Library Service for "list all videos"`);
+                videoListings = await queryVideoLibraryAPI();
+                console.log(`📋 [Chat] FlowWise Video Library Service returned ${videoListings.length} video listings`);
+              } else if (provider) {
+                // Fallback: Use direct service for non-video-library providers
+                const { getAllMoviesAsListings } = await import("./src/videoService");
+                videoListings = getAllMoviesAsListings(
+                  provider.id,
+                  provider.name,
+                  provider.gardenId || 'HG'
+                );
+                console.log(`📋 [Chat] Fetched ${videoListings.length} video listings from ${provider.name} (${provider.id}, gardenId: ${provider.gardenId || 'HG'})`);
+              } else {
+                console.warn(`⚠️ [Chat] No movie providers found in service registry`);
+              }
+            } catch (error: any) {
+              console.warn(`⚠️ [Chat] Failed to fetch video listings:`, error.message);
+            }
+          }
+          
           // Check if it's Eden-related (use RAG) or general knowledge
-          const isEdenInfoQuery = hasQuestionPattern && isEdenRelated;
-          const serviceType = "informational";
+          const isEdenInfoQuery = hasQuestionPattern && isEdenRelated && !isListAllVideosRequest;
+          const serviceType = isListAllVideosRequest ? 'movie' : "informational";
           
           try {
             const { formatResponseWithOpenAI } = await import("./src/llm");
-            const llmResponse = await formatResponseWithOpenAI([], input.trim(), { 
+            const llmResponse = await formatResponseWithOpenAI(videoListings, input.trim(), { 
               serviceType,
-              useRAG: isEdenInfoQuery // Only use RAG for Eden-related queries
+              useRAG: isEdenInfoQuery // Only use RAG for Eden-related queries, not for video listing
             });
             
             // Append assistant response to chat history
@@ -4387,6 +4466,9 @@ httpServer.on("request", async (req, res) => {
             });
             
             // Broadcast LLM response
+            // CRITICAL: For "list all videos", don't send listings via WebSocket - Angular will pull them
+            // This reduces WebSocket message size (58806 bytes -> much smaller)
+            const shouldPullListings = isListAllVideosRequest && videoListings.length > 0;
             broadcastEvent({
               type: "llm_response",
               component: "llm",
@@ -4395,6 +4477,10 @@ httpServer.on("request", async (req, res) => {
               data: {
                 query: input.trim(),
                 response: llmResponse,
+                // Only include listings flag, not the actual data - Angular will pull via HTTP
+                hasListings: shouldPullListings,
+                listingsCount: shouldPullListings ? videoListings.length : 0,
+                pullListingsUrl: shouldPullListings ? "/api/video-library/listings" : undefined,
                 isRAG: isEdenInfoQuery,
                 isInformational: true
               }
@@ -10481,6 +10567,38 @@ httpServer.on("request", async (req, res) => {
     return;
   }
 
+  // GET /api/video-library/listings - Get all video listings (Angular pulls instead of WebSocket)
+  if (pathname === "/api/video-library/listings" && req.method === "GET") {
+    console.log(`   📚 [${requestId}] GET /api/video-library/listings - Fetching video listings`);
+    try {
+      const { queryVideoLibraryAPI } = await import("./src/serviceProvider");
+      const listings = await queryVideoLibraryAPI();
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: true,
+        listings: listings,
+        count: listings.length,
+        timestamp: Date.now()
+      }));
+      console.log(`   ✅ [${requestId}] Returned ${listings.length} video listings`);
+    } catch (error: any) {
+      console.error(`   ❌ [${requestId}] Error fetching video listings:`, error.message);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
+    }
+    return;
+  }
+
   // Serve video files from /api/movie/video/ endpoint (garden-specific video serving)
   if (pathname.startsWith("/api/movie/video/")) {
     // Handle OPTIONS preflight for video requests
@@ -14750,6 +14868,11 @@ async function main() {
   initializeFlowWiseService(broadcastEvent, path.join(__dirname, "data"), ROOT_CA, ROOT_CA_IDENTITY, redis);
   console.log("✅ [FlowWiseService] ROOT CA workflow service initialized and certified with Redis instance");
   
+  // Initialize Video Library Service (FlowWise service controlled by video-library.json)
+  const { initializeVideoLibraryService } = await import("./src/components/videoLibraryService");
+  initializeVideoLibraryService();
+  console.log("✅ [VideoLibraryService] FlowWise service initialized and controlled by video-library.json");
+  
   // Initialize garden module (needed for issueGardenCertificate to use broadcastEvent)
   initializeGarden(broadcastEvent, redis);
 
@@ -14940,6 +15063,18 @@ async function main() {
       reputation: 5.0,
       gardenId: "HG",
       apiEndpoint: "internal://accountant",
+      status: 'active'
+    },
+    {
+      id: "eden-movie-library-001",
+      uuid: "550e8400-e29b-41d4-a716-446655440107",
+      name: "Eden Movie Library",
+      serviceType: "movie",
+      location: "ROOT CA",
+      bond: 100000,
+      reputation: 5.0,
+      gardenId: "HG",
+      apiEndpoint: "internal://movie-library",
       status: 'active'
     }
   ];
@@ -15495,6 +15630,18 @@ async function main() {
         reputation: 5.0,
         gardenId: "HG",
         apiEndpoint: "internal://accountant",
+        status: 'active'
+      },
+      {
+        id: "eden-movie-library-001",
+        uuid: "550e8400-e29b-41d4-a716-446655440107",
+        name: "Eden Movie Library",
+        serviceType: "movie",
+        location: "ROOT CA",
+        bond: 100000,
+        reputation: 5.0,
+        gardenId: "HG",
+        apiEndpoint: "internal://movie-library",
         status: 'active'
       }
     ];

@@ -5722,6 +5722,27 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1770020901340_9354c1188c358",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770020901340,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "movie",
+        "status": "active"
+      },
+      {
+        "id": "c_1770020910725_4e7c6a604ad508",
+        "conversationId": "conv:garden:garden-13:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770020910725,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:movie:god": [
@@ -6721,6 +6742,450 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1770021476942_3b9d80214532c8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770021476942,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770021481094_6b43308b65e93",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770021481094,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770021481174_c26d5b0570e58",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1770021481174,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770021634424_f8a218eee71288",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770021634424,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770021638305_3a725548d0d3f8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770021638305,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770021638430_571bf431a73178",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "I received your message but got an unexpected response format.",
+        "timestamp": 1770021638430,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022058736_03972293b1315",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022058736,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022061597_85128be160da1",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 10 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022061597,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022254526_457d5f79d7384",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022254526,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022257310_be7619cba41ae8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 5 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022257310,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022415912_0807c4dfe27808",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022415912,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022418712_ec0c5c450cf2a",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 0 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022418712,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022571449_4f3ae0e692af38",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022571449,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022572535_d790d0d5441878",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022572535,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022835628_aa754339c61f98",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022835628,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022842350_e4c39e5cc4e318",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022842350,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022978566_3758c1f9f47b48",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022978566,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770022980767_5f621c018990b8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022980767,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770023444184_49b8c63b9f0368",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770023444184,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770023445499_c728633d5cb988",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770023445499,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770023822630_f4a8d1326b2aa8",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770023822630,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770023826958_d6c260d513c7b",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770023826958,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024249546_f7e5ac3497a72",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024249546,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024251309_13c5fffa598858",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024251309,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024468647_85d9c2cc04ba28",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024468647,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024469962_cf136b36009ee",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024469962,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024647254_e87580c1780828",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024647254,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024648740_4b62585bfd9b88",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024648740,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024824915_d7641ae9f8049",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024824915,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770024826211_d717c50c2c7df",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024826211,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025215769_318de79654f3a",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025215769,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025217078_c4d03480ffc318",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025217078,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025467873_b1caef2e805b4",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025467873,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025469016_0d0f92fff150a8",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025469016,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025808368_76918153ea1a28",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025808368,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770025809698_3f83f010c92d1",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025809698,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026123638_deebd0e9fdd778",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026123638,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026128472_0a7383eb6c09c",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026128472,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026272956_6ef7677f914d2",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026272956,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026274035_004d54c182baa",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026274035,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026347257_351265a9d319e",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026347257,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026348424_167217f7b0a74",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026348424,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -7678,6 +8143,396 @@
         "role": "ASSISTANT",
         "content": "Your message has been sent to GOD's inbox. GOD will review and respond when available.",
         "timestamp": 1769988987191,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770020901361_96d401fb379f4",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770020901361,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770021478896_c9753437e14bf",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770021478896,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770021636150_41de79f86da6b",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770021636150,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022060538_ac6cf178450e8",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022060538,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022061593_0724559f1641b",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 10 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022061593,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022255210_12ffb117894c5",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022255210,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022257306_c02337937a81a",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 5 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022257306,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022417696_9573f651b2e7d",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022417696,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022418708_6b1bc058b38fb",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 0 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022418708,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022572148_a0268219cacc7",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022572148,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022572532_1238d14a1ffe9",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022572532,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022841269_9f56975d5faf",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022841269,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022842345_0acbbae4acdba",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022842345,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022980437_50ecba4b382ea",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770022980437,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770022980763_ab7e9c1f89199",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770022980763,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770023445173_ba6b4dc05e658",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770023445173,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770023445494_e843e4b87e0d",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770023445494,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770023826347_c54a5f53cd79f",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770023826347,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770023826953_22613acae461d",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770023826953,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024250445_7e13e676dec33",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024250445,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024251304_290418111cc6f",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024251304,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024469471_851a50afeb906",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024469471,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024469957_7de9d2952c61c",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 37 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024469957,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024648320_f1e60a5a8e9ef",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024648320,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024648735_5583172950d7c",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024648735,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024825763_2228c0914e57b",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770024825763,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770024826204_47990a1e3f56a",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770024826204,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025216613_b8d6a68c07335",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025216613,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025217072_f4bcf911e6bf5",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025217072,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025468598_aad627b03a871",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025468598,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025469009_68318ec6aa686",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025469009,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025809232_befc4d03e5758",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770025809232,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770025809691_7eeacf59d419f",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770025809691,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026128058_c3cb61830c331",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026128058,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026128465_8558272f415a8",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026128465,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026273613_eb9b9e38912a1",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026273613,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026274029_ae28046ea999",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026274029,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026348021_3c0d26fa0e99f",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026348021,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026348418_f15cdaec84423",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026348418,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

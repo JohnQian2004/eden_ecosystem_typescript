@@ -147,8 +147,9 @@
                 </div>
                 <div class="eden-chat-message-text" [innerHTML]="msg.content"></div>
                 
-                <!-- Video Player for Movie Messages -->
-                <div *ngIf="msg.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
+                <!-- Video Player for Movie Messages (single video) -->
+                <!-- Only show single video player if we have videoUrl AND no multiple videos (thumbnails take precedence) -->
+                <div *ngIf="msg.videoUrl && (!msg.videos || msg.videos.length <= 1)" class="mt-3" style="display: block !important; visibility: visible !important;">
                   <div class="card" style="display: block !important; visibility: visible !important;">
                     <div class="card-body" style="display: block !important; visibility: visible !important;">
                       <h6 class="card-title" *ngIf="msg.movieTitle">🎬 {{ msg.movieTitle }}</h6>
@@ -165,6 +166,29 @@
                         Video Source: {{ getVideoUrl(msg.videoUrl) }}
                       </div>
                       <small class="text-muted d-block mt-1">Video URL: {{ msg.videoUrl }}</small>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Video Thumbnail Players (for video listing) -->
+                <div *ngIf="msg.videos && msg.videos.length > 0" class="mt-3">
+                  <div class="video-thumbnails-container">
+                    <div *ngFor="let video of msg.videos" 
+                         class="video-thumbnail-card"
+                         (click)="playVideo(video)">
+                      <video
+                        [src]="getVideoUrl(video.videoUrl)"
+                        [muted]="true"
+                        [loop]="true"
+                        playsinline
+                        preload="metadata">
+                      </video>
+                      <div class="play-icon-overlay">
+                        <i class="bi bi-play-circle-fill text-white" style="font-size: 20px; opacity: 0.9; filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));"></i>
+                      </div>
+                      <div class="position-absolute bottom-0 start-0 end-0 p-1" style="background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);">
+                        <small class="text-white text-truncate d-block" style="font-size: 0.6rem; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">{{ video.title }}</small>
+                      </div>
                     </div>
                   </div>
                 </div>

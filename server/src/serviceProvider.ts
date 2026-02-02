@@ -401,6 +401,61 @@ export async function queryAMCAPI(location: string, filters?: { genre?: string; 
   // NEW: Return all videos from server/data/videos directory - ALL FREE
   // Filter by genre if specified (e.g., "sci-fi" -> matches content_tags like "fantasy", "cgi", "space", etc.)
   return getAllMoviesAsListings("amc-001", "AMC Theatres", gardenId, filters);
+}
+
+/**
+ * Query Video Library Service API (FlowWise service controlled by video-library.json)
+ * This service reads directly from server/data/videos/library.json
+ * 
+ * FLOWWISE INTEGRATION:
+ * This function is called by FlowWise workflows when querying the video library service.
+ * It's invoked through queryProviderAPI -> queryVideoLibraryAPI when provider.id === "eden-movie-library-001"
+ */
+export async function queryVideoLibraryAPI(filters?: { tags?: string[]; isNew?: boolean }): Promise<MovieListing[]> {
+  console.log(`📚 [FlowWise VideoLibraryService] ========================================`);
+  console.log(`📚 [FlowWise VideoLibraryService] 🎬 VIDEO LIBRARY SERVICE INVOKED`);
+  console.log(`📚 [FlowWise VideoLibraryService] Service controlled by video-library.json`);
+  console.log(`📚 [FlowWise VideoLibraryService] Filters:`, filters);
+  console.log(`📚 [FlowWise VideoLibraryService] ========================================`);
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Get the Eden Movie Library provider from the registry
+  const videoLibraryProvider = ROOT_CA_SERVICE_REGISTRY.find(p => p.id === "eden-movie-library-001");
+  const gardenId = videoLibraryProvider?.gardenId || "HG"; // Default to HG (ROOT CA)
+  const providerId = videoLibraryProvider?.id || "eden-movie-library-001";
+  const providerName = videoLibraryProvider?.name || "Eden Movie Library";
+  
+  if (!videoLibraryProvider) {
+    console.warn(`⚠️  [FlowWise VideoLibraryService] Provider eden-movie-library-001 not found. Using defaults.`);
+  } else {
+    console.log(`✅ [FlowWise VideoLibraryService] Found ${providerId} with gardenId: ${gardenId}`);
+  }
+  
+  // Import video library service functions
+  const { getAllVideos, searchVideosByTags, getNewVideos, getAllVideosAsListings } = await import("./components/videoLibraryService");
+  
+  let videos;
+  if (filters?.tags && filters.tags.length > 0) {
+    // Search by tags
+    videos = searchVideosByTags(filters.tags);
+    console.log(`🔍 [FlowWise VideoLibraryService] Filtered ${videos.length} videos by tags: ${filters.tags.join(", ")}`);
+  } else if (filters?.isNew) {
+    // Get only new videos
+    videos = getNewVideos();
+    console.log(`🆕 [FlowWise VideoLibraryService] Found ${videos.length} new videos`);
+  } else {
+    // Get all videos
+    videos = getAllVideos();
+    console.log(`📋 [FlowWise VideoLibraryService] Retrieved all ${videos.length} videos from library.json`);
+  }
+  
+  // Convert to movie listings
+  const listings = getAllVideosAsListings(providerId, providerName, gardenId);
+  console.log(`✅ [FlowWise VideoLibraryService] Converted ${listings.length} videos to movie listings`);
+  console.log(`📚 [FlowWise VideoLibraryService] ========================================`);
+  return listings;
   
   // OLD CODE (commented out - replaced with free video listings):
   /* Mock AMC API response with real-time pricing
@@ -714,6 +769,10 @@ export async function queryProviderAPI(
       return await queryMovieComAPI(provider.location, filters);
     case "cinemark-001":
       return await queryCinemarkAPI(provider.location, filters);
+    case "eden-movie-library-001":
+      // FlowWise service controlled by video-library.json
+      console.log(`📚 [queryProviderAPI] Routing to Video Library Service (FlowWise service controlled by video-library.json)`);
+      return await queryVideoLibraryAPI(filters);
     default:
       // Provider plugin fallback (SQL-backed providers)
       if (String(provider.apiEndpoint || "").toLowerCase().startsWith("eden:plugin:mysql")) {

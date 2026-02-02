@@ -243,8 +243,8 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     this.initializeTabVisibilityHandling();
 
     // Listen for WebSocket events
-    this.wsSubscription = this.webSocketService.events$.subscribe((event: SimulatorEvent) => {
-      this.handleWebSocketEvent(event);
+    this.wsSubscription = this.webSocketService.events$.subscribe(async (event: SimulatorEvent) => {
+      await this.handleWebSocketEvent(event);
     });
 
     // Instant clear when a new chat/workflow starts (emitted by AppComponent onSubmit)
@@ -516,7 +516,7 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  private handleWebSocketEvent(event: SimulatorEvent) {
+  private async handleWebSocketEvent(event: SimulatorEvent) {
     // Skip processing WebSocket events if tab is not visible
     if (!this.isTabVisible) {
       return;
@@ -625,19 +625,110 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
           
           // Extract videoUrl and movieTitle from event data
           // Check multiple sources: direct videoUrl, selectedListing, and listings array
-          const listings = event.data?.response?.listings || event.data?.listings || [];
+          // Try multiple paths to find listings
+          let listings: any[] = [];
+          if (event.data?.response?.listings && Array.isArray(event.data.response.listings)) {
+            listings = event.data.response.listings;
+          } else if (event.data?.listings && Array.isArray(event.data.listings)) {
+            listings = event.data.listings;
+          } else if (event.data?.response && Array.isArray(event.data.response)) {
+            // Sometimes listings might be at the root of response
+            listings = event.data.response;
+          }
+          
+          // Check if this is a "list all videos" request - check both message content and user query
+          // CRITICAL: Declare this BEFORE using it in the listings extraction check below
+          const messageContent = event.data?.response?.message || event.data?.message || '';
+          const userQuery = event.data?.query || event.data?.userInput || '';
+          const isListAllRequest = /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(messageContent) ||
+                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(messageContent) ||
+                                   /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(userQuery) ||
+                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(userQuery);
+          
+          console.log('🔍 [WorkflowChat] Listing extraction debug:', {
+            hasResponse: !!event.data?.response,
+            hasListings: !!event.data?.listings,
+            responseListings: event.data?.response?.listings?.length || 0,
+            dataListings: event.data?.listings?.length || 0,
+            extractedCount: listings.length,
+            eventDataKeys: event.data ? Object.keys(event.data) : [],
+            responseKeys: event.data?.response ? Object.keys(event.data.response) : [],
+            responseType: typeof event.data?.response,
+            responseIsArray: Array.isArray(event.data?.response),
+            sampleListing: listings.length > 0 ? listings[0] : null,
+            isListAllRequest: isListAllRequest
+          });
+          
+          // CRITICAL: If listings are empty but response exists, try to extract from response directly
+          if (listings.length === 0 && event.data?.response) {
+            const response = event.data.response;
+            // Check if response itself is an array of listings
+            if (Array.isArray(response)) {
+              listings = response;
+              console.log(`📋 [WorkflowChat] Found ${listings.length} listings in response array`);
+            } else if (response.listings && Array.isArray(response.listings)) {
+              listings = response.listings;
+              console.log(`📋 [WorkflowChat] Found ${listings.length} listings in response.listings`);
+            } else if (response.data?.listings && Array.isArray(response.data.listings)) {
+              listings = response.data.listings;
+              console.log(`📋 [WorkflowChat] Found ${listings.length} listings in response.data.listings`);
+            }
+          }
+          
+          // CRITICAL: If backend indicates listings should be pulled (hasListings flag), pull from API
+          // This is more efficient than sending large listings via WebSocket
+          if (event.data?.hasListings || event.data?.pullListingsUrl || (isListAllRequest && listings.length === 0)) {
+            const pullUrl = event.data?.pullListingsUrl || '/api/video-library/listings';
+            console.log(`📚 [WorkflowChat] Pulling listings from API: ${pullUrl}`);
+            console.log(`📚 [WorkflowChat] Event data:`, {
+              hasListings: event.data?.hasListings,
+              pullListingsUrl: event.data?.pullListingsUrl,
+              listingsCount: event.data?.listingsCount,
+              isListAllRequest,
+              currentListingsCount: listings.length
+            });
+            
+            // Pull listings via HTTP instead of WebSocket
+            try {
+              const response = await this.http.get<{success: boolean, listings: any[], count: number}>(`${this.apiUrl}${pullUrl}`).toPromise();
+              if (response && response.success && response.listings) {
+                listings = response.listings;
+                console.log(`✅ [WorkflowChat] Pulled ${listings.length} listings from API`);
+                console.log(`✅ [WorkflowChat] Sample listing:`, listings[0]);
+              } else {
+                console.warn(`⚠️ [WorkflowChat] Failed to pull listings:`, response);
+              }
+            } catch (error: any) {
+              console.error(`❌ [WorkflowChat] Error pulling listings from API:`, error.message);
+              console.error(`❌ [WorkflowChat] Full error:`, error);
+            }
+          }
+          
           const firstListing = Array.isArray(listings) && listings.length > 0 ? listings[0] : null;
           
-          // Check if this is a "list all videos" request
-          const messageContent = event.data?.response?.message || event.data?.message || '';
-          const isListAllRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(messageContent);
+          // Always show video thumbnails if we have multiple listings (2+), or if it's a list all request
+          const hasMultipleListings = listings.length >= 2;
+          // If we have 2+ listings, ALWAYS show thumbnails (regardless of detection)
+          const shouldShowVideoThumbnails = hasMultipleListings || (listings.length > 0 && isListAllRequest);
           
-          const videoUrl = event.data?.response?.videoUrl || 
-                          event.data?.videoUrl || 
-                          event.data?.response?.selectedListing?.videoUrl ||
-                          event.data?.selectedListing?.videoUrl ||
-                          firstListing?.videoUrl ||
-                          undefined;
+          console.log('📋 [WorkflowChat] After pull - listings status:', {
+            listingsCount: listings.length,
+            hasMultipleListings,
+            shouldShowVideoThumbnails,
+            isListAllRequest,
+            firstListingVideoUrl: firstListing?.videoUrl
+          });
+          
+          // CRITICAL: Only extract videoUrl if we DON'T have multiple listings
+          // If we have multiple listings or it's a list all request, we should show thumbnails, not a single video
+          const videoUrl = (hasMultipleListings || isListAllRequest) ? undefined : (
+            event.data?.response?.videoUrl || 
+            event.data?.videoUrl || 
+            event.data?.response?.selectedListing?.videoUrl ||
+            event.data?.selectedListing?.videoUrl ||
+            firstListing?.videoUrl ||
+            undefined
+          );
           const movieTitle = event.data?.response?.movieTitle || 
                             event.data?.movieTitle || 
                             event.data?.response?.selectedListing?.movieTitle ||
@@ -645,30 +736,85 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
                             firstListing?.movieTitle ||
                             undefined;
           
-          // For "list all videos" requests, convert listings to videos array for thumbnail display
+          // Convert listings to videos array for thumbnail display when appropriate
+          // ALWAYS convert if we have multiple listings (2+), OR if it's a "list all videos" request
+          // CRITICAL: For "list all videos", always create videos array even with 1 listing
           let videos: Video[] | undefined = undefined;
-          if (listings.length > 0 && isListAllRequest) {
-            videos = listings.map((listing: any) => ({
-              id: listing.id || listing.movieId || `video-${Date.now()}-${Math.random()}`,
-              title: listing.movieTitle || listing.title || 'Untitled Video',
-              videoUrl: listing.videoUrl || listing.movieUrl || `/api/movie/video/${listing.filename || ''}`,
-              thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || ''
-            }));
-            console.log(`📋 [WorkflowChat] Converted ${listings.length} listings to videos array for thumbnail display`);
+          // CRITICAL: Create videos array if we have 2+ listings OR if it's a list all request (even with 1 listing)
+          if (listings.length >= 2 || (listings.length > 0 && isListAllRequest)) {
+            console.log(`📋 [WorkflowChat] Creating videos array: ${listings.length} listings, isListAllRequest: ${isListAllRequest}`);
+            // Always show thumbnails if we have 2+ listings OR if it's a list all request
+            videos = listings.map((listing: any, index: number) => {
+              // Extract video URL from various possible fields
+              const listingVideoUrl = listing.videoUrl || 
+                              listing.movieUrl || 
+                              listing.url ||
+                              (listing.filename ? `/api/movie/video/${listing.filename}` : '') ||
+                              '';
+              
+              // Extract filename from videoUrl or listing
+              const filename = listing.filename || 
+                              (listingVideoUrl ? listingVideoUrl.split('/').pop() || '' : '') ||
+                              `${listing.id || listing.movieId || `video-${index}`}.mp4`;
+              
+              return {
+                id: listing.id || listing.movieId || `video-${Date.now()}-${index}`,
+                filename: filename,
+                title: listing.movieTitle || listing.title || listing.filename || listing.name || `Video ${index + 1}`,
+                videoUrl: listingVideoUrl,
+                thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || listing.url || ''
+              };
+            }).filter(v => v.videoUrl); // Only include videos that have a valid videoUrl
+            
+            if (videos && videos.length > 0) {
+              console.log(`📋 [WorkflowChat] Converted ${listings.length} listings to ${videos.length} videos for thumbnail display`, {
+                isListAllRequest,
+                hasMultipleListings,
+                shouldShowVideoThumbnails,
+                listingsCount: listings.length,
+                videosCount: videos.length,
+                sampleListing: listings[0],
+                sampleVideo: videos[0]
+              });
+            } else {
+              console.warn(`⚠️ [WorkflowChat] Failed to convert listings to videos - all listings filtered out (no valid videoUrl)`);
+            }
+          } else if (listings.length > 0) {
+            console.log(`⚠️ [WorkflowChat] Has ${listings.length} listing(s) but not showing thumbnails (need 2+ for thumbnails or list all request)`);
           }
           
           console.log('🎬 [WorkflowChat] Extracted video info from llm_response:', {
             videoUrl: videoUrl,
             movieTitle: movieTitle,
             hasListings: listings.length > 0,
+            listingsCount: listings.length,
             firstListingVideoUrl: firstListing?.videoUrl,
             isListAllRequest: isListAllRequest,
-            videosCount: videos?.length || 0
+            hasMultipleListings: hasMultipleListings,
+            shouldShowVideoThumbnails: shouldShowVideoThumbnails,
+            videosCount: videos?.length || 0,
+            messageContent: messageContent.substring(0, 50)
           });
           
-          // CRITICAL: If videoUrl exists, check for duplicate video player
+          // CRITICAL: If we have multiple videos to show as thumbnails, don't show a single video player
+          // Only show single video player if we don't have multiple videos
+          // If we have 2+ listings OR it's a list all request, we should show thumbnails, not a single video player
+          const hasMultipleVideos = (videos && videos.length > 1) || (listings && listings.length >= 2) || (listings.length > 0 && isListAllRequest);
+          const shouldShowSingleVideo = videoUrl && !hasMultipleVideos;
+          
+          console.log('🎬 [WorkflowChat] Video display decision:', {
+            hasMultipleVideos,
+            shouldShowSingleVideo,
+            videoUrl: videoUrl ? 'exists' : 'none',
+            videosCount: videos?.length || 0,
+            listingsCount: listings.length,
+            isListAllRequest,
+            willShowThumbnails: hasMultipleVideos && videos && videos.length > 0
+          });
+          
+          // CRITICAL: If videoUrl exists and we should show single video, check for duplicate video player
           // If a message with the same videoUrl already exists, update it instead of creating a duplicate
-          if (videoUrl) {
+          if (shouldShowSingleVideo && videoUrl) {
             const existingVideoMessage = this.chatMessages.find(m => 
               m.videoUrl === videoUrl && m.type === 'assistant'
             );
@@ -678,6 +824,11 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               existingVideoMessage.content = llmMessage;
               if (movieTitle && !existingVideoMessage.movieTitle) {
                 existingVideoMessage.movieTitle = movieTitle;
+              }
+              // Also update videos array if we have multiple videos
+              if (hasMultipleVideos) {
+                existingVideoMessage.videos = videos;
+                existingVideoMessage.videoUrl = undefined; // Clear single video URL when showing thumbnails
               }
               this.cdr.detectChanges();
               break; // Don't create a new message
@@ -698,10 +849,21 @@ export class WorkflowChatDisplayComponent implements OnInit, OnDestroy {
               content: llmMessage,
               timestamp: llmTimestamp,
               data: listings.length > 0 ? { listings: listings } : undefined,
-              videoUrl: videoUrl,
+              // CRITICAL: Only set videoUrl if we're showing a single video (not multiple thumbnails)
+              // If we have multiple videos, clear videoUrl to prevent single player from showing
+              videoUrl: (hasMultipleVideos || (videos && videos.length > 1)) ? undefined : (shouldShowSingleVideo ? videoUrl : undefined),
               movieTitle: movieTitle,
-              videos: videos // Add videos array for thumbnail display when listing all videos
+              // Always set videos array if we have it (even if empty, to ensure template checks work)
+              videos: videos || (hasMultipleVideos && listings.length > 0 ? [] : undefined)
             };
+            
+            console.log('🎬 [WorkflowChat] Created message with:', {
+              hasVideoUrl: !!llmChatMessage.videoUrl,
+              videosCount: llmChatMessage.videos?.length || 0,
+              listingsCount: listings.length,
+              hasMultipleVideos,
+              shouldShowSingleVideo
+            });
             
             // Insert after last user message if it exists
             if (lastUserMessage) {

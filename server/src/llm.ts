@@ -629,11 +629,11 @@ export async function classifyQueryType(userInput: string): Promise<{ isWorkflow
   if (MOCKED_LLM) {
     const inputLower = userInput.toLowerCase();
     // Simple heuristic for mock mode
-    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
     const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-    // Special case: "list all videos" or "show videos" should be workflow queries
-    const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
-    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
+    // List/show/display requests are informational (browsing, not actions) - let LLM decide in real mode
+    const isListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies|content|items|options)\b/i.test(inputLower);
+    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) && !isListRequest;
     return {
       isWorkflowQuery: isWorkflow,
       isInformationalQuery: !isWorkflow,
@@ -647,12 +647,11 @@ Determine if a user query is a WORKFLOW/SERVICE REQUEST (should trigger Eden wor
 
 WORKFLOW/SERVICE QUERIES are:
 - Action requests that should trigger Eden workflows or services
-- Examples: "book a movie", "buy movie tickets", "trade 2 SOL", "find a pharmacy", "create a service", "build a simulator", "order food", "get a hotel room", "list all videos", "show me videos", "list movies"
+- Examples: "book a movie", "buy movie tickets", "trade 2 SOL", "find a pharmacy", "create a service", "build a simulator", "order food", "get a hotel room"
 - Requests to perform actions, transactions, or create/configure things in Eden
-- Service requests that need workflow processing
-- Requests to list, show, or display service data (videos, movies, etc.) → WORKFLOW QUERY
+- Service requests that need workflow processing (booking, purchasing, trading, creating)
 - Even if phrased as questions, if they're requesting an action → WORKFLOW QUERY
-- Examples of action questions: "can you book a movie?", "how do I buy tokens?", "where can I find a pharmacy?", "can you list all videos?"
+- Examples of action questions: "can you book a movie?", "how do I buy tokens?", "where can I find a pharmacy?"
 
 INFORMATIONAL QUERIES are:
 - Questions asking for information, explanations, or guidance
@@ -660,6 +659,8 @@ INFORMATIONAL QUERIES are:
 - Questions about how to use Eden (not requesting an action, just asking for information)
 - General knowledge questions unrelated to Eden services
 - Questions that don't require workflow execution
+- Requests to LIST, SHOW, or DISPLAY information (browsing/viewing, not performing actions)
+- Examples: "list all videos", "show me videos", "list movies", "display available movies" → These are INFORMATIONAL (user wants to see what's available, not book/purchase)
 
 CRITICAL DISTINCTION:
 - "create a simulator" → WORKFLOW QUERY (requesting to create something)
@@ -690,13 +691,13 @@ Input: "can you book a movie for me"
 Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
 
 Input: "list all videos"
-Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
 
 Input: "show me videos"
-Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
 
 Input: "list movies"
-Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0.95}
+Output: {"isWorkflowQuery": false, "isInformationalQuery": true, "confidence": 0.95}
 `;
 
   try {
@@ -736,13 +737,13 @@ Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0
       const contentPreview = content.substring(0, 200);
       console.warn(`⚠️ [classifyQueryType] Failed to parse JSON response. Input: "${userInput.substring(0, 50)}...". Content preview: ${contentPreview}`);
       
-      // Fallback: use simple heuristics
+      // Fallback: use simple heuristics (LLM should have decided, but if parsing fails, use basic logic)
       const inputLower = userInput.toLowerCase();
-      const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
+      const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
       const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-      // Special case: "list all videos" or "show videos" should be workflow queries even without other action verbs
-      const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
-      const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
+      // List/show/display requests are informational (browsing, not actions)
+      const isListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies|content|items|options)\b/i.test(inputLower);
+      const isWorkflow = (hasActionVerbs && !hasQuestionPattern) && !isListRequest;
       
       return {
         isWorkflowQuery: isWorkflow,
@@ -758,13 +759,13 @@ Output: {"isWorkflowQuery": true, "isInformationalQuery": false, "confidence": 0
     };
   } catch (error: any) {
     console.error(`❌ [classifyQueryType] Error:`, error);
-    // Fallback: use simple heuristics
+    // Fallback: use simple heuristics (LLM should have decided, but if error occurs, use basic logic)
     const inputLower = userInput.toLowerCase();
-    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up|list|show|display)\b/i.test(inputLower);
+    const hasActionVerbs = /\b(book|buy|sell|find|order|trade|swap|purchase|get|watch|reserve|create|build|make|setup|set\s+up)\b/i.test(inputLower);
     const hasQuestionPattern = /how (to|does|do|can|will|works?)|what (is|are|does|do|can|will)|who (is|are|does|do|can|will)|explain|tell me about|help|guide/i.test(inputLower);
-    // Special case: "list all videos" or "show videos" should be workflow queries even without other action verbs
-    const isVideoListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies)\b/i.test(inputLower);
-    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) || isVideoListRequest;
+    // List/show/display requests are informational (browsing, not actions)
+    const isListRequest = /\b(list|show|display)\s+(all\s+)?(video|movie|videos|movies|content|items|options)\b/i.test(inputLower);
+    const isWorkflow = (hasActionVerbs && !hasQuestionPattern) && !isListRequest;
     
     return {
       isWorkflowQuery: isWorkflow,

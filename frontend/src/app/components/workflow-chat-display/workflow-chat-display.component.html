@@ -103,8 +103,9 @@
               </div>
               
               <!-- Video Player for Movie Viewing -->
+              <!-- Only show single video player if we have videoUrl AND no multiple videos (thumbnails take precedence) -->
               <!-- Use *ngIf with videoUrl to force video element recreation when URL changes (fixes Windows player issue) -->
-              <div *ngIf="message.videoUrl" class="mt-3" style="display: block !important; visibility: visible !important;">
+              <div *ngIf="message.videoUrl && (!message.videos || message.videos.length <= 1)" class="mt-3" style="display: block !important; visibility: visible !important;">
                 <div class="card" style="display: block !important; visibility: visible !important;">
                   <div class="card-body" style="display: block !important; visibility: visible !important;">
                     <h6 class="card-title" *ngIf="message.movieTitle">🎬 {{ message.movieTitle }}</h6>
