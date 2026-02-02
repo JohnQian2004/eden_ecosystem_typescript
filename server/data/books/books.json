@@ -1,0 +1,13 @@
+{
+  "books": [
+    {
+      "id": "eden-bible",
+      "title": "Eden Bible",
+      "author": "Various",
+      "description": "The complete Bible with all 66 books and 1,189 chapters. Content is generated using AI for accurate biblical text.",
+      "chapters": 1189,
+      "type": "bible"
+    }
+  ]
+}
+

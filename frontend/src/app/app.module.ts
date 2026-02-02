@@ -32,6 +32,7 @@ import { VideoUploadComponent } from './components/video-upload/video-upload.com
 import { EdenUniversityComponent } from './components/eden-university/eden-university.component';
 import { EdenNewsComponent } from './components/eden-news/eden-news.component';
 import { EdenTEDComponent } from './components/eden-ted/eden-ted.component';
+import { EdenBooksComponent } from './components/eden-books/eden-books.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -77,7 +78,8 @@ const routes: Routes = [
     VideoUploadComponent,
     EdenUniversityComponent,
     EdenNewsComponent,
-    EdenTEDComponent
+    EdenTEDComponent,
+    EdenBooksComponent
   ],
   imports: [
     BrowserModule,

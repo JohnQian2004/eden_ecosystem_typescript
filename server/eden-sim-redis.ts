@@ -330,6 +330,18 @@ httpServer.on("request", async (req, res) => {
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
   
+  // Handle books API requests
+  if (pathname.startsWith('/api/books/')) {
+    try {
+      const { handleBooksRequest } = await import('./src/books/booksRoutes');
+      if (handleBooksRequest(req, res, pathname)) {
+        return; // Books API handled the request
+      }
+    } catch (error: any) {
+      console.error(`❌ [${requestId}] Books API error:`, error.message);
+    }
+  }
+
   // Proxy media server requests (if media server is running separately)
   // Media server runs on port 3001 as a separate service
   if (pathname.startsWith('/api/media/')) {
@@ -11344,7 +11356,7 @@ Return your response as plain text (no JSON, no markdown formatting).`;
         } else {
           res.writeHead(200, { 
             "Content-Type": "text/html",
-            "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; media-src 'self' http: https:; connect-src 'self' ws: wss: http: https: https://accounts.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com;"
+            "Content-Security-Policy": "default-src 'self'; img-src 'self' data: http: https:; media-src 'self' http: https:; connect-src 'self' ws: wss: http: https: https://accounts.google.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com;"
           });
           res.end(data);
         }

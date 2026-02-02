@@ -10,7 +10,7 @@ import { MediaServer } from './mediaServer';
 import { mediaRoutes } from './routes/mediaRoutes';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Middleware
 app.use(cors());
@@ -92,18 +92,19 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server on 0.0.0.0 to accept connections from all interfaces
+const HOST = '0.0.0.0';
+app.listen(PORT, HOST, () => {
   console.log('═══════════════════════════════════════════════════════════');
   console.log('🎬 Eden Media Server');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`📡 Server running on port ${PORT}`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-  console.log(`📹 Video endpoint: http://localhost:${PORT}/api/media/video/:id`);
-  console.log(`🖼️  Image endpoint: http://localhost:${PORT}/api/media/image/:id`);
-  console.log(`🎲 Random image: http://localhost:${PORT}/image?random=999999`);
-  console.log(`🎨 AI image: http://localhost:${PORT}/image/ai?text=sky`);
-  console.log(`📋 List endpoint: http://localhost:${PORT}/api/media/list`);
+  console.log(`📡 Server running on ${HOST}:${PORT}`);
+  console.log(`🌐 Health check: http://${HOST}:${PORT}/health`);
+  console.log(`📹 Video endpoint: http://${HOST}:${PORT}/api/media/video/:id`);
+  console.log(`🖼️  Image endpoint: http://${HOST}:${PORT}/api/media/image/:id`);
+  console.log(`🎲 Random image: http://${HOST}:${PORT}/image?random=999999`);
+  console.log(`🎨 AI image: http://${HOST}:${PORT}/image/ai?text=sky`);
+  console.log(`📋 List endpoint: http://${HOST}:${PORT}/api/media/list`);
   console.log('═══════════════════════════════════════════════════════════\n');
 });
 

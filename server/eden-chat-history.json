@@ -7229,6 +7229,27 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1770039283427_b52111d37895e",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "bible",
+        "timestamp": 1770039283427,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770039286245_c76cebf96bb15",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "The Bible is a collection of religious texts that are central to Christianity, Judaism, and other faiths. It is a compilation of the Hebrew Bible (Old Testament) and the New Testament, which includes the Gospels, Acts, Epistles, and the Apocalypse. The Bible is considered a sacred text by Christians and Jews, providing guidance, moral teachings, and historical narratives.",
+        "timestamp": 1770039286245,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -8616,6 +8637,26 @@
         "role": "ASSISTANT",
         "content": "In the Bible, God is the supreme being and the creator of the universe. God is often depicted as a divine, all-powerful, and all-knowing entity, with characteristics such as omniscience, omnipotence, and omnibenevolence. The concept of God varies across different Christian, Jewish, and Islamic traditions, each with its own unique interpretation and understanding of this divine figure.",
         "timestamp": 1770034820276,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770039284943_69a802acd0507",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "bible",
+        "timestamp": 1770039284943,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770039286240_1b85ad37eaf8",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "The Bible is a collection of religious texts that are central to Christianity, Judaism, and other faiths. It is a compilation of the Hebrew Bible (Old Testament) and the New Testament, which includes the Gospels, Acts, Epistles, and the Apocalypse. The Bible is considered a sacred text by Christians and Jews, providing guidance, moral teachings, and historical narratives.",
+        "timestamp": 1770039286240,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"
