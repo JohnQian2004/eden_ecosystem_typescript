@@ -122,14 +122,35 @@
               <span class="eden-chat-subtitle">• Certified Session</span>
             </div>
             <div class="eden-chat-header-right">
-              <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history">
+              <!-- Eden Chat Tabs -->
+              <div class="btn-group eden-chat-tabs" role="group">
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'chat'}"
+                  (click)="edenChatTab = 'chat'"
+                  title="Chat">
+                  💬 Chat
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'video-library'}"
+                  (click)="edenChatTab = 'video-library'"
+                  title="Video Library">
+                  🎬 Video Library
+                </button>
+              </div>
+              <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
                 🔄
               </button>
             </div>
           </div>
 
-          <!-- Chat Messages Area -->
-          <div class="eden-chat-messages" #chatMessagesContainer>
+          <!-- Chat Tab Content -->
+          <div *ngIf="edenChatTab === 'chat'" class="eden-chat-content">
+            <!-- Chat Messages Area -->
+            <div class="eden-chat-messages" #chatMessagesContainer>
             <!-- Empty State -->
             <div *ngIf="chatHistoryMessages.length === 0 && !isProcessing" class="eden-chat-empty">
               <div class="eden-chat-empty-icon">🌿</div>
@@ -266,8 +287,8 @@
             </div>
           </div>
 
-          <!-- Chat Input Area (Cursor-style) -->
-          <div class="eden-chat-input-area">
+          <!-- Chat Input Area (Cursor-style) - Only show when chat tab is active -->
+          <div class="eden-chat-input-area" *ngIf="edenChatTab === 'chat'">
             <div class="eden-chat-input-wrapper">
               <textarea 
                 class="eden-chat-input"
@@ -301,6 +322,14 @@
               <small class="text-muted">💡 Ask questions about Eden, request services, or start workflows</small>
             </div>
           </div>
+          </div>
+          <!-- End Chat Tab Content -->
+
+          <!-- Video Library Tab Content -->
+          <div *ngIf="edenChatTab === 'video-library'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-video-library></app-video-library>
+          </div>
+          <!-- End Video Library Tab Content -->
         </div>
 
         <!-- Garden of Eden Main Street (Service Type Cards) - Below Chat -->

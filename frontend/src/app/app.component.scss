@@ -5,12 +5,12 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   min-height: 64px;
+  position: relative;
+  z-index: 0;
   background-image: url('/assets/images/eden-2028-background.png');
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
-  position: relative;
-  z-index: 1;
   color: var(--bs-body-color);
   
   &::before {

@@ -97,12 +97,44 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  @HostListener('document:fullscreenchange', ['$event'])
+  @HostListener('document:webkitfullscreenchange', ['$event'])
+  @HostListener('document:mozfullscreenchange', ['$event'])
+  @HostListener('document:MSFullscreenChange', ['$event'])
+  handleFullscreenChange(): void {
+    // If fullscreen is exited by browser controls, close the player
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement && 
+        !(document as any).mozFullScreenElement && !(document as any).msFullscreenElement) {
+      if (this.showVideoPlayer) {
+        this.closeVideoPlayer();
+      }
+    }
+  }
+
   openVideoPlayer(video: Video): void {
     this.selectedVideoForPlayer = video;
     this.showVideoPlayer = true;
     // Prevent body scroll when player is open
     document.body.style.overflow = 'hidden';
     this.cdr.detectChanges();
+    
+    // Enter fullscreen mode
+    setTimeout(() => {
+      const container = document.querySelector('.video-player-container');
+      if (container) {
+        if (container.requestFullscreen) {
+          container.requestFullscreen().catch(err => {
+            console.log('Error attempting to enable fullscreen:', err);
+          });
+        } else if ((container as any).webkitRequestFullscreen) {
+          (container as any).webkitRequestFullscreen();
+        } else if ((container as any).mozRequestFullScreen) {
+          (container as any).mozRequestFullScreen();
+        } else if ((container as any).msRequestFullscreen) {
+          (container as any).msRequestFullscreen();
+        }
+      }
+    }, 100);
     
     // Auto-play video after a short delay to ensure DOM is ready
     setTimeout(() => {
@@ -111,6 +143,22 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   closeVideoPlayer(): void {
+    // Exit fullscreen mode if active
+    if (document.fullscreenElement || (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || (document as any).msFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(err => {
+          console.log('Error attempting to exit fullscreen:', err);
+        });
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      } else if ((document as any).mozCancelFullScreen) {
+        (document as any).mozCancelFullScreen();
+      } else if ((document as any).msExitFullscreen) {
+        (document as any).msExitFullscreen();
+      }
+    }
+    
     this.pauseVideo();
     this.showVideoPlayer = false;
     this.selectedVideoForPlayer = null;

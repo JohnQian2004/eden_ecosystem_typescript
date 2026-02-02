@@ -7186,6 +7186,28 @@
         "userEmail": "bill.draper.auto@gmail.com",
         "mode": "god",
         "status": "active"
+      },
+      {
+        "id": "c_1770026586861_933652b9c92c88",
+        "conversationId": "conv:service:chat:god",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026586861,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "c_1770026588113_55ecbbfe8bb898",
+        "conversationId": "conv:service:chat:god",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026588113,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "mode": "god",
+        "serviceType": "chat",
+        "status": "active"
       }
     ],
     "conv:service:chat:user": [
@@ -8533,6 +8555,26 @@
         "role": "ASSISTANT",
         "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
         "timestamp": 1770026348418,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026587697_76abac34e2071",
+        "conversationId": "conv:service:chat:user",
+        "role": "USER",
+        "content": "list all videos",
+        "timestamp": 1770026587697,
+        "userEmail": "bill.draper.auto@gmail.com",
+        "serviceType": "chat",
+        "status": "active"
+      },
+      {
+        "id": "m_1770026588108_c733e55a40d69",
+        "conversationId": "conv:service:chat:user",
+        "role": "ASSISTANT",
+        "content": "Here are all 35 videos available in Eden's video library. All movies are completely FREE ($0.00) and you'll get 1 APPLE reward for watching each one.",
+        "timestamp": 1770026588108,
         "userEmail": "bill.draper.auto@gmail.com",
         "serviceType": "chat",
         "status": "active"

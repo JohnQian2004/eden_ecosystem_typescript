@@ -256,6 +256,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   
   // Active tab for main content area
   activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' = 'workflow-chat';
+  
+  // Active tab for Eden Chat window (chat or video-library)
+  edenChatTab: 'chat' | 'video-library' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -974,235 +977,262 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
 
       // Garden-level chat history: append assistant messages from LLM responses
       if (event.type === 'llm_response') {
-        // Extract message from multiple possible locations (backend may send it differently)
-        const llmMsg =
-          (event as any).message ||  // Top-level message (from broadcast)
-          (event as any).data?.response?.message ||
-          (event as any).data?.message ||
-          '';
-        const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
-        const stepId = (event as any).data?.stepId;
-        const conv = evExecId ? this.conversationIdByExecutionId.get(String(evExecId)) : null;
-        // Extract videoUrl from response data
-        const videoUrl = (event as any).data?.response?.videoUrl || 
-                        (event as any).data?.response?.selectedListing?.videoUrl ||
-                        (event as any).data?.videoUrl;
-        const movieTitle = (event as any).data?.response?.movieTitle ||
-                          (event as any).data?.response?.selectedListing?.movieTitle ||
-                          (event as any).data?.movieTitle;
-        
-        // Note: Do NOT create pendingDecision from llm_resolution listings
-        // The workflow should handle this via user_select_listing -> user_confirm_listing steps
-        // The workflow will send a user_decision_required event when it reaches user_confirm_listing step
-        // The Angular client should only respond to explicit workflow decision prompts, not intercept user input
-        
-        console.log('🎬 [App] ========================================');
-        console.log('🎬 [App] llm_response event received');
-        console.log('🎬 [App] event.message:', (event as any).message);
-        console.log('🎬 [App] event.data?.message:', (event as any).data?.message);
-        console.log('🎬 [App] event.data?.response?.message:', (event as any).data?.response?.message);
-        console.log('🎬 [App] hasMessage:', !!llmMsg);
-        console.log('🎬 [App] message:', llmMsg?.substring(0, 100));
-        console.log('🎬 [App] hasVideoUrl:', !!videoUrl);
-        console.log('🎬 [App] videoUrl:', videoUrl);
-        console.log('🎬 [App] hasMovieTitle:', !!movieTitle);
-        console.log('🎬 [App] movieTitle:', movieTitle);
-        console.log('🎬 [App] stepId:', stepId);
-        console.log('🎬 [App] executionId:', evExecId);
-        console.log('🎬 [App] conversationId from map:', conv);
-        console.log('🎬 [App] activeConversationId:', this.activeConversationId);
-        console.log('🎬 [App] Full event:', JSON.stringify(event, null, 2));
-        console.log('🎬 [App] ========================================');
-        
-        // CRITICAL: If we have videoUrl and movieTitle, create/update a decision request
-        // This ensures the video player appears even if user_decision_required event wasn't received
-        // Check for view_movie step OR if videoUrl is present (which indicates movie viewing)
-        const isViewMovieStep = stepId === 'view_movie' || (videoUrl && movieTitle);
-        if (isViewMovieStep && videoUrl && evExecId) {
-          console.log('🎬 [App] ========================================');
-          console.log('🎬 [App] view_movie step detected with videoUrl - creating decision request');
-          console.log('🎬 [App] stepId:', stepId);
-          console.log('🎬 [App] videoUrl:', videoUrl);
-          console.log('🎬 [App] movieTitle:', movieTitle);
-          console.log('🎬 [App] evExecId:', evExecId);
-          console.log('🎬 [App] Current pendingDecision:', this.pendingDecision ? {
-            executionId: this.pendingDecision.executionId,
-            stepId: this.pendingDecision.stepId,
-            hasVideoUrl: !!this.pendingDecision.videoUrl,
-            videoUrl: this.pendingDecision.videoUrl
-          } : 'null');
+        // Use async IIFE to handle async operations
+        (async () => {
+          // Extract message from multiple possible locations (backend may send it differently)
+          const llmMsg =
+            (event as any).message ||  // Top-level message (from broadcast)
+            (event as any).data?.response?.message ||
+            (event as any).data?.message ||
+            '';
+          const evExecId = (event as any).data?.executionId || (event as any).data?.workflowId;
+          const stepId = (event as any).data?.stepId;
+          const conv = evExecId ? this.conversationIdByExecutionId.get(String(evExecId)) : null;
+          // Extract videoUrl from response data
+          const videoUrl = (event as any).data?.response?.videoUrl || 
+                          (event as any).data?.response?.selectedListing?.videoUrl ||
+                          (event as any).data?.videoUrl;
+          const movieTitle = (event as any).data?.response?.movieTitle ||
+                            (event as any).data?.response?.selectedListing?.movieTitle ||
+                            (event as any).data?.movieTitle;
           
-          // Check if we already have a pending decision for this execution
-          if (!this.pendingDecision || this.pendingDecision.executionId !== evExecId) {
-            // Create a decision request from the llm_response event
-            const decisionRequest: UserDecisionRequest = {
-              executionId: String(evExecId),
-              stepId: 'view_movie',
-              prompt: movieTitle 
-                ? `🎬 Movie "${movieTitle}" is ready to watch! The video will play in the chat console. Click 'Done Watching' when you're finished.`
-                : '🎬 Movie is ready to watch! The video will play in the chat console. Click \'Done Watching\' when you\'re finished.',
-              options: [
-                { value: 'DONE_WATCHING', label: 'Done Watching' }
-              ],
-              timeout: 300000,
-              videoUrl: videoUrl,
-              movieTitle: movieTitle
-            };
-            
-            console.log('🎬 [App] Created decision request from llm_response:', JSON.stringify(decisionRequest, null, 2));
-            console.log('🎬 [App] Decision request videoUrl:', decisionRequest.videoUrl);
-            console.log('🎬 [App] Decision request movieTitle:', decisionRequest.movieTitle);
-            this.pendingDecision = decisionRequest;
-            this.showDecisionPrompt = true;
-            console.log('🎬 [App] Set showDecisionPrompt = true');
-            console.log('🎬 [App] pendingDecision after assignment:', this.pendingDecision ? {
+          // Note: Do NOT create pendingDecision from llm_resolution listings
+          // The workflow should handle this via user_select_listing -> user_confirm_listing steps
+          // The workflow will send a user_decision_required event when it reaches user_confirm_listing step
+          // The Angular client should only respond to explicit workflow decision prompts, not intercept user input
+          
+          console.log('🎬 [App] ========================================');
+          console.log('🎬 [App] llm_response event received');
+          console.log('🎬 [App] event.message:', (event as any).message);
+          console.log('🎬 [App] event.data?.message:', (event as any).data?.message);
+          console.log('🎬 [App] event.data?.response?.message:', (event as any).data?.response?.message);
+          console.log('🎬 [App] hasMessage:', !!llmMsg);
+          console.log('🎬 [App] message:', llmMsg?.substring(0, 100));
+          console.log('🎬 [App] hasVideoUrl:', !!videoUrl);
+          console.log('🎬 [App] videoUrl:', videoUrl);
+          console.log('🎬 [App] hasMovieTitle:', !!movieTitle);
+          console.log('🎬 [App] movieTitle:', movieTitle);
+          console.log('🎬 [App] stepId:', stepId);
+          console.log('🎬 [App] executionId:', evExecId);
+          console.log('🎬 [App] conversationId from map:', conv);
+          console.log('🎬 [App] activeConversationId:', this.activeConversationId);
+          console.log('🎬 [App] Full event:', JSON.stringify(event, null, 2));
+          console.log('🎬 [App] ========================================');
+          
+          // CRITICAL: If we have videoUrl and movieTitle, create/update a decision request
+          // This ensures the video player appears even if user_decision_required event wasn't received
+          // Check for view_movie step OR if videoUrl is present (which indicates movie viewing)
+          const isViewMovieStep = stepId === 'view_movie' || (videoUrl && movieTitle);
+          if (isViewMovieStep && videoUrl && evExecId) {
+            console.log('🎬 [App] ========================================');
+            console.log('🎬 [App] view_movie step detected with videoUrl - creating decision request');
+            console.log('🎬 [App] stepId:', stepId);
+            console.log('🎬 [App] videoUrl:', videoUrl);
+            console.log('🎬 [App] movieTitle:', movieTitle);
+            console.log('🎬 [App] evExecId:', evExecId);
+            console.log('🎬 [App] Current pendingDecision:', this.pendingDecision ? {
               executionId: this.pendingDecision.executionId,
               stepId: this.pendingDecision.stepId,
               hasVideoUrl: !!this.pendingDecision.videoUrl,
-              videoUrl: this.pendingDecision.videoUrl,
-              videoUrlLength: this.pendingDecision.videoUrl?.length || 0
+              videoUrl: this.pendingDecision.videoUrl
             } : 'null');
-            this.cdr.detectChanges();
-            console.log('🎬 [App] ✅ Decision prompt shown with video player');
-            console.log('🎬 [App] showDecisionPrompt:', this.showDecisionPrompt);
-            console.log('🎬 [App] pendingDecision?.videoUrl:', this.pendingDecision?.videoUrl);
-            console.log('🎬 [App] ========================================');
-          } else {
-            // Update existing decision request with videoUrl and movieTitle if missing
-            if (!this.pendingDecision.videoUrl && videoUrl) {
-              console.log('🎬 [App] Updating existing decision request with videoUrl:', videoUrl);
-              this.pendingDecision.videoUrl = videoUrl;
-              this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
-              console.log('🎬 [App] Updated pendingDecision.videoUrl:', this.pendingDecision.videoUrl);
-              this.cdr.detectChanges();
-            }
-          }
-        } else {
-          // Log why decision request wasn't created
-          console.log('🎬 [App] ========================================');
-          console.log('🎬 [App] Decision request NOT created - checking conditions:');
-          console.log('🎬 [App] isViewMovieStep:', isViewMovieStep);
-          console.log('🎬 [App] stepId:', stepId);
-          console.log('🎬 [App] videoUrl:', videoUrl);
-          console.log('🎬 [App] movieTitle:', movieTitle);
-          console.log('🎬 [App] evExecId:', evExecId);
-          if (stepId !== 'view_movie' && !(videoUrl && movieTitle)) {
-            console.log('🎬 [App] Condition failed: stepId is not view_movie AND (videoUrl && movieTitle) is false');
-          }
-          if (!videoUrl) {
-            console.log('🎬 [App] Condition failed: videoUrl is missing');
-          }
-          if (!evExecId) {
-            console.log('🎬 [App] Condition failed: evExecId is missing');
-          }
-          console.log('🎬 [App] ========================================');
-        }
-        
-        if (llmMsg && typeof llmMsg === 'string' && llmMsg.trim()) {
-          // Determine conversationId: use mapped one if available, otherwise use activeConversationId
-          // For regular chat (no executionId), use activeConversationId
-          const targetConversationId = conv || this.activeConversationId;
-          
-          console.log('🎬 [App] Calling appendChatHistory with:');
-          console.log('🎬 [App]   - message length:', llmMsg.length);
-          console.log('🎬 [App]   - targetConversationId:', targetConversationId);
-          console.log('🎬 [App]   - activeConversationId:', this.activeConversationId);
-          
-          // Extract listings and handle video listing requests
-          let listings: any[] = [];
-          const messageContent = (event as any).data?.response?.message || (event as any).data?.message || llmMsg || '';
-          const userQuery = (event as any).data?.query || (event as any).data?.userInput || '';
-          const isListAllRequest = /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(messageContent) ||
-                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(messageContent) ||
-                                   /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(userQuery) ||
-                                   /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(userQuery);
-          
-          // Extract listings from event data
-          if ((event as any).data?.listings && Array.isArray((event as any).data.listings)) {
-            listings = (event as any).data.listings;
-          } else if ((event as any).data?.response?.listings && Array.isArray((event as any).data.response.listings)) {
-            listings = (event as any).data.response.listings;
-          } else if (Array.isArray((event as any).data?.response)) {
-            listings = (event as any).data.response;
-          }
-          
-          // CRITICAL: If backend indicates listings should be pulled (hasListings flag), pull from API
-          if ((event as any).data?.hasListings || (event as any).data?.pullListingsUrl || (isListAllRequest && listings.length === 0)) {
-            const pullUrl = (event as any).data?.pullListingsUrl || '/api/video-library/listings';
-            console.log(`📚 [App] Pulling listings from API: ${pullUrl}`);
             
-            try {
-              const response = await this.http.get<{success: boolean, listings: any[], count: number}>(`${this.apiUrl}${pullUrl}`).toPromise();
-              if (response && response.success && response.listings) {
-                listings = response.listings;
-                console.log(`✅ [App] Pulled ${listings.length} listings from API`);
-              } else {
-                console.warn(`⚠️ [App] Failed to pull listings:`, response);
-              }
-            } catch (error: any) {
-              console.error(`❌ [App] Error pulling listings from API:`, error.message);
-            }
-          }
-          
-          // Convert listings to videos array for thumbnail display
-          let videos: Video[] | undefined = undefined;
-          const hasMultipleListings = listings.length >= 2;
-          const shouldShowVideoThumbnails = hasMultipleListings || (listings.length > 0 && isListAllRequest);
-          
-          // CRITICAL: Only extract videoUrl if we DON'T have multiple listings
-          // If we have multiple listings or it's a list all request, we should show thumbnails, not a single video
-          const finalVideoUrl = (hasMultipleListings || isListAllRequest) ? undefined : videoUrl;
-          
-          if (listings.length >= 2 || (listings.length > 0 && isListAllRequest)) {
-            console.log(`📋 [App] Creating videos array: ${listings.length} listings, isListAllRequest: ${isListAllRequest}`);
-            videos = listings.map((listing: any, index: number) => {
-              const listingVideoUrl = listing.videoUrl || 
-                              listing.movieUrl || 
-                              listing.url ||
-                              (listing.filename ? `/api/movie/video/${listing.filename}` : '') ||
-                              '';
-              const filename = listing.filename || 
-                              (listingVideoUrl ? listingVideoUrl.split('/').pop() || '' : '') ||
-                              `${listing.id || listing.movieId || `video-${index}`}.mp4`;
-              return {
-                id: listing.id || listing.movieId || `video-${Date.now()}-${index}`,
-                filename: filename,
-                title: listing.movieTitle || listing.title || listing.filename || listing.name || `Video ${index + 1}`,
-                videoUrl: listingVideoUrl,
-                thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || listing.url || ''
+            // Check if we already have a pending decision for this execution
+            if (!this.pendingDecision || this.pendingDecision.executionId !== evExecId) {
+              // Create a decision request from the llm_response event
+              const decisionRequest: UserDecisionRequest = {
+                executionId: String(evExecId),
+                stepId: 'view_movie',
+                prompt: movieTitle 
+                  ? `🎬 Movie "${movieTitle}" is ready to watch! The video will play in the chat console. Click 'Done Watching' when you're finished.`
+                  : '🎬 Movie is ready to watch! The video will play in the chat console. Click \'Done Watching\' when you\'re finished.',
+                options: [
+                  { value: 'DONE_WATCHING', label: 'Done Watching' }
+                ],
+                timeout: 300000,
+                videoUrl: videoUrl,
+                movieTitle: movieTitle
               };
-            }).filter(v => v.videoUrl);
-            
-            if (videos && videos.length > 0) {
-              console.log(`📋 [App] Converted ${listings.length} listings to ${videos.length} videos for thumbnail display`);
+              
+              console.log('🎬 [App] Created decision request from llm_response:', JSON.stringify(decisionRequest, null, 2));
+              console.log('🎬 [App] Decision request videoUrl:', decisionRequest.videoUrl);
+              console.log('🎬 [App] Decision request movieTitle:', decisionRequest.movieTitle);
+              this.pendingDecision = decisionRequest;
+              this.showDecisionPrompt = true;
+              console.log('🎬 [App] Set showDecisionPrompt = true');
+              console.log('🎬 [App] pendingDecision after assignment:', this.pendingDecision ? {
+                executionId: this.pendingDecision.executionId,
+                stepId: this.pendingDecision.stepId,
+                hasVideoUrl: !!this.pendingDecision.videoUrl,
+                videoUrl: this.pendingDecision.videoUrl,
+                videoUrlLength: this.pendingDecision.videoUrl?.length || 0
+              } : 'null');
+              this.cdr.detectChanges();
+              console.log('🎬 [App] ✅ Decision prompt shown with video player');
+              console.log('🎬 [App] showDecisionPrompt:', this.showDecisionPrompt);
+              console.log('🎬 [App] pendingDecision?.videoUrl:', this.pendingDecision?.videoUrl);
+              console.log('🎬 [App] ========================================');
+            } else {
+              // Update existing decision request with videoUrl and movieTitle if missing
+              if (!this.pendingDecision.videoUrl && videoUrl) {
+                console.log('🎬 [App] Updating existing decision request with videoUrl:', videoUrl);
+                this.pendingDecision.videoUrl = videoUrl;
+                this.pendingDecision.movieTitle = movieTitle || this.pendingDecision.movieTitle;
+                console.log('🎬 [App] Updated pendingDecision.videoUrl:', this.pendingDecision.videoUrl);
+                this.cdr.detectChanges();
+              }
             }
+          } else {
+            // Log why decision request wasn't created
+            console.log('🎬 [App] ========================================');
+            console.log('🎬 [App] Decision request NOT created - checking conditions:');
+            console.log('🎬 [App] isViewMovieStep:', isViewMovieStep);
+            console.log('🎬 [App] stepId:', stepId);
+            console.log('🎬 [App] videoUrl:', videoUrl);
+            console.log('🎬 [App] movieTitle:', movieTitle);
+            console.log('🎬 [App] evExecId:', evExecId);
+            if (stepId !== 'view_movie' && !(videoUrl && movieTitle)) {
+              console.log('🎬 [App] Condition failed: stepId is not view_movie AND (videoUrl && movieTitle) is false');
+            }
+            if (!videoUrl) {
+              console.log('🎬 [App] Condition failed: videoUrl is missing');
+            }
+            if (!evExecId) {
+              console.log('🎬 [App] Condition failed: evExecId is missing');
+            }
+            console.log('🎬 [App] ========================================');
           }
           
-          if (!targetConversationId) {
-            console.warn('⚠️ [App] No targetConversationId available, cannot append message to chat history');
-          } else {
-            this.appendChatHistory('ASSISTANT', llmMsg, { 
-              executionId: evExecId,
-              videoUrl: finalVideoUrl,
-              movieTitle: movieTitle,
-              videos: videos
-            }, targetConversationId);
+          if (llmMsg && typeof llmMsg === 'string' && llmMsg.trim()) {
+            // Determine conversationId: use mapped one if available, otherwise use activeConversationId
+            // For regular chat (no executionId), use activeConversationId
+            const targetConversationId = conv || this.activeConversationId;
             
-            console.log('🎬 [App] ✅ Called appendChatHistory for llm_response');
-            if (finalVideoUrl) {
-              console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', finalVideoUrl);
+            console.log('🎬 [App] Calling appendChatHistory with:');
+            console.log('🎬 [App]   - message length:', llmMsg.length);
+            console.log('🎬 [App]   - targetConversationId:', targetConversationId);
+            console.log('🎬 [App]   - activeConversationId:', this.activeConversationId);
+            
+            // Extract listings and handle video listing requests
+            let listings: any[] = [];
+            const messageContent = (event as any).data?.response?.message || (event as any).data?.message || llmMsg || '';
+            const userQuery = (event as any).data?.query || (event as any).data?.userInput || '';
+            const isListAllRequest = /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(messageContent) ||
+                                     /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(messageContent) ||
+                                     /\b(list|show|display|get|find)\s+(all\s+)?(video|movie|videos|movies|content)\b/i.test(userQuery) ||
+                                     /\b(all|every)\s+(video|movie|videos|movies)\b/i.test(userQuery);
+            
+            // Extract listings from event data
+            if ((event as any).data?.listings && Array.isArray((event as any).data.listings)) {
+              listings = (event as any).data.listings;
+            } else if ((event as any).data?.response?.listings && Array.isArray((event as any).data.response.listings)) {
+              listings = (event as any).data.response.listings;
+            } else if (Array.isArray((event as any).data?.response)) {
+              listings = (event as any).data.response;
             }
-            if (videos && videos.length > 0) {
-              console.log(`📋 [App] ✅ Added message with ${videos.length} video thumbnails to chat history`);
+            
+            console.log('📋 [App] Initial listings extraction:', {
+              dataListings: (event as any).data?.listings?.length || 0,
+              responseListings: (event as any).data?.response?.listings?.length || 0,
+              hasListings: (event as any).data?.hasListings,
+              pullListingsUrl: (event as any).data?.pullListingsUrl,
+              isListAllRequest,
+              listingsCount: listings.length
+            });
+            
+            // CRITICAL: If backend indicates listings should be pulled (hasListings flag), pull from API
+            if ((event as any).data?.hasListings || (event as any).data?.pullListingsUrl || (isListAllRequest && listings.length === 0)) {
+              const pullUrl = (event as any).data?.pullListingsUrl || '/api/video-library/listings';
+              console.log(`📚 [App] Pulling listings from API: ${pullUrl}`);
+              
+              try {
+                const response = await this.http.get<{success: boolean, listings: any[], count: number}>(`${this.apiUrl}${pullUrl}`).toPromise();
+                if (response && response.success && response.listings) {
+                  listings = response.listings;
+                  console.log(`✅ [App] Pulled ${listings.length} listings from API`);
+                  console.log(`✅ [App] Sample listing:`, listings[0]);
+                } else {
+                  console.warn(`⚠️ [App] Failed to pull listings:`, response);
+                }
+              } catch (error: any) {
+                console.error(`❌ [App] Error pulling listings from API:`, error.message);
+                console.error(`❌ [App] Full error:`, error);
+              }
             }
+            
+            // Convert listings to videos array for thumbnail display
+            let videos: Video[] | undefined = undefined;
+            const hasMultipleListings = listings.length >= 2;
+            const shouldShowVideoThumbnails = hasMultipleListings || (listings.length > 0 && isListAllRequest);
+            
+            // CRITICAL: Only extract videoUrl if we DON'T have multiple listings
+            // If we have multiple listings or it's a list all request, we should show thumbnails, not a single video
+            const finalVideoUrl = (hasMultipleListings || isListAllRequest) ? undefined : videoUrl;
+            
+            if (listings.length >= 2 || (listings.length > 0 && isListAllRequest)) {
+              console.log(`📋 [App] Creating videos array: ${listings.length} listings, isListAllRequest: ${isListAllRequest}`);
+              videos = listings.map((listing: any, index: number) => {
+                const listingVideoUrl = listing.videoUrl || 
+                                listing.movieUrl || 
+                                listing.url ||
+                                (listing.filename ? `/api/movie/video/${listing.filename}` : '') ||
+                                '';
+                const filename = listing.filename || 
+                                (listingVideoUrl ? listingVideoUrl.split('/').pop() || '' : '') ||
+                                `${listing.id || listing.movieId || `video-${index}`}.mp4`;
+                return {
+                  id: listing.id || listing.movieId || `video-${Date.now()}-${index}`,
+                  filename: filename,
+                  title: listing.movieTitle || listing.title || listing.filename || listing.name || `Video ${index + 1}`,
+                  videoUrl: listingVideoUrl,
+                  thumbnailUrl: listing.thumbnailUrl || listing.videoUrl || listing.movieUrl || listing.url || ''
+                };
+              }).filter(v => v.videoUrl);
+              
+              if (videos && videos.length > 0) {
+                console.log(`📋 [App] Converted ${listings.length} listings to ${videos.length} videos for thumbnail display`);
+                console.log(`📋 [App] Sample video:`, videos[0]);
+              } else {
+                console.warn(`⚠️ [App] Failed to convert listings to videos - all listings filtered out (no valid videoUrl)`);
+              }
+            } else if (listings.length > 0) {
+              console.log(`⚠️ [App] Has ${listings.length} listing(s) but not showing thumbnails (need 2+ for thumbnails or list all request)`);
+            }
+            
+            if (!targetConversationId) {
+              console.warn('⚠️ [App] No targetConversationId available, cannot append message to chat history');
+            } else {
+              console.log('📋 [App] About to append message with:', {
+                hasVideoUrl: !!finalVideoUrl,
+                videosCount: videos?.length || 0,
+                listingsCount: listings.length,
+                hasMultipleListings,
+                isListAllRequest
+              });
+              
+              this.appendChatHistory('ASSISTANT', llmMsg, { 
+                executionId: evExecId,
+                videoUrl: finalVideoUrl,
+                movieTitle: movieTitle,
+                videos: videos
+              }, targetConversationId);
+              
+              console.log('🎬 [App] ✅ Called appendChatHistory for llm_response');
+              if (finalVideoUrl) {
+                console.log('🎬 [App] ✅ Added message with videoUrl to chat history:', finalVideoUrl);
+              }
+              if (videos && videos.length > 0) {
+                console.log(`📋 [App] ✅ Added message with ${videos.length} video thumbnails to chat history`);
+              }
+            }
+          } else {
+            console.warn('⚠️ [App] llm_response event has no valid message:', {
+              hasMessage: !!llmMsg,
+              messageType: typeof llmMsg,
+              messageValue: llmMsg
+            });
           }
-        } else {
-          console.warn('⚠️ [App] llm_response event has no valid message:', {
-            hasMessage: !!llmMsg,
-            messageType: typeof llmMsg,
-            messageValue: llmMsg
-          });
-        }
+        })(); // End async IIFE
       }
 
       // Handle chat history deletion event
