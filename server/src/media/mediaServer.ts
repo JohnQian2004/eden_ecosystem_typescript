@@ -300,6 +300,279 @@ export class MediaServer {
   }
 
   /**
+   * Sync library.json - Scan videos directory and merge extra ones into library.json
+   */
+  async syncLibrary(): Promise<{
+    added: number;
+    updated: number;
+    removed: number;
+    analyzed: number;
+    errors: string[];
+  }> {
+    const libraryPath = path.join(MEDIA_BASE_DIR, 'library.json');
+    const result = {
+      added: 0,
+      updated: 0,
+      removed: 0,
+      analyzed: 0,
+      errors: [] as string[]
+    };
+
+    console.log(`🔄 [MediaServer] Starting library sync...`);
+    console.log(`   Library path: ${libraryPath}`);
+    console.log(`   Videos directory: ${VIDEOS_DIR}`);
+
+    try {
+      // Step 1: Load existing library.json
+      let library: any = {
+        videos: [],
+        tags: [],
+        metadata: {
+          version: "1.0",
+          last_updated: new Date().toISOString(),
+          total_videos: 0
+        }
+      };
+
+      if (fs.existsSync(libraryPath)) {
+        try {
+          const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
+          library = JSON.parse(libraryContent);
+          console.log(`   ✅ Loaded existing library: ${library.videos?.length || 0} videos`);
+        } catch (err: any) {
+          console.error(`   ❌ Failed to parse library.json:`, err.message);
+          result.errors.push(`Failed to parse library.json: ${err.message}`);
+        }
+      } else {
+        console.log(`   ⚠️ Library.json not found, creating new one`);
+      }
+
+      // Ensure structure
+      if (!library.videos) library.videos = [];
+      if (!library.tags) library.tags = [];
+      if (!library.metadata) library.metadata = {};
+
+      // Step 2: Scan videos directory to get all video files
+      const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+      let videoFilesInDirectory: string[] = [];
+
+      if (fs.existsSync(VIDEOS_DIR)) {
+        const files = fs.readdirSync(VIDEOS_DIR);
+        videoFilesInDirectory = files.filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return videoExtensions.includes(ext);
+        });
+        console.log(`   📹 Found ${videoFilesInDirectory.length} video files in directory`);
+      } else {
+        console.log(`   ⚠️ Videos directory not found: ${VIDEOS_DIR}`);
+        result.errors.push(`Videos directory not found: ${VIDEOS_DIR}`);
+        return result;
+      }
+
+      // Step 3: Create helper function to find video in library by filename or originalFilename
+      const findVideoInLibrary = (filename: string): any => {
+        return library.videos.find((v: any) => 
+          v.filename === filename || v.originalFilename === filename
+        );
+      };
+
+      console.log(`   📚 Library.json has ${library.videos.length} video entries`);
+
+      // Step 4: Compare directory files with library.json entries
+      // Find videos in directory that are NOT in library.json (these need to be added)
+      const videosToAdd: string[] = [];
+      const videosToUpdate: string[] = [];
+
+      for (const filename of videoFilesInDirectory) {
+        const filePath = path.join(VIDEOS_DIR, filename);
+        const stats = fs.statSync(filePath);
+        
+        const existingVideo = findVideoInLibrary(filename);
+        
+        if (!existingVideo) {
+          // Video exists in directory but NOT in library.json - needs to be added
+          videosToAdd.push(filename);
+          console.log(`   ➕ Will add: ${filename} (not in library.json)`);
+        } else {
+          // Video exists in both - check if needs update
+          if (existingVideo.file_size !== stats.size) {
+            videosToUpdate.push(filename);
+            console.log(`   🔄 Will update: ${filename} (size changed: ${existingVideo.file_size} -> ${stats.size})`);
+          }
+        }
+      }
+
+      // Step 5: Add missing videos to library.json
+      for (const filename of videosToAdd) {
+        try {
+          const filePath = path.join(VIDEOS_DIR, filename);
+          const stats = fs.statSync(filePath);
+
+          // Try to find metadata file
+          const metadataFile = path.join(METADATA_DIR, `${filename.replace(/\.[^/.]+$/, '')}.json`);
+          let mediaMetadata: any = null;
+          if (fs.existsSync(metadataFile)) {
+            try {
+              mediaMetadata = JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
+            } catch (err: any) {
+              console.warn(`   ⚠️ Failed to load metadata for ${filename}: ${err.message}`);
+            }
+          }
+
+          // Create new video entry
+          const videoId = mediaMetadata?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+          const newVideo: any = {
+            id: videoId,
+            filename: filename,
+            originalFilename: filename,
+            file_path: `media/videos/${filename}`,
+            file_size: stats.size,
+            created_at: mediaMetadata?.createdAt || stats.birthtime.toISOString() || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            tags: mediaMetadata?.tags || ['video', 'media', 'upload'],
+            is_new: true,
+            author: 'root GOD bill.draper.auto@gmail.com (bill draper)'
+          };
+
+          // Add metadata if available
+          if (mediaMetadata?.metadata) {
+            newVideo.duration = mediaMetadata.metadata.duration;
+            newVideo.codec = mediaMetadata.metadata.codec;
+            newVideo.resolution_width = mediaMetadata.metadata.width;
+            newVideo.resolution_height = mediaMetadata.metadata.height;
+            newVideo.frame_rate = mediaMetadata.metadata.frame_rate;
+          }
+
+          // Merge into library.json
+          library.videos.push(newVideo);
+          result.added++;
+          console.log(`   ✅ Added to library.json: ${filename}`);
+        } catch (error: any) {
+          const errorMsg = `Error adding ${filename}: ${error.message}`;
+          result.errors.push(errorMsg);
+          console.error(`   ❌ ${errorMsg}`);
+        }
+      }
+
+      // Step 6: Update existing videos in library.json
+      for (const filename of videosToUpdate) {
+        try {
+          const filePath = path.join(VIDEOS_DIR, filename);
+          const stats = fs.statSync(filePath);
+          
+          const videoIndex = library.videos.findIndex((v: any) => 
+            v.filename === filename || v.originalFilename === filename
+          );
+          
+          if (videoIndex !== -1) {
+            library.videos[videoIndex].file_size = stats.size;
+            library.videos[videoIndex].updated_at = new Date().toISOString();
+            
+            // Set default author if missing
+            if (!library.videos[videoIndex].author) {
+              library.videos[videoIndex].author = 'root GOD bill.draper.auto@gmail.com (bill draper)';
+            }
+            
+            result.updated++;
+            console.log(`   ✅ Updated in library.json: ${filename}`);
+          }
+        } catch (error: any) {
+          const errorMsg = `Error updating ${filename}: ${error.message}`;
+          result.errors.push(errorMsg);
+          console.error(`   ❌ ${errorMsg}`);
+        }
+      }
+
+      // Step 7: Remove videos from library.json that no longer exist in directory
+      const videosInDirectorySet = new Set(videoFilesInDirectory);
+      const videosToRemove: any[] = [];
+      
+      for (const video of library.videos) {
+        const filename = video.filename;
+        const originalFilename = video.originalFilename || video.filename;
+        
+        // Check if neither filename nor originalFilename exists in directory
+        if (!videosInDirectorySet.has(filename) && !videosInDirectorySet.has(originalFilename)) {
+          videosToRemove.push(video);
+          console.log(`   ➖ Will remove: ${video.filename} (file not in directory)`);
+        }
+      }
+
+      if (videosToRemove.length > 0) {
+        for (const video of videosToRemove) {
+          library.videos = library.videos.filter((v: any) => v.id !== video.id);
+          result.removed++;
+          console.log(`   ✅ Removed from library.json: ${video.filename}`);
+        }
+      }
+
+      // Step 8: Remove duplicate entries from library.json (same filename or originalFilename)
+      const seenFilenames = new Set<string>();
+      const seenIds = new Set<string>();
+      const uniqueVideos: any[] = [];
+      let duplicateCount = 0;
+      
+      for (const video of library.videos) {
+        const filename = video.filename;
+        const originalFilename = video.originalFilename || video.filename;
+        const key = `${filename}|${originalFilename}`;
+        
+        // Skip if we've seen this filename/originalFilename combination or this ID
+        if (seenFilenames.has(filename) || seenFilenames.has(originalFilename) || seenIds.has(video.id)) {
+          duplicateCount++;
+          console.log(`   🗑️ Removing duplicate: ${video.filename} (ID: ${video.id})`);
+          continue;
+        }
+        
+        seenFilenames.add(filename);
+        if (originalFilename !== filename) {
+          seenFilenames.add(originalFilename);
+        }
+        seenIds.add(video.id);
+        uniqueVideos.push(video);
+      }
+      
+      if (duplicateCount > 0) {
+        library.videos = uniqueVideos;
+        console.log(`   🧹 Removed ${duplicateCount} duplicate entries from library.json`);
+      }
+
+      // Step 9: Migration - Set default author for all videos that don't have one
+      let authorMigrationCount = 0;
+      for (const video of library.videos) {
+        if (!video.author) {
+          video.author = 'root GOD bill.draper.auto@gmail.com (bill draper)';
+          video.updated_at = new Date().toISOString();
+          authorMigrationCount++;
+        }
+      }
+      if (authorMigrationCount > 0) {
+        console.log(`   📝 Set default author for ${authorMigrationCount} existing video(s)`);
+      }
+
+      // Step 9: Update library metadata
+      library.metadata.last_updated = new Date().toISOString();
+      library.metadata.total_videos = library.videos.length;
+      if (!library.metadata.version) library.metadata.version = "1.0";
+
+      // Step 10: Save library.json
+      fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
+      console.log(`   💾 Library.json saved with ${library.videos.length} videos`);
+
+      console.log(`   ✅ Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed`);
+      if (result.errors.length > 0) {
+        console.log(`   ⚠️ Errors: ${result.errors.length}`);
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error(`   ❌ Sync error:`, error.message);
+      result.errors.push(error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Migrate videos from old location
    */
   async migrateVideosFromLibrary(): Promise<number> {

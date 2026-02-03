@@ -16,7 +16,7 @@ export class VideoUploadComponent {
   // Video metadata fields
   videoTags: string = '';
   videoDetails: string = '';
-  showMetadataForm: boolean = false;
+  showMetadataForm: boolean = true; // Show by default
 
   constructor(private videoLibraryService: VideoLibraryService) {}
 
@@ -134,7 +134,11 @@ export class VideoUploadComponent {
     
     const uploadStartTime = Date.now();
     
-    this.videoLibraryService.uploadVideo(file).subscribe({
+    // Use hardcoded tags and details if not provided
+    const tags = this.videoTags.trim() || 'video,media,upload';
+    const details = this.videoDetails.trim() || 'Uploaded video file';
+    
+    this.videoLibraryService.uploadVideo(file, tags, details).subscribe({
       next: (response) => {
         const uploadDuration = Date.now() - uploadStartTime;
         console.log(`📤 [VideoUpload] ✅ Upload response for ${fileName}:`, uploadDuration, 'ms');

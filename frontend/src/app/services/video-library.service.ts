@@ -240,6 +240,7 @@ export class VideoLibraryService {
     analyzed?: number;
     errors: string[];
   }> {
+    // Use media server endpoint instead of eden backend
     return this.http.post<{
       status: string;
       data: {
@@ -250,7 +251,7 @@ export class VideoLibraryService {
         errors: string[];
       };
       message: string;
-    }>(`${this.apiUrl}/videos/sync`, {}).pipe(
+    }>(`/api/media/library/sync`, {}).pipe(
       map((response) => response.data)
     );
   }

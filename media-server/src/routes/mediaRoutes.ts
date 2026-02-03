@@ -139,6 +139,49 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
     }
   });
 
+  // Get all videos from library.json: GET /api/media/library/videos
+  router.get('/library/videos', (req: Request, res: Response) => {
+    console.log(`📹 [MediaServer] GET /api/media/library/videos - Getting videos from library.json`);
+    try {
+      const videos = mediaServer.getVideosFromLibrary();
+      console.log(`✅ [MediaServer] Returning ${videos.length} videos from library.json`);
+      
+      // Return in the format Angular expects: { success: true, data: videos[], count: number }
+      res.json({
+        success: true,
+        data: videos,
+        count: videos.length
+      });
+    } catch (error: any) {
+      console.error(`❌ [MediaServer] Error getting videos:`, error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to get videos',
+        data: [],
+        count: 0
+      });
+    }
+  });
+
+  // Sync library: POST /api/media/library/sync
+  router.post('/library/sync', async (req: Request, res: Response) => {
+    console.log(`🔄 [MediaServer] POST /api/media/library/sync - Starting library sync`);
+    try {
+      const result = await mediaServer.syncLibrary();
+      res.json({
+        status: 'success',
+        data: result,
+        message: `Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed`
+      });
+    } catch (error: any) {
+      console.error(`❌ [MediaServer] Sync error:`, error.message);
+      res.status(500).json({
+        status: 'error',
+        message: error.message || 'Failed to sync library'
+      });
+    }
+  });
+
   return router;
 }
 

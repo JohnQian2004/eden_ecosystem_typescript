@@ -19,6 +19,7 @@
       <span *ngIf="selectedFiles.length === 0">Select Videos</span>
     </button>
 
+
     <button
       *ngIf="selectedFiles.length > 0"
       class="btn btn-success"
@@ -35,6 +36,47 @@
         Upload {{ selectedFiles.length }} Video<span *ngIf="selectedFiles.length > 1">s</span>
       </span>
     </button>
+  </div>
+
+  <!-- Metadata Form - Always show when files are selected -->
+  <div *ngIf="selectedFiles.length > 0" class="metadata-form mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
+    <h6 class="mb-3">
+      <i class="bi bi-info-circle me-2 text-primary"></i>
+      Video Tags & Details
+      <small class="text-muted ms-2">(Optional - will use defaults if empty)</small>
+    </h6>
+    <div class="mb-3">
+      <label for="videoTags" class="form-label fw-medium">
+        <i class="bi bi-tags me-2"></i>Tags (comma-separated)
+      </label>
+      <input
+        type="text"
+        id="videoTags"
+        class="form-control"
+        [(ngModel)]="videoTags"
+        placeholder="video, media, upload"
+      />
+      <small class="form-text text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Separate tags with commas. Default: <code>video, media, upload</code>
+      </small>
+    </div>
+    <div class="mb-0">
+      <label for="videoDetails" class="form-label fw-medium">
+        <i class="bi bi-file-text me-2"></i>Video Details/Description
+      </label>
+      <textarea
+        id="videoDetails"
+        class="form-control"
+        [(ngModel)]="videoDetails"
+        rows="3"
+        placeholder="Enter video description or details"
+      ></textarea>
+      <small class="form-text text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Provide video details to skip automatic Gemini analysis. Default: <code>Uploaded video file</code>
+      </small>
+    </div>
   </div>
 
   <!-- Upload Progress -->
