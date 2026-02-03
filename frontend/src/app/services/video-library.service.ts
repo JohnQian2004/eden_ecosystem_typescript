@@ -19,6 +19,7 @@ export interface Video {
   tags: string[];
   analyzed_at?: string;
   is_new?: boolean;
+  author?: string; // Video authorship/creator
 }
 
 export interface VideoAnalysis {
@@ -105,7 +106,8 @@ export class VideoLibraryService {
           analysis: v.analysis,
           tags: v.tags || [],
           analyzed_at: v.analyzed_at,
-          is_new: v.is_new
+          is_new: v.is_new,
+          author: v.author || 'root GOD bill.draper.auto@gmail.com (bill draper)' // Default author if missing
         }));
         return { status: 'success', data: videos };
       })
@@ -137,7 +139,7 @@ export class VideoLibraryService {
   /**
    * Upload video
    */
-  uploadVideo(file: File): Observable<ApiResponse<Video>> {
+  uploadVideo(file: File, tags?: string, details?: string): Observable<ApiResponse<Video>> {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📤 [VideoLibraryService] ========== UPLOAD VIDEO SERVICE ==========');
     console.log('📤 [VideoLibraryService] API URL:', this.apiUrl);
@@ -150,6 +152,14 @@ export class VideoLibraryService {
     console.log('📤 [VideoLibraryService] Creating FormData...');
     const formData = new FormData();
     formData.append('video', file);
+    if (tags) {
+      formData.append('tags', tags);
+      console.log('📤 [VideoLibraryService] Added tags:', tags);
+    }
+    if (details) {
+      formData.append('details', details);
+      console.log('📤 [VideoLibraryService] Added details:', details);
+    }
     console.log('📤 [VideoLibraryService] ✅ FormData created');
     console.log('📤 [VideoLibraryService] FormData entry: video =', file.name, `(${file.size} bytes, ${file.type})`);
 
@@ -227,6 +237,7 @@ export class VideoLibraryService {
     added: number;
     updated: number;
     removed: number;
+    analyzed?: number;
     errors: string[];
   }> {
     return this.http.post<{
@@ -235,6 +246,7 @@ export class VideoLibraryService {
         added: number;
         updated: number;
         removed: number;
+        analyzed?: number;
         errors: string[];
       };
       message: string;

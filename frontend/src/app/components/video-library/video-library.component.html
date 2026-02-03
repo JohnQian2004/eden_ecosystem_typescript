@@ -3,7 +3,7 @@
   <div class="modal fade" id="videoDetailsModal" tabindex="-1" style="z-index: 100000;">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
-        <app-video-details *ngIf="selectedVideo" [video]="selectedVideo" (close)="closeDetailsModal()"></app-video-details>
+        <app-video-details *ngIf="selectedVideo" [video]="selectedVideo" (close)="closeDetailsModal()" (deleted)="onVideoDeleted()"></app-video-details>
       </div>
     </div>
   </div>
@@ -40,7 +40,7 @@
           </video>
         </div>
         <div class="details-section" *ngIf="showDetailsInPlayer">
-          <app-video-details [video]="selectedVideoForPlayer" [hideVideoPlayer]="true" (close)="toggleDetailsInPlayer()"></app-video-details>
+          <app-video-details [video]="selectedVideoForPlayer" [hideVideoPlayer]="true" (close)="toggleDetailsInPlayer()" (deleted)="onVideoDeleted(); closeVideoPlayer()"></app-video-details>
         </div>
       </div>
     </div>
@@ -58,7 +58,16 @@
         </span>
       </small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+      <button
+        class="btn btn-primary"
+        (click)="syncVideos()"
+        [disabled]="syncing"
+        title="Sync library.json: Scan video directory, add/remove videos, and automatically analyze new videos"
+      >
+        <i class="bi bi-arrow-clockwise me-2" [class.spin]="syncing"></i>
+        {{ syncing ? 'Syncing & Analyzing...' : 'Sync Library JSON' }}
+      </button>
       <button
         class="btn btn-success"
         (click)="analyzeAllVideos()"
@@ -66,15 +75,6 @@
       >
         <i class="bi bi-search me-2"></i>
         Analyze All
-      </button>
-      <button
-        class="btn btn-outline-primary"
-        (click)="syncVideos()"
-        [disabled]="syncing"
-        title="Sync videos from data/videos directory"
-      >
-        <i class="bi bi-arrow-clockwise" [class.spin]="syncing"></i>
-        {{ syncing ? 'Syncing...' : 'Sync Videos' }}
       </button>
       <app-video-upload (uploaded)="onVideoUploaded()"></app-video-upload>
     </div>

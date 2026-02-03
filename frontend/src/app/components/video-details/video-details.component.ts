@@ -10,8 +10,10 @@ export class VideoDetailsComponent implements OnInit {
   @Input() video!: Video;
   @Input() hideVideoPlayer = false; // Hide video player when used inside player overlay
   @Output() close = new EventEmitter<void>();
+  @Output() deleted = new EventEmitter<void>(); // Emit when video is deleted
   videoStreamUrl: string = '';
   analyzing: boolean = false;
+  deleting: boolean = false;
 
   constructor(private videoLibraryService: VideoLibraryService) {}
 
@@ -51,6 +53,28 @@ export class VideoDetailsComponent implements OnInit {
         },
       });
     }
+  }
+
+  removeFromLibrary(): void {
+    if (!confirm(`Remove "${this.video.filename}" from the video library?\n\nThis will remove it from the library but will NOT delete the video file from disk.`)) {
+      return;
+    }
+
+    this.deleting = true;
+    this.videoLibraryService.deleteVideo(this.video.id).subscribe({
+      next: () => {
+        this.deleting = false;
+        alert('Video removed from library successfully');
+        this.deleted.emit(); // Notify parent component
+        this.closeModal(); // Close the modal
+      },
+      error: (error) => {
+        this.deleting = false;
+        console.error('Error removing video from library:', error);
+        const errorMsg = error.error?.message || 'Failed to remove video from library';
+        alert(`Error: ${errorMsg}`);
+      },
+    });
   }
 
   analyzeVideo(): void {

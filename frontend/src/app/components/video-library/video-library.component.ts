@@ -246,9 +246,12 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.videoLibraryService.syncVideos().subscribe({
       next: (result) => {
         this.syncing = false;
-        const message = `Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed`;
+        let message = `Sync completed:\n• ${result.added} added\n• ${result.updated} updated\n• ${result.removed} removed`;
+        if (result.analyzed && result.analyzed > 0) {
+          message += `\n• ${result.analyzed} analyzed automatically`;
+        }
         if (result.errors.length > 0) {
-          alert(`${message}\n\nErrors: ${result.errors.join('\n')}`);
+          alert(`${message}\n\nErrors:\n${result.errors.join('\n')}`);
         } else {
           alert(message);
         }

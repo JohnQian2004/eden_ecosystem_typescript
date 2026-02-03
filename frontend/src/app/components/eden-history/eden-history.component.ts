@@ -42,39 +42,7 @@ export class EdenHistoryComponent implements OnInit {
   apiUrl = 'https://50.76.0.85:3000';
   
   // View modes
-  viewMode: 'timeline' | 'biography' | 'autobiography' | 'whatif' | 'map' = 'map';
-  
-  // World Explorer view (replaces map)
-  selectedContinent: string | null = null;
-  selectedCountry: string | null = null;
-  continents: Array<{
-    name: string;
-    countries: string[];
-  }> = [];
-  isLoadingContinents = false;
-  countryHistory: {
-    periods: TimelinePeriod[];
-    figures: HistoricalFigure[];
-    events: HistoricalEvent[];
-  } | null = null;
-  isLoadingCountryHistory = false;
-  
-  // Time period selector (2000 BC to 2500 AD)
-  timePeriodStart = -2000; // 2000 BC
-  timePeriodEnd = 2500; // 2500 AD
-  selectedTimeStart = -2000;
-  selectedTimeEnd = 2500;
-  
-  // Popular historical figures/events tab
-  popularItems: Array<{
-    id: string;
-    name: string;
-    type: 'figure' | 'event';
-    year?: number;
-    country?: string;
-  }> = [];
-  isLoadingPopularItems = false;
-  selectedPopularItem: any = null;
+  viewMode: 'timeline' | 'biography' | 'autobiography' | 'whatif' = 'timeline';
   
   // Timeline data
   selectedPeriod: TimelinePeriod | null = null;
@@ -158,217 +126,12 @@ export class EdenHistoryComponent implements OnInit {
     return Math.abs(value);
   }
 
-  /**
-   * Get countries for selected continent (for template use)
-   */
-  getCountriesForContinent(): string[] {
-    if (!this.selectedContinent) return [];
-    const continent = this.continents.find(c => c.name === this.selectedContinent);
-    return continent?.countries || [];
-  }
 
   ngOnInit(): void {
-    if (this.viewMode === 'map') {
-      this.loadContinents();
-      this.loadPopularItems();
-    } else {
-      this.loadTimelinePeriods();
-      this.loadHistoricalFigures();
-      this.loadPopularItems();
-    }
+    this.loadTimelinePeriods();
+    this.loadHistoricalFigures();
   }
 
-  /**
-   * Load continents and countries from backend (LLM-generated)
-   */
-  loadContinents(): void {
-    this.isLoadingContinents = true;
-    console.log('🌍 [EdenHistory] Loading continents and countries from:', `${this.apiUrl}/api/history/continents`);
-    this.http.get<Array<{ name: string; countries: string[] }>>(`${this.apiUrl}/api/history/continents`).subscribe({
-      next: (continents) => {
-        console.log('🌍 [EdenHistory] Received continents:', continents.length, continents);
-        this.continents = continents;
-        this.isLoadingContinents = false;
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        console.error('❌ [EdenHistory] Failed to load continents:', error);
-        this.isLoadingContinents = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }
-
-  /**
-   * Load popular historical figures and events from backend (LLM-generated)
-   */
-  loadPopularItems(): void {
-    this.isLoadingPopularItems = true;
-    console.log('⭐ [EdenHistory] Loading popular items from:', `${this.apiUrl}/api/history/popular`);
-    this.http.get<Array<{
-      id: string;
-      name: string;
-      type: 'figure' | 'event';
-      year?: number;
-      country?: string;
-    }>>(`${this.apiUrl}/api/history/popular`).subscribe({
-      next: (items) => {
-        console.log('⭐ [EdenHistory] Received popular items:', items.length, items);
-        this.popularItems = items;
-        this.isLoadingPopularItems = false;
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        console.error('❌ [EdenHistory] Failed to load popular items:', error);
-        this.isLoadingPopularItems = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }
-
-  /**
-   * Select a continent to view its countries
-   */
-  selectContinent(continentName: string): void {
-    this.selectedContinent = continentName;
-    this.selectedCountry = null;
-    this.countryHistory = null;
-    console.log('🌍 [EdenHistory] Selected continent:', continentName);
-  }
-
-  /**
-   * Select a country to view its history
-   */
-  selectCountryFromList(countryName: string): void {
-    this.selectCountry(countryName);
-  }
-
-  /**
-   * Switch to map view (now world explorer)
-   */
-  switchToMapView(): void {
-    this.viewMode = 'map';
-    this.goBack();
-    // Load continents when switching to map view
-    if (this.continents.length === 0) {
-      this.loadContinents();
-    }
-  }
-
-  /**
-   * Select a popular historical figure or event
-   */
-  selectPopularItem(item: any): void {
-    this.selectedPopularItem = item;
-    console.log('⭐ [EdenHistory] Selected popular item:', item.name);
-    
-    // If item has a country, select that country to show its history
-    if (item.country) {
-      this.selectCountryFromList(item.country);
-    } else {
-      // Load history for this item
-      if (item.type === 'figure') {
-        this.loadPopularFigureHistory(item);
-      } else {
-        this.loadPopularEventHistory(item);
-      }
-    }
-  }
-
-  /**
-   * Load history for a popular figure
-   */
-  loadPopularFigureHistory(item: any): void {
-    // Try to find in existing figures
-    const figure = this.figures.find(f => 
-      f.name.toLowerCase().includes(item.name.toLowerCase()) ||
-      item.name.toLowerCase().includes(f.name.toLowerCase())
-    );
-
-    if (figure) {
-      this.selectFigure(figure);
-      this.viewMode = 'biography';
-    } else {
-      // Search for figure via API
-      this.http.post<Array<HistoricalEvent | HistoricalFigure>>(`${this.apiUrl}/api/history/search`, {
-        query: item.name
-      }).subscribe({
-        next: (results) => {
-          const foundFigure = results.find(r => this.isFigure(r)) as HistoricalFigure;
-          if (foundFigure) {
-            this.selectFigure(foundFigure);
-            this.viewMode = 'biography';
-          }
-        },
-        error: (error) => {
-          console.error('Failed to search for figure:', error);
-        }
-      });
-    }
-  }
-
-  /**
-   * Load history for a popular event
-   */
-  loadPopularEventHistory(item: any): void {
-    // Search for event via API
-    this.http.post<Array<HistoricalEvent | HistoricalFigure>>(`${this.apiUrl}/api/history/search`, {
-      query: item.name
-    }).subscribe({
-      next: (results) => {
-        const foundEvent = results.find(r => this.isEvent(r)) as HistoricalEvent;
-        if (foundEvent) {
-          this.selectEvent(foundEvent);
-          // If we have a period selected, show event in that context
-          if (this.selectedPeriod) {
-            this.viewMode = 'timeline';
-          }
-        }
-      },
-      error: (error) => {
-        console.error('Failed to search for event:', error);
-      }
-    });
-  }
-
-  /**
-   * Update time period (for future filtering)
-   */
-  updateTimePeriod(): void {
-    console.log(`⏰ [EdenHistory] Time period updated: ${this.selectedTimeStart} - ${this.selectedTimeEnd}`);
-    this.cdr.detectChanges();
-  }
-
-
-  /**
-   * Select a country and load its history
-   */
-  selectCountry(countryName: string): void {
-    this.selectedCountry = countryName;
-    this.isLoadingCountryHistory = true;
-    this.countryHistory = null;
-    this.cdr.detectChanges();
-
-    console.log('🌍 [EdenHistory] Loading history for country:', countryName);
-    
-    this.http.get<{
-      periods: TimelinePeriod[];
-      figures: HistoricalFigure[];
-      events: HistoricalEvent[];
-    }>(`${this.apiUrl}/api/history/country/${encodeURIComponent(countryName)}`).subscribe({
-      next: (data) => {
-        console.log('🌍 [EdenHistory] Country history loaded:', data);
-        this.countryHistory = data;
-        this.isLoadingCountryHistory = false;
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        console.error('❌ [EdenHistory] Failed to load country history:', error);
-        this.isLoadingCountryHistory = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }
 
   /**
    * Load timeline periods from backend
@@ -622,17 +385,6 @@ export class EdenHistoryComponent implements OnInit {
       this.selectedEvent = null;
       return;
     }
-    // If viewing country history, go back to map
-    if (this.selectedCountry) {
-      this.selectedCountry = null;
-      this.countryHistory = null;
-      return;
-    }
-    // If viewing popular item, clear selection
-    if (this.selectedPopularItem) {
-      this.selectedPopularItem = null;
-      return;
-    }
     // Otherwise, go back to the main view
     this.selectedPeriod = null;
     this.selectedFigure = null;
@@ -640,9 +392,6 @@ export class EdenHistoryComponent implements OnInit {
     this.conversationHistory = [];
     this.whatIfScenario = '';
     this.whatIfResult = '';
-    if (this.viewMode !== 'map') {
-      this.viewMode = 'map';
-    }
   }
 }
 

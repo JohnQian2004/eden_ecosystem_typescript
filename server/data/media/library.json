@@ -1,0 +1,970 @@
+{
+  "videos": [
+    {
+      "id": "1770124233180-nb0w9s",
+      "filename": "vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1770124233173.mp4",
+      "originalFilename": "vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db.mp4",
+      "file_path": "media/videos/vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1770124233173.mp4",
+      "file_size": 7745521,
+      "created_at": "2026-02-03T13:10:33.180Z",
+      "updated_at": "2026-02-03T13:10:37.109Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:10:37.106Z"
+      },
+      "analyzed_at": "2026-02-03T13:10:37.109Z"
+    },
+    {
+      "id": "1770124237264-jsjaqm",
+      "filename": "vibes_media_c15aed09-7abf-4dbc-bead-c560db7b1e25_1__1770124237259.mp4",
+      "originalFilename": "vibes_media_c15aed09-7abf-4dbc-bead-c560db7b1e25(1).mp4",
+      "file_path": "media/videos/vibes_media_c15aed09-7abf-4dbc-bead-c560db7b1e25_1__1770124237259.mp4",
+      "file_size": 5185992,
+      "created_at": "2026-02-03T13:10:37.264Z",
+      "updated_at": "2026-02-03T13:10:40.677Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:10:40.675Z"
+      },
+      "analyzed_at": "2026-02-03T13:10:40.677Z"
+    },
+    {
+      "id": "1770124240837-lhwdcy",
+      "filename": "vibes_media_c0239494-6498-4ae6-8627-c895c5dcfbb9_1770124240831.mp4",
+      "originalFilename": "vibes_media_c0239494-6498-4ae6-8627-c895c5dcfbb9.mp4",
+      "file_path": "media/videos/vibes_media_c0239494-6498-4ae6-8627-c895c5dcfbb9_1770124240831.mp4",
+      "file_size": 6886894,
+      "created_at": "2026-02-03T13:10:40.837Z",
+      "updated_at": "2026-02-03T13:10:44.883Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:10:44.882Z"
+      },
+      "analyzed_at": "2026-02-03T13:10:44.883Z"
+    },
+    {
+      "id": "1770124245054-t0wvj8",
+      "filename": "vibes_media_d52e4c01-1233-43d2-8abd-b9b66f10d0d5_1770124245048.mp4",
+      "originalFilename": "vibes_media_d52e4c01-1233-43d2-8abd-b9b66f10d0d5.mp4",
+      "file_path": "media/videos/vibes_media_d52e4c01-1233-43d2-8abd-b9b66f10d0d5_1770124245048.mp4",
+      "file_size": 8438165,
+      "created_at": "2026-02-03T13:10:45.055Z",
+      "updated_at": "2026-02-03T13:10:49.047Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:10:49.045Z"
+      },
+      "analyzed_at": "2026-02-03T13:10:49.047Z"
+    },
+    {
+      "id": "1770124249223-5ank7i",
+      "filename": "vibes_media_d318c79f-2932-408c-964b-3ef70ed26db4_1770124249216.mp4",
+      "originalFilename": "vibes_media_d318c79f-2932-408c-964b-3ef70ed26db4.mp4",
+      "file_path": "media/videos/vibes_media_d318c79f-2932-408c-964b-3ef70ed26db4_1770124249216.mp4",
+      "file_size": 9144434,
+      "created_at": "2026-02-03T13:10:49.224Z",
+      "updated_at": "2026-02-03T13:10:53.173Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:10:53.171Z"
+      },
+      "analyzed_at": "2026-02-03T13:10:53.173Z"
+    },
+    {
+      "id": "1770124269083-gosa4r",
+      "filename": "vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1__1770124269077.mp4",
+      "originalFilename": "vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db(1).mp4",
+      "file_path": "media/videos/vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1__1770124269077.mp4",
+      "file_size": 7745521,
+      "created_at": "2026-02-03T13:11:09.083Z",
+      "updated_at": "2026-02-03T13:11:13.199Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:11:13.196Z"
+      },
+      "analyzed_at": "2026-02-03T13:11:13.199Z"
+    },
+    {
+      "id": "1770124273351-24gd08",
+      "filename": "vibes_media_4d1f6771-f6fd-4020-83eb-fb55e22af516_1770124273346.mp4",
+      "originalFilename": "vibes_media_4d1f6771-f6fd-4020-83eb-fb55e22af516.mp4",
+      "file_path": "media/videos/vibes_media_4d1f6771-f6fd-4020-83eb-fb55e22af516_1770124273346.mp4",
+      "file_size": 4334836,
+      "created_at": "2026-02-03T13:11:13.352Z",
+      "updated_at": "2026-02-03T13:11:16.675Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:11:16.674Z"
+      },
+      "analyzed_at": "2026-02-03T13:11:16.675Z"
+    },
+    {
+      "id": "1770124276854-kvjpnn",
+      "filename": "vibes_media_8d3106a5-5347-4d7c-8fdd-59db569a7005_1770124276847.mp4",
+      "originalFilename": "vibes_media_8d3106a5-5347-4d7c-8fdd-59db569a7005.mp4",
+      "file_path": "media/videos/vibes_media_8d3106a5-5347-4d7c-8fdd-59db569a7005_1770124276847.mp4",
+      "file_size": 10119510,
+      "created_at": "2026-02-03T13:11:16.855Z",
+      "updated_at": "2026-02-03T13:11:21.327Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:11:21.325Z"
+      },
+      "analyzed_at": "2026-02-03T13:11:21.327Z"
+    },
+    {
+      "id": "1770124281502-kyfulg",
+      "filename": "vibes_media_993e003c-1b45-4637-a66e-e7c603be03dc_1770124281495.mp4",
+      "originalFilename": "vibes_media_993e003c-1b45-4637-a66e-e7c603be03dc.mp4",
+      "file_path": "media/videos/vibes_media_993e003c-1b45-4637-a66e-e7c603be03dc_1770124281495.mp4",
+      "file_size": 9044348,
+      "created_at": "2026-02-03T13:11:21.502Z",
+      "updated_at": "2026-02-03T13:11:25.575Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:11:25.574Z"
+      },
+      "analyzed_at": "2026-02-03T13:11:25.575Z"
+    },
+    {
+      "id": "1770124285727-wfyduo",
+      "filename": "vibes_media_aca8b305-d9fd-4315-826e-5a68a778832c_1__1770124285722.mp4",
+      "originalFilename": "vibes_media_aca8b305-d9fd-4315-826e-5a68a778832c(1).mp4",
+      "file_path": "media/videos/vibes_media_aca8b305-d9fd-4315-826e-5a68a778832c_1__1770124285722.mp4",
+      "file_size": 4769823,
+      "created_at": "2026-02-03T13:11:25.727Z",
+      "updated_at": "2026-02-03T13:11:28.946Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:11:28.944Z"
+      },
+      "analyzed_at": "2026-02-03T13:11:28.946Z"
+    },
+    {
+      "id": "1770124330200-ojwbcd",
+      "filename": "vibes_media_005baba1-14d2-42c0-b77b-e03e692a89ae_1770124330193.mp4",
+      "originalFilename": "vibes_media_005baba1-14d2-42c0-b77b-e03e692a89ae.mp4",
+      "file_path": "media/videos/vibes_media_005baba1-14d2-42c0-b77b-e03e692a89ae_1770124330193.mp4",
+      "file_size": 7985853,
+      "created_at": "2026-02-03T13:12:10.200Z",
+      "updated_at": "2026-02-03T13:12:14.381Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:14.379Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:14.381Z"
+    },
+    {
+      "id": "1770124334536-uoon8y",
+      "filename": "vibes_media_7faf667d-8315-476b-b00b-e4df3759f261_1770124334531.mp4",
+      "originalFilename": "vibes_media_7faf667d-8315-476b-b00b-e4df3759f261.mp4",
+      "file_path": "media/videos/vibes_media_7faf667d-8315-476b-b00b-e4df3759f261_1770124334531.mp4",
+      "file_size": 5439761,
+      "created_at": "2026-02-03T13:12:14.536Z",
+      "updated_at": "2026-02-03T13:12:17.897Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:17.896Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:17.897Z"
+    },
+    {
+      "id": "1770124338078-zkgc9w",
+      "filename": "vibes_media_19d15ddf-5d7d-48ea-a471-154796037841_1770124338071.mp4",
+      "originalFilename": "vibes_media_19d15ddf-5d7d-48ea-a471-154796037841.mp4",
+      "file_path": "media/videos/vibes_media_19d15ddf-5d7d-48ea-a471-154796037841_1770124338071.mp4",
+      "file_size": 9480854,
+      "created_at": "2026-02-03T13:12:18.078Z",
+      "updated_at": "2026-02-03T13:12:22.289Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:22.287Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:22.289Z"
+    },
+    {
+      "id": "1770124342461-8k5h8s",
+      "filename": "vibes_media_35ec8d7c-92b1-4625-a7ee-1a1a09388e48_1770124342454.mp4",
+      "originalFilename": "vibes_media_35ec8d7c-92b1-4625-a7ee-1a1a09388e48.mp4",
+      "file_path": "media/videos/vibes_media_35ec8d7c-92b1-4625-a7ee-1a1a09388e48_1770124342454.mp4",
+      "file_size": 9037985,
+      "created_at": "2026-02-03T13:12:22.461Z",
+      "updated_at": "2026-02-03T13:12:26.757Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:26.755Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:26.757Z"
+    },
+    {
+      "id": "1770124346921-4ekge",
+      "filename": "vibes_media_43f12879-c13e-45df-a717-c549368da4dc_1770124346914.mp4",
+      "originalFilename": "vibes_media_43f12879-c13e-45df-a717-c549368da4dc.mp4",
+      "file_path": "media/videos/vibes_media_43f12879-c13e-45df-a717-c549368da4dc_1770124346914.mp4",
+      "file_size": 7713553,
+      "created_at": "2026-02-03T13:12:26.921Z",
+      "updated_at": "2026-02-03T13:12:30.713Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:30.712Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:30.713Z"
+    },
+    {
+      "id": "1770124351734-szxeg",
+      "filename": "vibes_media_44a09413-02f7-47a5-ad98-d6491c2885b7_1770124351729.mp4",
+      "originalFilename": "vibes_media_44a09413-02f7-47a5-ad98-d6491c2885b7.mp4",
+      "file_path": "media/videos/vibes_media_44a09413-02f7-47a5-ad98-d6491c2885b7_1770124351729.mp4",
+      "file_size": 5033949,
+      "created_at": "2026-02-03T13:12:31.734Z",
+      "updated_at": "2026-02-03T13:12:35.033Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:35.032Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:35.033Z"
+    },
+    {
+      "id": "1770124355768-iwse6c",
+      "filename": "vibes_media_68ea6a22-8237-45f7-b13d-a22025ed593b_1770124355761.mp4",
+      "originalFilename": "vibes_media_68ea6a22-8237-45f7-b13d-a22025ed593b.mp4",
+      "file_path": "media/videos/vibes_media_68ea6a22-8237-45f7-b13d-a22025ed593b_1770124355761.mp4",
+      "file_size": 9403024,
+      "created_at": "2026-02-03T13:12:35.768Z",
+      "updated_at": "2026-02-03T13:12:40.195Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:40.194Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:40.195Z"
+    },
+    {
+      "id": "1770124360728-33odjf",
+      "filename": "vibes_media_91f7ee83-e167-4b62-85ad-da7559b83a12_1770124360724.mp4",
+      "originalFilename": "vibes_media_91f7ee83-e167-4b62-85ad-da7559b83a12.mp4",
+      "file_path": "media/videos/vibes_media_91f7ee83-e167-4b62-85ad-da7559b83a12_1770124360724.mp4",
+      "file_size": 3289476,
+      "created_at": "2026-02-03T13:12:40.728Z",
+      "updated_at": "2026-02-03T13:12:43.694Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:43.693Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:43.694Z"
+    },
+    {
+      "id": "1770124364737-j93qvr",
+      "filename": "vibes_media_0730c38d-65c0-4ab4-9d1b-428b8a9b2f19_1770124364732.mp4",
+      "originalFilename": "vibes_media_0730c38d-65c0-4ab4-9d1b-428b8a9b2f19.mp4",
+      "file_path": "media/videos/vibes_media_0730c38d-65c0-4ab4-9d1b-428b8a9b2f19_1770124364732.mp4",
+      "file_size": 5491286,
+      "created_at": "2026-02-03T13:12:44.737Z",
+      "updated_at": "2026-02-03T13:12:48.169Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:48.167Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:48.169Z"
+    },
+    {
+      "id": "1770124368729-xzr48na",
+      "filename": "vibes_media_735b490e-b938-48e0-8b9f-4507019eb83a_1770124368725.mp4",
+      "originalFilename": "vibes_media_735b490e-b938-48e0-8b9f-4507019eb83a.mp4",
+      "file_path": "media/videos/vibes_media_735b490e-b938-48e0-8b9f-4507019eb83a_1770124368725.mp4",
+      "file_size": 3389604,
+      "created_at": "2026-02-03T13:12:48.729Z",
+      "updated_at": "2026-02-03T13:12:51.818Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:51.816Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:51.818Z"
+    },
+    {
+      "id": "1770124372735-c7q3afh",
+      "filename": "vibes_media_833a0005-d8b0-4ec1-b114-18b7dfc24563_1770124372730.mp4",
+      "originalFilename": "vibes_media_833a0005-d8b0-4ec1-b114-18b7dfc24563.mp4",
+      "file_path": "media/videos/vibes_media_833a0005-d8b0-4ec1-b114-18b7dfc24563_1770124372730.mp4",
+      "file_size": 4544533,
+      "created_at": "2026-02-03T13:12:52.735Z",
+      "updated_at": "2026-02-03T13:12:55.434Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:12:55.432Z"
+      },
+      "analyzed_at": "2026-02-03T13:12:55.434Z"
+    },
+    {
+      "id": "1770124375781-o74fh",
+      "filename": "vibes_media_935d6605-d314-463e-b6e7-61640f91808e_1770124375775.mp4",
+      "originalFilename": "vibes_media_935d6605-d314-463e-b6e7-61640f91808e.mp4",
+      "file_path": "media/videos/vibes_media_935d6605-d314-463e-b6e7-61640f91808e_1770124375775.mp4",
+      "file_size": 10293160,
+      "created_at": "2026-02-03T13:12:55.781Z",
+      "updated_at": "2026-02-03T13:13:00.231Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:00.230Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:00.231Z"
+    },
+    {
+      "id": "1770124380732-z699xs",
+      "filename": "vibes_media_1233fe6d-8c15-4aa1-86b2-4c6ec97a9c51_1770124380728.mp4",
+      "originalFilename": "vibes_media_1233fe6d-8c15-4aa1-86b2-4c6ec97a9c51.mp4",
+      "file_path": "media/videos/vibes_media_1233fe6d-8c15-4aa1-86b2-4c6ec97a9c51_1770124380728.mp4",
+      "file_size": 3450643,
+      "created_at": "2026-02-03T13:13:00.733Z",
+      "updated_at": "2026-02-03T13:13:03.399Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:03.397Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:03.399Z"
+    },
+    {
+      "id": "1770124383749-pyxksw",
+      "filename": "vibes_media_1855f22f-cbb5-4e22-8809-b1cd9a1732ab_1770124383745.mp4",
+      "originalFilename": "vibes_media_1855f22f-cbb5-4e22-8809-b1cd9a1732ab.mp4",
+      "file_path": "media/videos/vibes_media_1855f22f-cbb5-4e22-8809-b1cd9a1732ab_1770124383745.mp4",
+      "file_size": 4487391,
+      "created_at": "2026-02-03T13:13:03.749Z",
+      "updated_at": "2026-02-03T13:13:06.686Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:06.684Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:06.686Z"
+    },
+    {
+      "id": "1770124387737-dw8ine",
+      "filename": "vibes_media_3885da21-fe36-4bbb-9d31-2ccff0a9881b_1770124387732.mp4",
+      "originalFilename": "vibes_media_3885da21-fe36-4bbb-9d31-2ccff0a9881b.mp4",
+      "file_path": "media/videos/vibes_media_3885da21-fe36-4bbb-9d31-2ccff0a9881b_1770124387732.mp4",
+      "file_size": 5274134,
+      "created_at": "2026-02-03T13:13:07.737Z",
+      "updated_at": "2026-02-03T13:13:10.792Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:10.790Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:10.792Z"
+    },
+    {
+      "id": "1770124391759-byt4ii",
+      "filename": "vibes_media_9997ee7d-2f5f-45a7-8467-d7861b0fb42e_1770124391753.mp4",
+      "originalFilename": "vibes_media_9997ee7d-2f5f-45a7-8467-d7861b0fb42e.mp4",
+      "file_path": "media/videos/vibes_media_9997ee7d-2f5f-45a7-8467-d7861b0fb42e_1770124391753.mp4",
+      "file_size": 6376229,
+      "created_at": "2026-02-03T13:13:11.759Z",
+      "updated_at": "2026-02-03T13:13:14.611Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:14.609Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:14.611Z"
+    },
+    {
+      "id": "1770124394779-xctlum",
+      "filename": "vibes_media_39523ebd-1c56-40b4-86d8-485d6d442f63_1770124394773.mp4",
+      "originalFilename": "vibes_media_39523ebd-1c56-40b4-86d8-485d6d442f63.mp4",
+      "file_path": "media/videos/vibes_media_39523ebd-1c56-40b4-86d8-485d6d442f63_1770124394773.mp4",
+      "file_size": 7471247,
+      "created_at": "2026-02-03T13:13:14.779Z",
+      "updated_at": "2026-02-03T13:13:18.015Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:18.013Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:18.015Z"
+    },
+    {
+      "id": "1770124398737-63qtny",
+      "filename": "vibes_media_056582a0-38a7-4df5-b47a-8ed03d3d6358_1770124398733.mp4",
+      "originalFilename": "vibes_media_056582a0-38a7-4df5-b47a-8ed03d3d6358.mp4",
+      "file_path": "media/videos/vibes_media_056582a0-38a7-4df5-b47a-8ed03d3d6358_1770124398733.mp4",
+      "file_size": 3711973,
+      "created_at": "2026-02-03T13:13:18.737Z",
+      "updated_at": "2026-02-03T13:13:21.255Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:21.253Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:21.255Z"
+    },
+    {
+      "id": "1770124401739-w0x9x8",
+      "filename": "vibes_media_7068243b-b339-4664-82ba-8b7baa6fb822_1770124401734.mp4",
+      "originalFilename": "vibes_media_7068243b-b339-4664-82ba-8b7baa6fb822.mp4",
+      "file_path": "media/videos/vibes_media_7068243b-b339-4664-82ba-8b7baa6fb822_1770124401734.mp4",
+      "file_size": 4798480,
+      "created_at": "2026-02-03T13:13:21.739Z",
+      "updated_at": "2026-02-03T13:13:24.247Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:24.245Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:24.247Z"
+    },
+    {
+      "id": "1770124404764-90yoo",
+      "filename": "vibes_media_ac21619e-f0af-4d57-8fc3-d6b6a717cc0c_1770124404758.mp4",
+      "originalFilename": "vibes_media_ac21619e-f0af-4d57-8fc3-d6b6a717cc0c.mp4",
+      "file_path": "media/videos/vibes_media_ac21619e-f0af-4d57-8fc3-d6b6a717cc0c_1770124404758.mp4",
+      "file_size": 8942093,
+      "created_at": "2026-02-03T13:13:24.765Z",
+      "updated_at": "2026-02-03T13:13:28.556Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:28.554Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:28.556Z"
+    },
+    {
+      "id": "1770124408740-96p2t8",
+      "filename": "vibes_media_adeb526d-b8cc-41a3-83c7-9457b2dce867_1770124408736.mp4",
+      "originalFilename": "vibes_media_adeb526d-b8cc-41a3-83c7-9457b2dce867.mp4",
+      "file_path": "media/videos/vibes_media_adeb526d-b8cc-41a3-83c7-9457b2dce867_1770124408736.mp4",
+      "file_size": 3698524,
+      "created_at": "2026-02-03T13:13:28.740Z",
+      "updated_at": "2026-02-03T13:13:30.948Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:30.946Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:30.948Z"
+    },
+    {
+      "id": "1770124411724-d209n9",
+      "filename": "vibes_media_b13f922a-7dc7-4d86-89ca-731f87f69707_1770124411721.mp4",
+      "originalFilename": "vibes_media_b13f922a-7dc7-4d86-89ca-731f87f69707.mp4",
+      "file_path": "media/videos/vibes_media_b13f922a-7dc7-4d86-89ca-731f87f69707_1770124411721.mp4",
+      "file_size": 2614007,
+      "created_at": "2026-02-03T13:13:31.724Z",
+      "updated_at": "2026-02-03T13:13:33.777Z",
+      "tags": [],
+      "is_new": true,
+      "author": "root GOD bill.draper.auto@gmail.com (bill draper)",
+      "analysis": {
+        "content_tags": [],
+        "detected_objects": [],
+        "scene_type": "",
+        "shot_type": "",
+        "camera_angle": "",
+        "camera_movement": "",
+        "lighting_brightness": "",
+        "lighting_temperature": "",
+        "time_of_day": "",
+        "analysis_metadata": {
+          "raw_analysis": "",
+          "analysis_error": "HTTP 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-2.0-flash-exp is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available model",
+          "models_tried": "gemini-1.5-flash-latest, gemini-1.5-flash, gemini-1.5-pro-latest, gemini-2.0-flash-exp"
+        },
+        "analyzed_at": "2026-02-03T13:13:33.776Z"
+      },
+      "analyzed_at": "2026-02-03T13:13:33.777Z"
+    }
+  ],
+  "tags": [],
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2026-02-03T13:50:18.032Z",
+    "total_videos": 32
+  }
+}

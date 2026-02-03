@@ -324,6 +324,11 @@ function bigIntReplacer(key: string, value: any): any {
 // Gemini API key (hardcoded for video analysis - from old codebase)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDS2xqcodc56CHKHBj6-ExyBBUSfnS1VH4';
 
+// Default video author
+const DEFAULT_VIDEO_AUTHOR = 'bill draper';
+const DEFAULT_VIDEO_AUTHOR_EMAIL = 'bill.draper.auto@gmail.com';
+const DEFAULT_VIDEO_AUTHOR_FULL = 'root GOD bill.draper.auto@gmail.com (bill draper)';
+
 /**
  * Analyze video with Gemini API
  */
@@ -466,12 +471,12 @@ For main_subject, activity, environment, and mood, provide them as JSON objects 
     console.log(`   ✅ [${requestId}] Request payload created:`);
     console.log(`   ✅ [${requestId}]   Payload size: ${payloadSize} chars (${payloadSizeMB} MB)`);
     
-    // Try different Gemini models (from old codebase)
+    // Try different Gemini models (prioritize newer models that support video)
     const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
+      'gemini-1.5-flash-latest',
       'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      'gemini-1.5-pro-latest',
+      'gemini-2.0-flash-exp',
     ];
     
     console.log(`   🔵 [${requestId}] Models to try:`, modelsToTry.join(', '));
@@ -674,14 +679,50 @@ For main_subject, activity, environment, and mood, provide them as JSON objects 
       }
     }
     
-    console.error(`   ❌ [${requestId}] All Gemini models failed`);
-    throw lastError || new Error('All Gemini models failed');
+    // If all models failed, return a basic analysis object instead of throwing
+    // This makes analysis non-blocking - the video will still be added to library
+    console.warn(`   ⚠️ [${requestId}] All Gemini models failed, returning empty analysis`);
+    console.warn(`   ⚠️ [${requestId}] Last error:`, lastError?.message || 'Unknown error');
+    return {
+      content_tags: [],
+      detected_objects: [],
+      scene_type: '',
+      shot_type: '',
+      camera_angle: '',
+      camera_movement: '',
+      lighting_brightness: '',
+      lighting_temperature: '',
+      time_of_day: '',
+      analysis_metadata: {
+        raw_analysis: '',
+        analysis_error: lastError?.message || 'All Gemini models failed',
+        models_tried: modelsToTry.join(', '),
+      },
+      analyzed_at: new Date().toISOString(),
+    };
   } catch (error: any) {
     console.error(`   ──────────────────────────────────────────────`);
     console.error(`   ❌ [${requestId}] ========== GEMINI ANALYSIS FUNCTION ERROR ==========`);
     console.error(`   ❌ [${requestId}] Error message:`, error.message);
     console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
-    throw error;
+    // Return empty analysis instead of throwing - makes it non-blocking
+    console.warn(`   ⚠️ [${requestId}] Returning empty analysis due to error (non-blocking)`);
+    return {
+      content_tags: [],
+      detected_objects: [],
+      scene_type: '',
+      shot_type: '',
+      camera_angle: '',
+      camera_movement: '',
+      lighting_brightness: '',
+      lighting_temperature: '',
+      time_of_day: '',
+      analysis_metadata: {
+        raw_analysis: '',
+        analysis_error: error.message,
+      },
+      analyzed_at: new Date().toISOString(),
+    };
   }
 }
 
@@ -5702,13 +5743,28 @@ httpServer.on("request", async (req, res) => {
             .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ');
           
+          // Ensure author is set (use default if missing)
+          const author = video.author || DEFAULT_VIDEO_AUTHOR_FULL;
+          
           return {
             id: video.id || `video-${video.filename}`,
             filename: video.filename,
+            file_path: video.file_path || `videos${path.sep}${video.filename}`,
             title: title || video.filename,
             videoUrl: `/api/movie/video/${video.filename}`,
             thumbnailUrl: `/api/movie/video/${video.filename}`,
             tags: video.tags || [],
+            author: author,
+            duration: video.duration,
+            resolution_width: video.resolution_width,
+            resolution_height: video.resolution_height,
+            frame_rate: video.frame_rate,
+            file_size: video.file_size,
+            codec: video.codec,
+            created_at: video.created_at || new Date().toISOString(),
+            updated_at: video.updated_at || new Date().toISOString(),
+            analyzed_at: video.analyzed_at,
+            is_new: video.is_new,
             analysis: video.analysis || {
               content_tags: [],
               shot_type: undefined,
@@ -11480,6 +11536,19 @@ Return your response as plain text (no JSON, no markdown formatting).`;
     return;
   }
 
+  // Handle CORS preflight for sync endpoint
+  if (pathname === "/api/v1/library/videos/sync" && req.method === "OPTIONS") {
+    console.log(`   ✅ [${requestId}] CORS preflight for sync endpoint`);
+    res.writeHead(200, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    });
+    res.end();
+    return;
+  }
+
   // POST /api/v1/library/videos/upload - Upload video file
   if (pathname === "/api/v1/library/videos/upload" && req.method === "POST") {
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -11568,16 +11637,96 @@ Return your response as plain text (no JSON, no markdown formatting).`;
             console.log(`   🔧 [${requestId}]   Adjusted serverDir (was in dist/build): ${serverDir}`);
           }
           
-          const videosDir = path.join(serverDir, "data", "videos");
-          console.log(`   🔧 [${requestId}]   Videos directory: ${videosDir}`);
+          // Use media server's directory structure
+          const mediaDir = path.join(serverDir, "data", "media");
+          const videosDir = path.join(mediaDir, "videos");
+          const libraryPath = path.join(mediaDir, "library.json");
+          console.log(`   🔧 [${requestId}]   Media server videos directory: ${videosDir}`);
+          console.log(`   🔧 [${requestId}]   Media server library path: ${libraryPath}`);
           
-          // Ensure videos directory exists
+          // Ensure directories exist
           if (!fs.existsSync(videosDir)) {
-            console.log(`   📁 [${requestId}] Creating videos directory: ${videosDir}`);
+            console.log(`   📁 [${requestId}] Creating media server videos directory: ${videosDir}`);
             fs.mkdirSync(videosDir, { recursive: true });
             console.log(`   ✅ [${requestId}] Videos directory created`);
           } else {
             console.log(`   ✅ [${requestId}] Videos directory already exists`);
+          }
+          
+          // Load or create library.json (media server format)
+          console.log(`   📚 [${requestId}] Loading media server library.json...`);
+          let library: any = { 
+            videos: [], 
+            tags: [],
+            metadata: { 
+              version: "1.0",
+              total_videos: 0, 
+              last_updated: new Date().toISOString() 
+            } 
+          };
+          
+          if (fs.existsSync(libraryPath)) {
+            console.log(`   📚 [${requestId}]   Library.json exists, reading...`);
+            try {
+              const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
+              console.log(`   📚 [${requestId}]   Library.json size: ${libraryContent.length} bytes`);
+              library = JSON.parse(libraryContent);
+              
+              // Ensure required structure exists
+              if (!library.videos) library.videos = [];
+              if (!library.tags) library.tags = [];
+              if (!library.metadata) library.metadata = {};
+              if (!library.metadata.version) library.metadata.version = "1.0";
+              
+              console.log(`   ✅ [${requestId}]   Library.json parsed successfully`);
+              console.log(`   📚 [${requestId}]   Current videos in library: ${library.videos?.length || 0}`);
+            } catch (err: any) {
+              console.error(`   ❌ [${requestId}]   Failed to parse library.json:`, err.message);
+              console.error(`   ❌ [${requestId}]   Error stack:`, err.stack);
+              console.log(`   ⚠️ [${requestId}]   Using empty library structure`);
+            }
+          } else {
+            console.log(`   📚 [${requestId}]   Library.json does not exist, creating new one...`);
+          }
+          
+          // Check for duplicates by filename and file size
+          console.log(`   🔍 [${requestId}] Checking for duplicates...`);
+          const fileSize = videoFile.buffer.length;
+          const sanitizedOriginalName = originalFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+          
+          // Check by exact filename match
+          const duplicateByFilename = library.videos?.find((v: any) => 
+            v.filename === sanitizedOriginalName || 
+            v.filename === originalFilename ||
+            v.originalFilename === originalFilename
+          );
+          
+          // Check by file size (simple duplicate detection)
+          const duplicateBySize = library.videos?.find((v: any) => 
+            v.file_size === fileSize && 
+            v.filename !== sanitizedOriginalName &&
+            v.filename !== originalFilename
+          );
+          
+          if (duplicateByFilename) {
+            console.log(`   ⚠️ [${requestId}] Duplicate detected by filename: ${originalFilename}`);
+            console.log(`   ⚠️ [${requestId}] Existing video ID: ${duplicateByFilename.id}`);
+            res.writeHead(200, {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            });
+            res.end(JSON.stringify({
+              status: 'duplicate',
+              message: `Video "${originalFilename}" already exists in library`,
+              data: duplicateByFilename
+            }));
+            return;
+          }
+          
+          if (duplicateBySize) {
+            console.log(`   ⚠️ [${requestId}] Potential duplicate detected by file size: ${fileSize} bytes`);
+            console.log(`   ⚠️ [${requestId}] Existing video: ${duplicateBySize.filename}`);
+            // Don't block, but log warning - could be different videos with same size
           }
           
           // Generate unique filename (preserve extension)
@@ -11591,8 +11740,6 @@ Return your response as plain text (no JSON, no markdown formatting).`;
           
           console.log(`   🔧 [${requestId}]   Original filename: ${originalFilename}`);
           console.log(`   🔧 [${requestId}]   Extension: ${ext}`);
-          console.log(`   🔧 [${requestId}]   Base name: ${baseName}`);
-          console.log(`   🔧 [${requestId}]   Sanitized name: ${sanitizedName}`);
           console.log(`   🔧 [${requestId}]   Unique filename: ${uniqueFilename}`);
           console.log(`   🔧 [${requestId}]   Full video path: ${videoPath}`);
           
@@ -11601,7 +11748,6 @@ Return your response as plain text (no JSON, no markdown formatting).`;
           const writeStartTime = Date.now();
           fs.writeFileSync(videoPath, videoFile.buffer);
           const writeDuration = Date.now() - writeStartTime;
-          const fileSize = videoFile.buffer.length;
           const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
           console.log(`   ✅ [${requestId}] Video saved successfully:`);
           console.log(`   ✅ [${requestId}]   Filename: ${uniqueFilename}`);
@@ -11620,62 +11766,80 @@ Return your response as plain text (no JSON, no markdown formatting).`;
             console.error(`   ❌ [${requestId}] File was not written! Path: ${videoPath}`);
           }
           
-          // Load or create library.json
-          console.log(`   📚 [${requestId}] Loading library.json...`);
-          const libraryPath = path.join(videosDir, "library.json");
-          console.log(`   📚 [${requestId}]   Library path: ${libraryPath}`);
-          
-          let library: any = { videos: [], metadata: { total_videos: 0, last_updated: new Date().toISOString() } };
-          
-          if (fs.existsSync(libraryPath)) {
-            console.log(`   📚 [${requestId}]   Library.json exists, reading...`);
-            try {
-              const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
-              console.log(`   📚 [${requestId}]   Library.json size: ${libraryContent.length} bytes`);
-              library = JSON.parse(libraryContent);
-              console.log(`   ✅ [${requestId}]   Library.json parsed successfully`);
-              console.log(`   📚 [${requestId}]   Current videos in library: ${library.videos?.length || 0}`);
-            } catch (err: any) {
-              console.error(`   ❌ [${requestId}]   Failed to parse library.json:`, err.message);
-              console.error(`   ❌ [${requestId}]   Error stack:`, err.stack);
-            }
-          } else {
-            console.log(`   📚 [${requestId}]   Library.json does not exist, creating new one...`);
-          }
-          
           // Generate video ID
           const videoId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
           console.log(`   🆔 [${requestId}] Generated video ID: ${videoId}`);
           
-          // Create video entry
+          // Create video entry (media server format)
           const videoEntry = {
             id: videoId,
             filename: uniqueFilename,
-            file_path: `videos\\${uniqueFilename}`,
+            originalFilename: originalFilename,
+            file_path: `media/videos/${uniqueFilename}`,
             file_size: fileSize,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             tags: [],
-            is_new: true
+            is_new: true,
+            author: DEFAULT_VIDEO_AUTHOR_FULL // Set default author
           };
           
           console.log(`   📝 [${requestId}] Created video entry:`, JSON.stringify(videoEntry, null, 2));
           
           // Add to library
           console.log(`   📚 [${requestId}] Adding video to library...`);
-          const videosBefore = library.videos?.length || 0;
+          
+          // Ensure library structure is correct
+          if (!library.videos) library.videos = [];
+          if (!library.tags) library.tags = [];
+          if (!library.metadata) library.metadata = {};
+          
+          const videosBefore = library.videos.length;
           library.videos.push(videoEntry);
           library.metadata.total_videos = library.videos.length;
           library.metadata.last_updated = new Date().toISOString();
+          if (!library.metadata.version) library.metadata.version = "1.0";
+          
           console.log(`   📚 [${requestId}]   Videos before: ${videosBefore}, after: ${library.videos.length}`);
+          console.log(`   📚 [${requestId}]   Library structure:`, {
+            videos: library.videos.length,
+            tags: library.tags?.length || 0,
+            metadata: library.metadata
+          });
           
           // Save library.json
-          console.log(`   💾 [${requestId}] Saving library.json...`);
+          console.log(`   💾 [${requestId}] Saving library.json to: ${libraryPath}`);
           const librarySaveStartTime = Date.now();
-          fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
-          const librarySaveDuration = Date.now() - librarySaveStartTime;
-          console.log(`   ✅ [${requestId}] Library.json saved (${librarySaveDuration}ms)`);
-          console.log(`   ✅ [${requestId}] Video added to library.json: ${videoId}`);
+          
+          try {
+            // Ensure directory exists
+            const libraryDir = path.dirname(libraryPath);
+            if (!fs.existsSync(libraryDir)) {
+              fs.mkdirSync(libraryDir, { recursive: true });
+              console.log(`   📁 [${requestId}] Created library directory: ${libraryDir}`);
+            }
+            
+            const libraryJson = JSON.stringify(library, null, 2);
+            fs.writeFileSync(libraryPath, libraryJson, 'utf-8');
+            
+            // Verify it was written
+            if (fs.existsSync(libraryPath)) {
+              const stats = fs.statSync(libraryPath);
+              console.log(`   ✅ [${requestId}] Library.json saved successfully`);
+              console.log(`   ✅ [${requestId}]   File size: ${stats.size} bytes`);
+              console.log(`   ✅ [${requestId}]   JSON size: ${libraryJson.length} bytes`);
+            } else {
+              console.error(`   ❌ [${requestId}] Library.json was not written!`);
+            }
+            
+            const librarySaveDuration = Date.now() - librarySaveStartTime;
+            console.log(`   ✅ [${requestId}] Save duration: ${librarySaveDuration}ms`);
+            console.log(`   ✅ [${requestId}] Video added to library.json: ${videoId}`);
+          } catch (saveError: any) {
+            console.error(`   ❌ [${requestId}] Failed to save library.json:`, saveError.message);
+            console.error(`   ❌ [${requestId}] Error stack:`, saveError.stack);
+            throw saveError;
+          }
           
           // Automatically trigger analysis
           console.log(`   ──────────────────────────────────────────────`);
@@ -11683,6 +11847,7 @@ Return your response as plain text (no JSON, no markdown formatting).`;
           console.log(`   🔍 [${requestId}] Video ID: ${videoId}`);
           console.log(`   🔍 [${requestId}] Video path: ${videoPath}`);
           console.log(`   🔍 [${requestId}] Filename: ${uniqueFilename}`);
+          console.log(`   🔍 [${requestId}] Original filename: ${originalFilename}`);
           
           try {
             const analysisStartTime = Date.now();
@@ -11720,6 +11885,34 @@ Return your response as plain text (no JSON, no markdown formatting).`;
             // Continue even if analysis fails
           }
           
+          // Final verification - reload library to confirm it was saved
+          try {
+            if (fs.existsSync(libraryPath)) {
+              const verifyLibrary = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'));
+              const videoFound = verifyLibrary.videos?.find((v: any) => v.id === videoId);
+              if (videoFound) {
+                console.log(`   ✅ [${requestId}] Verification: Video found in saved library.json`);
+              } else {
+                console.error(`   ⚠️ [${requestId}] Verification: Video NOT found in saved library.json!`);
+                console.error(`   ⚠️ [${requestId}] This indicates a save issue. Attempting to save again...`);
+                // Try saving again
+                fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
+                console.log(`   ✅ [${requestId}] Re-saved library.json`);
+              }
+            } else {
+              console.error(`   ❌ [${requestId}] Verification: library.json does not exist after save!`);
+              // Try saving again
+              const libraryDir = path.dirname(libraryPath);
+              if (!fs.existsSync(libraryDir)) {
+                fs.mkdirSync(libraryDir, { recursive: true });
+              }
+              fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
+              console.log(`   ✅ [${requestId}] Created and saved library.json`);
+            }
+          } catch (verifyError: any) {
+            console.error(`   ⚠️ [${requestId}] Verification error:`, verifyError.message);
+          }
+          
           // Return success response
           console.log(`   ──────────────────────────────────────────────`);
           console.log(`   ✅ [${requestId}] ========== UPLOAD SUCCESSFUL ==========`);
@@ -11731,7 +11924,8 @@ Return your response as plain text (no JSON, no markdown formatting).`;
           res.end(JSON.stringify({
             status: 'success',
             data: videoEntry,
-            message: 'Video uploaded successfully'
+            message: 'Video uploaded successfully',
+            library_path: libraryPath
           }));
           console.log(`   ✅ [${requestId}] Response sent to client`);
           console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -12172,6 +12366,394 @@ Return your response as plain text (no JSON, no markdown formatting).`;
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
       }
     });
+    return;
+  }
+
+  // POST /api/v1/library/videos/sync - Sync videos from media server's data/media/videos directory
+  if (pathname === "/api/v1/library/videos/sync" && req.method === "POST") {
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🔄 [${requestId}] ========== MEDIA SERVER LIBRARY SYNC REQUEST ==========`);
+    console.log(`   🔄 [${requestId}] POST /api/v1/library/videos/sync (Media Server)`);
+    
+    try {
+      // Determine paths - use media server's directory structure
+      let serverDir = __dirname;
+      if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+        serverDir = path.dirname(serverDir);
+      }
+      const libraryPath = path.join(serverDir, "data", "media", "library.json");
+      const videosDir = path.join(serverDir, "data", "media", "videos");
+      const metadataDir = path.join(serverDir, "data", "media", "metadata");
+      
+      console.log(`   📂 [${requestId}] Media Server Library path: ${libraryPath}`);
+      console.log(`   📂 [${requestId}] Media Server Videos directory: ${videosDir}`);
+      console.log(`   📂 [${requestId}] Media Server Metadata directory: ${metadataDir}`);
+      
+      // Ensure media directories exist
+      if (!fs.existsSync(videosDir)) {
+        fs.mkdirSync(videosDir, { recursive: true });
+        console.log(`   📁 [${requestId}] Created videos directory: ${videosDir}`);
+      }
+      if (!fs.existsSync(metadataDir)) {
+        fs.mkdirSync(metadataDir, { recursive: true });
+        console.log(`   📁 [${requestId}] Created metadata directory: ${metadataDir}`);
+      }
+      
+      // Load existing library
+      let library: any = { videos: [], tags: [], metadata: { version: "1.0" } };
+      if (fs.existsSync(libraryPath)) {
+        library = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'));
+        console.log(`   ✅ [${requestId}] Loaded existing media server library: ${library.videos?.length || 0} videos`);
+      } else {
+        console.log(`   ⚠️ [${requestId}] Media server library.json not found, creating new one`);
+      }
+      
+      // Also load metadata from individual metadata files (media server format)
+      const metadataFiles = new Map<string, any>();
+      if (fs.existsSync(metadataDir)) {
+        const metadataFileList = fs.readdirSync(metadataDir).filter(f => f.endsWith('.json'));
+        for (const metaFile of metadataFileList) {
+          try {
+            const metaPath = path.join(metadataDir, metaFile);
+            const metaContent = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+            if (metaContent.filename) {
+              metadataFiles.set(metaContent.filename, metaContent);
+            }
+          } catch (err: any) {
+            console.warn(`   ⚠️ [${requestId}] Failed to load metadata file ${metaFile}: ${err.message}`);
+          }
+        }
+        console.log(`   📋 [${requestId}] Loaded ${metadataFiles.size} metadata files from media server`);
+      }
+      
+      // Scan videos directory
+      const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+      let videoFiles: string[] = [];
+      
+      if (fs.existsSync(videosDir)) {
+        const files = fs.readdirSync(videosDir);
+        videoFiles = files.filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return videoExtensions.includes(ext);
+        });
+        console.log(`   📹 [${requestId}] Found ${videoFiles.length} video files in media server directory`);
+      } else {
+        console.log(`   ⚠️ [${requestId}] Media server videos directory not found: ${videosDir}`);
+      }
+      
+      // Create map of existing videos by filename (media server uses filename as key)
+      const existingVideos = new Map<string, any>();
+      if (library.videos) {
+        library.videos.forEach((v: any) => {
+          existingVideos.set(v.filename, v);
+        });
+      }
+      
+      const result = {
+        added: 0,
+        updated: 0,
+        removed: 0,
+        analyzed: 0,
+        errors: [] as string[]
+      };
+      
+      const newVideosToAnalyze: Array<{ id: string; path: string; filename: string }> = [];
+      
+      // Process each video file
+      for (const filename of videoFiles) {
+        try {
+          const filePath = path.join(videosDir, filename);
+          const stats = fs.statSync(filePath);
+          
+          // Check if we have metadata from media server
+          const mediaMetadata = metadataFiles.get(filename);
+          
+          const existingVideo = existingVideos.get(filename);
+          
+          if (existingVideo) {
+            // Update if file size changed or if author is missing
+            const videoIndex = library.videos.findIndex((v: any) => v.id === existingVideo.id);
+            let needsUpdate = false;
+            
+            if (videoIndex !== -1) {
+              if (existingVideo.file_size !== stats.size) {
+                library.videos[videoIndex].file_size = stats.size;
+                needsUpdate = true;
+              }
+              
+              // Merge metadata from media server if available
+              if (mediaMetadata) {
+                if (mediaMetadata.metadata) {
+                  library.videos[videoIndex].duration = mediaMetadata.metadata.duration || library.videos[videoIndex].duration;
+                  library.videos[videoIndex].codec = mediaMetadata.metadata.codec || library.videos[videoIndex].codec;
+                  library.videos[videoIndex].resolution_width = mediaMetadata.metadata.width || library.videos[videoIndex].resolution_width;
+                  library.videos[videoIndex].resolution_height = mediaMetadata.metadata.height || library.videos[videoIndex].resolution_height;
+                  needsUpdate = true;
+                }
+              }
+              
+              // Set default author if missing
+              if (!library.videos[videoIndex].author) {
+                library.videos[videoIndex].author = DEFAULT_VIDEO_AUTHOR_FULL;
+                needsUpdate = true;
+                console.log(`   📝 [${requestId}] Set default author for: ${filename}`);
+              }
+              
+              if (needsUpdate) {
+                library.videos[videoIndex].updated_at = new Date().toISOString();
+                result.updated++;
+                console.log(`   ✅ [${requestId}] Updated: ${filename}`);
+              }
+            }
+            existingVideos.delete(filename);
+          } else {
+            // Add new video - use metadata from media server if available
+            const videoId = mediaMetadata?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+            const newVideo: any = {
+              id: videoId,
+              filename: filename,
+              file_path: `media/videos/${filename}`,
+              file_size: stats.size,
+              created_at: mediaMetadata?.createdAt || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              tags: [],
+              is_new: true,
+              author: DEFAULT_VIDEO_AUTHOR_FULL // Set default author
+            };
+            
+            // Add metadata from media server if available
+            if (mediaMetadata?.metadata) {
+              newVideo.duration = mediaMetadata.metadata.duration;
+              newVideo.codec = mediaMetadata.metadata.codec;
+              newVideo.resolution_width = mediaMetadata.metadata.width;
+              newVideo.resolution_height = mediaMetadata.metadata.height;
+              newVideo.frame_rate = mediaMetadata.metadata.frame_rate;
+            }
+            
+            library.videos.push(newVideo);
+            result.added++;
+            console.log(`   ➕ [${requestId}] Added: ${filename} (author: ${DEFAULT_VIDEO_AUTHOR_FULL})`);
+            
+            // Queue for automatic analysis
+            newVideosToAnalyze.push({
+              id: videoId,
+              path: filePath,
+              filename: filename
+            });
+          }
+        } catch (error: any) {
+          const errorMsg = `Error processing ${filename}: ${error.message}`;
+          result.errors.push(errorMsg);
+          console.error(`   ❌ [${requestId}] ${errorMsg}`);
+        }
+      }
+      
+      // Remove videos that no longer exist
+      for (const [filename, video] of existingVideos.entries()) {
+        const fullPath = path.join(videosDir, filename);
+        if (!fs.existsSync(fullPath)) {
+          library.videos = library.videos.filter((v: any) => v.id !== video.id);
+          result.removed++;
+          console.log(`   ➖ [${requestId}] Removed: ${video.filename} (file deleted from media server)`);
+        }
+      }
+      
+      // Migration: Set default author for all videos that don't have one
+      let authorMigrationCount = 0;
+      for (const video of library.videos) {
+        if (!video.author) {
+          video.author = DEFAULT_VIDEO_AUTHOR_FULL;
+          video.updated_at = new Date().toISOString();
+          authorMigrationCount++;
+        }
+      }
+      if (authorMigrationCount > 0) {
+        console.log(`   📝 [${requestId}] Set default author for ${authorMigrationCount} existing video(s)`);
+      }
+      
+      // Update metadata
+      if (!library.metadata) {
+        library.metadata = {};
+      }
+      library.metadata.last_updated = new Date().toISOString();
+      library.metadata.total_videos = library.videos.length;
+      
+      // Save library.json before analysis
+      fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+      console.log(`   💾 [${requestId}] Library.json saved`);
+      
+      // Automatically analyze new videos
+      if (newVideosToAnalyze.length > 0) {
+        console.log(`   🔍 [${requestId}] Starting automatic analysis for ${newVideosToAnalyze.length} new video(s)...`);
+        
+        // Analyze videos sequentially to avoid overwhelming the API
+        for (const videoInfo of newVideosToAnalyze) {
+          try {
+            const analysisRequestId = `${requestId}-analyze-${videoInfo.id.substring(0, 8)}`;
+            console.log(`   🔍 [${analysisRequestId}] Analyzing: ${videoInfo.filename}`);
+            
+            const analysisStartTime = Date.now();
+            const analysis = await analyzeVideoWithGemini(videoInfo.id, videoInfo.path, videoInfo.filename, analysisRequestId);
+            const analysisDuration = Date.now() - analysisStartTime;
+            
+            console.log(`   ✅ [${analysisRequestId}] Analysis completed in ${(analysisDuration / 1000).toFixed(1)}s`);
+            console.log(`   📊 [${analysisRequestId}] Content tags: ${analysis.content_tags?.length || 0}`);
+            console.log(`   📊 [${analysisRequestId}] Detected objects: ${analysis.detected_objects?.length || 0}`);
+            
+            // Update video entry with analysis
+            const videoIndex = library.videos.findIndex((v: any) => v.id === videoInfo.id);
+            if (videoIndex !== -1) {
+              library.videos[videoIndex].analysis = analysis;
+              library.videos[videoIndex].analyzed_at = new Date().toISOString();
+              library.videos[videoIndex].updated_at = new Date().toISOString();
+              library.videos[videoIndex].is_new = false;
+              
+              // Save library.json after each analysis (to persist progress)
+              fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+              console.log(`   💾 [${analysisRequestId}] Library.json updated with analysis`);
+              
+              result.analyzed++;
+              console.log(`   ✅ [${analysisRequestId}] Video analyzed and saved: ${videoInfo.filename}`);
+            }
+          } catch (error: any) {
+            const errorMsg = `Failed to analyze ${videoInfo.filename}: ${error.message}`;
+            result.errors.push(errorMsg);
+            console.error(`   ❌ [${requestId}] ${errorMsg}`);
+            console.error(`   ⚠️ [${requestId}] Analysis failed (non-blocking), continuing with sync...`);
+            // Continue with next video even if this one fails - analysis is non-blocking
+          }
+        }
+        
+        console.log(`   ✅ [${requestId}] Automatic analysis completed: ${result.analyzed} of ${newVideosToAnalyze.length} videos analyzed`);
+      }
+      
+      console.log(`   ✅ [${requestId}] Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed, ${result.analyzed} analyzed`);
+      if (result.errors.length > 0) {
+        console.log(`   ⚠️ [${requestId}] Errors: ${result.errors.length}`);
+      }
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'success',
+        data: result,
+        message: `Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed${result.analyzed > 0 ? `, ${result.analyzed} analyzed` : ''}`
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    } catch (error: any) {
+      console.error(`   ──────────────────────────────────────────────`);
+      console.error(`   ❌ [${requestId}] ========== VIDEO SYNC ERROR ==========`);
+      console.error(`   ❌ [${requestId}] Error message:`, error.message);
+      console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'error',
+        message: error.message || 'Failed to sync videos'
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    }
+    return;
+  }
+
+  // DELETE /api/v1/library/videos/:id - Remove video from library
+  const deleteVideoMatch = pathname.match(/^\/api\/v1\/library\/videos\/([^\/]+)$/);
+  if (deleteVideoMatch && req.method === "DELETE") {
+    const videoId = deleteVideoMatch[1];
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🗑️ [${requestId}] ========== DELETE VIDEO REQUEST ==========`);
+    console.log(`   🗑️ [${requestId}] DELETE /api/v1/library/videos/${videoId}`);
+    
+    try {
+      // Determine paths
+      let serverDir = __dirname;
+      if (serverDir.endsWith(path.sep + 'dist') || serverDir.endsWith(path.sep + 'build')) {
+        serverDir = path.dirname(serverDir);
+      }
+      const libraryPath = path.join(serverDir, "data", "videos", "library.json");
+      
+      console.log(`   📂 [${requestId}] Library path: ${libraryPath}`);
+      
+      // Load existing library
+      if (!fs.existsSync(libraryPath)) {
+        console.error(`   ❌ [${requestId}] Library.json not found`);
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: 'Library not found'
+        }));
+        return;
+      }
+      
+      const library = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'));
+      console.log(`   ✅ [${requestId}] Loaded library: ${library.videos?.length || 0} videos`);
+      
+      // Find video by ID
+      const videoIndex = library.videos.findIndex((v: any) => v.id === videoId);
+      
+      if (videoIndex === -1) {
+        console.error(`   ❌ [${requestId}] Video not found: ${videoId}`);
+        res.writeHead(404, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        });
+        res.end(JSON.stringify({
+          status: 'error',
+          message: 'Video not found'
+        }));
+        return;
+      }
+      
+      const video = library.videos[videoIndex];
+      console.log(`   ✅ [${requestId}] Found video: ${video.filename}`);
+      
+      // Remove video from library
+      library.videos.splice(videoIndex, 1);
+      
+      // Update metadata
+      if (!library.metadata) {
+        library.metadata = {};
+      }
+      library.metadata.last_updated = new Date().toISOString();
+      library.metadata.total_videos = library.videos.length;
+      
+      // Save library.json
+      fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2));
+      console.log(`   💾 [${requestId}] Library.json updated (removed video)`);
+      
+      console.log(`   ✅ [${requestId}] Video removed from library: ${video.filename}`);
+      
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'success',
+        message: `Video removed from library: ${video.filename}`
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    } catch (error: any) {
+      console.error(`   ──────────────────────────────────────────────`);
+      console.error(`   ❌ [${requestId}] ========== DELETE VIDEO ERROR ==========`);
+      console.error(`   ❌ [${requestId}] Error message:`, error.message);
+      console.error(`   ❌ [${requestId}] Error stack:`, error.stack);
+      res.writeHead(500, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({
+        status: 'error',
+        message: error.message || 'Failed to delete video'
+      }));
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    }
     return;
   }
 

@@ -26,6 +26,125 @@ if (!fs.existsSync(HISTORY_DATA_PATH)) {
 }
 
 /**
+ * Repair incomplete or malformed JSON string
+ * Handles common issues like missing commas, incomplete values, unclosed braces, etc.
+ */
+function repairJSON(jsonStr: string): string {
+  let repaired = jsonStr;
+  
+  // Fix incomplete property values (e.g., "property": without value)
+  repaired = repaired.replace(/:\s*$/gm, ': null');
+  repaired = repaired.replace(/:\s*,\s*/g, ': null,');
+  repaired = repaired.replace(/:\s*}/g, ': null}');
+  repaired = repaired.replace(/:\s*]/g, ': null]');
+  
+  // Fix unquoted words that should be numbers or null
+  repaired = repaired.replace(/:\s*(present|current|now)\s*([,}])/gi, ': 2026$2');
+  repaired = repaired.replace(/:\s*(present|current|now)\s*]/gi, ': 2026]');
+  
+  // Fix trailing commas before closing braces/brackets
+  repaired = repaired.replace(/,\s*}/g, '}');
+  repaired = repaired.replace(/,\s*]/g, ']');
+  repaired = repaired.replace(/,\s*,/g, ',');
+  
+  // Fix incomplete strings (unclosed quotes)
+  // Find strings that start with " but don't have a closing " before the next : or ,
+  repaired = repaired.replace(/"([^"]*?)(?=\s*[:\],}])/g, (match, content) => {
+    // If the match doesn't end with ", it's incomplete - close it
+    if (!match.endsWith('"')) {
+      return `"${content.replace(/"/g, '\\"')}"`;
+    }
+    return match;
+  });
+  
+  // Fix incomplete objects - ensure all opening braces have closing braces
+  let openBraces = (repaired.match(/{/g) || []).length;
+  let closeBraces = (repaired.match(/}/g) || []).length;
+  if (openBraces > closeBraces) {
+    repaired += '}'.repeat(openBraces - closeBraces);
+  }
+  
+  // Fix incomplete arrays - ensure all opening brackets have closing brackets
+  let openBrackets = (repaired.match(/\[/g) || []).length;
+  let closeBrackets = (repaired.match(/\]/g) || []).length;
+  if (openBrackets > closeBrackets) {
+    repaired += ']'.repeat(openBrackets - closeBrackets);
+  }
+  
+  // Remove incomplete property at the end (property name followed by colon but no value)
+  repaired = repaired.replace(/,\s*"[^"]+"\s*:\s*$/g, '');
+  repaired = repaired.replace(/,\s*"[^"]+"\s*:\s*}/g, '}');
+  repaired = repaired.replace(/,\s*"[^"]+"\s*:\s*]/g, ']');
+  
+  // Fix double commas
+  repaired = repaired.replace(/,\s*,/g, ',');
+  
+  // Fix missing commas between objects in arrays
+  repaired = repaired.replace(/}\s*{/g, '},{');
+  
+  // Fix missing commas between properties
+  repaired = repaired.replace(/"\s*"/g, '","');
+  repaired = repaired.replace(/}\s*"/g, '},"');
+  repaired = repaired.replace(/]\s*"/g, '],"');
+  
+  return repaired;
+}
+
+/**
+ * Safely parse JSON with repair attempts
+ */
+function safeParseJSON(jsonStr: string, context: string = ''): any {
+  // First, try to extract JSON from markdown code blocks
+  let cleaned = jsonStr.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/```\n?/g, '').trim();
+  }
+  
+  // Extract JSON object/array
+  const objStart = cleaned.indexOf('{');
+  const arrStart = cleaned.indexOf('[');
+  let startIndex = -1;
+  let endChar = '';
+  
+  if (objStart !== -1 && (arrStart === -1 || objStart < arrStart)) {
+    startIndex = objStart;
+    endChar = '}';
+  } else if (arrStart !== -1) {
+    startIndex = arrStart;
+    endChar = ']';
+  }
+  
+  if (startIndex !== -1) {
+    const endIndex = cleaned.lastIndexOf(endChar);
+    if (endIndex > startIndex) {
+      cleaned = cleaned.substring(startIndex, endIndex + 1);
+    } else {
+      // JSON is incomplete, try to find where it cuts off
+      cleaned = cleaned.substring(startIndex);
+    }
+  }
+  
+  // Fix common JSON errors
+  cleaned = cleaned.replace(/\b(present|current|now)\b/gi, '2026');
+  
+  // Try parsing
+  try {
+    return JSON.parse(cleaned);
+  } catch (error: any) {
+    // Try repairing and parsing again
+    try {
+      const repaired = repairJSON(cleaned);
+      return JSON.parse(repaired);
+    } catch (repairError: any) {
+      // If repair fails, throw original error with context
+      throw new Error(`${context ? context + ': ' : ''}${error.message}`);
+    }
+  }
+}
+
+/**
  * Generate historical periods using LLM
  */
 async function generateHistoricalPeriods(): Promise<any[]> {
@@ -80,28 +199,8 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
     
     // Parse JSON response
     let periods: any[] = [];
-    let jsonStr = '';
     try {
-      // Try to extract JSON from response
-      jsonStr = response.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
-      }
-      
-      // Extract JSON array
-      const arrayStart = jsonStr.indexOf('[');
-      const arrayEnd = jsonStr.lastIndexOf(']');
-      if (arrayStart !== -1 && arrayEnd !== -1 && arrayEnd > arrayStart) {
-        jsonStr = jsonStr.substring(arrayStart, arrayEnd + 1);
-      }
-      
-      // Fix common JSON errors: unquoted words like "present", "current", "now"
-      const currentYear = new Date().getFullYear();
-      jsonStr = jsonStr.replace(/:\s*(present|current|now)\s*([,}])/gi, `: ${currentYear}$2`);
-      
-      const parsed = JSON.parse(jsonStr);
+      const parsed = safeParseJSON(response, 'generateHistoricalPeriods');
       if (Array.isArray(parsed)) {
         periods = parsed;
         // Ensure each period has globalEvents array
@@ -263,34 +362,14 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
     console.log(response);
     console.log('=====================================');
     
-    // Parse JSON response
-    let figures: any[] = [];
-    let jsonStr = '';
-    try {
-      // Try to extract JSON from response
-      jsonStr = response.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
-      }
-      
-      // Extract JSON array
-      const arrayStart = jsonStr.indexOf('[');
-      const arrayEnd = jsonStr.lastIndexOf(']');
-      if (arrayStart !== -1 && arrayEnd !== -1 && arrayEnd > arrayStart) {
-        jsonStr = jsonStr.substring(arrayStart, arrayEnd + 1);
-      }
-      
-      // Fix common JSON errors: unquoted words like "present", "current", "now"
-      const currentYear = new Date().getFullYear();
-      jsonStr = jsonStr.replace(/:\s*(present|current|now)\s*([,}])/gi, `: ${currentYear}$2`);
-      
-      const parsed = JSON.parse(jsonStr);
-      if (Array.isArray(parsed)) {
-        figures = parsed;
-      }
-    } catch (parseError: any) {
+      // Parse JSON response
+      let figures: any[] = [];
+      try {
+        const parsed = safeParseJSON(response, 'generateHistoricalFigures');
+        if (Array.isArray(parsed)) {
+          figures = parsed;
+        }
+      } catch (parseError: any) {
       // Non-blocking: Log warning but continue with extraction
       console.warn('⚠️ [History] JSON parse warning (non-blocking):', parseError.message);
       console.log('👤 [History] Attempting to extract partial data from response...');
@@ -466,20 +545,7 @@ Return ONLY a JSON object with this exact format (no markdown, no explanations):
       
       // Try to parse the response
       try {
-        let jsonStr = searchResponse.trim();
-        if (jsonStr.startsWith('```json')) {
-          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        } else if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/```\n?/g, '').trim();
-        }
-        
-        const objStart = jsonStr.indexOf('{');
-        const objEnd = jsonStr.lastIndexOf('}');
-        if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
-          jsonStr = jsonStr.substring(objStart, objEnd + 1);
-        }
-        
-        figureData = JSON.parse(jsonStr);
+        figureData = safeParseJSON(searchResponse, 'generateAutobiographyResponse on-demand figure');
       } catch (parseError) {
         console.warn('⚠️ [History] Could not parse on-demand figure data, using fallback');
         // Use a fallback with the name we extracted
@@ -595,25 +661,8 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
     let popularItems: any[] = [];
     let jsonStr = '';
     try {
-      // Try to extract JSON from response
-      jsonStr = response.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
-      }
-      
-      // Extract JSON array
-      const arrStart = jsonStr.indexOf('[');
-      const arrEnd = jsonStr.lastIndexOf(']');
-      if (arrStart !== -1 && arrEnd !== -1 && arrEnd > arrStart) {
-        jsonStr = jsonStr.substring(arrStart, arrEnd + 1);
-      }
-      
-      // Fix common JSON errors
-      jsonStr = jsonStr.replace(/\b(present|current|now)\b/gi, '2026');
-      
-      popularItems = JSON.parse(jsonStr);
+      // Parse JSON response using safe parser
+      popularItems = safeParseJSON(response, 'generatePopularItems');
       
       // Ensure it's an array
       if (!Array.isArray(popularItems)) {
@@ -639,7 +688,7 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
       
       // Try to extract partial data
       try {
-        const itemsMatch = jsonStr.match(/\[(.*?)\]/s);
+        const itemsMatch = response.match(/\[(.*?)\]/s);
         if (itemsMatch) {
           // Try to extract complete objects
           const extractCompleteObjects = (content: string): any[] => {
@@ -1097,14 +1146,7 @@ CRITICAL: Return ONLY valid JSON. No markdown, no explanations, just the JSON ar
         jsonStr = jsonStr.replace(/```\n?/g, '').trim();
       }
       
-      // Extract JSON array
-      const arrayStart = jsonStr.indexOf('[');
-      const arrayEnd = jsonStr.lastIndexOf(']');
-      if (arrayStart !== -1 && arrayEnd !== -1 && arrayEnd > arrayStart) {
-        jsonStr = jsonStr.substring(arrayStart, arrayEnd + 1);
-      }
-      
-      continents = JSON.parse(jsonStr);
+      continents = safeParseJSON(response, 'generateContinents');
       
       // Validate structure
       if (!Array.isArray(continents)) {
@@ -1418,17 +1460,7 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
         jsonStr = jsonStr.replace(/```\n?/g, '').trim();
       }
       
-      // Extract JSON object
-      const objStart = jsonStr.indexOf('{');
-      const objEnd = jsonStr.lastIndexOf('}');
-      if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
-        jsonStr = jsonStr.substring(objStart, objEnd + 1);
-      }
-      
-      // Fix common JSON errors
-      jsonStr = jsonStr.replace(/\b(present|current|now)\b/gi, '2026');
-      
-      countryHistory = JSON.parse(jsonStr);
+      countryHistory = safeParseJSON(response, `generateCountryHistory(${countryName})`);
       
       // Ensure all required fields exist
       if (!countryHistory.periods) countryHistory.periods = [];

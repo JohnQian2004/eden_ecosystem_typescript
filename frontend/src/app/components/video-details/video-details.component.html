@@ -84,6 +84,14 @@
               </div>
             </div>
           </div>
+          <div class="col-md-6" *ngIf="video.author">
+            <div class="card">
+              <div class="card-body">
+                <strong>Author:</strong>
+                <p class="mb-0">{{ video.author }}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -274,6 +282,11 @@
   <button class="btn btn-warning" (click)="removeAudio()">
     <i class="bi bi-volume-mute me-2"></i>
     Remove Audio
+  </button>
+  <button class="btn btn-danger" (click)="removeFromLibrary()" [disabled]="deleting">
+    <i class="bi bi-trash me-2"></i>
+    <span *ngIf="deleting">Removing...</span>
+    <span *ngIf="!deleting">Remove from Library</span>
   </button>
   <button class="btn btn-secondary" (click)="closeModal()">Close</button>
 </div>
