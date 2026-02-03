@@ -28,7 +28,7 @@
         (click)="selectBook(book)">
         <div class="book-overlay"></div>
         <div class="book-content">
-          <div class="book-icon">📖</div>
+          <!-- <div class="book-icon">📖</div> -->
           <h3 class="book-title">{{ book.title }}</h3>
           <p *ngIf="book.author" class="book-author">by {{ book.author }}</p>
           <p *ngIf="book.chapters && book.chapters > 0" class="book-chapters">{{ book.chapters }} chapters</p>

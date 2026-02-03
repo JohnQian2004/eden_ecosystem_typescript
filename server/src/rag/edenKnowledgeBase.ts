@@ -9,7 +9,7 @@ export interface EdenKnowledgeDocument {
   id: string;
   title: string;
   content: string;
-  category: 'architecture' | 'governance' | 'features' | 'concepts' | 'ui' | 'messaging' | 'dex' | 'deployment';
+  category: 'architecture' | 'governance' | 'features' | 'concepts' | 'ui' | 'messaging' | 'dex' | 'deployment' | 'bible';
   keywords: string[];
   relevanceScore?: number;
 }
@@ -389,11 +389,57 @@ export function getKnowledgeContext(query: string): string {
     console.log(`📚 [RAG] LLM-generated knowledge base not available (this is OK if not generated yet)`);
   }
   
+  // Try to load Bible knowledge base
+  let bibleDocs: EdenKnowledgeDocument[] = [];
+  try {
+    const { BIBLE_KNOWLEDGE_BASE } = require('./bibleKnowledgeBase');
+    if (BIBLE_KNOWLEDGE_BASE && Array.isArray(BIBLE_KNOWLEDGE_BASE)) {
+      console.log(`📖 [RAG] Loaded ${BIBLE_KNOWLEDGE_BASE.length} documents from Bible knowledge base`);
+      
+      // Search Bible knowledge base (especially for Bible-related queries)
+      const queryLower = query.toLowerCase();
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+      
+      // Check if query is Bible-related
+      const isBibleQuery = /\b(bible|scripture|genesis|exodus|leviticus|numbers|deuteronomy|joshua|judges|ruth|samuel|kings|chronicles|ezra|nehemiah|esther|job|psalm|proverb|ecclesiastes|song|isaiah|jeremiah|lamentation|ezekiel|daniel|hosea|joel|amos|obadiah|jonah|micah|nahum|habakkuk|zephaniah|haggai|zechariah|malachi|matthew|mark|luke|john|acts|romans|corinthians|galatians|ephesians|philippians|colossians|thessalonians|timothy|titus|philemon|hebrews|james|peter|jude|revelation|chapter|verse|gospel|epistle|testament)\b/i.test(query);
+      
+      if (isBibleQuery) {
+        const scoredDocs = BIBLE_KNOWLEDGE_BASE.map((doc: EdenKnowledgeDocument) => {
+          let score = 0;
+          if (doc.title.toLowerCase().includes(queryLower)) score += 20; // Higher weight for Bible queries
+          doc.keywords.forEach(keyword => {
+            if (queryLower.includes(keyword.toLowerCase())) score += 10; // Higher weight for Bible keywords
+          });
+          queryWords.forEach(word => {
+            if (doc.content.toLowerCase().includes(word)) score += 2;
+            if (doc.title.toLowerCase().includes(word)) score += 5;
+          });
+          return { ...doc, relevanceScore: score };
+        });
+        
+        bibleDocs = scoredDocs
+          .filter((doc: any) => doc.relevanceScore! > 0)
+          .sort((a: any, b: any) => b.relevanceScore! - a.relevanceScore!)
+          .slice(0, 5); // Get top 5 Bible results
+        
+        console.log(`📖 [RAG] Found ${bibleDocs.length} relevant Bible documents`);
+      }
+    }
+  } catch (error) {
+    // Bible knowledge base not available, use other sources only
+    console.log(`📖 [RAG] Bible knowledge base not available (this is OK if not generated yet)`);
+  }
+  
   // Combine and deduplicate
   const allDocs = [...manualDocs];
   generatedDocs.forEach(genDoc => {
     if (!allDocs.find(d => d.id === genDoc.id)) {
       allDocs.push(genDoc);
+    }
+  });
+  bibleDocs.forEach(bibleDoc => {
+    if (!allDocs.find(d => d.id === bibleDoc.id)) {
+      allDocs.push(bibleDoc);
     }
   });
   

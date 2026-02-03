@@ -11,7 +11,8 @@
     "prepublishOnly": "npm run clean && npm run build",
     "dev": "start-dev.bat",
     "generate-certs": "node scripts/generate-pki-certs.js",
-    "migrate-media": "npx ts-node scripts/migrate-to-media-server.ts"
+    "migrate-media": "npx ts-node scripts/migrate-to-media-server.ts",
+    "generate-bible-rag": "npx ts-node src/rag/bibleRAGGenerator.ts"
   },
   "keywords": [
     "eden",

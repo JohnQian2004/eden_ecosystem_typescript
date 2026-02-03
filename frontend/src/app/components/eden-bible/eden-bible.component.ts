@@ -473,19 +473,40 @@ export class EdenBibleComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get background image URL for a book using media server
+   * Get background image URL for a book using media server (name-based)
    */
   getBookBackgroundImage(book: Book): string {
-    // Generate a consistent random number based on book ID
-    let hash = 0;
-    for (let i = 0; i < book.id.length; i++) {
-      const char = book.id.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+    // Use book title as the image name
+    const name = book.title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    return `${this.mediaServerUrl}/image?name=${encodeURIComponent(name)}`;
+  }
+
+  /**
+   * Get background image URL for a Bible book using media server (name-based)
+   */
+  getBibleBookBackgroundImage(bibleBook: BibleBook): string {
+    // Use Bible book name (e.g., "Genesis", "Exodus") as the image name
+    const name = bibleBook.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    return `${this.mediaServerUrl}/image?name=${encodeURIComponent(name)}`;
+  }
+
+  /**
+   * Get background image URL for a chapter using media server (name-based)
+   */
+  getChapterBackgroundImage(chapter: Chapter): string {
+    // Use chapter title or book name + chapter number as the image name
+    let name = '';
+    if (this.selectedBibleBook) {
+      // Use Bible book name + chapter number (e.g., "genesis-1", "james-2")
+      name = `${this.selectedBibleBook.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${chapter.number}`;
+    } else if (chapter.title) {
+      // Use chapter title if available
+      name = chapter.title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    } else {
+      // Fallback to chapter number only
+      name = `chapter-${chapter.number}`;
     }
-    // Convert to positive 6-digit number
-    const random = Math.abs(hash).toString().padStart(6, '0').substring(0, 6);
-    return `${this.mediaServerUrl}/image?random=${random}`;
+    return `${this.mediaServerUrl}/image?name=${encodeURIComponent(name)}`;
   }
 }
 

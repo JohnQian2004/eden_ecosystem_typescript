@@ -19,7 +19,9 @@
       <div 
         *ngFor="let bibleBook of bibleBooks" 
         class="bible-book-card"
+        [style.background-image]="'url(' + getBibleBookBackgroundImage(bibleBook) + ')'"
         (click)="selectBibleBook(bibleBook)">
+        <div class="bible-book-overlay"></div>
         <div class="bible-book-content">
           <div class="bible-book-number">{{ bibleBook.bookNumber }}</div>
           <h4 class="bible-book-name">{{ bibleBook.name }}</h4>
@@ -57,9 +59,13 @@
         <div 
           *ngFor="let chapter of filteredChapters" 
           class="chapter-card"
+          [style.background-image]="'url(' + getChapterBackgroundImage(chapter) + ')'"
           (click)="selectChapter(chapter)">
-          <div class="chapter-number">Chapter {{ chapter.number }}</div>
-          <div class="chapter-title">{{ chapter.title }}</div>
+          <div class="chapter-overlay"></div>
+          <div class="chapter-content">
+            <div class="chapter-number">Chapter {{ chapter.number }}</div>
+            <div class="chapter-title">{{ chapter.title }}</div>
+          </div>
         </div>
       </div>
       

@@ -5,6 +5,7 @@
 import { Router, Request, Response } from 'express';
 import { MediaServer } from '../mediaServer';
 import { imageGenerator } from '../services/imageGenerator';
+import { nameImageService } from '../services/nameImageService';
 
 export function mediaRoutes(mediaServer: MediaServer): Router {
   const router = Router();
@@ -16,10 +17,32 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
   });
 
   // Random image generation: GET /api/media/image?random=999999
-  // Also supports: GET /image?random=999999 (without /api/media prefix for flexibility)
+  // Name-based image: GET /api/media/image?name=genesis
+  // Also supports: GET /image?random=999999 or GET /image?name=genesis (without /api/media prefix for flexibility)
   router.get('/image', async (req: Request, res: Response) => {
     const random = req.query.random;
+    const name = req.query.name as string | undefined;
     
+    // Handle name-based image requests (with caching)
+    if (name) {
+      try {
+        console.log(`🖼️ [MediaRoutes] Requesting image for name: "${name}"`);
+        const result = await nameImageService.getImageByName(name);
+        
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('X-Image-Source', result.source);
+        res.send(result.buffer);
+        return;
+      } catch (error: any) {
+        console.error('❌ [MediaRoutes] Failed to fetch name-based image:', error);
+        res.status(500).json({ error: 'Failed to fetch image', message: error.message });
+        return;
+      }
+    }
+    
+    // Handle random image generation
     if (random) {
       try {
         // Convert query parameter to string or number
@@ -43,9 +66,25 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
       return;
     }
 
-    // If no random parameter, treat as regular image request by ID
+    // If no random or name parameter, treat as regular image request by ID
     // This maintains backward compatibility
-    res.status(400).json({ error: 'Missing image ID or random parameter' });
+    res.status(400).json({ error: 'Missing image ID, random parameter, or name parameter' });
+  });
+
+  // Picsum random image: GET /api/media/image/picsum
+  router.get('/image/picsum', async (req: Request, res: Response) => {
+    try {
+      console.log(`🖼️ [MediaRoutes] Requesting Picsum random image`);
+      const imageBuffer = await nameImageService.getPicsumImage();
+      
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache for random images
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(imageBuffer);
+    } catch (error: any) {
+      console.error('❌ [MediaRoutes] Failed to fetch Picsum image:', error);
+      res.status(500).json({ error: 'Failed to fetch Picsum image', message: error.message });
+    }
   });
 
   // AI image generation: GET /api/media/image/ai?text=sky

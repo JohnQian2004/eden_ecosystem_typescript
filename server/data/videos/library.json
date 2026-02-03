@@ -359,13 +359,112 @@
       "updated_at": "2026-02-02T23:04:36.692Z",
       "tags": [],
       "is_new": true
+    },
+    {
+      "id": "1770075587220-lyffwo",
+      "filename": "2025-12-04-094958123_1770075587210.mp4",
+      "file_path": "videos\\2025-12-04-094958123_1770075587210.mp4",
+      "file_size": 5314280,
+      "created_at": "2026-02-02T23:39:47.220Z",
+      "updated_at": "2026-02-02T23:40:02.957Z",
+      "tags": [],
+      "is_new": true,
+      "analysis": {
+        "content_tags": [
+          "dancing",
+          "celebration",
+          "cultural",
+          "political satire",
+          "AI generated",
+          "crowd",
+          "traditional attire",
+          "Donald Trump"
+        ],
+        "detected_objects": [
+          "person",
+          "clothing",
+          "jewelry",
+          "hut",
+          "dirt ground"
+        ],
+        "scene_type": "outdoor",
+        "shot_type": "medium-wide",
+        "camera_angle": "eye-level",
+        "camera_movement": "static",
+        "lighting_brightness": "normal",
+        "lighting_temperature": "neutral",
+        "time_of_day": "day",
+        "main_subject": {
+          "description": "The primary focus of the video is a digitally composited image of Donald Trump, appearing to dance energetically, surrounded by a group of approximately 15-20 African women who are also dancing and clapping. The entire scene is mirrored in two identical frames, stacked vertically, creating a continuous loop of movement."
+        },
+        "activity": {
+          "description": "The central activity is dancing and celebration. Donald Trump, wearing a business suit, is shown jumping and moving his arms rhythmically, smiling broadly. The women surrounding him are clapping their hands, swaying their bodies, and lifting their colorful skirts as they move. Their expressions are joyful, and their body language suggests a lively and enthusiastic performance. The movements of all subjects are synchronized and looped, contributing to a continuous dance sequence."
+        },
+        "environment": {
+          "description": "The setting is an informal outdoor gathering in what appears to be a rural African village or a slum-like residential area. The ground is packed dirt, reddish-brown in color, with some scattered debris. In the background, there are numerous simple, utilitarian structures resembling huts or shacks made of corrugated metal sheets or planks of wood. These buildings appear somewhat weathered and rustic. The overall impression is one of a community gathering space rather than a formal event location. The sky is overcast, suggesting diffused daylight."
+        },
+        "mood": {
+          "description": "The video conveys a mood of extreme joy, festivity, and high energy. The wide smiles and laughter from all participants, combined with their enthusiastic dancing and clapping, create a celebratory and lively atmosphere. There's an underlying sense of lightheartedness and possibly humor, given the unlikely juxtaposition of a formal figure like Donald Trump in this context."
+        },
+        "analysis_metadata": {
+          "lighting_quality": "natural, diffused",
+          "video_progression": "The video is a short, seamlessly looped animation. It presents two identical frames stacked vertically, with the bottom frame's animation slightly offset in time from the top one, creating a continuous flow of movement across the screen. From 0:00 to 0:01, Donald Trump is seen jumping with both feet off the ground, arms raised slightly. A woman in a yellow and pink skirt spins to her right. As the video progresses through 0:02-0:04, Trump lands and shuffles his feet, turning slightly, while the surrounding women continue their synchronized dancing and clapping, some lifting their skirts or swaying vigorously. By 0:05-0:07, Trump is back to jumping, and the movements repeat, creating a fluid, endless loop of dancing. The movements are consistent across both top and bottom frames, just slightly desynchronized.",
+          "colors": [
+            "Dominant colors are vibrant yellows, pinks, and reds from the women's clothing and accessories.",
+            "Black, white, and red from Donald Trump's suit and tie.",
+            "Earthy reddish-brown from the dirt ground.",
+            "Muted greens and browns from the background structures and vegetation.",
+            "Overall, the color palette is warm and bright."
+          ],
+          "composition": "The visual composition is a split-screen, with two identical frames stacked vertically. In each frame, Donald Trump is centered, surrounded by a semi-circle of dancing women. The background of simple huts and dirt fills the upper third of the frame, while the dancing figures occupy the middle and lower thirds. The composition feels balanced and symmetrical due to the central placement of Trump and the surrounding circle of women. The bright colors of the women's attire draw attention to the group, with Trump standing out in his contrasting formal wear.",
+          "details": [
+            "The patterns on the women's traditional clothing are intricate and appear to be block prints or woven designs.",
+            "The women's jewelry consists of large, multi-strand beaded necklaces and chunky bracelets, typical of some African styles.",
+            "Donald Trump's tie has diagonal white stripes.",
+            "The background structures are very simple, suggesting low-income housing or temporary shelters, possibly made of corrugated metal sheets."
+          ],
+          "visual_style": "AI-generated / digitally composited; appears stylized with a focus on vibrant colors and exaggerated expressions.",
+          "production_value": "Medium (appears professionally composited or AI-generated, but the concept is surreal/meme-like).",
+          "genre_indicators": [
+            "meme",
+            "viral video",
+            "political satire",
+            "digital art/animation"
+          ],
+          "depth_of_field": "Mixed, with the main subjects (people) in sharp focus and the background slightly softer, though still discernible.",
+          "video_quality": "High resolution, very stable, sharp focus on the subjects. The animation is smooth, and there is no visible grain or noise. The 'seamless' looping suggests high-quality digital manipulation or AI generation.",
+          "people": [
+            {
+              "count": 1,
+              "description": "Donald Trump, an older Caucasian male, is positioned centrally. He is wearing a dark grey or black suit, a white dress shirt, a bright red tie with white stripes, and black dress shoes. His hair is blonde and styled as usual. He is smiling widely, with an open-mouthed, laughing expression. His body language is energetic, with arms bent at the elbows, hands open or forming loose fists, and his legs frequently bending at the knees or lifting as if jumping or shuffling. He appears to be dancing enthusiastically.",
+              "age_estimate": "70s",
+              "gender": "male",
+              "clothing": "formal business suit (dark jacket, white shirt, red striped tie, dark trousers, black shoes)",
+              "expression": "broad, open-mouthed smile, laughing",
+              "body_language": "energetic, dancing, jumping, expressive hand gestures"
+            },
+            {
+              "count": "15-20 (approx.)",
+              "description": "A group of African women surrounds Donald Trump in a loose semicircle. They are predominantly middle-aged to older, with dark complexions. Each woman is dressed in vibrant, traditionally-inspired African attire, consisting of long, flowing skirts and matching or complementary blouses and headwraps. The clothing features bold patterns in bright colors like yellow, pink, orange, and red. Many wear large, colorful beaded necklaces, bracelets, and earrings. Their expressions are joyful, with wide smiles and laughter. Their body language indicates active participation in the dance, clapping their hands, swaying, and moving their hips and legs.",
+              "age_estimate": "30s-60s",
+              "gender": "female",
+              "clothing": "traditional African dresses, skirts, blouses, and headwraps in vibrant colors and patterns; elaborate beaded jewelry",
+              "expression": "wide smiles, joyful, laughing",
+              "body_language": "dancing, clapping, swaying, energetic and celebratory"
+            }
+          ],
+          "raw_analysis": "{\"scene_type\": \"outdoor\", \"shot_type\": \"medium-wide\", \"camera_angle\": \"eye-level\", \"camera_movement\": \"static\", \"lighting_brightness\": \"normal\", \"lighting_temperature\": \"neutral\", \"lighting_quality\": \"natural, diffused\", \"time_of_day\": \"day\", \"detected_objects\": [\"person\", \"clothing\", \"jewelry\", \"hut\", \"dirt ground\"], \"content_tags\": [\"dancing\", \"celebration\", \"cultural\", \"political satire\", \"AI generated\", \"crowd\", \"traditional attire\", \"Donald Trump\"], \"main_subject\": {\"description\": \"The primary focus of the video is a digitally composited image of Donald Trump, appearing to dance energetically, surrounded by a group of approximately 15-20 African women who are also dancing and clapping. The entire scene is mirrored in two identical frames, stacked vertically, creating a continuous loop of movement.\"}, \"activity\": {\"description\": \"The central activity is dancing and celebration. Donald Trump, wearing a business suit, is shown jumping and moving his arms rhythmically, smiling broadly. The women surrounding him are clapping their hands, swaying their bodies, and lifting their colorful skirts as they move. Their expressions are joyful, and their body language suggests a lively and enthusiastic performance. The movements of all subjects are synchronized and looped, contributing to a continuous dance sequence.\"}, \"objects\": [\"Donald Trump's dark grey/black suit jacket\", \"white dress shirt\", \"red striped tie\", \"black dress pants\", \"black dress shoes\", \"multiple women's traditional African dresses/skirts (long, flowing, predominantly yellow, pink, and red with intricate patterns, some geometric, some floral)\", \"headwraps on many women, matching their attire\", \"various pieces of colorful beaded jewelry including necklaces, bracelets, and earrings worn by the women\", \"simple, corrugated metal or wooden shacks/huts forming the background\", \"patches of green vegetation in the background\", \"dry, reddish-brown dirt ground with small stones and debris\"], \"environment\": {\"description\": \"The setting is an informal outdoor gathering in what appears to be a rural African village or a slum-like residential area. The ground is packed dirt, reddish-brown in color, with some scattered debris. In the background, there are numerous simple, utilitarian structures resembling huts or shacks made of corrugated metal sheets or planks of wood. These buildings appear somewhat weathered and rustic. The overall impression is one of a community gathering space rather than a formal event location. The sky is overcast, suggesting diffused daylight.\"}, \"people\": [{\"count\": 1, \"description\": \"Donald Trump, an older Caucasian male, is positioned centrally. He is wearing a dark grey or black suit, a white dress shirt, a bright red tie with white stripes, and black dress shoes. His hair is blonde and styled as usual. He is smiling widely, with an open-mouthed, laughing expression. His body language is energetic, with arms bent at the elbows, hands open or forming loose fists, and his legs frequently bending at the knees or lifting as if jumping or shuffling. He appears to be dancing enthusiastically.\", \"age_estimate\": \"70s\", \"gender\": \"male\", \"clothing\": \"formal business suit (dark jacket, white shirt, red striped tie, dark trousers, black shoes)\", \"expression\": \"broad, open-mouthed smile, laughing\", \"body_language\": \"energetic, dancing, jumping, expressive hand gestures\"}, {\"count\": \"15-20 (approx.)\", \"description\": \"A group of African women surrounds Donald Trump in a loose semicircle. They are predominantly middle-aged to older, with dark complexions. Each woman is dressed in vibrant, traditionally-inspired African attire, consisting of long, flowing skirts and matching or complementary blouses and headwraps. The clothing features bold patterns in bright colors like yellow, pink, orange, and red. Many wear large, colorful beaded necklaces, bracelets, and earrings. Their expressions are joyful, with wide smiles and laughter. Their body language indicates active participation in the dance, clapping their hands, swaying, and moving their hips and legs.\", \"age_estimate\": \"30s-60s\", \"gender\": \"female\", \"clothing\": \"traditional African dresses, skirts, blouses, and headwraps in vibrant colors and patterns; elaborate beaded jewelry\", \"expression\": \"wide smiles, joyful, laughing\", \"body_language\": \"dancing, clapping, swaying, energetic and celebratory\"}], \"mood\": {\"description\": \"The video conveys a mood of extreme joy, festivity, and high energy. The wide smiles and laughter from all participants, combined with their enthusiastic dancing and clapping, create a celebratory and lively atmosphere. There's an underlying sense of lightheartedness and possibly humor, given the unlikely juxtaposition of a formal figure like Donald Trump in this context.\"}, \"video_progression\": \"The video is a short, seamlessly looped animation. It presents two identical frames stacked vertically, with the bottom frame's animation slightly offset in time from the top one, creating a continuous flow of movement across the screen. From 0:00 to 0:01, Donald Trump is seen jumping with both feet off the ground, arms raised slightly. A woman in a yellow and pink skirt spins to her right. As the video progresses through 0:02-0:04, Trump lands and shuffles his feet, turning slightly, while the surrounding women continue their synchronized dancing and clapping, some lifting their skirts or swaying vigorously. By 0:05-0:07, Trump is back to jumping, and the movements repeat, creating a fluid, endless loop of dancing. The movements are consistent across both top and bottom frames, just slightly desynchronized.\", \"colors\": [\"Dominant colors are vibrant yellows, pinks, and reds from the women's clothing and accessories.\", \"Black, white, and red from Donald Trump's suit and tie.\", \"Earthy reddish-brown from the dirt ground.\", \"Muted greens and browns from the background structures and vegetation.\", \"Overall, the color palette is warm and bright.\"], \"composition\": \"The visual composition is a split-screen, with two identical frames stacked vertically. In each frame, Donald Trump is centered, surrounded by a semi-circle of dancing women. The background of simple huts and dirt fills the upper third of the frame, while the dancing figures occupy the middle and lower thirds. The composition feels balanced and symmetrical due to the central placement of Trump and the surrounding circle of women. The bright colors of the women's attire draw attention to the group, with Trump standing out in his contrasting formal wear.\", \"details\": [\"The patterns on the women's traditional clothing are intricate and appear to be block prints or woven designs.\", \"The women's jewelry consists of large, multi-strand beaded necklaces and chunky bracelets, typical of some African styles.\", \"Donald Trump's tie has diagonal white stripes.\", \"The background structures are very simple, suggesting low-income housing or temporary shelters, possibly made of corrugated metal sheets.\"], \"visual_style\": \"AI-generated / digitally composited; appears stylized with a focus on vibrant colors and exaggerated expressions.\", \"production_value\": \"Medium (appears professionally composited or AI-generated, but the concept is surreal/meme-like).\", \"genre_indicators\": [\"meme\", \"viral video\", \"political satire\", \"digital art/animation\"], \"depth_of_field\": \"Mixed, with the main subjects (people) in sharp focus and the background slightly softer, though still discernible.\", \"video_quality\": \"High resolution, very stable, sharp focus on the subjects. The animation is smooth, and there is no visible grain or noise. The 'seamless' looping suggests high-quality digital manipulation or AI generation.\"}"
+        },
+        "analyzed_at": "2026-02-02T23:40:02.954Z"
+      },
+      "analyzed_at": "2026-02-02T23:40:02.957Z"
     }
   ],
   "tags": [],
   "metadata": {
     "version": "1.0",
-    "last_updated": "2026-02-02T23:04:36.693Z",
-    "total_videos": 36
+    "last_updated": "2026-02-02T23:39:47.221Z",
+    "total_videos": 37
   },
   "last_cleaned": "2026-02-01T14:13:06.771Z"
 }

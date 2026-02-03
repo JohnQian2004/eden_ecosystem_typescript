@@ -29,10 +29,35 @@ app.use('/api/media', mediaRoutes(mediaServer));
 
 // Direct image generation routes (as per user requirements)
 // GET /image?random=999999
+// GET /image?name=genesis
 // GET /image/ai?text=sky
 app.get('/image', async (req, res) => {
   console.log(`🖼️ [MediaServer] /image route hit, query:`, req.query);
   const random = req.query.random;
+  const name = req.query.name as string | undefined;
+  
+  // Handle name-based image requests (with caching)
+  if (name) {
+    try {
+      const { nameImageService } = await import('./services/nameImageService');
+      console.log(`🖼️ [MediaServer] Requesting image for name: "${name}"`);
+      const result = await nameImageService.getImageByName(name);
+      
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Image-Source', result.source);
+      res.send(result.buffer);
+      console.log(`✅ [MediaServer] Image served for "${name}", source: ${result.source}, size: ${result.buffer.length} bytes`);
+      return;
+    } catch (error: any) {
+      console.error('❌ [MediaServer] Failed to fetch name-based image:', error);
+      res.status(500).json({ error: 'Failed to fetch image', message: error.message });
+      return;
+    }
+  }
+  
+  // Handle random image generation
   if (random) {
     try {
       const { imageGenerator } = await import('./services/imageGenerator');
@@ -59,10 +84,12 @@ app.get('/image', async (req, res) => {
       console.error(`❌ [MediaServer] Failed to generate random image:`, error);
       res.status(500).json({ error: 'Failed to generate random image', message: error.message });
     }
-  } else {
-    console.warn(`⚠️ [MediaServer] Missing random parameter in /image request`);
-    res.status(400).json({ error: 'Missing random parameter' });
+    return;
   }
+  
+  // If neither name nor random parameter is provided
+  console.warn(`⚠️ [MediaServer] Missing name or random parameter in /image request`);
+  res.status(400).json({ error: 'Missing name or random parameter' });
 });
 
 app.get('/image/ai', async (req, res) => {
