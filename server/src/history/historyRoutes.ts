@@ -112,8 +112,9 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
         });
       }
     } catch (parseError: any) {
-      console.error('Failed to parse LLM periods response:', parseError.message);
-      console.error('Attempting to extract partial data from response...');
+      // Non-blocking: Log warning but continue with extraction
+      console.warn('⚠️ [History] JSON parse warning (non-blocking):', parseError.message);
+      console.log('📜 [History] Attempting to extract partial data from response...');
       
       // Try to extract partial periods from the response using regex
       // Handle truncated JSON by finding complete objects
@@ -181,21 +182,22 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
             }
           }
         }
-        console.log(`✅ Extracted ${periods.length} periods from partial response`);
+        console.log(`✅ [History] Extracted ${periods.length} periods from partial response`);
       } catch (extractError) {
-        console.error('Failed to extract partial periods:', extractError);
+        console.warn('⚠️ [History] Extraction warning (non-blocking):', extractError);
       }
       
-      // If still no periods, return empty array (no defaults)
+      // If still no periods, return empty array (no defaults) - non-blocking
       if (periods.length === 0) {
-        console.error('No periods could be extracted from LLM response');
+        console.warn('⚠️ [History] No periods extracted, returning empty array (non-blocking)');
       }
     }
     
+    // Always return something, even if empty - never throw
     return periods;
   } catch (error: any) {
-    console.error('Failed to generate historical periods:', error);
-    // Return empty array on error
+    // Non-blocking: Log error but return empty array instead of throwing
+    console.warn('⚠️ [History] Generation warning (non-blocking):', error.message);
     return [];
   }
 }
@@ -289,8 +291,9 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
         figures = parsed;
       }
     } catch (parseError: any) {
-      console.error('Failed to parse LLM figures response:', parseError.message);
-      console.error('Attempting to extract partial data from response...');
+      // Non-blocking: Log warning but continue with extraction
+      console.warn('⚠️ [History] JSON parse warning (non-blocking):', parseError.message);
+      console.log('👤 [History] Attempting to extract partial data from response...');
       
       // Try to extract partial figures from the response using regex
       try {
@@ -359,21 +362,22 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
             });
           }
         }
-        console.log(`Extracted ${figures.length} figures from partial response`);
+        console.log(`✅ [History] Extracted ${figures.length} figures from partial response`);
       } catch (extractError) {
-        console.error('Failed to extract partial figures:', extractError);
+        console.warn('⚠️ [History] Extraction warning (non-blocking):', extractError);
       }
       
-      // If still no figures, return empty array (no defaults)
+      // If still no figures, return empty array (no defaults) - non-blocking
       if (figures.length === 0) {
-        console.error('No figures could be extracted from LLM response');
+        console.warn('⚠️ [History] No figures extracted, returning empty array (non-blocking)');
       }
     }
     
+    // Always return something, even if empty - never throw
     return figures;
   } catch (error: any) {
-    console.error('Failed to generate historical figures:', error);
-    // Return empty array on error
+    // Non-blocking: Log error but return empty array instead of throwing
+    console.warn('⚠️ [History] Generation warning (non-blocking):', error.message);
     return [];
   }
 }
@@ -387,10 +391,116 @@ async function generateAutobiographyResponse(
   conversationHistory: Array<{ role: string; content: string }>
 ): Promise<string> {
   const figures = await generateHistoricalFigures();
-  const figure = figures.find((f: any) => f.id === figureId);
+  
+  // Try exact ID match first
+  let figure = figures.find((f: any) => f.id === figureId);
+  
+  // If not found, try to find by name (extract name from ID)
+  if (!figure) {
+    // Convert ID to name format (e.g., "frederick-the-great-prussia" -> "Frederick the Great")
+    const nameFromId = figureId
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    
+    // Try exact name match
+    figure = figures.find((f: any) => 
+      f.name.toLowerCase() === nameFromId.toLowerCase() ||
+      f.name.toLowerCase().includes(nameFromId.toLowerCase()) ||
+      nameFromId.toLowerCase().includes(f.name.toLowerCase())
+    );
+    
+    // Try partial match on ID
+    if (!figure) {
+      figure = figures.find((f: any) => 
+        f.id.toLowerCase().includes(figureId.toLowerCase()) ||
+        figureId.toLowerCase().includes(f.id.toLowerCase())
+      );
+    }
+  }
   
   if (!figure) {
-    throw new Error(`Historical figure not found: ${figureId}`);
+    // Last resort: try to find by searching in the conversation history for the figure name
+    const figureNameFromHistory = conversationHistory
+      .find(msg => msg.role === 'figure')?.content
+      ?.match(/(?:I am|I'm|This is)\s+([^.]+)/i)?.[1]
+      ?.trim();
+    
+    if (figureNameFromHistory) {
+      figure = figures.find((f: any) => 
+        f.name.toLowerCase().includes(figureNameFromHistory.toLowerCase()) ||
+        figureNameFromHistory.toLowerCase().includes(f.name.toLowerCase())
+      );
+    }
+  }
+  
+  // If still not found, try to generate figure on-demand from the ID
+  if (!figure) {
+    console.log(`🔍 [History] Figure "${figureId}" not in global list, attempting to generate on-demand...`);
+    
+    // Extract name from ID (e.g., "frederick-the-great-prussia" -> "Frederick the Great")
+    const nameFromId = figureId
+      .split('-')
+      .filter(part => part !== 'prussia' && part !== 'the' && part !== 'of') // Remove common suffixes
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+      .replace(/\bThe\b/g, 'the'); // Fix "The" capitalization
+    
+    // Try to search for this figure using LLM
+    try {
+      const searchPrompt = `You are a world history expert. Provide brief information about the historical figure: ${nameFromId}
+
+Return ONLY a JSON object with this exact format (no markdown, no explanations):
+{
+  "id": "${figureId}",
+  "name": "Full Name",
+  "birthYear": number (can be negative for BCE),
+  "deathYear": number or null,
+  "nationality": "Country",
+  "occupation": "Occupation",
+  "biography": "2-3 sentence biography"
+}`;
+
+      const searchResponse = await callLLM(searchPrompt, true);
+      let figureData: any = null;
+      
+      // Try to parse the response
+      try {
+        let jsonStr = searchResponse.trim();
+        if (jsonStr.startsWith('```json')) {
+          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/```\n?/g, '').trim();
+        }
+        
+        const objStart = jsonStr.indexOf('{');
+        const objEnd = jsonStr.lastIndexOf('}');
+        if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
+          jsonStr = jsonStr.substring(objStart, objEnd + 1);
+        }
+        
+        figureData = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.warn('⚠️ [History] Could not parse on-demand figure data, using fallback');
+        // Use a fallback with the name we extracted
+        figureData = {
+          id: figureId,
+          name: nameFromId,
+          birthYear: 0,
+          deathYear: null,
+          nationality: 'Unknown',
+          occupation: 'Historical Figure',
+          biography: `A historical figure known as ${nameFromId}.`
+        };
+      }
+      
+      figure = figureData;
+      console.log(`✅ [History] Generated figure on-demand: ${figure.name}`);
+    } catch (error: any) {
+      console.warn(`⚠️ [History] Could not generate figure on-demand: ${error.message}`);
+      console.warn(`Available figures:`, figures.slice(0, 5).map((f: any) => `${f.id} (${f.name})`).join(', '), '...');
+      throw new Error(`Historical figure not found: ${figureId}. Please try selecting a figure from the biography list.`);
+    }
   }
   
   // Build context from conversation history
@@ -398,7 +508,7 @@ async function generateAutobiographyResponse(
     .map(msg => `${msg.role === 'user' ? 'User' : figure.name}: ${msg.content}`)
     .join('\n');
   
-  const prompt = `You are ${figure.name} (${figure.birthYear}-${figure.deathYear}), ${figure.occupation} from ${figure.nationality}.
+  const prompt = `You are ${figure.name}${figure.birthYear ? ` (${figure.birthYear}${figure.deathYear ? `-${figure.deathYear}` : ''})` : ''}, ${figure.occupation}${figure.nationality ? ` from ${figure.nationality}` : ''}.
 
 ${figure.biography}
 
@@ -417,6 +527,229 @@ Respond as ${figure.name} would, using first person ("I", "my", "me"). Be though
   } catch (error: any) {
     console.error('Failed to generate autobiography response:', error);
     throw new Error(`Failed to generate response: ${error.message}`);
+  }
+}
+
+/**
+ * Generate popular historical figures and events
+ */
+async function generatePopularItems(): Promise<Array<{
+  id: string;
+  name: string;
+  type: 'figure' | 'event';
+  year?: number;
+  country?: string;
+}>> {
+  const prompt = `You are a world history expert. Generate a list of 10-12 of the most popular and well-known historical figures and events that people commonly search for or want to learn about.
+
+Include a mix of:
+- Famous historical figures from different time periods and regions
+- Major historical events that shaped the world
+- Diverse representation across different continents and cultures
+- Both ancient and modern figures/events
+
+For each item, provide:
+- id: lowercase, hyphenated (e.g., "thomas-edison", "world-war-ii")
+- name: full name or event title
+- type: either "figure" or "event"
+- year: the birth year for figures, or start year for events (can be negative for BCE)
+- country: the country most associated with this figure/event
+
+CRITICAL JSON REQUIREMENTS:
+- All years MUST be numbers (not words like "present")
+- For current year, use 2026
+- All strings MUST be in double quotes
+- All numbers MUST NOT have quotes
+- Return ONLY valid JSON that can be parsed by JSON.parse()
+- No markdown code blocks, no explanations, just pure JSON
+
+Return your response as a JSON array in this exact format:
+[
+  {
+    "id": "thomas-edison",
+    "name": "Thomas Edison",
+    "type": "figure",
+    "year": 1847,
+    "country": "United States"
+  },
+  {
+    "id": "world-war-ii",
+    "name": "World War II",
+    "type": "event",
+    "year": 1939,
+    "country": "Germany"
+  }
+]
+
+Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
+
+  try {
+    const response = await callLLM(prompt, true);
+    
+    console.log(`⭐ [History] Raw LLM popular items response`);
+    console.log('=====================================');
+    console.log(response);
+    console.log('=====================================');
+    
+    // Parse JSON response
+    let popularItems: any[] = [];
+    let jsonStr = '';
+    try {
+      // Try to extract JSON from response
+      jsonStr = response.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
+      }
+      
+      // Extract JSON array
+      const arrStart = jsonStr.indexOf('[');
+      const arrEnd = jsonStr.lastIndexOf(']');
+      if (arrStart !== -1 && arrEnd !== -1 && arrEnd > arrStart) {
+        jsonStr = jsonStr.substring(arrStart, arrEnd + 1);
+      }
+      
+      // Fix common JSON errors
+      jsonStr = jsonStr.replace(/\b(present|current|now)\b/gi, '2026');
+      
+      popularItems = JSON.parse(jsonStr);
+      
+      // Ensure it's an array
+      if (!Array.isArray(popularItems)) {
+        popularItems = [];
+      }
+      
+      // Validate and ensure required fields
+      popularItems = popularItems
+        .filter((item: any) => item && item.id && item.name && item.type)
+        .map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          type: item.type === 'event' ? 'event' : 'figure',
+          year: item.year,
+          country: item.country
+        }));
+      
+      console.log(`✅ [History] Generated ${popularItems.length} popular items`);
+      
+    } catch (parseError: any) {
+      console.warn(`⚠️ [History] JSON parse warning for popular items:`, parseError.message);
+      console.log('👤 [History] Attempting to extract partial data from response...');
+      
+      // Try to extract partial data
+      try {
+        const itemsMatch = jsonStr.match(/\[(.*?)\]/s);
+        if (itemsMatch) {
+          // Try to extract complete objects
+          const extractCompleteObjects = (content: string): any[] => {
+            const objects: any[] = [];
+            let depth = 0;
+            let currentObject = '';
+            let inString = false;
+            let escapeNext = false;
+            
+            for (let i = 0; i < content.length; i++) {
+              const char = content[i];
+              
+              if (escapeNext) {
+                currentObject += char;
+                escapeNext = false;
+                continue;
+              }
+              
+              if (char === '\\') {
+                escapeNext = true;
+                currentObject += char;
+                continue;
+              }
+              
+              if (char === '"' && !escapeNext) {
+                inString = !inString;
+                currentObject += char;
+                continue;
+              }
+              
+              if (inString) {
+                currentObject += char;
+                continue;
+              }
+              
+              if (char === '{') {
+                if (depth === 0) {
+                  currentObject = '{';
+                } else {
+                  currentObject += char;
+                }
+                depth++;
+              } else if (char === '}') {
+                currentObject += char;
+                depth--;
+                if (depth === 0) {
+                  try {
+                    let fixedObject = currentObject
+                      .replace(/,\s*}/g, '}')
+                      .replace(/,\s*]/g, ']')
+                      .replace(/:\s*$/gm, ': null')
+                      .replace(/:\s*,\s*/g, ': null,')
+                      .replace(/:\s*}/g, ': null}')
+                      .replace(/:\s*]/g, ': null]')
+                      .replace(/\b(present|current|now)\b/gi, '2026');
+                    
+                    const parsed = JSON.parse(fixedObject);
+                    if (parsed.id && parsed.name && parsed.type) {
+                      objects.push(parsed);
+                    }
+                  } catch (e) {
+                    // Skip invalid objects
+                  }
+                  currentObject = '';
+                }
+              } else {
+                if (depth > 0) {
+                  currentObject += char;
+                }
+              }
+            }
+            
+            return objects;
+          };
+          
+          popularItems = extractCompleteObjects(itemsMatch[1]);
+          console.log(`✅ [History] Extracted ${popularItems.length} popular items from partial response`);
+        }
+      } catch (extractError) {
+        console.warn('Could not extract popular items from partial response');
+      }
+    }
+    
+    // Fallback to default list if extraction failed
+    if (popularItems.length === 0) {
+      console.warn('⚠️ [History] Using fallback popular items list');
+      popularItems = [
+        { id: 'edison', name: 'Thomas Edison', type: 'figure', year: 1847, country: 'United States' },
+        { id: 'washington', name: 'George Washington', type: 'figure', year: 1732, country: 'United States' },
+        { id: 'napoleon', name: 'Napoleon Bonaparte', type: 'figure', year: 1769, country: 'France' },
+        { id: 'einstein', name: 'Albert Einstein', type: 'figure', year: 1879, country: 'Germany' },
+        { id: 'caesar', name: 'Julius Caesar', type: 'figure', year: -100, country: 'Italy' },
+        { id: 'cleopatra', name: 'Cleopatra', type: 'figure', year: -69, country: 'Egypt' },
+        { id: 'ww2', name: 'World War II', type: 'event', year: 1939, country: 'Germany' }
+      ];
+    }
+    
+    return popularItems;
+  } catch (error: any) {
+    console.error('Failed to generate popular items:', error);
+    // Return fallback list
+    return [
+      { id: 'edison', name: 'Thomas Edison', type: 'figure', year: 1847, country: 'United States' },
+      { id: 'washington', name: 'George Washington', type: 'figure', year: 1732, country: 'United States' },
+      { id: 'napoleon', name: 'Napoleon Bonaparte', type: 'figure', year: 1769, country: 'France' },
+      { id: 'einstein', name: 'Albert Einstein', type: 'figure', year: 1879, country: 'Germany' },
+      { id: 'caesar', name: 'Julius Caesar', type: 'figure', year: -100, country: 'Italy' },
+      { id: 'cleopatra', name: 'Cleopatra', type: 'figure', year: -69, country: 'Egypt' },
+      { id: 'ww2', name: 'World War II', type: 'event', year: 1939, country: 'Germany' }
+    ];
   }
 }
 
@@ -638,17 +971,21 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
         }
         
         if (extractedEvents.length > 0) {
-          console.log(`Extracted ${extractedEvents.length} events using fallback regex method`);
+          console.log(`✅ [History] Extracted ${extractedEvents.length} events using fallback regex method`);
           events = extractedEvents.slice(0, 12); // Limit to 12 events
+        } else {
+          console.warn('⚠️ [History] No events extracted, returning empty array (non-blocking)');
         }
       } catch (fallbackError) {
-        console.error('Fallback extraction also failed:', fallbackError);
+        console.warn('⚠️ [History] Fallback extraction warning (non-blocking):', fallbackError);
       }
     }
     
+    // Always return something, even if empty - never throw
     return events;
   } catch (error: any) {
-    console.error('Failed to generate period events:', error);
+    // Non-blocking: Log error but return empty array instead of throwing
+    console.warn('⚠️ [History] Generation warning (non-blocking):', error.message);
     return [];
   }
 }
@@ -689,6 +1026,440 @@ async function searchHistory(query: string): Promise<Array<any>> {
   });
   
   return results.slice(0, 10); // Limit to 10 results
+}
+
+/**
+ * Generate continents and countries list using LLM
+ */
+async function generateContinentsAndCountries(): Promise<Array<{ name: string; countries: string[] }>> {
+  const prompt = `You are a world geography expert. Generate a comprehensive list of all countries organized by continent.
+
+Create a JSON object with continents as keys and arrays of country names as values. Include all major countries from each continent.
+
+Continents to include:
+- Africa
+- Asia
+- Europe
+- North America
+- South America
+- Oceania
+- Antarctica (can be empty or minimal)
+
+For each continent, list all countries. Use standard country names (e.g., "United States" not "USA", "United Kingdom" not "UK").
+
+Return ONLY valid JSON in this exact format:
+[
+  {
+    "name": "Africa",
+    "countries": ["Algeria", "Angola", "Benin", "Botswana", ...]
+  },
+  {
+    "name": "Asia",
+    "countries": ["Afghanistan", "Armenia", "Azerbaijan", "Bahrain", ...]
+  },
+  {
+    "name": "Europe",
+    "countries": ["Albania", "Andorra", "Austria", "Belarus", ...]
+  },
+  {
+    "name": "North America",
+    "countries": ["Antigua and Barbuda", "Bahamas", "Barbados", ...]
+  },
+  {
+    "name": "South America",
+    "countries": ["Argentina", "Bolivia", "Brazil", "Chile", ...]
+  },
+  {
+    "name": "Oceania",
+    "countries": ["Australia", "Fiji", "Kiribati", "New Zealand", ...]
+  }
+]
+
+CRITICAL: Return ONLY valid JSON. No markdown, no explanations, just the JSON array.`;
+
+  try {
+    const response = await callLLM(prompt, true);
+    
+    console.log('🌍 [History] Raw LLM continents response:');
+    console.log('=====================================');
+    console.log(response);
+    console.log('=====================================');
+    
+    // Parse JSON response
+    let continents: Array<{ name: string; countries: string[] }> = [];
+    let jsonStr = '';
+    try {
+      // Try to extract JSON from response
+      jsonStr = response.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
+      }
+      
+      // Extract JSON array
+      const arrayStart = jsonStr.indexOf('[');
+      const arrayEnd = jsonStr.lastIndexOf(']');
+      if (arrayStart !== -1 && arrayEnd !== -1 && arrayEnd > arrayStart) {
+        jsonStr = jsonStr.substring(arrayStart, arrayEnd + 1);
+      }
+      
+      continents = JSON.parse(jsonStr);
+      
+      // Validate structure
+      if (!Array.isArray(continents)) {
+        throw new Error('Response is not an array');
+      }
+      
+      // Ensure all entries have name and countries
+      continents = continents.filter(c => c && c.name && Array.isArray(c.countries));
+      
+      console.log(`✅ [History] Parsed ${continents.length} continents with ${continents.reduce((sum, c) => sum + c.countries.length, 0)} total countries`);
+      
+    } catch (parseError: any) {
+      console.warn(`⚠️ [History] JSON parse warning (non-blocking):`, parseError.message);
+      console.log('👤 [History] Attempting to extract partial data from response...');
+      
+      // Fallback: create basic structure
+      continents = [
+        { name: 'Africa', countries: ['Egypt', 'South Africa', 'Nigeria', 'Kenya', 'Morocco'] },
+        { name: 'Asia', countries: ['China', 'India', 'Japan', 'South Korea', 'Thailand'] },
+        { name: 'Europe', countries: ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom'] },
+        { name: 'North America', countries: ['United States', 'Canada', 'Mexico', 'Cuba', 'Jamaica'] },
+        { name: 'South America', countries: ['Brazil', 'Argentina', 'Chile', 'Peru', 'Colombia'] },
+        { name: 'Oceania', countries: ['Australia', 'New Zealand', 'Fiji', 'Papua New Guinea'] }
+      ];
+      
+      console.log(`✅ [History] Using fallback continents data: ${continents.length} continents`);
+    }
+    
+    return continents;
+  } catch (error: any) {
+    console.error('Failed to generate continents:', error);
+    // Return fallback data
+    return [
+      { name: 'Africa', countries: ['Egypt', 'South Africa', 'Nigeria', 'Kenya', 'Morocco'] },
+      { name: 'Asia', countries: ['China', 'India', 'Japan', 'South Korea', 'Thailand'] },
+      { name: 'Europe', countries: ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom'] },
+      { name: 'North America', countries: ['United States', 'Canada', 'Mexico', 'Cuba', 'Jamaica'] },
+      { name: 'South America', countries: ['Brazil', 'Argentina', 'Chile', 'Peru', 'Colombia'] },
+      { name: 'Oceania', countries: ['Australia', 'New Zealand', 'Fiji', 'Papua New Guinea'] }
+    ];
+  }
+}
+
+/**
+ * Extract partial JSON data from incomplete/malformed JSON response
+ * Handles truncated responses by finding complete objects within arrays
+ */
+function extractPartialJSON(jsonStr: string, countryName: string): {
+  periods: any[];
+  figures: any[];
+  events: any[];
+} {
+  const result: { periods: any[]; figures: any[]; events: any[] } = { periods: [], figures: [], events: [] };
+  
+  // Helper function to extract complete objects from an array string
+  function extractCompleteObjects(arrayContent: string, objectType: string): any[] {
+    const objects: any[] = [];
+    let depth = 0;
+    let currentObject = '';
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < arrayContent.length; i++) {
+      const char = arrayContent[i];
+      
+      if (escapeNext) {
+        currentObject += char;
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        currentObject += char;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        currentObject += char;
+        continue;
+      }
+      
+      if (inString) {
+        currentObject += char;
+        continue;
+      }
+      
+      if (char === '{') {
+        if (depth === 0) {
+          currentObject = '{';
+        } else {
+          currentObject += char;
+        }
+        depth++;
+      } else if (char === '}') {
+        currentObject += char;
+        depth--;
+        if (depth === 0) {
+          // Found a complete object
+          try {
+            // Fix common issues before parsing
+            let fixedObject = currentObject
+              .replace(/,\s*}/g, '}')  // Remove trailing commas
+              .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
+              .replace(/:\s*$/gm, ': null')  // Fix incomplete values at end of lines
+              .replace(/:\s*,\s*/g, ': null,')  // Fix missing values
+              .replace(/:\s*}/g, ': null}')  // Fix missing values before closing brace
+              .replace(/:\s*]/g, ': null]')  // Fix missing values before closing bracket
+              .replace(/:\s*$/g, ': null')  // Fix incomplete values at end of string
+              .replace(/\b(present|current|now)\b/gi, '2026');  // Replace text years
+            
+            const parsed = JSON.parse(fixedObject);
+            objects.push(parsed);
+          } catch (e) {
+            // Try to fix incomplete object by removing incomplete properties
+            try {
+              let fixedObject = currentObject;
+              // Remove incomplete property at the end (e.g., "deathYear:" or "deathYear:,")
+              fixedObject = fixedObject.replace(/,\s*"[^"]+"\s*:\s*$/m, '');
+              fixedObject = fixedObject.replace(/,\s*"[^"]+"\s*:\s*}/g, '}');
+              fixedObject = fixedObject.replace(/,\s*"[^"]+"\s*:\s*$/g, '');
+              
+              // Fix other common issues
+              fixedObject = fixedObject
+                .replace(/,\s*}/g, '}')
+                .replace(/,\s*]/g, ']')
+                .replace(/:\s*}/g, ': null}')
+                .replace(/:\s*]/g, ': null]')
+                .replace(/\b(present|current|now)\b/gi, '2026');
+              
+              const parsed = JSON.parse(fixedObject);
+              objects.push(parsed);
+            } catch (e2) {
+              // Last resort: try to extract what we can by removing the last incomplete property
+              try {
+                let fixedObject = currentObject;
+                // Find and remove the last incomplete property (property name followed by colon but no value)
+                fixedObject = fixedObject.replace(/,\s*"[^"]+"\s*:\s*[^,}\]]*$/m, '');
+                fixedObject = fixedObject.replace(/,\s*}/g, '}');
+                fixedObject = fixedObject.replace(/,\s*]/g, ']');
+                fixedObject = fixedObject.replace(/\b(present|current|now)\b/gi, '2026');
+                
+                const parsed = JSON.parse(fixedObject);
+                objects.push(parsed);
+              } catch (e3) {
+                console.warn(`Could not parse ${objectType} object:`, currentObject.substring(0, 150));
+              }
+            }
+          }
+          currentObject = '';
+        }
+      } else {
+        if (depth > 0) {
+          currentObject += char;
+        }
+      }
+    }
+    
+    return objects;
+  }
+  
+  // Extract periods array
+  const periodsMatch = jsonStr.match(/"periods"\s*:\s*\[/);
+  if (periodsMatch) {
+    const startIndex = periodsMatch.index! + periodsMatch[0].length;
+    let depth = 1;
+    let endIndex = jsonStr.length; // Default to end of string if bracket not found
+    
+    // Find the matching closing bracket
+    for (let i = startIndex; i < jsonStr.length && depth > 0; i++) {
+      if (jsonStr[i] === '[') depth++;
+      else if (jsonStr[i] === ']') depth--;
+      if (depth === 0) {
+        endIndex = i;
+        break;
+      }
+    }
+    
+    if (endIndex > startIndex) {
+      const periodsContent = jsonStr.substring(startIndex, endIndex);
+      result.periods = extractCompleteObjects(periodsContent, 'period');
+    }
+  }
+  
+  // Extract figures array
+  const figuresMatch = jsonStr.match(/"figures"\s*:\s*\[/);
+  if (figuresMatch) {
+    const startIndex = figuresMatch.index! + figuresMatch[0].length;
+    let depth = 1;
+    let endIndex = jsonStr.length; // Default to end of string if bracket not found
+    
+    // Find the matching closing bracket
+    for (let i = startIndex; i < jsonStr.length && depth > 0; i++) {
+      if (jsonStr[i] === '[') depth++;
+      else if (jsonStr[i] === ']') depth--;
+      if (depth === 0) {
+        endIndex = i;
+        break;
+      }
+    }
+    
+    if (endIndex > startIndex) {
+      const figuresContent = jsonStr.substring(startIndex, endIndex);
+      result.figures = extractCompleteObjects(figuresContent, 'figure');
+    }
+  }
+  
+  // Extract events array
+  const eventsMatch = jsonStr.match(/"events"\s*:\s*\[/);
+  if (eventsMatch) {
+    const startIndex = eventsMatch.index! + eventsMatch[0].length;
+    let depth = 1;
+    let endIndex = jsonStr.length; // Default to end of string if bracket not found
+    
+    // Find the matching closing bracket
+    for (let i = startIndex; i < jsonStr.length && depth > 0; i++) {
+      if (jsonStr[i] === '[') depth++;
+      else if (jsonStr[i] === ']') depth--;
+      if (depth === 0) {
+        endIndex = i;
+        break;
+      }
+    }
+    
+    if (endIndex > startIndex) {
+      const eventsContent = jsonStr.substring(startIndex, endIndex);
+      result.events = extractCompleteObjects(eventsContent, 'event');
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Generate country-specific history (periods, figures, events)
+ */
+async function generateCountryHistory(countryName: string): Promise<{
+  periods: any[];
+  figures: any[];
+  events: HistoricalEvent[];
+}> {
+  const prompt = `You are a world history expert specializing in ${countryName}. Generate comprehensive historical information about ${countryName}, including:
+
+1. Major historical periods (4-6 periods covering the country's history from ancient times to present)
+2. Important historical figures (10-15 figures from different eras)
+3. Significant historical events (10-15 major events)
+
+For periods, provide:
+- id (lowercase, hyphenated)
+- name
+- startYear (number, can be negative for BCE)
+- endYear (number, use current year for present)
+- description (1-2 sentences)
+- globalEvents: [] (always empty array)
+
+For figures, provide:
+- id (lowercase, hyphenated)
+- name
+- birthYear (number, can be negative for BCE)
+- deathYear (number or null for living)
+- nationality: "${countryName}"
+- occupation
+- biography (2-3 sentences)
+- keyEvents: [] (array of event names)
+- writings: [] (array of work titles)
+
+For events, provide:
+- id (lowercase, hyphenated)
+- title
+- date (year or date range)
+- description (2-3 sentences)
+- location (specific location in ${countryName})
+- perspectives: [] (array of different viewpoints)
+- relatedFigures: [] (array of figure names)
+
+CRITICAL JSON REQUIREMENTS:
+- All years MUST be numbers (not words like "present")
+- For current year, use 2026
+- All strings MUST be in double quotes
+- All numbers MUST NOT have quotes
+- Return ONLY valid JSON that can be parsed by JSON.parse()
+- No markdown code blocks, no explanations, just pure JSON
+
+Return your response as a JSON object in this exact format:
+{
+  "periods": [...],
+  "figures": [...],
+  "events": [...]
+}
+
+Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
+
+  try {
+    const response = await callLLM(prompt, true);
+    
+    console.log(`🌍 [History] Raw LLM country history response for: ${countryName}`);
+    console.log('=====================================');
+    console.log(response);
+    console.log('=====================================');
+    
+    // Parse JSON response
+    let countryHistory: any = { periods: [], figures: [], events: [] };
+    let jsonStr = '';
+    try {
+      // Try to extract JSON from response
+      jsonStr = response.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '').trim();
+      }
+      
+      // Extract JSON object
+      const objStart = jsonStr.indexOf('{');
+      const objEnd = jsonStr.lastIndexOf('}');
+      if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
+        jsonStr = jsonStr.substring(objStart, objEnd + 1);
+      }
+      
+      // Fix common JSON errors
+      jsonStr = jsonStr.replace(/\b(present|current|now)\b/gi, '2026');
+      
+      countryHistory = JSON.parse(jsonStr);
+      
+      // Ensure all required fields exist
+      if (!countryHistory.periods) countryHistory.periods = [];
+      if (!countryHistory.figures) countryHistory.figures = [];
+      if (!countryHistory.events) countryHistory.events = [];
+      
+      console.log(`✅ [History] Parsed country history for ${countryName}:`, {
+        periods: countryHistory.periods.length,
+        figures: countryHistory.figures.length,
+        events: countryHistory.events.length
+      });
+      
+    } catch (parseError: any) {
+      console.warn(`⚠️ [History] JSON parse warning (non-blocking) for ${countryName}:`, parseError.message);
+      console.log('👤 [History] Attempting to extract partial data from response...');
+      
+      // Improved extraction: find and extract complete objects from arrays
+      countryHistory = extractPartialJSON(jsonStr, countryName);
+      
+      console.log(`✅ [History] Extracted partial country history for ${countryName}:`, {
+        periods: countryHistory.periods.length,
+        figures: countryHistory.figures.length,
+        events: countryHistory.events.length
+      });
+    }
+    
+    return countryHistory;
+  } catch (error: any) {
+    console.error(`Failed to generate country history for ${countryName}:`, error);
+    throw new Error(`Failed to generate country history: ${error.message}`);
+  }
 }
 
 /**
@@ -773,6 +1544,22 @@ export function handleHistoryRequest(req: IncomingMessage, res: ServerResponse, 
     
     return true;
   }
+
+  // GET /api/history/popular
+  if (pathname === '/api/history/popular' && req.method === 'GET') {
+    console.log('⭐ [History] GET /api/history/popular - Generating with LLM (no cache)...');
+    
+    // Always generate popular items using LLM (no cache)
+    generatePopularItems().then((items: any[]) => {
+      console.log('⭐ [History] Generated', items.length, 'popular items');
+      sendJsonResponse(200, items);
+    }).catch((error: any) => {
+      console.error('Failed to generate popular items:', error);
+      sendJsonResponse(500, { error: error.message });
+    });
+    
+    return true;
+  }
   
   // POST /api/history/autobiography/ask
   if (pathname === '/api/history/autobiography/ask' && req.method === 'POST') {
@@ -849,6 +1636,27 @@ export function handleHistoryRequest(req: IncomingMessage, res: ServerResponse, 
         sendJsonResponse(500, { error: error.message });
       }
     });
+    return true;
+  }
+
+  // GET /api/history/country/:countryName
+  const countryMatch = pathname.match(/^\/api\/history\/country\/(.+)$/);
+  if (countryMatch && req.method === 'GET') {
+    const countryName = decodeURIComponent(countryMatch[1]);
+    console.log(`🌍 [History] GET /api/history/country/${countryName} - Generating with LLM...`);
+    
+    generateCountryHistory(countryName).then(countryHistory => {
+      console.log(`🌍 [History] Generated country history for ${countryName}:`, {
+        periods: countryHistory.periods.length,
+        figures: countryHistory.figures.length,
+        events: countryHistory.events.length
+      });
+      sendJsonResponse(200, countryHistory);
+    }).catch((error: any) => {
+      console.error(`Failed to generate country history for ${countryName}:`, error);
+      sendJsonResponse(500, { error: error.message });
+    });
+    
     return true;
   }
   

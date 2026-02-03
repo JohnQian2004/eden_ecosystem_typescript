@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -42,10 +42,43 @@ export class EdenHistoryComponent implements OnInit {
   apiUrl = 'https://50.76.0.85:3000';
   
   // View modes
-  viewMode: 'timeline' | 'biography' | 'autobiography' | 'whatif' = 'timeline';
+  viewMode: 'timeline' | 'biography' | 'autobiography' | 'whatif' | 'map' = 'map';
+  
+  // World Explorer view (replaces map)
+  selectedContinent: string | null = null;
+  selectedCountry: string | null = null;
+  continents: Array<{
+    name: string;
+    countries: string[];
+  }> = [];
+  isLoadingContinents = false;
+  countryHistory: {
+    periods: TimelinePeriod[];
+    figures: HistoricalFigure[];
+    events: HistoricalEvent[];
+  } | null = null;
+  isLoadingCountryHistory = false;
+  
+  // Time period selector (2000 BC to 2500 AD)
+  timePeriodStart = -2000; // 2000 BC
+  timePeriodEnd = 2500; // 2500 AD
+  selectedTimeStart = -2000;
+  selectedTimeEnd = 2500;
+  
+  // Popular historical figures/events tab
+  popularItems: Array<{
+    id: string;
+    name: string;
+    type: 'figure' | 'event';
+    year?: number;
+    country?: string;
+  }> = [];
+  isLoadingPopularItems = false;
+  selectedPopularItem: any = null;
   
   // Timeline data
   selectedPeriod: TimelinePeriod | null = null;
+  selectedEvent: HistoricalEvent | null = null;
   periods: TimelinePeriod[] = [];
   isLoadingPeriods = false;
   
@@ -71,7 +104,8 @@ export class EdenHistoryComponent implements OnInit {
   
   constructor(
     private http: HttpClient,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private cdr: ChangeDetectorRef
   ) {}
 
   /**
@@ -108,9 +142,232 @@ export class EdenHistoryComponent implements OnInit {
     return 'name' in result;
   }
 
+  /**
+   * Format year for display (handles BC/AD)
+   */
+  formatYear(year: number | undefined): string {
+    if (year === undefined || year === null) return '';
+    return year < 0 ? Math.abs(year) + ' BC' : year + ' AD';
+  }
+
+  /**
+   * Get absolute value of a number (for template use)
+   */
+  abs(value: number | undefined): number {
+    if (value === undefined || value === null) return 0;
+    return Math.abs(value);
+  }
+
+  /**
+   * Get countries for selected continent (for template use)
+   */
+  getCountriesForContinent(): string[] {
+    if (!this.selectedContinent) return [];
+    const continent = this.continents.find(c => c.name === this.selectedContinent);
+    return continent?.countries || [];
+  }
+
   ngOnInit(): void {
-    this.loadTimelinePeriods();
-    this.loadHistoricalFigures();
+    if (this.viewMode === 'map') {
+      this.loadContinents();
+      this.loadPopularItems();
+    } else {
+      this.loadTimelinePeriods();
+      this.loadHistoricalFigures();
+      this.loadPopularItems();
+    }
+  }
+
+  /**
+   * Load continents and countries from backend (LLM-generated)
+   */
+  loadContinents(): void {
+    this.isLoadingContinents = true;
+    console.log('🌍 [EdenHistory] Loading continents and countries from:', `${this.apiUrl}/api/history/continents`);
+    this.http.get<Array<{ name: string; countries: string[] }>>(`${this.apiUrl}/api/history/continents`).subscribe({
+      next: (continents) => {
+        console.log('🌍 [EdenHistory] Received continents:', continents.length, continents);
+        this.continents = continents;
+        this.isLoadingContinents = false;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('❌ [EdenHistory] Failed to load continents:', error);
+        this.isLoadingContinents = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  /**
+   * Load popular historical figures and events from backend (LLM-generated)
+   */
+  loadPopularItems(): void {
+    this.isLoadingPopularItems = true;
+    console.log('⭐ [EdenHistory] Loading popular items from:', `${this.apiUrl}/api/history/popular`);
+    this.http.get<Array<{
+      id: string;
+      name: string;
+      type: 'figure' | 'event';
+      year?: number;
+      country?: string;
+    }>>(`${this.apiUrl}/api/history/popular`).subscribe({
+      next: (items) => {
+        console.log('⭐ [EdenHistory] Received popular items:', items.length, items);
+        this.popularItems = items;
+        this.isLoadingPopularItems = false;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('❌ [EdenHistory] Failed to load popular items:', error);
+        this.isLoadingPopularItems = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  /**
+   * Select a continent to view its countries
+   */
+  selectContinent(continentName: string): void {
+    this.selectedContinent = continentName;
+    this.selectedCountry = null;
+    this.countryHistory = null;
+    console.log('🌍 [EdenHistory] Selected continent:', continentName);
+  }
+
+  /**
+   * Select a country to view its history
+   */
+  selectCountryFromList(countryName: string): void {
+    this.selectCountry(countryName);
+  }
+
+  /**
+   * Switch to map view (now world explorer)
+   */
+  switchToMapView(): void {
+    this.viewMode = 'map';
+    this.goBack();
+    // Load continents when switching to map view
+    if (this.continents.length === 0) {
+      this.loadContinents();
+    }
+  }
+
+  /**
+   * Select a popular historical figure or event
+   */
+  selectPopularItem(item: any): void {
+    this.selectedPopularItem = item;
+    console.log('⭐ [EdenHistory] Selected popular item:', item.name);
+    
+    // If item has a country, select that country to show its history
+    if (item.country) {
+      this.selectCountryFromList(item.country);
+    } else {
+      // Load history for this item
+      if (item.type === 'figure') {
+        this.loadPopularFigureHistory(item);
+      } else {
+        this.loadPopularEventHistory(item);
+      }
+    }
+  }
+
+  /**
+   * Load history for a popular figure
+   */
+  loadPopularFigureHistory(item: any): void {
+    // Try to find in existing figures
+    const figure = this.figures.find(f => 
+      f.name.toLowerCase().includes(item.name.toLowerCase()) ||
+      item.name.toLowerCase().includes(f.name.toLowerCase())
+    );
+
+    if (figure) {
+      this.selectFigure(figure);
+      this.viewMode = 'biography';
+    } else {
+      // Search for figure via API
+      this.http.post<Array<HistoricalEvent | HistoricalFigure>>(`${this.apiUrl}/api/history/search`, {
+        query: item.name
+      }).subscribe({
+        next: (results) => {
+          const foundFigure = results.find(r => this.isFigure(r)) as HistoricalFigure;
+          if (foundFigure) {
+            this.selectFigure(foundFigure);
+            this.viewMode = 'biography';
+          }
+        },
+        error: (error) => {
+          console.error('Failed to search for figure:', error);
+        }
+      });
+    }
+  }
+
+  /**
+   * Load history for a popular event
+   */
+  loadPopularEventHistory(item: any): void {
+    // Search for event via API
+    this.http.post<Array<HistoricalEvent | HistoricalFigure>>(`${this.apiUrl}/api/history/search`, {
+      query: item.name
+    }).subscribe({
+      next: (results) => {
+        const foundEvent = results.find(r => this.isEvent(r)) as HistoricalEvent;
+        if (foundEvent) {
+          this.selectEvent(foundEvent);
+          // If we have a period selected, show event in that context
+          if (this.selectedPeriod) {
+            this.viewMode = 'timeline';
+          }
+        }
+      },
+      error: (error) => {
+        console.error('Failed to search for event:', error);
+      }
+    });
+  }
+
+  /**
+   * Update time period (for future filtering)
+   */
+  updateTimePeriod(): void {
+    console.log(`⏰ [EdenHistory] Time period updated: ${this.selectedTimeStart} - ${this.selectedTimeEnd}`);
+    this.cdr.detectChanges();
+  }
+
+
+  /**
+   * Select a country and load its history
+   */
+  selectCountry(countryName: string): void {
+    this.selectedCountry = countryName;
+    this.isLoadingCountryHistory = true;
+    this.countryHistory = null;
+    this.cdr.detectChanges();
+
+    console.log('🌍 [EdenHistory] Loading history for country:', countryName);
+    
+    this.http.get<{
+      periods: TimelinePeriod[];
+      figures: HistoricalFigure[];
+      events: HistoricalEvent[];
+    }>(`${this.apiUrl}/api/history/country/${encodeURIComponent(countryName)}`).subscribe({
+      next: (data) => {
+        console.log('🌍 [EdenHistory] Country history loaded:', data);
+        this.countryHistory = data;
+        this.isLoadingCountryHistory = false;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('❌ [EdenHistory] Failed to load country history:', error);
+        this.isLoadingCountryHistory = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   /**
@@ -118,14 +375,18 @@ export class EdenHistoryComponent implements OnInit {
    */
   loadTimelinePeriods(): void {
     this.isLoadingPeriods = true;
+    console.log('📜 [EdenHistory] Loading periods from:', `${this.apiUrl}/api/history/periods`);
     this.http.get<TimelinePeriod[]>(`${this.apiUrl}/api/history/periods`).subscribe({
       next: (periods) => {
+        console.log('📜 [EdenHistory] Received periods:', periods.length, periods);
         this.periods = periods;
         this.isLoadingPeriods = false;
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        console.error('Failed to load timeline periods:', error);
+        console.error('❌ [EdenHistory] Failed to load timeline periods:', error);
         this.isLoadingPeriods = false;
+        this.cdr.detectChanges();
       }
     });
   }
@@ -135,14 +396,18 @@ export class EdenHistoryComponent implements OnInit {
    */
   loadHistoricalFigures(): void {
     this.isLoadingFigures = true;
+    console.log('👤 [EdenHistory] Loading figures from:', `${this.apiUrl}/api/history/figures`);
     this.http.get<HistoricalFigure[]>(`${this.apiUrl}/api/history/figures`).subscribe({
       next: (figures) => {
+        console.log('👤 [EdenHistory] Received figures:', figures.length, figures);
         this.figures = figures;
         this.isLoadingFigures = false;
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        console.error('Failed to load historical figures:', error);
+        console.error('❌ [EdenHistory] Failed to load historical figures:', error);
         this.isLoadingFigures = false;
+        this.cdr.detectChanges();
       }
     });
   }
@@ -174,11 +439,49 @@ export class EdenHistoryComponent implements OnInit {
         if (period) {
           period.globalEvents = events;
         }
+        this.cdr.detectChanges();
       },
       error: (error) => {
         console.error('Failed to load period events:', error);
+        this.cdr.detectChanges();
       }
     });
+  }
+
+  /**
+   * Select an event to view details
+   */
+  selectEvent(event: HistoricalEvent): void {
+    this.selectedEvent = event;
+    console.log('📅 [EdenHistory] Selected event:', event.title);
+  }
+
+  /**
+   * Find and select a figure by name (from related figures in events)
+   */
+  selectFigureByName(figureName: string): void {
+    // Try to find exact match first
+    let figure = this.figures.find(f => 
+      f.name.toLowerCase() === figureName.toLowerCase()
+    );
+
+    // If no exact match, try partial match
+    if (!figure) {
+      figure = this.figures.find(f => 
+        f.name.toLowerCase().includes(figureName.toLowerCase()) ||
+        figureName.toLowerCase().includes(f.name.toLowerCase())
+      );
+    }
+
+    if (figure) {
+      console.log('👤 [EdenHistory] Found figure by name:', figureName, '→', figure.name);
+      this.selectFigure(figure);
+      // Clear the event view to show the figure
+      this.selectedEvent = null;
+    } else {
+      console.warn('⚠️ [EdenHistory] Figure not found:', figureName);
+      // Optionally, you could show a message to the user
+    }
   }
 
   /**
@@ -266,18 +569,33 @@ export class EdenHistoryComponent implements OnInit {
   search(): void {
     if (!this.searchQuery.trim()) {
       this.searchResults = [];
+      // Clear display area
+      this.selectedPeriod = null;
+      this.selectedFigure = null;
+      this.cdr.detectChanges();
       return;
     }
 
+    // Clear display area first to ensure search results are visible
+    console.log('🔍 [EdenHistory] Clearing display area and searching for:', this.searchQuery.trim());
+    this.selectedPeriod = null;
+    this.selectedFigure = null;
+    this.searchResults = []; // Clear previous results
+    this.cdr.detectChanges();
+
+    console.log('🔍 [EdenHistory] Sending search request to:', `${this.apiUrl}/api/history/search`);
     this.http.post<Array<HistoricalEvent | HistoricalFigure>>(`${this.apiUrl}/api/history/search`, {
       query: this.searchQuery.trim()
     }).subscribe({
       next: (results) => {
+        console.log('🔍 [EdenHistory] Search results received:', results.length, results);
         this.searchResults = results;
+        this.cdr.detectChanges();
       },
       error: (error) => {
-        console.error('Search failed:', error);
+        console.error('❌ [EdenHistory] Search failed:', error);
         this.searchResults = [];
+        this.cdr.detectChanges();
       }
     });
   }
@@ -299,13 +617,33 @@ export class EdenHistoryComponent implements OnInit {
    * Go back to main view
    */
   goBack(): void {
+    // If viewing an event, go back to period view
+    if (this.selectedEvent) {
+      this.selectedEvent = null;
+      return;
+    }
+    // If viewing country history, go back to map
+    if (this.selectedCountry) {
+      this.selectedCountry = null;
+      this.countryHistory = null;
+      return;
+    }
+    // If viewing popular item, clear selection
+    if (this.selectedPopularItem) {
+      this.selectedPopularItem = null;
+      return;
+    }
+    // Otherwise, go back to the main view
     this.selectedPeriod = null;
     this.selectedFigure = null;
     this.conversationMode = false;
     this.conversationHistory = [];
     this.whatIfScenario = '';
     this.whatIfResult = '';
-    this.viewMode = 'timeline';
+    if (this.viewMode !== 'map') {
+      this.viewMode = 'map';
+    }
   }
 }
+
 

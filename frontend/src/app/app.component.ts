@@ -1758,10 +1758,10 @@ export class AppComponent implements OnInit, OnDestroy {
   setupGoogleSignIn() {
     try {
       // Only initialize if we have a valid client ID (not placeholder)
-      const clientId = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-      if (clientId.includes('YOUR_GOOGLE_CLIENT_ID')) {
+      const clientId = '689088871482-bbafu71u7vuhpjn94socpkq5hn7fs0rc.apps.googleusercontent.com';
+      if (!clientId || clientId.length < 10) {
         console.log('⚠️ Google Client ID not configured, skipping Google Sign-In initialization');
-        console.log('   To enable Google Sign-In, replace YOUR_GOOGLE_CLIENT_ID in app.component.ts with your actual Client ID');
+        console.log('   To enable Google Sign-In, configure the Client ID in app.component.ts');
         return;
       }
       

@@ -23,6 +23,11 @@
         (click)="viewMode = 'whatif'; goBack()">
         What If?
       </button>
+      <button 
+        [class.active]="viewMode === 'map'"
+        (click)="switchToMapView()">
+        🗺️ Map
+      </button>
     </div>
   </div>
 
@@ -36,9 +41,9 @@
     <button (click)="search()">🔍 Search</button>
   </div>
 
-  <!-- Search Results -->
+  <!-- Search Results (shown when there are results, hides other views) -->
   <div *ngIf="searchResults.length > 0" class="search-results">
-    <h3>Search Results</h3>
+    <h3>Search Results ({{ searchResults.length }})</h3>
     <div class="result-item" *ngFor="let result of searchResults">
       <h4>{{ getResultTitle(result) }}</h4>
       <p>{{ getResultDescription(result) }}</p>
@@ -51,8 +56,8 @@
     </div>
   </div>
 
-  <!-- Timeline View -->
-  <div *ngIf="viewMode === 'timeline' && !selectedPeriod" class="timeline-view">
+  <!-- Timeline View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'timeline' && !selectedPeriod" class="timeline-view">
     <h3>Historical Periods</h3>
     <div *ngIf="isLoadingPeriods" class="loading">Loading periods...</div>
     <div class="periods-grid">
@@ -75,8 +80,8 @@
     </div>
   </div>
 
-  <!-- Period Detail View -->
-  <div *ngIf="viewMode === 'timeline' && selectedPeriod" class="period-detail">
+  <!-- Period Detail View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'timeline' && selectedPeriod && !selectedEvent" class="period-detail">
     <button class="back-btn" (click)="goBack()">← Back</button>
     <h2>{{ selectedPeriod.name }}</h2>
     <p class="period-meta">{{ selectedPeriod.startYear }} - {{ selectedPeriod.endYear }}</p>
@@ -88,32 +93,60 @@
       <div class="spinner-border spinner-border-sm" role="status"></div>
     </div>
     <div *ngIf="selectedPeriod.globalEvents && selectedPeriod.globalEvents.length > 0" class="events-list">
-      <div *ngFor="let event of selectedPeriod.globalEvents" class="event-card">
+      <div 
+        *ngFor="let event of selectedPeriod.globalEvents" 
+        class="event-card clickable"
+        (click)="selectEvent(event)">
         <h4>{{ event.title }}</h4>
         <p class="event-date">{{ event.date }}</p>
         <p class="event-location">📍 {{ event.location }}</p>
-        <p>{{ event.description }}</p>
-        <div *ngIf="event.perspectives && event.perspectives.length > 0" class="perspectives">
-          <strong>Perspectives:</strong>
-          <ul>
-            <li *ngFor="let perspective of event.perspectives">{{ perspective }}</li>
-          </ul>
-        </div>
-        <div *ngIf="event.relatedFigures && event.relatedFigures.length > 0" class="related-figures">
-          <strong>Related Figures:</strong>
-          <span *ngFor="let figure of event.relatedFigures; let last = last">
-            {{ figure }}<span *ngIf="!last">, </span>
-          </span>
+        <p class="event-description-preview">{{ event.description }}</p>
+        <div class="event-preview-footer">
+          <span class="click-hint">Click to view details →</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Biography View -->
-  <div *ngIf="viewMode === 'biography' && !selectedFigure" class="biography-view">
+  <!-- Event Detail View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'timeline' && selectedPeriod && selectedEvent" class="event-detail">
+    <button class="back-btn" (click)="goBack()">← Back to {{ selectedPeriod.name }}</button>
+    <h2>{{ selectedEvent.title }}</h2>
+    <div class="event-meta">
+      <p class="event-date">📅 {{ selectedEvent.date }}</p>
+      <p class="event-location">📍 {{ selectedEvent.location }}</p>
+    </div>
+    <div class="event-description">
+      <p [innerHTML]="formatText(selectedEvent.description)"></p>
+    </div>
+    <div *ngIf="selectedEvent.perspectives && selectedEvent.perspectives.length > 0" class="perspectives-section">
+      <h4>Historical Perspectives</h4>
+      <ul class="perspectives-list">
+        <li *ngFor="let perspective of selectedEvent.perspectives">{{ perspective }}</li>
+      </ul>
+    </div>
+    <div *ngIf="selectedEvent.relatedFigures && selectedEvent.relatedFigures.length > 0" class="related-figures-section">
+      <h4>Related Historical Figures</h4>
+      <div class="figures-tags">
+        <span 
+          *ngFor="let figure of selectedEvent.relatedFigures" 
+          class="figure-tag clickable"
+          (click)="selectFigureByName(figure)"
+          [title]="'Click to view ' + figure + '\'s biography'">
+          {{ figure }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Biography View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'biography' && !selectedFigure" class="biography-view">
     <h3>Historical Figures</h3>
     <div *ngIf="isLoadingFigures" class="loading">Loading figures...</div>
-    <div class="figures-grid">
+    <div *ngIf="!isLoadingFigures && figures.length === 0" class="empty-state">
+      <p>No figures available. Please try refreshing.</p>
+    </div>
+    <div *ngIf="!isLoadingFigures && figures.length > 0" class="figures-grid">
       <div 
         *ngFor="let figure of figures" 
         class="figure-card"
@@ -131,8 +164,8 @@
     </div>
   </div>
 
-  <!-- Figure Detail View -->
-  <div *ngIf="viewMode === 'biography' && selectedFigure" class="figure-detail">
+  <!-- Figure Detail View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'biography' && selectedFigure" class="figure-detail">
     <button class="back-btn" (click)="goBack()">← Back</button>
     <h2>{{ selectedFigure.name }}</h2>
     <p class="figure-meta">
@@ -146,8 +179,8 @@
     </button>
   </div>
 
-  <!-- Autobiography/Conversation View -->
-  <div *ngIf="viewMode === 'autobiography' && selectedFigure" class="autobiography-view">
+  <!-- Autobiography/Conversation View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'autobiography' && selectedFigure" class="autobiography-view">
     <button class="back-btn" (click)="goBack()">← Back</button>
     <div class="figure-header">
       <h2>Conversation with {{ selectedFigure.name }}</h2>
@@ -187,8 +220,145 @@
     </div>
   </div>
 
-  <!-- What-If Scenario View -->
-  <div *ngIf="viewMode === 'whatif'" class="whatif-view">
+  <!-- World Explorer View (replaces map) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'map' && !selectedContinent && !selectedCountry" class="world-explorer-view">
+    <!-- Popular Historical Figures/Events Tab -->
+    <div class="popular-items-tab">
+      <h3>⭐ Popular Historical Figures & Events</h3>
+      <div *ngIf="isLoadingPopularItems" class="loading">
+        <p>Loading popular items...</p>
+        <div class="spinner-border spinner-border-sm" role="status"></div>
+      </div>
+      <div *ngIf="!isLoadingPopularItems && popularItems.length === 0" class="empty-state">
+        <p>No popular items available. Please try refreshing.</p>
+      </div>
+      <div *ngIf="!isLoadingPopularItems && popularItems.length > 0" class="popular-items-grid">
+        <div 
+          *ngFor="let item of popularItems" 
+          class="popular-item-card"
+          [class.active]="selectedPopularItem?.id === item.id"
+          (click)="selectPopularItem(item)">
+          <div class="popular-item-icon">{{ item.type === 'figure' ? '👤' : '📅' }}</div>
+          <div class="popular-item-name">{{ item.name }}</div>
+          <div class="popular-item-year" *ngIf="item.year">
+            {{ formatYear(item.year) }}
+          </div>
+          <div class="popular-item-country" *ngIf="item.country">
+            {{ item.country }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Continents List -->
+    <div class="continents-section">
+      <h2>🌍 Explore World History by Continent</h2>
+      <div *ngIf="isLoadingContinents" class="loading">
+        <p>Loading continents and countries...</p>
+        <div class="spinner-border spinner-border-sm" role="status"></div>
+      </div>
+      <div *ngIf="!isLoadingContinents && continents.length === 0" class="empty-state">
+        <p>No continents available. Please try refreshing.</p>
+      </div>
+      <div *ngIf="!isLoadingContinents && continents.length > 0" class="continents-grid">
+        <div 
+          *ngFor="let continent of continents" 
+          class="continent-card"
+          (click)="selectContinent(continent.name)">
+          <h3>{{ continent.name }}</h3>
+          <p class="continent-count">{{ continent.countries.length }} countries</p>
+          <p class="continent-hint">Click to explore →</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countries List View (when continent is selected) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'map' && selectedContinent && !selectedCountry" class="countries-view">
+    <button class="back-btn" (click)="goBack()">← Back to Continents</button>
+    <h2>🌍 {{ selectedContinent }}</h2>
+    
+    <div class="countries-grid">
+      <div 
+        *ngFor="let country of getCountriesForContinent()" 
+        class="country-card"
+        (click)="selectCountryFromList(country)">
+        <h4>{{ country }}</h4>
+        <p class="country-hint">Click to explore history →</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Country History View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'map' && selectedCountry" class="country-history-view">
+    <button class="back-btn" (click)="goBack()">← Back to {{ selectedContinent || 'Continents' }}</button>
+    <h2>🌍 History of {{ selectedCountry }}</h2>
+    
+    <div *ngIf="isLoadingCountryHistory" class="loading">
+      <p>Loading history for {{ selectedCountry }}...</p>
+      <div class="spinner-border spinner-border-sm" role="status"></div>
+    </div>
+
+    <div *ngIf="!isLoadingCountryHistory && countryHistory">
+      <!-- Historical Periods -->
+      <div *ngIf="countryHistory.periods && countryHistory.periods.length > 0" class="country-section">
+        <h3>Historical Periods</h3>
+        <div class="periods-grid">
+          <div 
+            *ngFor="let period of countryHistory.periods" 
+            class="period-card"
+            (click)="selectPeriod(period)">
+            <h4>{{ period.name }}</h4>
+            <p class="period-dates">{{ period.startYear }} - {{ period.endYear }}</p>
+            <p class="period-description">{{ period.description }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historical Figures -->
+      <div *ngIf="countryHistory.figures && countryHistory.figures.length > 0" class="country-section">
+        <h3>Historical Figures</h3>
+        <div class="figures-grid">
+          <div 
+            *ngFor="let figure of countryHistory.figures" 
+            class="figure-card"
+            (click)="selectFigure(figure)">
+            <h4>{{ figure.name }}</h4>
+            <p class="figure-dates" *ngIf="figure.birthYear">
+              {{ figure.birthYear }} - {{ figure.deathYear || 'Present' }}
+            </p>
+            <p class="figure-occupation">{{ figure.occupation }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historical Events -->
+      <div *ngIf="countryHistory.events && countryHistory.events.length > 0" class="country-section">
+        <h3>Historical Events</h3>
+        <div class="events-list">
+          <div 
+            *ngFor="let event of countryHistory.events" 
+            class="event-card clickable"
+            (click)="selectEvent(event)">
+            <h4>{{ event.title }}</h4>
+            <p class="event-date">{{ event.date }}</p>
+            <p class="event-location">📍 {{ event.location }}</p>
+            <p class="event-description-preview">{{ event.description }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="(!countryHistory.periods || countryHistory.periods.length === 0) && 
+                   (!countryHistory.figures || countryHistory.figures.length === 0) && 
+                   (!countryHistory.events || countryHistory.events.length === 0)" 
+           class="empty-state">
+        <p>No historical data available for {{ selectedCountry }} yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- What-If Scenario View (hidden when search results are shown) -->
+  <div *ngIf="searchResults.length === 0 && viewMode === 'whatif'" class="whatif-view">
     <h3>Historical What-If Scenarios</h3>
     <p class="whatif-description">
       Explore alternative historical outcomes by asking "what if" questions. 

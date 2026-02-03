@@ -192,14 +192,6 @@
                   title="Eden Books">
                   📚 Books
                 </button>
-                <button 
-                  type="button" 
-                  class="btn btn-sm eden-chat-tab-btn" 
-                  [ngClass]="{'active': edenChatTab === 'history'}"
-                  (click)="edenChatTab = 'history'"
-                  title="History & Autobiography">
-                  📜 History
-                </button>
               </div>
               <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
                 🔄

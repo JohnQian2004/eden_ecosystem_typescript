@@ -458,13 +458,112 @@
         "analyzed_at": "2026-02-02T23:40:02.954Z"
       },
       "analyzed_at": "2026-02-02T23:40:02.957Z"
+    },
+    {
+      "id": "1770100701900-3k31j9",
+      "filename": "vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1770100701890.mp4",
+      "file_path": "videos\\vibes_media_f90b7b23-4db2-426e-9520-2a407cc2e5db_1770100701890.mp4",
+      "file_size": 7745521,
+      "created_at": "2026-02-03T06:38:21.900Z",
+      "updated_at": "2026-02-03T06:38:57.423Z",
+      "tags": [],
+      "is_new": true,
+      "analysis": {
+        "content_tags": [
+          "protest",
+          "march",
+          "night",
+          "urban",
+          "fire",
+          "smoke",
+          "flags",
+          "rebellion",
+          "crowd",
+          "dramatic"
+        ],
+        "detected_objects": [
+          "people",
+          "flags",
+          "street",
+          "buildings",
+          "streetlights",
+          "smoke",
+          "fire",
+          "sparks",
+          "signage"
+        ],
+        "scene_type": "urban",
+        "shot_type": "medium",
+        "camera_angle": "eye-level",
+        "camera_movement": "static",
+        "lighting_brightness": "dark",
+        "lighting_temperature": "mixed",
+        "time_of_day": "night",
+        "main_subject": {
+          "description": "The primary focus throughout the video is a large, dense crowd of silhouetted individuals marching purposefully down a wet, urban street at night. They are carrying numerous red flags, and the scene is characterized by dramatic lighting from fire, sparks, and streetlights, set against a backdrop of smoke and tall buildings."
+        },
+        "activity": {
+          "description": "A significant number of people are actively marching forward in a cohesive, determined procession. Many of them are holding tall poles from which red flags with a distinctive emblem are flying. On the left side of the street, a continuous cascade of bright orange sparks emanates from an unseen source, accompanied by visible flames, possibly from a burning object or a large pyrotechnic display. Thick plumes of dark smoke billow upwards, partially obscuring the upper portions of the buildings and the night sky. The ground appears wet and reflective, suggesting recent rain. The overall action is a march or protest in an intense, chaotic environment."
+        },
+        "environment": {
+          "description": "The setting is an urban streetscape at night. The street is flanked by tall, multi-story buildings, typical of a city center or commercial district. The architecture is somewhat generic but suggests older construction with varying designs. The street itself is noticeably wet and highly reflective, suggesting recent rainfall. Smoke or fog hangs heavy in the air, creating a low visibility and ominous atmosphere. There are ambient streetlights and illuminated signage, contrasting with the overall darkness. The ground appears to be a paved road, possibly an alley or a main thoroughfare. The impression is of a dense urban area during a significant event."
+        },
+        "mood": {
+          "description": "The video conveys an intense, somber, and rebellious mood. There's a strong sense of urgency and determination from the marching crowd. The presence of fire, sparks, and dense smoke adds a chaotic and dangerous undertone, suggesting conflict or protest. The overall darkness and the silhouetted figures contribute to a feeling of anonymity and collective power. It feels defiant and revolutionary, possibly even apocalyptic or dystopian, with a strong undercurrent of struggle."
+        },
+        "analysis_metadata": {
+          "lighting_quality": "dramatic",
+          "video_progression": "The video is a static shot, maintaining a consistent frame throughout its entire duration. The primary progression is the continuous movement of the silhouetted crowd towards the camera's perspective, though they mostly occupy the mid-ground. The fire on the left side remains constant but flickers naturally, and the cascade of sparks also continues without interruption. The smoke billows and shifts subtly. The red flags wave gently with minor movements, adding a dynamic but consistent element. The lighting remains stable, with the dramatic contrasts of light and shadow persisting.",
+          "colors": [
+            "Black",
+            "Dark Grey",
+            "Red (flags, signs)",
+            "Orange (fire, sparks)",
+            "Yellow (fire, sparks, streetlights, signs)",
+            "Blue (flag emblem, subtle ambient light)",
+            "White (some streetlights, sign text)"
+          ],
+          "composition": "The visual composition is a vertical, portrait-oriented shot. The street creates a strong leading line, drawing the eye into the depth of the scene. The marching crowd occupies the lower half and mid-ground, acting as the primary mass. Tall buildings frame the sides, creating a corridor effect that emphasizes the density of the urban environment. The red flags are distributed throughout the mid-ground, providing repeated pops of color and visual anchors. The fire and sparks on the left provide a dramatic, asymmetrical focal point, balanced by the expanse of the crowd and flags on the right. The overall framing is balanced, despite the dynamic and chaotic elements, creating a powerful sense of depth and scale.",
+          "details": [
+            "The red flags feature a distinctive emblem: a blue circle containing an orange/red stylized symbol that appears to be either a simplified eye or a gear, with a small central dot and radiating lines.",
+            "Multiple red neon signs are visible on the buildings, featuring white/yellow Asian characters. One particularly clear sign on the right displays the Japanese characters '一番' (Ichiban), meaning 'number one' or 'best'.",
+            "The street surface is highly reflective, showing blurred reflections of the fiery elements, streetlights, and building lights.",
+            "The cascade of sparks from the left side appears continuous, not intermittent like individual fireworks.",
+            "There are visible streetlights with a distinct luminescent quality, some with halos, suggesting atmospheric conditions or lens effects."
+          ],
+          "visual_style": "cinematic",
+          "production_value": "high",
+          "genre_indicators": [
+            "music_video",
+            "dystopian_film_scene",
+            "protest_footage_(stylized)",
+            "revolutionary_propaganda"
+          ],
+          "depth_of_field": "deep",
+          "video_quality": "high resolution, very stable, sharp focus, minimal grain/noise",
+          "people": [
+            {
+              "count": "numerous (hundreds to thousands)",
+              "description": "The people form a dense, moving crowd. They are primarily seen from behind, heavily silhouetted against the ambient light, making individual identification impossible. Their bodies are dark, appearing as unified masses. Clothing seems to be dark and voluminous, possibly indicating jackets or coats. Some individuals in the closer foreground might be wearing protective gear like helmets or thick hoods, though this is difficult to confirm due to the heavy silhouetting. Their collective body language suggests focused, determined movement forward. No individual expressions are discernible.",
+              "age_estimate": "indiscernible",
+              "gender": "indiscernible",
+              "clothing": "dark, heavy, possibly uniform-like",
+              "expression": "indiscernible",
+              "body_language": "marching, determined, unified"
+            }
+          ],
+          "raw_analysis": "```json\n{\n  \"scene_type\": \"urban\",\n  \"shot_type\": \"medium\",\n  \"camera_angle\": \"eye-level\",\n  \"camera_movement\": \"static\",\n  \"lighting_brightness\": \"dark\",\n  \"lighting_temperature\": \"mixed\",\n  \"lighting_quality\": \"dramatic\",\n  \"time_of_day\": \"night\",\n  \"detected_objects\": [\n    \"people\",\n    \"flags\",\n    \"street\",\n    \"buildings\",\n    \"streetlights\",\n    \"smoke\",\n    \"fire\",\n    \"sparks\",\n    \"signage\"\n  ],\n  \"content_tags\": [\n    \"protest\",\n    \"march\",\n    \"night\",\n    \"urban\",\n    \"fire\",\n    \"smoke\",\n    \"flags\",\n    \"rebellion\",\n    \"crowd\",\n    \"dramatic\"\n  ],\n  \"main_subject\": {\n    \"description\": \"The primary focus throughout the video is a large, dense crowd of silhouetted individuals marching purposefully down a wet, urban street at night. They are carrying numerous red flags, and the scene is characterized by dramatic lighting from fire, sparks, and streetlights, set against a backdrop of smoke and tall buildings.\"\n  },\n  \"activity\": {\n    \"description\": \"A significant number of people are actively marching forward in a cohesive, determined procession. Many of them are holding tall poles from which red flags with a distinctive emblem are flying. On the left side of the street, a continuous cascade of bright orange sparks emanates from an unseen source, accompanied by visible flames, possibly from a burning object or a large pyrotechnic display. Thick plumes of dark smoke billow upwards, partially obscuring the upper portions of the buildings and the night sky. The ground appears wet and reflective, suggesting recent rain. The overall action is a march or protest in an intense, chaotic environment.\"\n  },\n  \"objects\": [\n    \"People: Hundreds, possibly thousands, of individuals are visible, mostly as dark silhouettes. They appear to be wearing dark, heavy clothing or uniforms.\",\n    \"Flags: Numerous red flags are being carried by the marchers. Each flag features a central emblem: a blue circular disc with a stylized orange/red symbol resembling an abstract eye or gear.\",\n    \"Street: The ground is a dark, wet street or road, highly reflective, mirroring the lights and fire. It appears to be asphalt or similar paving.\",\n    \"Buildings: Tall, multi-story buildings line both sides of the street. Some buildings have windows with faint internal lighting, and many have signs. On the far left, a building with a peaked roof or spire is visible.\",\n    \"Streetlights: Several streetlights are visible, emitting a cool white or yellowish glow, cutting through the smoke.\",\n    \"Smoke/Fog: Dense, dark grey to black smoke or fog permeates the air, particularly in the mid-ground and background, creating a hazy, obscured atmosphere.\",\n    \"Fire/Flames: On the left side of the street, a vibrant, vertical column of orange and yellow flames is clearly visible, flickering and glowing brightly.\",\n    \"Sparks: A continuous shower of bright, orange-yellow sparks emanates from the left side, raining down and across the scene, creating trails of light.\",\n    \"Signage: Several rectangular neon signs with red backgrounds and bright white or yellow Asian characters are visible on the buildings, primarily on the right side. One prominent sign clearly displays characters that appear to be '一番' (Ichiban - best/first in Japanese).\",\n    \"Poles: The flags are attached to visible poles, held by the marchers.\"\n  ],\n  \"environment\": {\n    \"description\": \"The setting is an urban streetscape at night. The street is flanked by tall, multi-story buildings, typical of a city center or commercial district. The architecture is somewhat generic but suggests older construction with varying designs. The street itself is noticeably wet and highly reflective, suggesting recent rainfall. Smoke or fog hangs heavy in the air, creating a low visibility and ominous atmosphere. There are ambient streetlights and illuminated signage, contrasting with the overall darkness. The ground appears to be a paved road, possibly an alley or a main thoroughfare. The impression is of a dense urban area during a significant event.\"\n  },\n  \"people\": [\n    {\n      \"count\": \"numerous (hundreds to thousands)\",\n      \"description\": \"The people form a dense, moving crowd. They are primarily seen from behind, heavily silhouetted against the ambient light, making individual identification impossible. Their bodies are dark, appearing as unified masses. Clothing seems to be dark and voluminous, possibly indicating jackets or coats. Some individuals in the closer foreground might be wearing protective gear like helmets or thick hoods, though this is difficult to confirm due to the heavy silhouetting. Their collective body language suggests focused, determined movement forward. No individual expressions are discernible.\",\n      \"age_estimate\": \"indiscernible\",\n      \"gender\": \"indiscernible\",\n      \"clothing\": \"dark, heavy, possibly uniform-like\",\n      \"expression\": \"indiscernible\",\n      \"body_language\": \"marching, determined, unified\"\n    }\n  ],\n  \"mood\": {\n    \"description\": \"The video conveys an intense, somber, and rebellious mood. There's a strong sense of urgency and determination from the marching crowd. The presence of fire, sparks, and dense smoke adds a chaotic and dangerous undertone, suggesting conflict or protest. The overall darkness and the silhouetted figures contribute to a feeling of anonymity and collective power. It feels defiant and revolutionary, possibly even apocalyptic or dystopian, with a strong undercurrent of struggle.\"\n  },\n  \"video_progression\": \"The video is a static shot, maintaining a consistent frame throughout its entire duration. The primary progression is the continuous movement of the silhouetted crowd towards the camera's perspective, though they mostly occupy the mid-ground. The fire on the left side remains constant but flickers naturally, and the cascade of sparks also continues without interruption. The smoke billows and shifts subtly. The red flags wave gently with minor movements, adding a dynamic but consistent element. The lighting remains stable, with the dramatic contrasts of light and shadow persisting.\",\n  \"colors\": [\n    \"Black\",\n    \"Dark Grey\",\n    \"Red (flags, signs)\",\n    \"Orange (fire, sparks)\",\n    \"Yellow (fire, sparks, streetlights, signs)\",\n    \"Blue (flag emblem, subtle ambient light)\",\n    \"White (some streetlights, sign text)\"\n  ],\n  \"composition\": \"The visual composition is a vertical, portrait-oriented shot. The street creates a strong leading line, drawing the eye into the depth of the scene. The marching crowd occupies the lower half and mid-ground, acting as the primary mass. Tall buildings frame the sides, creating a corridor effect that emphasizes the density of the urban environment. The red flags are distributed throughout the mid-ground, providing repeated pops of color and visual anchors. The fire and sparks on the left provide a dramatic, asymmetrical focal point, balanced by the expanse of the crowd and flags on the right. The overall framing is balanced, despite the dynamic and chaotic elements, creating a powerful sense of depth and scale.\",\n  \"details\": [\n    \"The red flags feature a distinctive emblem: a blue circle containing an orange/red stylized symbol that appears to be either a simplified eye or a gear, with a small central dot and radiating lines.\",\n    \"Multiple red neon signs are visible on the buildings, featuring white/yellow Asian characters. One particularly clear sign on the right displays the Japanese characters '一番' (Ichiban), meaning 'number one' or 'best'.\",\n    \"The street surface is highly reflective, showing blurred reflections of the fiery elements, streetlights, and building lights.\",\n    \"The cascade of sparks from the left side appears continuous, not intermittent like individual fireworks.\",\n    \"There are visible streetlights with a distinct luminescent quality, some with halos, suggesting atmospheric conditions or lens effects.\"\n  ],\n  \"visual_style\": \"cinematic\",\n  \"production_value\": \"high\",\n  \"genre_indicators\": [\n    \"music_video\",\n    \"dystopian_film_scene\",\n    \"protest_footage_(stylized)\",\n    \"revolutionary_propaganda\"\n  ],\n  \"depth_of_field\": \"deep\",\n  \"video_quality\": \"high resolution, very stable, sharp focus, minimal grain/noise\"\n}\n```"
+        },
+        "analyzed_at": "2026-02-03T06:38:57.420Z"
+      },
+      "analyzed_at": "2026-02-03T06:38:57.423Z"
     }
   ],
   "tags": [],
   "metadata": {
     "version": "1.0",
-    "last_updated": "2026-02-02T23:39:47.221Z",
-    "total_videos": 37
+    "last_updated": "2026-02-03T06:38:21.901Z",
+    "total_videos": 38
   },
   "last_cleaned": "2026-02-01T14:13:06.771Z"
 }
