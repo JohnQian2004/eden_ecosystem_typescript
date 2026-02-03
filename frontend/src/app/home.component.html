@@ -139,6 +139,14 @@
                 <button 
                   type="button" 
                   class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'history'}"
+                  (click)="edenChatTab = 'history'"
+                  title="History & Autobiography">
+                  📜 History
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
                   [ngClass]="{'active': edenChatTab === 'video-library'}"
                   (click)="edenChatTab = 'video-library'"
                   title="Video Library">
@@ -183,6 +191,14 @@
                   (click)="edenChatTab = 'books'"
                   title="Eden Books">
                   📚 Books
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'history'}"
+                  (click)="edenChatTab = 'history'"
+                  title="History & Autobiography">
+                  📜 History
                 </button>
               </div>
               <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
@@ -398,6 +414,12 @@
             <app-eden-bible></app-eden-bible>
           </div>
           <!-- End Eden Bible Tab Content -->
+          
+          <!-- History & Autobiography Tab Content -->
+          <div *ngIf="edenChatTab === 'history'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-eden-history></app-eden-history>
+          </div>
+          <!-- End History & Autobiography Tab Content -->
           
           <!-- AutoParts Tab Content -->
           <div *ngIf="edenChatTab === 'autoparts'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">

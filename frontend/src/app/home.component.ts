@@ -258,7 +258,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' | 'university' = 'workflow-chat';
   
   // Active tab for Eden Chat window (chat, video-library, university, news, or ted)
-  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' | 'ted' | 'books' | 'bible' | 'autoparts' = 'chat';
+  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' | 'ted' | 'books' | 'bible' | 'autoparts' | 'history' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;

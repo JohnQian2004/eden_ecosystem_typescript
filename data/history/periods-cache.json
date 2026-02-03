@@ -1,0 +1,53 @@
+{
+  "timestamp": 1770082197876,
+  "periods": [
+    {
+      "id": "ancient-civilizations",
+      "name": "Ancient Civilizations",
+      "startYear": -3000,
+      "endYear": 500,
+      "description": "The rise of early civilizations including Mesopotamia, Egypt, Indus Valley, and Ancient China.",
+      "globalEvents": []
+    },
+    {
+      "id": "classical-antiquity",
+      "name": "Classical Antiquity",
+      "startYear": 500,
+      "endYear": 500,
+      "description": "The classical civilizations of Greece and Rome, and their lasting influence.",
+      "globalEvents": []
+    },
+    {
+      "id": "medieval-period",
+      "name": "Medieval Period",
+      "startYear": 500,
+      "endYear": 1500,
+      "description": "The Middle Ages, featuring the rise of Islam, the Crusades, and the Renaissance.",
+      "globalEvents": []
+    },
+    {
+      "id": "renaissance",
+      "name": "Renaissance & Early Modern",
+      "startYear": 1500,
+      "endYear": 1800,
+      "description": "The Renaissance, Age of Discovery, and the Enlightenment.",
+      "globalEvents": []
+    },
+    {
+      "id": "modern-era",
+      "name": "Modern Era",
+      "startYear": 1800,
+      "endYear": 2000,
+      "description": "Industrial Revolution, World Wars, and the modern age.",
+      "globalEvents": []
+    },
+    {
+      "id": "contemporary",
+      "name": "Contemporary",
+      "startYear": 2000,
+      "endYear": 2026,
+      "description": "The 21st century and beyond.",
+      "globalEvents": []
+    }
+  ]
+}

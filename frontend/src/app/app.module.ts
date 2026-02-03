@@ -35,6 +35,7 @@ import { EdenTEDComponent } from './components/eden-ted/eden-ted.component';
 import { EdenBooksComponent } from './components/eden-books/eden-books.component';
 import { EdenBibleComponent } from './components/eden-bible/eden-bible.component';
 import { EdenAutopartsComponent } from './components/eden-autoparts/eden-autoparts.component';
+import { EdenHistoryComponent } from './components/eden-history/eden-history.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -83,7 +84,8 @@ const routes: Routes = [
     EdenTEDComponent,
     EdenBooksComponent,
     EdenBibleComponent,
-    EdenAutopartsComponent
+    EdenAutopartsComponent,
+    EdenHistoryComponent
   ],
   imports: [
     BrowserModule,

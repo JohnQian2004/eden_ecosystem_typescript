@@ -706,6 +706,18 @@ httpServer.on("request", async (req, res) => {
     }
   }
 
+  // Handle history API requests
+  if (pathname.startsWith('/api/history/')) {
+    try {
+      const { handleHistoryRequest } = await import('./src/history/historyRoutes');
+      if (handleHistoryRequest(req, res, pathname)) {
+        return; // History API handled the request
+      }
+    } catch (error: any) {
+      console.error(`❌ [${requestId}] History API error:`, error.message);
+    }
+  }
+
   // Proxy media server requests (if media server is running separately)
   // Media server runs on port 3001 as a separate service
   // Use localhost for connection (0.0.0.0 is only for binding, not connecting)

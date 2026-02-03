@@ -1,0 +1,215 @@
+<div class="eden-history-container">
+  <!-- Header -->
+  <div class="history-header">
+    <h2>📜 History & Autobiography</h2>
+    <div class="view-mode-selector">
+      <button 
+        [class.active]="viewMode === 'timeline'"
+        (click)="viewMode = 'timeline'; goBack()">
+        Timeline
+      </button>
+      <button 
+        [class.active]="viewMode === 'biography'"
+        (click)="viewMode = 'biography'; goBack()">
+        Biography
+      </button>
+      <button 
+        [class.active]="viewMode === 'autobiography'"
+        (click)="viewMode = 'autobiography'; goBack()">
+        Autobiography
+      </button>
+      <button 
+        [class.active]="viewMode === 'whatif'"
+        (click)="viewMode = 'whatif'; goBack()">
+        What If?
+      </button>
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="search-bar">
+    <input 
+      type="text" 
+      [(ngModel)]="searchQuery"
+      (keyup.enter)="search()"
+      placeholder="Search historical events, figures, or periods...">
+    <button (click)="search()">🔍 Search</button>
+  </div>
+
+  <!-- Search Results -->
+  <div *ngIf="searchResults.length > 0" class="search-results">
+    <h3>Search Results</h3>
+    <div class="result-item" *ngFor="let result of searchResults">
+      <h4>{{ getResultTitle(result) }}</h4>
+      <p>{{ getResultDescription(result) }}</p>
+      <button 
+        *ngIf="isFigure(result)" 
+        class="btn btn-sm mt-2"
+        (click)="selectFigure(result)">
+        View Biography
+      </button>
+    </div>
+  </div>
+
+  <!-- Timeline View -->
+  <div *ngIf="viewMode === 'timeline' && !selectedPeriod" class="timeline-view">
+    <h3>Historical Periods</h3>
+    <div *ngIf="isLoadingPeriods" class="loading">Loading periods...</div>
+    <div class="periods-grid">
+      <div 
+        *ngFor="let period of periods" 
+        class="period-card"
+        (click)="selectPeriod(period)">
+        <h4>{{ period.name }}</h4>
+        <p class="period-dates">{{ period.startYear }} - {{ period.endYear }}</p>
+        <p class="period-description">{{ period.description }}</p>
+        <div class="event-count">
+          <span *ngIf="period.globalEvents && period.globalEvents.length > 0">
+            {{ period.globalEvents.length }} events
+          </span>
+          <span *ngIf="!period.globalEvents || period.globalEvents.length === 0" class="generating-text">
+            Click to generate events
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Period Detail View -->
+  <div *ngIf="viewMode === 'timeline' && selectedPeriod" class="period-detail">
+    <button class="back-btn" (click)="goBack()">← Back</button>
+    <h2>{{ selectedPeriod.name }}</h2>
+    <p class="period-meta">{{ selectedPeriod.startYear }} - {{ selectedPeriod.endYear }}</p>
+    <p class="period-description">{{ selectedPeriod.description }}</p>
+    
+    <h3>Global Events</h3>
+    <div *ngIf="!selectedPeriod.globalEvents || selectedPeriod.globalEvents.length === 0" class="loading">
+      <p>Generating historical events for this period using AI... This may take a moment.</p>
+      <div class="spinner-border spinner-border-sm" role="status"></div>
+    </div>
+    <div *ngIf="selectedPeriod.globalEvents && selectedPeriod.globalEvents.length > 0" class="events-list">
+      <div *ngFor="let event of selectedPeriod.globalEvents" class="event-card">
+        <h4>{{ event.title }}</h4>
+        <p class="event-date">{{ event.date }}</p>
+        <p class="event-location">📍 {{ event.location }}</p>
+        <p>{{ event.description }}</p>
+        <div *ngIf="event.perspectives && event.perspectives.length > 0" class="perspectives">
+          <strong>Perspectives:</strong>
+          <ul>
+            <li *ngFor="let perspective of event.perspectives">{{ perspective }}</li>
+          </ul>
+        </div>
+        <div *ngIf="event.relatedFigures && event.relatedFigures.length > 0" class="related-figures">
+          <strong>Related Figures:</strong>
+          <span *ngFor="let figure of event.relatedFigures; let last = last">
+            {{ figure }}<span *ngIf="!last">, </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Biography View -->
+  <div *ngIf="viewMode === 'biography' && !selectedFigure" class="biography-view">
+    <h3>Historical Figures</h3>
+    <div *ngIf="isLoadingFigures" class="loading">Loading figures...</div>
+    <div class="figures-grid">
+      <div 
+        *ngFor="let figure of figures" 
+        class="figure-card"
+        (click)="selectFigure(figure)">
+        <h4>{{ figure.name }}</h4>
+        <p class="figure-dates" *ngIf="figure.birthYear">
+          {{ figure.birthYear }} - {{ figure.deathYear || 'Present' }}
+        </p>
+        <p class="figure-occupation">{{ figure.occupation }}</p>
+        <p class="figure-nationality">{{ figure.nationality }}</p>
+        <button class="conversation-btn" (click)="startConversation(figure); $event.stopPropagation()">
+          💬 Start Conversation
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Figure Detail View -->
+  <div *ngIf="viewMode === 'biography' && selectedFigure" class="figure-detail">
+    <button class="back-btn" (click)="goBack()">← Back</button>
+    <h2>{{ selectedFigure.name }}</h2>
+    <p class="figure-meta">
+      {{ selectedFigure.birthYear }} - {{ selectedFigure.deathYear || 'Present' }} | 
+      {{ selectedFigure.nationality }} | {{ selectedFigure.occupation }}
+    </p>
+    <div class="biography-content" [innerHTML]="formatText(selectedFigure.biography)"></div>
+    
+    <button class="conversation-btn" (click)="startConversation(selectedFigure)">
+      💬 Start Autobiography Conversation
+    </button>
+  </div>
+
+  <!-- Autobiography/Conversation View -->
+  <div *ngIf="viewMode === 'autobiography' && selectedFigure" class="autobiography-view">
+    <button class="back-btn" (click)="goBack()">← Back</button>
+    <div class="figure-header">
+      <h2>Conversation with {{ selectedFigure.name }}</h2>
+      <p class="figure-meta">{{ selectedFigure.occupation }} | {{ selectedFigure.nationality }}</p>
+    </div>
+
+    <div class="conversation-container">
+      <div class="conversation-messages">
+        <div 
+          *ngFor="let message of conversationHistory" 
+          [class.user-message]="message.role === 'user'"
+          [class.figure-message]="message.role === 'figure'"
+          class="message">
+          <div class="message-role" *ngIf="message.role === 'figure'">
+            <strong>{{ selectedFigure.name }}:</strong>
+          </div>
+          <div class="message-content" [innerHTML]="formatText(message.content)"></div>
+        </div>
+        <div *ngIf="isGeneratingResponse" class="message figure-message">
+          <div class="message-role"><strong>{{ selectedFigure.name }}:</strong></div>
+          <div class="message-content">Thinking...</div>
+        </div>
+      </div>
+
+      <div class="conversation-input">
+        <input 
+          type="text" 
+          [(ngModel)]="currentQuestion"
+          (keyup.enter)="askQuestion()"
+          placeholder="Ask a question to {{ selectedFigure.name }}...">
+        <button 
+          (click)="askQuestion()" 
+          [disabled]="isGeneratingResponse || !currentQuestion.trim()">
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- What-If Scenario View -->
+  <div *ngIf="viewMode === 'whatif'" class="whatif-view">
+    <h3>Historical What-If Scenarios</h3>
+    <p class="whatif-description">
+      Explore alternative historical outcomes by asking "what if" questions. 
+      The AI will analyze historical context and generate plausible scenarios.
+    </p>
+    
+    <div class="whatif-input">
+      <textarea 
+        [(ngModel)]="whatIfScenario"
+        placeholder="Example: What if Zhuge Liang's Northern Expeditions had succeeded? How might that have altered the subsequent history of Central Asia?"></textarea>
+      <button 
+        (click)="generateWhatIf()" 
+        [disabled]="isGeneratingWhatIf || !whatIfScenario.trim()">
+        {{ isGeneratingWhatIf ? 'Generating...' : 'Generate Scenario' }}
+      </button>
+    </div>
+
+    <div *ngIf="whatIfResult" class="whatif-result">
+      <h4>Scenario Analysis:</h4>
+      <div class="result-content" [innerHTML]="formatText(whatIfResult)"></div>
+    </div>
+  </div>
+</div>
+
