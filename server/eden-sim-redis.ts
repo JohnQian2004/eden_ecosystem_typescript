@@ -735,6 +735,10 @@ httpServer.on("request", async (req, res) => {
   const parsedUrl = url.parse(req.url || "/", true);
   const pathname = parsedUrl.pathname || "/";
   
+  // Define media server URL early (used by multiple proxy routes)
+  // Media server runs on port 3001 as a separate service
+  const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
+  
   // Handle books API requests
   if (pathname.startsWith('/api/books/')) {
     try {
@@ -759,31 +763,10 @@ httpServer.on("request", async (req, res) => {
     }
   }
 
-  // Handle media server requests directly (not proxied) - EXCEPT sync which must go to separate media server
-  // Sync endpoint MUST be handled by the separate media video server on port 3001, not Eden backend
-  if (pathname.startsWith('/api/media/') && pathname !== '/api/media/library/sync') {
-    try {
-      console.log(`📡 [${requestId}] Attempting direct media server handling for: ${pathname}`);
-      const { handleMediaRequest } = await import('./src/media/mediaRoutes');
-      const handled = await handleMediaRequest(req, res, pathname);
-      if (handled) {
-        console.log(`✅ [${requestId}] Media server directly handled: ${pathname}`);
-        return; // Media server handled the request - don't proxy
-      } else {
-        console.log(`⚠️ [${requestId}] Media server did not handle: ${pathname}, will try proxy`);
-      }
-    } catch (error: any) {
-      console.error(`❌ [${requestId}] Media server direct handling error:`, error.message);
-      console.error(`❌ [${requestId}] Error stack:`, error.stack);
-      // Fall through to proxy if direct handling fails
-    }
-  }
+  // NOTE: All /api/media/ requests are handled directly by the media server on port 3001
+  // Angular connects directly to the media server, not through Eden backend proxy
+  // No proxy code here - requests go directly to http://localhost:3001/api/media/*
 
-  // Proxy media server requests (if media server is running separately)
-  // Media server runs on port 3001 as a separate service
-  // Use localhost for connection (0.0.0.0 is only for binding, not connecting)
-  const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
-  
   // Proxy autoparts search service requests
   // AutoParts service runs on remote server at 50.76.0.83:5001
   const AUTOPARTS_SERVER_URL = process.env.AUTOPARTS_SERVER_URL || 'http://50.76.0.83:5001';
@@ -829,68 +812,68 @@ httpServer.on("request", async (req, res) => {
     return; // Request is being proxied - IMPORTANT: return here to prevent fallthrough
   }
   
-  // Proxy /api/media/library/sync to separate media video server (MUST be on port 3001, not Eden backend)
-  if (pathname === '/api/media/library/sync') {
-    console.log(`🔄 [${requestId}] PROXYING sync request to separate media video server: ${pathname}`);
-    console.log(`🔄 [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
-    const proxyUrl = new URL(pathname, MEDIA_SERVER_URL);
+  // Proxy ALL /api/media/ routes to separate media video server (MUST be on port 3001, not Eden backend)
+  // Eden backend does NOT handle media requests - they all go to the media server
+  // This proxy avoids mixed content errors (HTTPS page loading HTTP resources)
+  if (pathname.startsWith('/api/media/')) {
+    // Handle OPTIONS preflight for CORS
+    if (req.method === 'OPTIONS') {
+      console.log(`   ✅ [${requestId}] OPTIONS preflight for media endpoint: ${pathname}`);
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range, Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400', // 24 hours
+      });
+      res.end();
+      return;
+    }
     
-    // Simple proxy to media server
+    console.log(`🔄 [${requestId}] PROXYING to separate media video server: ${pathname}`);
+    console.log(`🔄 [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
+    const queryString = parsedUrl.search || '';
+    const proxyPath = pathname + queryString;
+    const proxyUrl = new URL(proxyPath, MEDIA_SERVER_URL);
+    
+    // Proxy to media server
     const proxyModule = require('http');
+    // Copy headers but remove/override problematic ones
+    const proxyHeaders: any = { ...req.headers };
+    // Remove host header - Node.js will set it automatically from the URL
+    delete proxyHeaders.host;
+    delete proxyHeaders['host'];
+    // Set correct host for the proxy target
+    proxyHeaders.host = proxyUrl.host;
+    
     const proxyReq = proxyModule.request(proxyUrl, {
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: proxyUrl.host
-      }
+      headers: proxyHeaders
     }, (proxyRes: any) => {
-      console.log(`✅ [${requestId}] Media video server responded with status: ${proxyRes.statusCode}`);
-      // Copy headers
+      console.log(`✅ [${requestId}] Media server responded with status: ${proxyRes.statusCode}`);
+      // Copy headers (including CORS headers from media server)
       Object.keys(proxyRes.headers).forEach(key => {
-        res.setHeader(key, proxyRes.headers[key]);
+        if (key.toLowerCase() !== 'host') {
+          res.setHeader(key, proxyRes.headers[key]);
+        }
       });
+      // Ensure CORS headers are set
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.writeHead(proxyRes.statusCode || 200);
       proxyRes.pipe(res);
     });
     
     proxyReq.on('error', (err: any) => {
-      console.error(`❌ [${requestId}] Media video server proxy error:`, err.message);
+      console.error(`❌ [${requestId}] Media server proxy error:`, err.message);
       console.error(`❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
       console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Media video server unavailable', details: err.message }));
-    });
-    
-    // Pipe request body if present
-    req.pipe(proxyReq);
-    return; // Request is being proxied
-  }
-  
-  // Proxy /api/media/ routes to media server (fallback - only if direct handling didn't work)
-  if (pathname.startsWith('/api/media/')) {
-    console.log(`🔄 [${requestId}] Proxying /api/media/ request to external media server: ${pathname}`);
-    const proxyUrl = new URL(pathname, MEDIA_SERVER_URL);
-    
-    // Simple proxy to media server
-    const proxyModule = require('http');
-    const proxyReq = proxyModule.request(proxyUrl, {
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: proxyUrl.host
-      }
-    }, (proxyRes: any) => {
-      // Copy headers
-      Object.keys(proxyRes.headers).forEach(key => {
-        res.setHeader(key, proxyRes.headers[key]);
+      res.writeHead(502, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
       });
-      res.writeHead(proxyRes.statusCode || 200);
-      proxyRes.pipe(res);
-    });
-    
-    proxyReq.on('error', (err: any) => {
-      console.warn(`⚠️ [${requestId}] Media server not available at ${MEDIA_SERVER_URL}, falling back to legacy video serving`);
-      // Fall through to legacy video serving - don't return here
+      res.end(JSON.stringify({ 
+        error: 'Media server unavailable', 
+        details: err.message 
+      }));
     });
     
     // Pipe request body if present

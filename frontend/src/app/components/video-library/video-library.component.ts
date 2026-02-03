@@ -369,7 +369,9 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getVideoPlayerUrl(video: Video): string {
-    return this.videoLibraryService.getVideoStreamUrl(video.filename);
+    const videoId = video.id;
+    const videoUrl = (video as any).videoUrl; // videoUrl from API response
+    return this.videoLibraryService.getVideoStreamUrl(video.filename, videoId, videoUrl);
   }
 }
 

@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
+import { getApiBaseUrl } from './api-base';
 
 export interface Video {
   id: string;
@@ -52,10 +53,17 @@ export interface ApiResponse<T> {
   providedIn: 'root',
 })
 export class VideoLibraryService {
-  private apiUrl = '/api/v1/library'; // Video library API endpoints
-  private videosApiUrl = '/api/videos'; // Simple videos endpoint (currently available)
+  private apiUrl = '/api/v1/library'; // Video library API endpoints (legacy, not used for videos)
+  // Use Eden backend proxy to avoid mixed content errors (HTTPS -> HTTP)
+  // Eden backend proxies /api/media/* requests to media server on port 3001
+  private videosApiUrl: string;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // Use relative URL - Eden backend will proxy to media server
+    // This avoids mixed content errors (HTTPS page loading HTTP resources)
+    this.videosApiUrl = '/api/media/library/videos';
+    console.log(`📹 [VideoLibraryService] Using Eden backend proxy: ${this.videosApiUrl}`);
+  }
 
   /**
    * Get all videos with optional filters
@@ -107,7 +115,8 @@ export class VideoLibraryService {
           tags: v.tags || [],
           analyzed_at: v.analyzed_at,
           is_new: v.is_new,
-          author: v.author || 'root GOD bill.draper.auto@gmail.com (bill draper)' // Default author if missing
+          author: v.author || 'root GOD bill.draper.auto@gmail.com (bill draper)', // Default author if missing
+          videoUrl: v.videoUrl // Preserve videoUrl from API response (points to media server)
         }));
         return { status: 'success', data: videos };
       })
@@ -126,14 +135,22 @@ export class VideoLibraryService {
   /**
    * Get video stream URL
    * @param filenameOrPath - Video filename or file_path from library.json
+   * @param videoId - Optional video ID (preferred for media server)
+   * @param videoUrl - Optional videoUrl from API response (preferred)
    */
-  getVideoStreamUrl(filenameOrPath: string): string {
-    // Backend serves videos from /api/movie/video/{path}
-    // The backend expects the path relative to the data directory
-    // file_path in library.json is like "videos\filename.mp4" or "videos/filename.mp4"
-    // Normalize path separators and use as-is (backend will join with data directory)
-    const normalizedPath = filenameOrPath.replace(/\\/g, '/');
-    return `/api/movie/video/${normalizedPath}`;
+  getVideoStreamUrl(filenameOrPath: string, videoId?: string, videoUrl?: string): string {
+    // If videoUrl is provided from API response, use it (already relative, goes through Eden proxy)
+    if (videoUrl) {
+      // videoUrl from API is already relative (e.g., "/api/media/video/:id")
+      // Eden backend will proxy it to the media server
+      return videoUrl;
+    }
+    
+    // Otherwise, construct URL using Eden backend proxy endpoint
+    // Eden backend proxies /api/media/video/:id to media server
+    const id = videoId || filenameOrPath;
+    const normalizedId = id.replace(/\\/g, '/');
+    return `/api/media/video/${normalizedId}`;
   }
 
   /**

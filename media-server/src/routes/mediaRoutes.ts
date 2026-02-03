@@ -146,11 +146,51 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
       const videos = mediaServer.getVideosFromLibrary();
       console.log(`✅ [MediaServer] Returning ${videos.length} videos from library.json`);
       
+      // Transform videos to include correct video URLs pointing to media server
+      const transformedVideos = videos.map((video: any) => {
+        const videoId = video.id || video.filename;
+        const videoUrl = `/api/media/video/${videoId}`;
+        
+        // Convert filename to title
+        let title = video.filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '');
+        title = title.replace(/^(vibes_media_|downloaded_video_)/i, '');
+        title = title.replace(/[_-]/g, ' ');
+        title = title.split(' ')
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+        
+        return {
+          id: video.id || `video-${video.filename}`,
+          filename: video.filename,
+          file_path: video.file_path || `media/videos/${video.filename}`,
+          title: title || video.filename,
+          videoUrl: videoUrl,
+          thumbnailUrl: videoUrl,
+          tags: video.tags || [],
+          author: video.author || 'root GOD bill.draper.auto@gmail.com (bill draper)',
+          duration: video.duration,
+          resolution_width: video.resolution_width,
+          resolution_height: video.resolution_height,
+          frame_rate: video.frame_rate,
+          file_size: video.file_size,
+          codec: video.codec,
+          created_at: video.created_at || new Date().toISOString(),
+          updated_at: video.updated_at || new Date().toISOString(),
+          analyzed_at: video.analyzed_at,
+          is_new: video.is_new,
+          analysis: video.analysis || {
+            content_tags: [],
+            shot_type: undefined,
+            scene_type: undefined
+          }
+        };
+      });
+      
       // Return in the format Angular expects: { success: true, data: videos[], count: number }
       res.json({
         success: true,
-        data: videos,
-        count: videos.length
+        data: transformedVideos,
+        count: transformedVideos.length
       });
     } catch (error: any) {
       console.error(`❌ [MediaServer] Error getting videos:`, error.message);

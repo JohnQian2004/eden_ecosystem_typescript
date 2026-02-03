@@ -19,11 +19,12 @@ export class VideoDetailsComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.video) {
-      // Backend /api/movie/video/ endpoint expects just the filename
-      // The backend will automatically look in data/videos/ directory
-      // So we use filename directly, not file_path
+      // Use videoUrl from API response if available (points to media server)
+      // Otherwise construct URL using video ID or filename
       const videoPath = this.video.filename;
-      this.videoStreamUrl = this.videoLibraryService.getVideoStreamUrl(videoPath);
+      const videoId = this.video.id;
+      const videoUrl = (this.video as any).videoUrl; // videoUrl from API response
+      this.videoStreamUrl = this.videoLibraryService.getVideoStreamUrl(videoPath, videoId, videoUrl);
     }
   }
 

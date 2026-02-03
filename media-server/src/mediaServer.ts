@@ -154,26 +154,184 @@ export class MediaServer {
 
   /**
    * Serve video file with range request support
+   * Follows Eden backend pattern: look up by ID in library.json, then serve file directly
    */
   serveVideo(req: any, res: any, videoId: string): void {
-    const mediaFile = this.mediaRegistry.get(videoId);
-    if (!mediaFile || mediaFile.type !== 'video') {
-      res.status(404).json({ error: 'Video not found' });
-      return;
-    }
-
-    const videoPath = this.getMediaFilePath(mediaFile);
+    console.log(`📹 [MediaServer] serveVideo called with videoId: ${videoId}`);
     
-    if (!fs.existsSync(videoPath)) {
-      res.status(404).json({ error: 'Video file not found on disk' });
+    // First, try to find video in registry (for uploaded videos)
+    let mediaFile = this.mediaRegistry.get(videoId);
+    
+    // If not in registry, look up by ID in library.json
+    if (!mediaFile || mediaFile.type !== 'video') {
+      console.log(`📹 [MediaServer] Video not in registry, checking library.json...`);
+      const videos = this.getVideosFromLibrary();
+      console.log(`📹 [MediaServer] Loaded ${videos.length} videos from library.json`);
+      
+      // Try to find video by ID first, then by filename
+      const video = videos.find((v: any) => v.id === videoId || v.filename === videoId);
+      
+      if (!video) {
+        console.error(`❌ [MediaServer] Video not found in library.json: ${videoId}`);
+        res.writeHead(404, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+          error: 'Video not found',
+          videoId: videoId,
+          message: 'This video is not in the library. Please refresh the video listings.'
+        }));
+        return;
+      }
+      
+      console.log(`✅ [MediaServer] Found video in library.json: ${video.filename}`);
+      
+      // Determine the correct base directory (following Eden pattern)
+      let mediaServerDir = projectRoot;
+      const normalized = mediaServerDir.replace(/\\/g, '/');
+      if (normalized.endsWith('/media-server')) {
+        mediaServerDir = path.dirname(mediaServerDir);
+      }
+      // If we're in a compiled output (dist/build), go up to media-server/
+      if (mediaServerDir.endsWith(path.sep + 'dist') || mediaServerDir.endsWith(path.sep + 'build')) {
+        mediaServerDir = path.dirname(mediaServerDir);
+      }
+      
+      // Try media server's videos directory first
+      let videoPath = path.join(mediaServerDir, 'media-server', 'data', 'videos', video.filename);
+      let videoExists = fs.existsSync(videoPath);
+      console.log(`📹 [MediaServer] Checking media server directory: ${videoPath} (exists: ${videoExists})`);
+      
+      // If not found, try the VIDEOS_DIR path (relative to projectRoot)
+      if (!videoExists) {
+        videoPath = path.join(VIDEOS_DIR, video.filename);
+        videoExists = fs.existsSync(videoPath);
+        console.log(`📹 [MediaServer] Checking VIDEOS_DIR: ${videoPath} (exists: ${videoExists})`);
+      }
+      
+      // If still not found, try Eden backend's videos directory as fallback
+      if (!videoExists) {
+        const edenVideoPath = path.join(mediaServerDir, 'server', 'data', 'videos', video.filename);
+        console.log(`📹 [MediaServer] Checking Eden backend directory: ${edenVideoPath}`);
+        if (fs.existsSync(edenVideoPath)) {
+          videoPath = edenVideoPath;
+          videoExists = true;
+          console.log(`✅ [MediaServer] Found video in Eden backend directory: ${video.filename}`);
+        }
+      }
+      
+      if (!videoExists) {
+        console.error(`❌ [MediaServer] Video file not found: ${video.filename}`);
+        res.writeHead(404, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+          error: 'Video file not found',
+          filename: video.filename,
+          message: 'This video file no longer exists. Please refresh the video listings.'
+        }));
+        return;
+      }
+      
+      // Security: Ensure the resolved path is within the data directory
+      const resolvedPath = path.resolve(videoPath);
+      const dataDir = path.resolve(path.join(mediaServerDir, 'media-server', 'data'));
+      const edenDataDir = path.resolve(path.join(mediaServerDir, 'server', 'data'));
+      if (!resolvedPath.startsWith(dataDir) && !resolvedPath.startsWith(edenDataDir)) {
+        console.log(`🚫 [MediaServer] Forbidden video access attempt: ${videoId}`);
+        res.writeHead(403, { 
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end('Forbidden');
+        return;
+      }
+      
+      // Use the path that actually exists
+      const actualVideoPath = resolvedPath;
+      console.log(`📹 [MediaServer] Serving video: ${video.filename} from ${actualVideoPath}`);
+      
+      // Check file access
+      try {
+        fs.accessSync(actualVideoPath, fs.constants.F_OK);
+      } catch (err: any) {
+        console.error(`❌ [MediaServer] Video file access error: ${actualVideoPath}`);
+        res.writeHead(404, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ error: 'Video not found' }));
+        return;
+      }
+      
+      const stat = statSync(actualVideoPath);
+      const fileSize = stat.size;
+      console.log(`📹 [MediaServer] Video file size: ${fileSize} bytes`);
+      
+      // Warn if file is very small (likely a placeholder or corrupted)
+      if (stat.size < 1000) {
+        console.warn(`⚠️ [MediaServer] Warning: Video file is very small (${stat.size} bytes) - may be a placeholder or corrupted`);
+      }
+      
+      // Set appropriate headers for video streaming (following Eden pattern)
+      const range = req.headers.range;
+      const headers: { [key: string]: string } = {
+        'Content-Type': 'video/mp4',
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range, Content-Type',
+      };
+      
+      if (range) {
+        // Handle range requests for video seeking
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = createReadStream(actualVideoPath, { start, end });
+        
+        headers['Content-Range'] = `bytes ${start}-${end}/${fileSize}`;
+        headers['Content-Length'] = chunksize.toString();
+        res.writeHead(206, headers);
+        file.pipe(res);
+      } else {
+        headers['Content-Length'] = fileSize.toString();
+        res.writeHead(200, headers);
+        createReadStream(actualVideoPath).pipe(res);
+      }
+      
+      return;
+    }
+    
+    // If video was found in registry, serve it using the existing logic
+    const finalVideoPath = mediaFile.filePath && path.isAbsolute(mediaFile.filePath)
+      ? mediaFile.filePath
+      : path.join(VIDEOS_DIR, mediaFile.filename);
+    
+    console.log(`📹 [MediaServer] Resolved video path: ${finalVideoPath}`);
+    
+    if (!fs.existsSync(finalVideoPath)) {
+      console.error(`❌ [MediaServer] Video file not found: ${finalVideoPath}`);
+      res.writeHead(404, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ error: 'Video file not found on disk' }));
       return;
     }
 
-    const stat = statSync(videoPath);
+    const stat = statSync(finalVideoPath);
     const fileSize = stat.size;
+    console.log(`📹 [MediaServer] Video file size: ${fileSize} bytes`);
+    
+    if (fileSize < 1024) {
+      console.warn(`⚠️ [MediaServer] Warning: Video file is very small (${fileSize} bytes), may be corrupted or incomplete`);
+    }
+    
     const range = req.headers.range;
-
-    // Set CORS headers
     const headers: { [key: string]: string } = {
       'Content-Type': mediaFile.mimeType || 'video/mp4',
       'Accept-Ranges': 'bytes',
@@ -183,12 +341,11 @@ export class MediaServer {
     };
 
     if (range) {
-      // Parse range header
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunksize = (end - start) + 1;
-      const file = createReadStream(videoPath, { start, end });
+      const file = createReadStream(finalVideoPath, { start, end });
 
       headers['Content-Range'] = `bytes ${start}-${end}/${fileSize}`;
       headers['Content-Length'] = chunksize.toString();
@@ -197,7 +354,7 @@ export class MediaServer {
     } else {
       headers['Content-Length'] = fileSize.toString();
       res.writeHead(200, headers);
-      createReadStream(videoPath).pipe(res);
+      createReadStream(finalVideoPath).pipe(res);
     }
   }
 
@@ -696,23 +853,59 @@ export class MediaServer {
   /**
    * Get all videos from library.json
    * Returns the videos array from the library.json file
+   * Checks media server's library.json first, then Eden backend's library.json files as fallback
    */
   getVideosFromLibrary(): any[] {
-    const libraryPath = path.join(MEDIA_BASE_DIR, 'library.json');
+    // Try media server's library.json first
+    const mediaServerLibraryPath = path.join(MEDIA_BASE_DIR, 'library.json');
+    let library: any = null;
     
-    if (!fs.existsSync(libraryPath)) {
-      console.log(`⚠️ [MediaServer] Library.json not found: ${libraryPath}`);
-      return [];
+    if (fs.existsSync(mediaServerLibraryPath)) {
+      try {
+        const libraryContent = fs.readFileSync(mediaServerLibraryPath, 'utf-8');
+        library = JSON.parse(libraryContent);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from media server library.json`);
+        return library.videos || [];
+      } catch (error: any) {
+        console.error(`❌ [MediaServer] Failed to read media server library.json:`, error.message);
+      }
     }
-
-    try {
-      const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
-      const library = JSON.parse(libraryContent);
-      return library.videos || [];
-    } catch (error: any) {
-      console.error(`❌ [MediaServer] Failed to read library.json:`, error.message);
-      return [];
+    
+    // Fallback: Try Eden backend's library.json files
+    let edenLibraryDir = projectRoot;
+    const normalized = edenLibraryDir.replace(/\\/g, '/');
+    if (normalized.endsWith('/media-server')) {
+      edenLibraryDir = path.dirname(edenLibraryDir);
     }
+    
+    // Try server/data/media/library.json first (newer location)
+    const edenMediaLibraryPath = path.join(edenLibraryDir, 'server', 'data', 'media', 'library.json');
+    if (fs.existsSync(edenMediaLibraryPath)) {
+      try {
+        const libraryContent = fs.readFileSync(edenMediaLibraryPath, 'utf-8');
+        library = JSON.parse(libraryContent);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden media library.json`);
+        return library.videos || [];
+      } catch (error: any) {
+        console.error(`❌ [MediaServer] Failed to read Eden media library.json:`, error.message);
+      }
+    }
+    
+    // Try server/data/videos/library.json (older location)
+    const edenVideosLibraryPath = path.join(edenLibraryDir, 'server', 'data', 'videos', 'library.json');
+    if (fs.existsSync(edenVideosLibraryPath)) {
+      try {
+        const libraryContent = fs.readFileSync(edenVideosLibraryPath, 'utf-8');
+        library = JSON.parse(libraryContent);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden videos library.json`);
+        return library.videos || [];
+      } catch (error: any) {
+        console.error(`❌ [MediaServer] Failed to read Eden videos library.json:`, error.message);
+      }
+    }
+    
+    console.warn(`⚠️ [MediaServer] No library.json found in any location`);
+    return [];
   }
 }
 
