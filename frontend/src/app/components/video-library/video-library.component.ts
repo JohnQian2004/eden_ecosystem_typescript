@@ -28,6 +28,7 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   allContentTags: string[] = [];
   filteredVideos: Video[] = [];
   showTikTokMode = false;
+  videosLoaded = false; // Track if videos have been loaded
 
   constructor(
     private videoLibraryService: VideoLibraryService,
@@ -35,9 +36,18 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadVideos();
+    // Don't load videos automatically - wait until tab is selected
     // Listen for TikTok close event
     window.addEventListener('tiktok-close', this.disableTikTokMode.bind(this));
+  }
+
+  /**
+   * Load videos when tab is selected (called from parent or when component becomes visible)
+   */
+  loadVideosIfNeeded(): void {
+    if (!this.videosLoaded && !this.loading) {
+      this.loadVideos();
+    }
   }
 
   ngAfterViewInit(): void {
@@ -45,6 +55,8 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadVideos(): void {
+    if (this.loading) return; // Prevent duplicate loads
+    
     this.loading = true;
     // Don't send content_tags to backend - it's filtered on frontend
     const { content_tags, ...backendFilters } = this.selectedFilters;
@@ -60,6 +72,7 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
         this.applyContentTagFilter();
         this.calculateLibrarySize();
         this.loading = false;
+        this.videosLoaded = true; // Mark as loaded
       },
       error: (error) => {
         console.error('Error loading videos:', error);
@@ -217,6 +230,9 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.showTikTokMode = false;
     // Restore body scroll
     document.body.style.overflow = '';
+    // Notify parent component
+    const event = new CustomEvent('tiktok-mode-disabled');
+    window.dispatchEvent(event);
   }
 
   ngOnDestroy(): void {

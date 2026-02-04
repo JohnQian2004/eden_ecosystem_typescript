@@ -16,6 +16,13 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
   loadingMore = false;
   hasMore = true;
   error: string | null = null;
+  activeTab: 'home' | 'friends' | 'upload' | 'inbox' | 'profile' = 'home';
+  userEmail: string = '';
+  userInitials: string = '';
+  userDisplayName: string = '';
+  showUploadModal: boolean = false;
+  userVideos: TikTokVideo[] = [];
+  loadingUserVideos: boolean = false;
   
   private scrollTimeout: any;
   private isScrolling = false;
@@ -38,6 +45,7 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadUserInfo();
     this.loadFeed();
     // Auto-play first video after a short delay
     setTimeout(() => {
@@ -45,6 +53,30 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
         this.scrollToVideo(0);
       }
     }, 500);
+  }
+
+  loadUserInfo(): void {
+    // Get user email from localStorage
+    const savedEmail = localStorage.getItem('userEmail') || '';
+    this.userEmail = savedEmail;
+    
+    if (savedEmail) {
+      // Extract display name from email (part before @)
+      const emailParts = savedEmail.split('@');
+      const username = emailParts[0];
+      this.userDisplayName = username.length > 10 ? username.substring(0, 10) + '...' : username;
+      
+      // Generate initials from email
+      const nameParts = username.split(/[._-]/);
+      if (nameParts.length >= 2) {
+        this.userInitials = (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+      } else {
+        this.userInitials = username.substring(0, 2).toUpperCase();
+      }
+    } else {
+      this.userDisplayName = 'Guest';
+      this.userInitials = 'GU';
+    }
   }
 
   onVideoLoaded(event: Event, index: number): void {
@@ -284,6 +316,13 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
     return num.toString();
   }
 
+  formatDuration(seconds: number): string {
+    if (!seconds) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
   openComments(video: TikTokVideo): void {
     // TODO: Implement comments modal/section
     alert(`Comments for "${video.title}" - Coming soon!`);
@@ -308,6 +347,125 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
         console.error('Failed to copy URL:', err);
         alert(`Video URL: ${videoUrl}`);
       });
+    }
+  }
+
+  // Navigation methods for bottom bar
+  navigateToHome(): void {
+    this.activeTab = 'home';
+    // Home is the default TikTok feed mode - already active
+  }
+
+  navigateToFriends(): void {
+    this.activeTab = 'friends';
+    // TODO: Implement friends feed
+    alert('Friends feed - Coming soon!');
+  }
+
+  navigateToUpload(): void {
+    this.activeTab = 'upload';
+    this.showUploadModal = true;
+  }
+
+  closeUploadModal(): void {
+    this.showUploadModal = false;
+    this.activeTab = 'home'; // Return to home after closing
+  }
+
+  onVideoUploaded(): void {
+    // Refresh the feed after upload
+    this.loadFeed();
+    // If on profile tab, reload user videos
+    if (this.activeTab === 'profile') {
+      this.loadUserVideos();
+    }
+    this.closeUploadModal();
+  }
+
+  navigateToInbox(): void {
+    this.activeTab = 'inbox';
+    // Navigate to GOD's inbox
+    const event = new CustomEvent('tiktok-navigate', { detail: { tab: 'god-inbox' } });
+    window.dispatchEvent(event);
+  }
+
+  navigateToProfile(): void {
+    this.activeTab = 'profile';
+    this.loadUserVideos();
+  }
+
+  loadUserVideos(): void {
+    if (!this.userEmail) {
+      console.warn('No user email available for profile');
+      this.userVideos = [];
+      return;
+    }
+
+    if (this.loadingUserVideos) return;
+
+    this.loadingUserVideos = true;
+    
+    // Load all videos and filter by user email
+    this.videoLibraryService.getVideos().subscribe({
+      next: (response) => {
+        const allVideos = response.data || [];
+        
+        // Filter videos by user email (check if author contains user email)
+        this.userVideos = allVideos
+          .filter((video: any) => {
+            const author = video.author || '';
+            // Check if author field contains the user's email
+            return author.toLowerCase().includes(this.userEmail.toLowerCase());
+          })
+          .map((video: any) => {
+            // Convert Video to TikTokVideo format
+            return {
+              id: video.id || video.filename,
+              filename: video.filename,
+              title: video.filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, ''),
+              videoUrl: video.videoUrl || `/api/media/video/${video.filename}`,
+              thumbnailUrl: video.thumbnailUrl || video.videoUrl,
+              author: video.author || this.userEmail,
+              authorDisplayName: this.userDisplayName,
+              likes: 0,
+              isLiked: false,
+              isFollowing: false,
+              followers: 0,
+              comments: 0,
+              tags: video.tags || [],
+              duration: video.duration,
+              file_size: video.file_size,
+              created_at: video.created_at
+            } as TikTokVideo;
+          });
+        
+        this.loadingUserVideos = false;
+      },
+      error: (error) => {
+        console.error('Error loading user videos:', error);
+        this.userVideos = [];
+        this.loadingUserVideos = false;
+      }
+    });
+  }
+
+  playVideoFromProfile(video: TikTokVideo): void {
+    // Switch to home tab and find/play this video
+    this.activeTab = 'home';
+    const videoIndex = this.videos.findIndex(v => v.id === video.id);
+    if (videoIndex >= 0) {
+      this.currentIndex = videoIndex;
+      this.scrollToVideo(videoIndex);
+    } else {
+      // Video not in current feed, reload feed and then play
+      this.loadFeed();
+      setTimeout(() => {
+        const index = this.videos.findIndex(v => v.id === video.id);
+        if (index >= 0) {
+          this.currentIndex = index;
+          this.scrollToVideo(index);
+        }
+      }, 1000);
     }
   }
 }

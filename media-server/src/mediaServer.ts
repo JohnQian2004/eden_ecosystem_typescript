@@ -153,6 +153,23 @@ export class MediaServer {
   }
 
   /**
+   * Generate ETag from file stats (mtime + size)
+   */
+  private generateETag(stat: fs.Stats): string {
+    const mtime = stat.mtime.getTime().toString(36);
+    const size = stat.size.toString(36);
+    return `"${mtime}-${size}"`;
+  }
+
+  /**
+   * Check if request has matching ETag (304 Not Modified)
+   */
+  private checkETag(req: any, etag: string): boolean {
+    const ifNoneMatch = req.headers['if-none-match'];
+    return ifNoneMatch === etag || ifNoneMatch === `W/${etag}`;
+  }
+
+  /**
    * Serve video file with range request support
    * Follows Eden backend pattern: look up by ID in library.json, then serve file directly
    */
@@ -275,6 +292,20 @@ export class MediaServer {
         console.warn(`⚠️ [MediaServer] Warning: Video file is very small (${stat.size} bytes) - may be a placeholder or corrupted`);
       }
       
+      // Generate ETag for cache validation
+      const etag = this.generateETag(stat);
+      
+      // Check if client has cached version (304 Not Modified)
+      if (req.method === 'GET' && this.checkETag(req, etag)) {
+        res.writeHead(304, {
+          'ETag': etag,
+          'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end();
+        return;
+      }
+      
       // Set appropriate headers for video streaming (following Eden pattern)
       const range = req.headers.range;
       const headers: { [key: string]: string } = {
@@ -283,6 +314,9 @@ export class MediaServer {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
         'Access-Control-Allow-Headers': 'Range, Content-Type',
+        'ETag': etag,
+        'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache for videos
+        'Last-Modified': stat.mtime.toUTCString(),
       };
       
       if (range) {
@@ -331,6 +365,20 @@ export class MediaServer {
       console.warn(`⚠️ [MediaServer] Warning: Video file is very small (${fileSize} bytes), may be corrupted or incomplete`);
     }
     
+    // Generate ETag for cache validation
+    const etag = this.generateETag(stat);
+    
+    // Check if client has cached version (304 Not Modified)
+    if (req.method === 'GET' && this.checkETag(req, etag)) {
+      res.writeHead(304, {
+        'ETag': etag,
+        'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end();
+      return;
+    }
+    
     const range = req.headers.range;
     const headers: { [key: string]: string } = {
       'Content-Type': mediaFile.mimeType || 'video/mp4',
@@ -338,6 +386,9 @@ export class MediaServer {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
       'Access-Control-Allow-Headers': 'Range, Content-Type',
+      'ETag': etag,
+      'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache for videos
+      'Last-Modified': stat.mtime.toUTCString(),
     };
 
     if (range) {
@@ -376,11 +427,28 @@ export class MediaServer {
     }
 
     const stat = statSync(imagePath);
+    
+    // Generate ETag for cache validation
+    const etag = this.generateETag(stat);
+    
+    // Check if client has cached version (304 Not Modified)
+    if (req.method === 'GET' && this.checkETag(req, etag)) {
+      res.writeHead(304, {
+        'ETag': etag,
+        'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end();
+      return;
+    }
+    
     const headers: { [key: string]: string } = {
       'Content-Type': mediaFile.mimeType || 'image/jpeg',
       'Content-Length': stat.size.toString(),
       'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=31536000', // 1 year cache
+      'ETag': etag,
+      'Cache-Control': 'public, max-age=31536000, immutable', // 1 year cache
+      'Last-Modified': stat.mtime.toUTCString(),
     };
 
     res.writeHead(200, headers);

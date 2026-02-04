@@ -114,7 +114,7 @@
   z-index: 10;
   position: absolute;
   right: 20px;
-  bottom: 20px;
+  bottom: 200px; // 200px bottom padding
 }
 
 .action-btn {
@@ -216,7 +216,7 @@
 
   .video-actions {
     right: 15px;
-    bottom: 15px;
+    bottom: 200px; // 200px bottom padding on mobile too
     gap: 15px;
   }
 
@@ -243,6 +243,43 @@
       font-size: 12px;
     }
   }
+
+  .tiktok-bottom-nav {
+    height: 55px;
+
+    .nav-item {
+      padding: 6px 12px;
+
+      i {
+        font-size: 22px;
+      }
+
+      .nav-label {
+        font-size: 9px;
+      }
+
+      &.nav-item-upload {
+        i {
+          font-size: 28px;
+        }
+      }
+
+      &.nav-item-profile {
+        .profile-avatar {
+          width: 24px;
+          height: 24px;
+
+          .profile-initials {
+            font-size: 10px;
+          }
+        }
+
+        .nav-label {
+          font-size: 8px;
+        }
+      }
+    }
+  }
 }
 
 // Hide scrollbar but keep functionality
@@ -253,5 +290,484 @@
 .tiktok-feed-container {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+// TikTok Bottom Navigation Bar
+.tiktok-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: #000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 10002;
+  padding: 0;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    padding: 8px 16px;
+    transition: all 0.2s ease;
+    flex: 1;
+    height: 100%;
+
+    i {
+      font-size: 24px;
+      margin-bottom: 2px;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    &:hover {
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    &.active {
+      color: #fff;
+
+      i {
+        color: #fff;
+      }
+    }
+
+    &.nav-item-upload {
+      i {
+        font-size: 32px;
+        color: #fff;
+      }
+
+      &:hover {
+        transform: scale(1.1);
+      }
+    }
+
+    &.nav-item-profile {
+      .profile-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 2px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.2s ease;
+
+        .profile-initials {
+          color: #fff;
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1;
+        }
+      }
+
+      &.active .profile-avatar {
+        border-color: #fff;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+      }
+
+      &:hover .profile-avatar {
+        transform: scale(1.1);
+        border-color: rgba(255, 255, 255, 0.5);
+      }
+    }
+  }
+}
+
+// Adjust video feed to account for bottom nav
+.tiktok-feed-container {
+  padding-bottom: 60px; // Space for bottom navigation
+}
+
+// Upload Modal
+.tiktok-upload-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10003;
+  backdrop-filter: blur(5px);
+}
+
+.tiktok-upload-content {
+  background: #1a1a1a;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tiktok-upload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  h5 {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+.tiktok-upload-body {
+  padding: 20px;
+  color: #fff;
+
+  // Override video-upload component styles for TikTok dark theme
+  ::ng-deep {
+    .video-upload {
+      .btn-primary {
+        background: #25f4ee;
+        border-color: #25f4ee;
+        color: #000;
+        
+        &:hover {
+          background: #1dd4ce;
+          border-color: #1dd4ce;
+        }
+      }
+
+      .btn-success {
+        background: #ff3040;
+        border-color: #ff3040;
+        color: #fff;
+        
+        &:hover {
+          background: #e62e3d;
+          border-color: #e62e3d;
+        }
+      }
+
+      .metadata-form {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+        color: #fff;
+
+        .form-label {
+          color: #fff;
+        }
+
+        .form-control {
+          background-color: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.2);
+          color: #fff;
+
+          &::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+          }
+
+          &:focus {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-color: #25f4ee;
+            color: #fff;
+          }
+        }
+
+        .form-text {
+          color: rgba(255, 255, 255, 0.7);
+        }
+      }
+
+      .upload-progress {
+        .upload-item {
+          background-color: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.1);
+          color: #fff;
+        }
+      }
+    }
+  }
+}
+
+// Mobile styles for upload modal
+@media (max-width: 768px) {
+  .tiktok-upload-content {
+    width: 95%;
+    max-height: 85vh;
+  }
+
+  .tiktok-upload-header,
+  .tiktok-upload-body {
+    padding: 15px;
+  }
+}
+
+// Profile View Styles
+.tiktok-profile-view {
+  padding: 20px;
+  padding-bottom: 80px; // Space for bottom nav
+  color: #fff;
+  min-height: 100vh;
+  background: #000;
+  overflow-y: auto;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 30px;
+}
+
+.profile-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+
+  .profile-initials-large {
+    color: #fff;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+  }
+}
+
+.profile-info {
+  flex: 1;
+
+  .profile-username {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    color: #fff;
+  }
+
+  .profile-stats {
+    display: flex;
+    gap: 30px;
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+
+      .stat-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+      }
+
+      .stat-label {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+    }
+  }
+}
+
+.profile-videos-section {
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #fff;
+  }
+
+  .loading-videos {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .no-videos {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+
+    .btn {
+      background: #25f4ee;
+      border-color: #25f4ee;
+      color: #000;
+      font-weight: 600;
+
+      &:hover {
+        background: #1dd4ce;
+        border-color: #1dd4ce;
+      }
+    }
+  }
+}
+
+.videos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.video-grid-item {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1a1a1a;
+
+  &:hover {
+    transform: scale(1.02);
+    
+    .video-overlay-info {
+      opacity: 1;
+    }
+  }
+}
+
+.video-thumbnail-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 177.78%; // 16:9 aspect ratio
+  background: #000;
+  overflow: hidden;
+
+  video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.video-overlay-info {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+
+  .video-play-icon {
+    font-size: 48px;
+    color: #fff;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+  }
+
+  .video-duration {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.video-title {
+  padding: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #1a1a1a;
+}
+
+// Mobile styles for profile
+@media (max-width: 768px) {
+  .tiktok-profile-view {
+    padding: 15px;
+    padding-bottom: 70px;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+
+  .profile-avatar-large {
+    width: 60px;
+    height: 60px;
+
+    .profile-initials-large {
+      font-size: 24px;
+    }
+  }
+
+  .profile-info {
+    .profile-username {
+      font-size: 20px;
+    }
+
+    .profile-stats {
+      justify-content: center;
+      gap: 20px;
+    }
+  }
+
+  .videos-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .video-title {
+    font-size: 10px;
+    padding: 6px 4px;
+  }
+
+  .video-overlay-info .video-play-icon {
+    font-size: 36px;
+  }
 }
 

@@ -258,7 +258,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   activeTab: 'workflow' | 'workflow2' | 'workflow-chat' | 'ledger' | 'ledger-cards' | 'certificates' | 'chat' | 'config' | 'governance' | 'god-inbox' | 'architecture' | 'video-library' | 'university' = 'workflow-chat';
   
   // Active tab for Eden Chat window (chat, video-library, university, news, or ted)
-  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' | 'ted' | 'books' | 'bible' | 'autoparts' | 'history' = 'chat';
+  edenChatTab: 'chat' | 'video-library' | 'university' | 'news' | 'ted' | 'books' | 'bible' | 'autoparts' | 'history' | 'god-inbox' = 'chat';
   isLoadingBalance: boolean = false;
   isGoogleSignedIn: boolean = false;
   private walletBalanceRefreshTimer: any = null;
@@ -375,6 +375,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   private shouldScrollToBottom: boolean = true;
   
   showSidebar: boolean = true; // Control sidebar visibility (hidden in USER and PRIEST modes)
+  isTikTokModeActive: boolean = false; // Track if TikTok mode is active
 
   // Track current view mode (updated when mode changes)
   _currentViewMode: 'god' | 'priest' | 'user' = 'user';
@@ -839,6 +840,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   ngOnInit() {
     // Listen for TED talk selection events
     window.addEventListener('ted-talk-selected', this.handleTEDTalkSelectedWrapper.bind(this) as EventListener);
+    // Listen for TikTok mode disabled event
+    window.addEventListener('tiktok-mode-disabled', () => {
+      this.disableTikTokMode();
+    });
+    // Listen for TikTok navigation events
+    window.addEventListener('tiktok-navigate', ((event: CustomEvent) => {
+      if (event.detail?.tab === 'god-inbox') {
+        this.edenChatTab = 'god-inbox';
+        this.disableTikTokMode();
+      }
+    }) as EventListener);
     // Initialize sign-in state from localStorage
     this.updateSignInState();
     // Check initial route for DEX wizard - check multiple times to catch route initialization
@@ -5005,6 +5017,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   enableTikTokMode(): void {
     // Switch to video library tab
     this.edenChatTab = 'video-library';
+    this.isTikTokModeActive = true;
     
     // Wait for the view to update, then enable TikTok mode
     setTimeout(() => {
@@ -5012,6 +5025,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.videoLibraryComponent.enableTikTokMode();
       }
     }, 100);
+  }
+
+  /**
+   * Disable TikTok mode
+   */
+  disableTikTokMode(): void {
+    this.isTikTokModeActive = false;
   }
 
 }

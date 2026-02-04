@@ -21,8 +21,70 @@
     </div>
   </div>
 
+  <!-- Profile View -->
+  <div class="tiktok-profile-view" *ngIf="activeTab === 'profile'">
+    <div class="profile-header">
+      <div class="profile-avatar-large">
+        <span class="profile-initials-large">{{ userInitials }}</span>
+      </div>
+      <div class="profile-info">
+        <h2 class="profile-username">@{{ userDisplayName }}</h2>
+        <div class="profile-stats">
+          <div class="stat-item">
+            <span class="stat-value">{{ userVideos.length }}</span>
+            <span class="stat-label">Videos</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-videos-section">
+      <h3 class="section-title">Uploaded Videos</h3>
+      
+      <div class="loading-videos" *ngIf="loadingUserVideos">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading videos...</span>
+        </div>
+        <p class="mt-2">Loading your videos...</p>
+      </div>
+
+      <div class="videos-grid" *ngIf="!loadingUserVideos">
+        <div 
+          class="video-grid-item" 
+          *ngFor="let video of userVideos"
+          (click)="playVideoFromProfile(video)">
+          <div class="video-thumbnail-wrapper">
+            <video
+              [src]="getVideoStreamUrl(video)"
+              [muted]="true"
+              preload="metadata"
+              class="video-thumbnail">
+            </video>
+            <div class="video-overlay-info">
+              <div class="video-play-icon">
+                <i class="bi bi-play-circle-fill"></i>
+              </div>
+              <div class="video-duration" *ngIf="video.duration">
+                {{ formatDuration(video.duration) }}
+              </div>
+            </div>
+          </div>
+          <div class="video-title">{{ video.title }}</div>
+        </div>
+      </div>
+
+      <div class="no-videos" *ngIf="!loadingUserVideos && userVideos.length === 0">
+        <i class="bi bi-camera-video-off" style="font-size: 48px; opacity: 0.5;"></i>
+        <p class="mt-3">No videos uploaded yet</p>
+        <button class="btn btn-primary mt-2" (click)="navigateToUpload()">
+          <i class="bi bi-plus-circle me-2"></i>Upload Your First Video
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Video Feed -->
-  <div class="tiktok-feed" *ngIf="!loading || videos.length > 0">
+  <div class="tiktok-feed" *ngIf="activeTab !== 'profile' && (!loading || videos.length > 0)">
     <div 
       class="tiktok-video-item" 
       *ngFor="let video of videos; let i = index"
@@ -97,6 +159,74 @@
     <div class="load-more-indicator" *ngIf="loadingMore">
       <div class="spinner-border spinner-border-sm text-light" role="status">
         <span class="visually-hidden">Loading more...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TikTok Bottom Navigation Bar -->
+  <nav class="tiktok-bottom-nav">
+    <button 
+      class="nav-item" 
+      [class.active]="activeTab === 'home'"
+      (click)="navigateToHome()"
+      title="Home">
+      <i class="bi bi-house-fill" *ngIf="activeTab === 'home'"></i>
+      <i class="bi bi-house" *ngIf="activeTab !== 'home'"></i>
+      <span class="nav-label">Home</span>
+    </button>
+    
+    <button 
+      class="nav-item" 
+      [class.active]="activeTab === 'friends'"
+      (click)="navigateToFriends()"
+      title="Friends">
+      <i class="bi bi-people-fill" *ngIf="activeTab === 'friends'"></i>
+      <i class="bi bi-people" *ngIf="activeTab !== 'friends'"></i>
+      <span class="nav-label">Friends</span>
+    </button>
+    
+    <button 
+      class="nav-item nav-item-upload" 
+      [class.active]="activeTab === 'upload'"
+      (click)="navigateToUpload()"
+      title="Upload">
+      <i class="bi bi-plus-circle-fill"></i>
+    </button>
+    
+    <button 
+      class="nav-item" 
+      [class.active]="activeTab === 'inbox'"
+      (click)="navigateToInbox()"
+      title="GOD's Inbox">
+      <i class="bi bi-inbox-fill" *ngIf="activeTab === 'inbox'"></i>
+      <i class="bi bi-inbox" *ngIf="activeTab !== 'inbox'"></i>
+      <span class="nav-label">Inbox</span>
+    </button>
+    
+    <button 
+      class="nav-item nav-item-profile" 
+      [class.active]="activeTab === 'profile'"
+      (click)="navigateToProfile()"
+      title="Profile">
+      <div class="profile-avatar" *ngIf="userEmail">
+        <span class="profile-initials">{{ userInitials }}</span>
+      </div>
+      <i class="bi bi-person-fill" *ngIf="!userEmail && activeTab === 'profile'"></i>
+      <i class="bi bi-person" *ngIf="!userEmail && activeTab !== 'profile'"></i>
+      <span class="nav-label" *ngIf="userEmail">{{ userDisplayName }}</span>
+      <span class="nav-label" *ngIf="!userEmail">Profile</span>
+    </button>
+  </nav>
+
+  <!-- Upload Modal -->
+  <div class="tiktok-upload-modal" *ngIf="showUploadModal" (click)="closeUploadModal()">
+    <div class="tiktok-upload-content" (click)="$event.stopPropagation()">
+      <div class="tiktok-upload-header">
+        <h5 class="mb-0">Upload Video</h5>
+        <button class="btn-close" (click)="closeUploadModal()" aria-label="Close"></button>
+      </div>
+      <div class="tiktok-upload-body">
+        <app-video-upload (uploaded)="onVideoUploaded()"></app-video-upload>
       </div>
     </div>
   </div>
