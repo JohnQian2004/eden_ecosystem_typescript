@@ -803,8 +803,16 @@ httpServer.on("request", async (req, res) => {
       console.error(`❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
       console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
       console.error(`❌ [${requestId}] Error details:`, err);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Media server unavailable', details: err.message }));
+      
+      // Only write headers if they haven't been sent yet
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Media server unavailable', details: err.message }));
+      } else {
+        // Headers already sent, just destroy the response stream
+        console.warn(`⚠️ [${requestId}] Headers already sent, cannot send error response`);
+        res.destroy();
+      }
     });
     
     // Pipe request body if present
@@ -866,14 +874,22 @@ httpServer.on("request", async (req, res) => {
       console.error(`❌ [${requestId}] Media server proxy error:`, err.message);
       console.error(`❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
       console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
-      res.writeHead(502, { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(JSON.stringify({ 
-        error: 'Media server unavailable', 
-        details: err.message 
-      }));
+      
+      // Only write headers if they haven't been sent yet
+      if (!res.headersSent) {
+        res.writeHead(502, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+          error: 'Media server unavailable', 
+          details: err.message 
+        }));
+      } else {
+        // Headers already sent, just destroy the response stream
+        console.warn(`⚠️ [${requestId}] Headers already sent, cannot send error response`);
+        res.destroy();
+      }
     });
     
     // Pipe request body if present
@@ -910,11 +926,19 @@ httpServer.on("request", async (req, res) => {
       console.error(`❌ [${requestId}] Autoparts service proxy error:`, err.message);
       console.error(`❌ [${requestId}] Autoparts service URL: ${AUTOPARTS_SERVER_URL}`);
       console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
-      res.writeHead(503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        error: 'Autoparts service unavailable',
-        message: 'The autoparts search service is not running or not accessible'
-      }));
+      
+      // Only write headers if they haven't been sent yet
+      if (!res.headersSent) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Autoparts service unavailable',
+          message: 'The autoparts search service is not running or not accessible'
+        }));
+      } else {
+        // Headers already sent, just destroy the response stream
+        console.warn(`⚠️ [${requestId}] Headers already sent, cannot send error response`);
+        res.destroy();
+      }
     });
     
     req.pipe(proxyReq);
@@ -5765,17 +5789,24 @@ httpServer.on("request", async (req, res) => {
       console.error(`   ❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
       console.error(`   ❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
       
-      // Fallback: return empty response
-      res.writeHead(502, { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(JSON.stringify({
-        success: false,
-        error: 'Media server unavailable',
-        data: [],
-        count: 0
-      }));
+      // Only write headers if they haven't been sent yet
+      if (!res.headersSent) {
+        // Fallback: return empty response
+        res.writeHead(502, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Media server unavailable',
+          data: [],
+          count: 0
+        }));
+      } else {
+        // Headers already sent, just destroy the response stream
+        console.warn(`   ⚠️ [${requestId}] Headers already sent, cannot send error response`);
+        res.destroy();
+      }
     });
     
     proxyReq.end();

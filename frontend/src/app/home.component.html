@@ -33,6 +33,10 @@
           <a href="#" class="eden-nav-link">Governance</a>
         </nav>
         <div class="eden-header-actions">
+          <button *ngIf="isUserSignedIn" class="btn btn-sm btn-success me-2" type="button" (click)="enableTikTokMode()" title="Enable TikTok Mode: Scroll through random videos">
+            <i class="bi bi-phone me-1"></i>
+            Enable TikTok
+          </button>
           <button class="btn btn-sm eden-theme-toggle" type="button" (click)="toggleTheme()" title="Toggle theme">
             <span *ngIf="theme === 'dark'">🌙</span>
             <span *ngIf="theme === 'light'">☀️</span>
@@ -379,7 +383,7 @@
 
           <!-- Video Library Tab Content -->
           <div *ngIf="edenChatTab === 'video-library'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
-            <app-video-library></app-video-library>
+            <app-video-library #videoLibraryComponent></app-video-library>
           </div>
           <!-- End Video Library Tab Content -->
 

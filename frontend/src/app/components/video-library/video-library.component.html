@@ -1,4 +1,6 @@
 <div class="container-fluid p-3" [class.has-video-player]="showVideoPlayer && selectedVideoForPlayer">
+  <!-- TikTok Feed Overlay -->
+  <app-tiktok-feed *ngIf="showTikTokMode"></app-tiktok-feed>
   <!-- Video Details Modal -->
   <div class="modal fade" id="videoDetailsModal" tabindex="-1" style="z-index: 100000;">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -59,6 +61,14 @@
       </small>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <button
+        class="btn btn-success"
+        (click)="enableTikTokMode()"
+        title="Enable TikTok Mode: Scroll through random videos"
+      >
+        <i class="bi bi-phone me-2"></i>
+        Enable TikTok
+      </button>
       <button
         class="btn btn-primary"
         (click)="syncVideos()"

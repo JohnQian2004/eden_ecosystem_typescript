@@ -27,6 +27,7 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
   } = {};
   allContentTags: string[] = [];
   filteredVideos: Video[] = [];
+  showTikTokMode = false;
 
   constructor(
     private videoLibraryService: VideoLibraryService,
@@ -35,6 +36,8 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadVideos();
+    // Listen for TikTok close event
+    window.addEventListener('tiktok-close', this.disableTikTokMode.bind(this));
   }
 
   ngAfterViewInit(): void {
@@ -204,11 +207,27 @@ export class VideoLibraryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  enableTikTokMode(): void {
+    this.showTikTokMode = true;
+    // Prevent body scroll when TikTok mode is active
+    document.body.style.overflow = 'hidden';
+  }
+
+  disableTikTokMode(): void {
+    this.showTikTokMode = false;
+    // Restore body scroll
+    document.body.style.overflow = '';
+  }
+
   ngOnDestroy(): void {
     // Clean up: restore body scroll if component is destroyed while player is open
     if (this.showVideoPlayer) {
       document.body.style.overflow = '';
     }
+    if (this.showTikTokMode) {
+      document.body.style.overflow = '';
+    }
+    window.removeEventListener('tiktok-close', this.disableTikTokMode.bind(this));
   }
 
   playVideo(): void {

@@ -1,0 +1,104 @@
+<div class="tiktok-feed-container" #feedContainer tabindex="0">
+  <!-- Close Button -->
+  <button class="close-tiktok-btn" (click)="closeFeed()" title="Close TikTok Mode (Esc)">
+    <i class="bi bi-x-lg"></i>
+  </button>
+  
+  <!-- Loading State -->
+  <div class="loading-overlay" *ngIf="loading && videos.length === 0">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3">Loading videos...</p>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-overlay" *ngIf="error && videos.length === 0">
+    <div class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      {{ error }}
+      <button class="btn btn-sm btn-outline-danger mt-2" (click)="loadFeed()">Retry</button>
+    </div>
+  </div>
+
+  <!-- Video Feed -->
+  <div class="tiktok-feed" *ngIf="!loading || videos.length > 0">
+    <div 
+      class="tiktok-video-item" 
+      *ngFor="let video of videos; let i = index"
+      [attr.data-video-index]="i"
+      [class.active]="i === currentIndex">
+      
+      <!-- Video Player -->
+      <div class="video-wrapper">
+        <video 
+          #videoElement
+          [src]="getVideoStreamUrl(video)"
+          [muted]="true"
+          [autoplay]="i === currentIndex"
+          [loop]="true"
+          playsinline
+          (loadedmetadata)="onVideoLoaded($event, i)"
+          (click)="likeVideo(video)"
+          class="tiktok-video">
+        </video>
+        
+        <!-- Video Overlay Info -->
+        <div class="video-overlay">
+          <!-- Right Side Actions -->
+          <div class="video-actions">
+            <button 
+              class="action-btn like-btn" 
+              [class.liked]="video.isLiked"
+              (click)="likeVideo(video); $event.stopPropagation()"
+              title="Like">
+              <i class="bi" [class.bi-heart]="!video.isLiked" [class.bi-heart-fill]="video.isLiked"></i>
+              <span class="action-count">{{ formatNumber(video.likes) }}</span>
+            </button>
+            
+            <button 
+              class="action-btn comment-btn" 
+              (click)="openComments(video); $event.stopPropagation()"
+              title="Comments">
+              <i class="bi bi-chat-dots"></i>
+              <span class="action-count">{{ formatNumber(video.comments || 0) }}</span>
+            </button>
+            
+            <button 
+              class="action-btn share-btn" 
+              (click)="shareVideo(video); $event.stopPropagation()"
+              title="Share">
+              <i class="bi bi-share"></i>
+              <span class="action-count">Share</span>
+            </button>
+            
+            <button 
+              class="action-btn follow-btn" 
+              [class.following]="video.isFollowing"
+              (click)="followAuthor(video); $event.stopPropagation()"
+              title="Follow">
+              <i class="bi" [class.bi-person-plus]="!video.isFollowing" [class.bi-person-check-fill]="video.isFollowing"></i>
+              <span class="action-count">{{ formatNumber(video.followers) }}</span>
+            </button>
+          </div>
+
+          <!-- Bottom Info -->
+          <div class="video-info">
+            <div class="author-info">
+              <div class="author-name">@{{ video.authorDisplayName }}</div>
+              <div class="video-title">{{ video.title }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load More Indicator -->
+    <div class="load-more-indicator" *ngIf="loadingMore">
+      <div class="spinner-border spinner-border-sm text-light" role="status">
+        <span class="visually-hidden">Loading more...</span>
+      </div>
+    </div>
+  </div>
+</div>
+

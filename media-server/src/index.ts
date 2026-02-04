@@ -8,6 +8,8 @@ import cors from 'cors';
 import * as path from 'path';
 import { MediaServer } from './mediaServer';
 import { mediaRoutes } from './routes/mediaRoutes';
+import { tiktokRoutes } from './routes/tiktokRoutes';
+import * as redisService from './services/redisService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -24,8 +26,20 @@ const mediaServer = new MediaServer({
   allowedImageFormats: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
 });
 
+// Initialize embedded Redis server (runs inside Node.js process)
+// TikTok features work immediately with embedded Redis server
+redisService.initRedis().then(() => {
+  console.log('✅ [MediaServer] TikTok features enabled (embedded Redis server running inside Node.js)');
+}).catch((err) => {
+  console.error('❌ [MediaServer] Failed to start embedded Redis server:', err);
+  console.log('ℹ️  [MediaServer] TikTok features will not be available');
+});
+
 // Media routes
 app.use('/api/media', mediaRoutes(mediaServer));
+
+// TikTok routes (social features)
+app.use('/api/media/tiktok', tiktokRoutes(mediaServer));
 
 // Direct image generation routes (as per user requirements)
 // GET /image?random=999999

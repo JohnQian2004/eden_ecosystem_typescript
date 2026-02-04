@@ -114,13 +114,60 @@ export class VideoCardComponent implements OnInit, OnDestroy {
   }
 
   onVideoLoaded(): void {
-    setTimeout(() => {
-      this.playVideoInline();
-    }, 200);
+    // Don't auto-play - videos should only play when user explicitly requests it
+    // The video is loaded but paused, showing the first frame as a thumbnail
+    const video = this.videoElement?.nativeElement;
+    if (video) {
+      // Seek to first frame to show thumbnail
+      video.currentTime = 0;
+      // Ensure video is paused
+      video.pause();
+    }
   }
 
   onVideoError(event: any): void {
-    console.error('Video load error:', event);
+    const video = event.target as HTMLVideoElement;
+    const error = video.error;
+    
+    // Log detailed error information for debugging
+    console.error('Video load error:', {
+      filename: this.video?.filename,
+      videoUrl: this.videoStreamUrl,
+      src: video.src,
+      currentSrc: video.currentSrc,
+      error: error ? {
+        code: error.code,
+        message: error.message
+      } : null,
+      networkState: video.networkState,
+      readyState: video.readyState
+    });
+    
+    // Provide user-friendly error messages based on error code
+    if (error) {
+      const MEDIA_ERR_ABORTED = 1;
+      const MEDIA_ERR_NETWORK = 2;
+      const MEDIA_ERR_DECODE = 3;
+      const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+      
+      switch (error.code) {
+        case MEDIA_ERR_ABORTED:
+          console.warn('Video loading was aborted');
+          break;
+        case MEDIA_ERR_NETWORK:
+          console.error('Network error - video may be blocked by CORS or network issue');
+          break;
+        case MEDIA_ERR_DECODE:
+          console.error('Video decode error - file may be corrupted');
+          break;
+        case MEDIA_ERR_SRC_NOT_SUPPORTED:
+          console.error('Video source not supported or file not found');
+          break;
+        default:
+          console.error('Unknown video error');
+      }
+    }
+    
     this.videoLoadError = true;
     this.showVideo = false;
     // Don't retry - the file doesn't exist

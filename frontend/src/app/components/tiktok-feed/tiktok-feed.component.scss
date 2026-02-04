@@ -1,0 +1,257 @@
+.tiktok-feed-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background: #000;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  z-index: 10000;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.close-tiktok-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1.1);
+  }
+}
+
+.loading-overlay,
+.error-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #fff;
+}
+
+.tiktok-feed {
+  display: flex;
+  flex-direction: column;
+}
+
+.tiktok-video-item {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  flex-shrink: 0;
+  
+  &.active {
+    .tiktok-video {
+      opacity: 1;
+    }
+  }
+}
+
+.video-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.tiktok-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+  
+  .active & {
+    opacity: 1;
+  }
+}
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 20px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.5) 100%);
+}
+
+.video-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  pointer-events: auto;
+  z-index: 10;
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+  justify-content: center;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.1);
+  }
+
+  &.liked {
+    color: #ff3040;
+    border-color: #ff3040;
+    background: rgba(255, 48, 64, 0.2);
+  }
+
+  &.following {
+    color: #25f4ee;
+    border-color: #25f4ee;
+    background: rgba(37, 244, 238, 0.2);
+  }
+
+  &.comment-btn {
+    &:hover {
+      color: #ffd700;
+      border-color: #ffd700;
+    }
+  }
+
+  &.share-btn {
+    &:hover {
+      color: #00ff00;
+      border-color: #00ff00;
+    }
+  }
+
+  i {
+    font-size: 24px;
+  }
+}
+
+.action-count {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.video-info {
+  pointer-events: auto;
+  color: #fff;
+  align-self: flex-start;
+  margin-bottom: 80px; // Add space above to avoid overlap with action buttons
+}
+
+.author-info {
+  .author-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  }
+
+  .video-title {
+    font-size: 14px;
+    opacity: 0.9;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    max-width: 80%;
+  }
+}
+
+.load-more-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  height: 100px;
+}
+
+// Mobile optimizations
+@media (max-width: 768px) {
+  .video-overlay {
+    padding: 15px;
+  }
+
+  .video-actions {
+    right: 15px;
+    bottom: 15px;
+    gap: 15px;
+  }
+
+  .action-btn {
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+
+    i {
+      font-size: 20px;
+    }
+  }
+
+  .video-info {
+    margin-bottom: 70px; // Adjust for smaller buttons on mobile
+  }
+
+  .author-info {
+    .author-name {
+      font-size: 14px;
+    }
+
+    .video-title {
+      font-size: 12px;
+    }
+  }
+}
+
+// Hide scrollbar but keep functionality
+.tiktok-feed-container::-webkit-scrollbar {
+  display: none;
+}
+
+.tiktok-feed-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

@@ -370,6 +370,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild(SidebarComponent) sidebarComponent!: SidebarComponent;
   @ViewChild(CertificateDisplayComponent) certificateComponent!: CertificateDisplayComponent;
   @ViewChild('chatMessagesContainer', { static: false }) chatMessagesContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('videoLibraryComponent', { static: false }) videoLibraryComponent!: any; // VideoLibraryComponent
   
   private shouldScrollToBottom: boolean = true;
   
@@ -1271,11 +1272,32 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
     };
     window.addEventListener('eden_send', this.onEdenSendEvt as any);
     
-    // Suppress console errors from browser extensions
+    // Suppress console errors from browser extensions and FedCM
     const originalError = console.error;
     console.error = (...args: any[]) => {
-      if (args[0] && typeof args[0] === 'string' && args[0].includes('solana')) {
-        return; // Ignore Solana extension errors
+      const firstArg = args[0];
+      if (firstArg && typeof firstArg === 'string') {
+        // Ignore Solana extension errors
+        if (firstArg.includes('solana')) {
+          return;
+        }
+        // Ignore FedCM abort errors (Google Sign-In)
+        if (firstArg.includes('FedCM') || firstArg.includes('FedCM get() rejects')) {
+          return;
+        }
+        // Ignore AbortError from FedCM
+        if (firstArg.includes('AbortError') && args.some(arg => 
+          typeof arg === 'string' && arg.includes('signal is aborted')
+        )) {
+          return;
+        }
+      }
+      // Check if error object contains FedCM-related messages
+      if (firstArg && typeof firstArg === 'object' && firstArg.toString) {
+        const errorString = firstArg.toString();
+        if (errorString.includes('FedCM') || errorString.includes('AbortError')) {
+          return;
+        }
       }
       originalError.apply(console, args);
     };
@@ -1982,17 +2004,29 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
       
       // Try to prompt sign-in automatically (FedCM-compatible) - but don't block if not shown
-      (window as any).google.accounts.id.prompt((notification: any) => {
-        // FedCM-compatible: Check for new status types
-        if (notification.isNotDisplayed()) {
-          console.log('Google Sign-In prompt not displayed');
-        } else if (notification.isSkippedMoment()) {
-          console.log('Google Sign-In prompt skipped');
-        } else if (notification.isDismissedMoment()) {
-          console.log('Google Sign-In prompt dismissed');
+      try {
+        (window as any).google.accounts.id.prompt((notification: any) => {
+          // FedCM-compatible: Check for new status types
+          if (notification.isNotDisplayed()) {
+            console.log('Google Sign-In prompt not displayed');
+          } else if (notification.isSkippedMoment()) {
+            console.log('Google Sign-In prompt skipped');
+          } else if (notification.isDismissedMoment()) {
+            console.log('Google Sign-In prompt dismissed');
+          }
+          // If prompt was shown but user didn't sign in, continue with default email
+        });
+      } catch (promptError: any) {
+        // Suppress FedCM abort errors - these are expected when the prompt is cancelled
+        if (promptError?.name === 'AbortError' || 
+            promptError?.message?.includes('aborted') ||
+            promptError?.message?.includes('FedCM')) {
+          // Silently handle - this is expected behavior
+          return;
         }
-        // If prompt was shown but user didn't sign in, continue with default email
-      });
+        // Log other unexpected errors
+        console.warn('Google Sign-In prompt error:', promptError);
+      }
     } catch (err) {
       console.warn('Google Sign-In not available, using default email:', err);
     }
@@ -4963,6 +4997,21 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
       case 'user': return 'text-dark';
       default: return 'text-muted';
     }
+  }
+
+  /**
+   * Enable TikTok mode - switch to video library tab and enable TikTok feed
+   */
+  enableTikTokMode(): void {
+    // Switch to video library tab
+    this.edenChatTab = 'video-library';
+    
+    // Wait for the view to update, then enable TikTok mode
+    setTimeout(() => {
+      if (this.videoLibraryComponent) {
+        this.videoLibraryComponent.enableTikTokMode();
+      }
+    }, 100);
   }
 
 }

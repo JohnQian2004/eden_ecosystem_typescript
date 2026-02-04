@@ -36,6 +36,7 @@ import { EdenBooksComponent } from './components/eden-books/eden-books.component
 import { EdenBibleComponent } from './components/eden-bible/eden-bible.component';
 import { EdenAutopartsComponent } from './components/eden-autoparts/eden-autoparts.component';
 import { EdenHistoryComponent } from './components/eden-history/eden-history.component';
+import { TikTokFeedComponent } from './components/tiktok-feed/tiktok-feed.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -85,7 +86,8 @@ const routes: Routes = [
     EdenBooksComponent,
     EdenBibleComponent,
     EdenAutopartsComponent,
-    EdenHistoryComponent
+    EdenHistoryComponent,
+    TikTokFeedComponent
   ],
   imports: [
     BrowserModule,
