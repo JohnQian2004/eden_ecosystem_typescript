@@ -23,6 +23,11 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
   showUploadModal: boolean = false;
   userVideos: TikTokVideo[] = [];
   loadingUserVideos: boolean = false;
+  profileStats = {
+    videoCount: 0,
+    totalLikes: 0,
+    followerCount: 0
+  };
   
   private scrollTimeout: any;
   private isScrolling = false;
@@ -375,9 +380,10 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
   onVideoUploaded(): void {
     // Refresh the feed after upload
     this.loadFeed();
-    // If on profile tab, reload user videos
+    // If on profile tab, reload user videos and stats
     if (this.activeTab === 'profile') {
       this.loadUserVideos();
+      this.loadProfileStats();
     }
     this.closeUploadModal();
   }
@@ -392,6 +398,7 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
   navigateToProfile(): void {
     this.activeTab = 'profile';
     this.loadUserVideos();
+    this.loadProfileStats();
   }
 
   loadUserVideos(): void {
@@ -445,6 +452,34 @@ export class TikTokFeedComponent implements OnInit, AfterViewInit, OnDestroy {
         console.error('Error loading user videos:', error);
         this.userVideos = [];
         this.loadingUserVideos = false;
+      }
+    });
+  }
+
+  loadProfileStats(): void {
+    if (!this.userEmail) {
+      this.profileStats = { videoCount: 0, totalLikes: 0, followerCount: 0 };
+      return;
+    }
+
+    this.tiktokService.getProfileStats(this.userEmail).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.profileStats = {
+            videoCount: response.data.videoCount,
+            totalLikes: response.data.totalLikes,
+            followerCount: response.data.followerCount
+          };
+        }
+      },
+      error: (error) => {
+        console.error('Error loading profile stats:', error);
+        // Set video count from userVideos length as fallback
+        this.profileStats = {
+          videoCount: this.userVideos.length,
+          totalLikes: 0,
+          followerCount: 0
+        };
       }
     });
   }

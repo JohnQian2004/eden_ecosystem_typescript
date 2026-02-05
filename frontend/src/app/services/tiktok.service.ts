@@ -87,5 +87,14 @@ export class TikTokService {
       { params }
     );
   }
+
+  /**
+   * Get profile stats for an author
+   */
+  getProfileStats(authorId: string): Observable<{ success: boolean; data: { authorId: string; videoCount: number; totalLikes: number; followerCount: number } }> {
+    return this.http.get<{ success: boolean; data: { authorId: string; videoCount: number; totalLikes: number; followerCount: number } }>(
+      `${this.baseUrl}/profile/${encodeURIComponent(authorId)}`
+    );
+  }
 }
 

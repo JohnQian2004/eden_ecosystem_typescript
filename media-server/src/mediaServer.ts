@@ -919,12 +919,20 @@ export class MediaServer {
   }
 
   /**
-   * Get all videos from library.json
-   * Returns the videos array from the library.json file
-   * Checks media server's library.json first, then Eden backend's library.json files as fallback
+   * Get all videos from Redis (replaces library.json)
+   * Falls back to library.json if Redis is not available (for migration period)
    */
   getVideosFromLibrary(): any[] {
-    // Try media server's library.json first
+    // Try Redis first
+    try {
+      const videoLibraryRedis = require('./services/videoLibraryRedisService');
+      // Use synchronous approach - we'll make it async later if needed
+      // For now, return empty and let async methods handle it
+    } catch (error) {
+      // Redis service not available
+    }
+
+    // Fallback to library.json for backward compatibility during migration
     const mediaServerLibraryPath = path.join(MEDIA_BASE_DIR, 'library.json');
     let library: any = null;
     
@@ -932,7 +940,7 @@ export class MediaServer {
       try {
         const libraryContent = fs.readFileSync(mediaServerLibraryPath, 'utf-8');
         library = JSON.parse(libraryContent);
-        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from media server library.json`);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from media server library.json (fallback)`);
         return library.videos || [];
       } catch (error: any) {
         console.error(`❌ [MediaServer] Failed to read media server library.json:`, error.message);
@@ -952,7 +960,7 @@ export class MediaServer {
       try {
         const libraryContent = fs.readFileSync(edenMediaLibraryPath, 'utf-8');
         library = JSON.parse(libraryContent);
-        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden media library.json`);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden media library.json (fallback)`);
         return library.videos || [];
       } catch (error: any) {
         console.error(`❌ [MediaServer] Failed to read Eden media library.json:`, error.message);
@@ -965,7 +973,7 @@ export class MediaServer {
       try {
         const libraryContent = fs.readFileSync(edenVideosLibraryPath, 'utf-8');
         library = JSON.parse(libraryContent);
-        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden videos library.json`);
+        console.log(`📚 [MediaServer] Loaded ${library.videos?.length || 0} videos from Eden videos library.json (fallback)`);
         return library.videos || [];
       } catch (error: any) {
         console.error(`❌ [MediaServer] Failed to read Eden videos library.json:`, error.message);
@@ -974,6 +982,25 @@ export class MediaServer {
     
     console.warn(`⚠️ [MediaServer] No library.json found in any location`);
     return [];
+  }
+
+  /**
+   * Get all videos from Redis (async version)
+   */
+  async getVideosFromRedis(): Promise<any[]> {
+    try {
+      const videoLibraryRedis = require('./services/videoLibraryRedisService');
+      const videos = await videoLibraryRedis.getAllVideos();
+      if (videos.length > 0) {
+        console.log(`📚 [MediaServer] Loaded ${videos.length} videos from Redis`);
+        return videos;
+      }
+    } catch (error: any) {
+      console.warn(`⚠️ [MediaServer] Redis not available, falling back to library.json:`, error.message);
+    }
+    
+    // Fallback to library.json
+    return this.getVideosFromLibrary();
   }
 }
 

@@ -62,6 +62,10 @@ export class EmbeddedRedisServer extends EventEmitter {
     return existed ? 1 : 0;
   }
 
+  async exists(key: string): Promise<number> {
+    return (this.data.has(key) || this.sets.has(key)) ? 1 : 0;
+  }
+
   // Set operations (for likes, follows)
   async sadd(key: string, ...members: string[]): Promise<number> {
     if (!this.sets.has(key)) {

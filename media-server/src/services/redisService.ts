@@ -237,3 +237,30 @@ export async function getAuthorFollowStatuses(authorIds: string[], userId: strin
   return {};
 }
 
+/**
+ * Get total likes for all videos by an author
+ */
+export async function getTotalLikesForAuthor(authorId: string, videoIds: string[]): Promise<number> {
+  if (videoIds.length === 0) {
+    return 0;
+  }
+
+  if (isRedisAvailable() && redisServer) {
+    try {
+      let totalLikes = 0;
+      await Promise.all(
+        videoIds.map(async (videoId) => {
+          const count = await getVideoLikeCount(videoId);
+          totalLikes += count;
+        })
+      );
+      return totalLikes;
+    } catch (error: any) {
+      console.error(`❌ [Redis] Error getting total likes for author:`, error.message);
+      return 0;
+    }
+  }
+  
+  return 0;
+}
+

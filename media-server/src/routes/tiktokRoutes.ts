@@ -6,12 +6,13 @@
 import { Router, Request, Response } from 'express';
 import { MediaServer } from '../mediaServer';
 import * as redisService from '../services/redisService';
+import * as videoLibraryRedis from '../services/videoLibraryRedisService';
 
 export function tiktokRoutes(mediaServer: MediaServer): Router {
   const router = Router();
 
   // Get random videos for TikTok feed: GET /api/media/tiktok/feed?limit=10&offset=0
-  router.get('/feed', (req: Request, res: Response) => {
+  router.get('/feed', async (req: Request, res: Response) => {
     try {
       const limit = parseInt(req.query.limit as string, 10) || 10;
       const offset = parseInt(req.query.offset as string, 10) || 0;
@@ -19,8 +20,18 @@ export function tiktokRoutes(mediaServer: MediaServer): Router {
 
       console.log(`📱 [TikTok] Getting feed: limit=${limit}, offset=${offset}`);
 
-      // Get all videos from library
-      const allVideos = mediaServer.getVideosFromLibrary();
+      // Get all videos from Redis (with fallback to library.json)
+      let allVideos: any[] = [];
+      try {
+        allVideos = await videoLibraryRedis.getAllVideos();
+        if (allVideos.length === 0) {
+          // Fallback to library.json if Redis is empty
+          allVideos = mediaServer.getVideosFromLibrary();
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ [TikTok] Redis not available, using library.json:`, error.message);
+        allVideos = mediaServer.getVideosFromLibrary();
+      }
       
       // Shuffle array for random order
       const shuffled = [...allVideos].sort(() => Math.random() - 0.5);
@@ -242,6 +253,75 @@ export function tiktokRoutes(mediaServer: MediaServer): Router {
       res.status(500).json({ 
         success: false, 
         error: 'Failed to get like status', 
+        message: error.message 
+      });
+    }
+  });
+
+  // Get profile stats: GET /api/media/tiktok/profile/:authorId
+  router.get('/profile/:authorId', async (req: Request, res: Response) => {
+    try {
+      const { authorId } = req.params;
+
+      console.log(`📱 [TikTok] Getting profile stats for: ${authorId}`);
+
+      // Get all videos by this author from Redis (with fallback to library.json)
+      let allVideos: any[] = [];
+      try {
+        allVideos = await videoLibraryRedis.getVideosByAuthor(authorId);
+        if (allVideos.length === 0) {
+          // Fallback: get all videos and filter
+          const allVideosFromRedis = await videoLibraryRedis.getAllVideos();
+          if (allVideosFromRedis.length === 0) {
+            allVideos = mediaServer.getVideosFromLibrary();
+          } else {
+            allVideos = allVideosFromRedis;
+          }
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ [TikTok] Redis not available, using library.json:`, error.message);
+        allVideos = mediaServer.getVideosFromLibrary();
+      }
+      
+      // Filter by author if needed (for library.json fallback)
+      const authorVideos = allVideos.filter((v: any) => {
+        const author = v.author || '';
+        return author.toLowerCase().includes(authorId.toLowerCase());
+      });
+
+      const videoIds = authorVideos.map((v: any) => v.id || v.filename);
+      const videoCount = authorVideos.length;
+
+      // Get stats from Redis if available
+      let totalLikes = 0;
+      let followerCount = 0;
+
+      if (redisService.isRedisAvailable()) {
+        try {
+          [totalLikes, followerCount] = await Promise.all([
+            redisService.getTotalLikesForAuthor(authorId, videoIds),
+            redisService.getAuthorFollowerCount(authorId)
+          ]);
+        } catch (error: any) {
+          console.error('❌ [TikTok] Error getting profile stats from Redis:', error);
+          // Continue with 0 values if Redis fails
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          authorId,
+          videoCount,
+          totalLikes,
+          followerCount
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ [TikTok] Error getting profile stats:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to get profile stats', 
         message: error.message 
       });
     }
