@@ -1,10 +1,10 @@
 {
-  "totalIGas": 0.2578000000000002,
-  "totalITax": 3.1501250047302055e-7,
-  "totalRootCAFees": 2.041100026401105,
-  "totalIndexerFees": 0.000125,
-  "totalProviderFees": 204.26420008500133,
-  "totalCashierFees": 35.20000000000023,
+  "totalIGas": 0.4342000000000006,
+  "totalITax": 1.4500640027551323e-7,
+  "totalRootCAFees": 3.2804200144006943,
+  "totalIndexerFees": 0.000035000000000000004,
+  "totalProviderFees": 207.3634000550002,
+  "totalCashierFees": 36.70000000000025,
   "revenueByServiceType": {
     "garden_deployment": {
       "count": 48,
@@ -71,14 +71,14 @@
       "totalCashierFees": null
     },
     "dex": {
-      "count": 65,
+      "count": 31,
       "totalAmount": 0,
-      "totalIGas": 0.2030000000000001,
-      "totalITax": 3.1501250047302055e-7,
-      "totalRootCAFees": 0.0015670316011920532,
-      "totalIndexerFees": 0.00019175000000000016,
-      "totalProviderFees": 0.0019000760029201287,
-      "totalCashierFees": 3.600000000000002
+      "totalIGas": 0.11379999999999997,
+      "totalITax": 1.4500640027551323e-7,
+      "totalRootCAFees": 0.0008870196007800366,
+      "totalIndexerFees": 0.00010174999999999999,
+      "totalProviderFees": 0.0011000460018900896,
+      "totalCashierFees": 2.0000000000000004
     },
     "priesthood": {
       "count": 4,
@@ -131,14 +131,14 @@
       "totalCashierFees": 0.2
     },
     "movie": {
-      "count": 233,
+      "count": 264,
       "totalAmount": 0,
-      "totalIGas": 0.9091999999999969,
+      "totalIGas": 1.174799999999998,
       "totalITax": 0,
-      "totalRootCAFees": 9.160080002400033,
+      "totalRootCAFees": 10.400080002400006,
       "totalIndexerFees": 0,
-      "totalProviderFees": 22.900200006000183,
-      "totalCashierFees": 23.30000000000006
+      "totalProviderFees": 26.000200006000227,
+      "totalCashierFees": 26.400000000000105
     },
     "undefined": {
       "count": 3,
@@ -151,7 +151,7 @@
       "totalCashierFees": 0
     }
   },
-  "lastUpdated": 1770311906641,
+  "lastUpdated": 1770338565713,
   "createdAt": 1768780667884,
-  "lastSaved": "2026-02-05T17:18:26.641Z"
+  "lastSaved": "2026-02-06T00:42:45.713Z"
 }

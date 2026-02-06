@@ -31,11 +31,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING
     )
 )
 
-REM Also kill all Node.js processes as final cleanup
-taskkill /IM node.exe /F >nul 2>&1
-if not errorlevel 1 (
-    echo    ✅ Killed all remaining Node.js processes
-)
+REM Note: Only killing processes on port 3001, not all Node.js processes
 
 echo    ✅ Port cleanup complete
 timeout /t 2 /nobreak >nul

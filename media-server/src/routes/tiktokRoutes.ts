@@ -20,18 +20,10 @@ export function tiktokRoutes(mediaServer: MediaServer): Router {
 
       console.log(`📱 [TikTok] Getting feed: limit=${limit}, offset=${offset}`);
 
-      // Get all videos from Redis (with fallback to library.json)
-      let allVideos: any[] = [];
-      try {
-        allVideos = await videoLibraryRedis.getAllVideos();
-        if (allVideos.length === 0) {
-          // Fallback to library.json if Redis is empty
-          allVideos = mediaServer.getVideosFromLibrary();
-        }
-      } catch (error: any) {
-        console.warn(`⚠️ [TikTok] Redis not available, using library.json:`, error.message);
-        allVideos = mediaServer.getVideosFromLibrary();
-      }
+      // Scan videos directory directly - this is the source of truth
+      // No longer using library.json (legacy) - just scan the actual files in data/videos
+      const allVideos = mediaServer.scanVideosDirectory();
+      console.log(`📱 [TikTok] Scanned ${allVideos.length} videos from directory`);
       
       // Shuffle array for random order
       const shuffled = [...allVideos].sort(() => Math.random() - 0.5);

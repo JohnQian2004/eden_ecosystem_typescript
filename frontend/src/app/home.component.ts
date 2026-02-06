@@ -10,7 +10,7 @@ import { FlowWiseService, UserDecisionRequest } from './services/flowwise.servic
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { CertificateDisplayComponent } from './components/certificate-display/certificate-display.component';
 import { SystemConfigComponent } from './components/system-config/system-config.component';
-import { getApiBaseUrl } from './services/api-base';
+import { getApiBaseUrl, getMediaServerUrl } from './services/api-base';
 import { IdentityService } from './services/identity.service';
 import { EdenUser } from './models/identity.models';
 import { SERVICE_TYPE_CATALOG, getCatalogEntry as getCatalogEntryFromService, getServiceTypeIcon as getServiceTypeIconFromService } from './services/service-type-catalog.service';
@@ -4188,10 +4188,26 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   getVideoUrl(videoUrl: string | undefined): string {
     if (!videoUrl) return '';
+    
+    // If already absolute URL, return as-is
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      return videoUrl;
+    }
+    
+    // Check if this is a media server URL (video or image)
+    const isMediaServerUrl = videoUrl.startsWith('/api/media/video/') || videoUrl.startsWith('/api/media/image/');
+    
     // Ensure the video URL is absolute
     if (videoUrl.startsWith('/')) {
-      return `${getApiBaseUrl()}${videoUrl}`;
+      if (isMediaServerUrl) {
+        // Use media server URL for media endpoints
+        return `${getMediaServerUrl()}${videoUrl}`;
+      } else {
+        // Use API base URL for other endpoints
+        return `${getApiBaseUrl()}${videoUrl}`;
+      }
     }
+    
     return videoUrl;
   }
 

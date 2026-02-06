@@ -11,9 +11,9 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
   const router = Router();
 
   // Video endpoints: GET /api/media/video/:id
-  router.get('/video/:id', (req: Request, res: Response) => {
+  router.get('/video/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
-    mediaServer.serveVideo(req, res, id);
+    await mediaServer.serveVideo(req, res, id);
   });
 
   // Random image generation: GET /api/media/image?random=999999

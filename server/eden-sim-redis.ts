@@ -18,6 +18,7 @@ import * as process from "process";
 import * as fs from "fs";
 import * as path from "path";
 import * as url from "url";
+import * as os from "os";
 import { EventEmitter } from "events";
 import { WebSocketServer, WebSocket } from "ws";
 import { EdenPKI, type EdenCertificate, type EdenIdentity, type RevocationEvent, type Capability } from "./EdenPKI";
@@ -737,7 +738,39 @@ httpServer.on("request", async (req, res) => {
   
   // Define media server URL early (used by multiple proxy routes)
   // Media server runs on port 3001 as a separate service
-  const MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL || 'http://localhost:3001';
+  // Try to detect server IP from environment or detect automatically
+  let MEDIA_SERVER_URL = process.env.MEDIA_SERVER_URL;
+  if (!MEDIA_SERVER_URL) {
+    // Try to detect server IP from network interfaces
+    function getServerIp(): string {
+      const interfaces = os.networkInterfaces();
+      if (!interfaces) {
+        return process.env.SERVER_HOST || 'localhost';
+      }
+      
+      // Try to find a non-internal IPv4 address
+      for (const name of Object.keys(interfaces)) {
+        const ifaceList = interfaces[name];
+        if (!ifaceList) {
+          continue;
+        }
+        
+        for (const iface of ifaceList) {
+          // Skip internal (loopback) and non-IPv4 addresses
+          if (iface.family === 'IPv4' && !iface.internal) {
+            return iface.address;
+          }
+        }
+      }
+      
+      // Fallback to environment variable or localhost
+      return process.env.SERVER_HOST || 'localhost';
+    }
+    
+    const serverHostname = getServerIp();
+    MEDIA_SERVER_URL = `http://${serverHostname}:3001`;
+    console.log(`📡 [Media Proxy] Detected media server URL: ${MEDIA_SERVER_URL}`);
+  }
   
   // Handle books API requests
   if (pathname.startsWith('/api/books/')) {
@@ -874,6 +907,14 @@ httpServer.on("request", async (req, res) => {
       console.error(`❌ [${requestId}] Media server proxy error:`, err.message);
       console.error(`❌ [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
       console.error(`❌ [${requestId}] Proxy URL: ${proxyUrl.toString()}`);
+      console.error(`❌ [${requestId}] Error code: ${err.code}`);
+      console.error(`❌ [${requestId}] Full error:`, err);
+      
+      // Check if media server is running
+      if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
+        console.error(`❌ [${requestId}] Media server appears to be down or unreachable on port 3001`);
+        console.error(`❌ [${requestId}] Please ensure the media server is running: cd media-server && npm run dev`);
+      }
       
       // Only write headers if they haven't been sent yet
       if (!res.headersSent) {
@@ -883,13 +924,31 @@ httpServer.on("request", async (req, res) => {
         });
         res.end(JSON.stringify({ 
           error: 'Media server unavailable', 
-          details: err.message 
+          details: err.message,
+          code: err.code,
+          suggestion: 'Please ensure the media server is running on port 3001'
         }));
       } else {
         // Headers already sent, just destroy the response stream
         console.warn(`⚠️ [${requestId}] Headers already sent, cannot send error response`);
         res.destroy();
       }
+    });
+    
+    // Set timeout for proxy request (10 seconds)
+    proxyReq.setTimeout(10000, () => {
+      console.error(`❌ [${requestId}] Media server proxy timeout after 10 seconds`);
+      if (!res.headersSent) {
+        res.writeHead(504, { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+          error: 'Media server timeout', 
+          details: 'Request to media server timed out after 10 seconds'
+        }));
+      }
+      proxyReq.destroy();
     });
     
     // Pipe request body if present

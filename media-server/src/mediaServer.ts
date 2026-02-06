@@ -171,38 +171,97 @@ export class MediaServer {
 
   /**
    * Serve video file with range request support
-   * Follows Eden backend pattern: look up by ID in library.json, then serve file directly
+   * Follows Eden backend pattern: look up by ID in library.json or Redis, then serve file directly
    */
-  serveVideo(req: any, res: any, videoId: string): void {
+  async serveVideo(req: any, res: any, videoId: string): Promise<void> {
     console.log(`📹 [MediaServer] serveVideo called with videoId: ${videoId}`);
     
     // First, try to find video in registry (for uploaded videos)
     let mediaFile = this.mediaRegistry.get(videoId);
     
-    // If not in registry, look up by ID in library.json
+    // If not in registry, look up by ID in Redis or library.json
     if (!mediaFile || mediaFile.type !== 'video') {
-      console.log(`📹 [MediaServer] Video not in registry, checking library.json...`);
-      const videos = this.getVideosFromLibrary();
-      console.log(`📹 [MediaServer] Loaded ${videos.length} videos from library.json`);
+      console.log(`📹 [MediaServer] Video not in registry, checking Redis and library.json...`);
       
-      // Try to find video by ID first, then by filename
-      const video = videos.find((v: any) => v.id === videoId || v.filename === videoId);
+      let video: any = null;
       
-      if (!video) {
-        console.error(`❌ [MediaServer] Video not found in library.json: ${videoId}`);
-        res.writeHead(404, { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify({ 
-          error: 'Video not found',
-          videoId: videoId,
-          message: 'This video is not in the library. Please refresh the video listings.'
-        }));
-        return;
+      // Try Redis first (if available)
+      try {
+        const videoLibraryRedis = require('./services/videoLibraryRedisService');
+        const redisVideo = await videoLibraryRedis.getVideoById(videoId);
+        if (redisVideo) {
+          console.log(`✅ [MediaServer] Found video in Redis: ${redisVideo.filename || videoId}`);
+          video = redisVideo;
+        }
+      } catch (error: any) {
+        console.log(`📹 [MediaServer] Redis not available or error: ${error.message}`);
       }
       
-      console.log(`✅ [MediaServer] Found video in library.json: ${video.filename}`);
+      // Fallback to library.json if not found in Redis
+      if (!video) {
+        const videos = this.getVideosFromLibrary();
+        console.log(`📹 [MediaServer] Loaded ${videos.length} videos from library.json`);
+        
+        // Try to find video by ID first, then by filename
+        video = videos.find((v: any) => v.id === videoId || v.filename === videoId);
+      }
+      
+      // If not found in Redis/library.json, check directory directly
+      if (!video) {
+        console.log(`📹 [MediaServer] Video not in Redis/library.json, checking directory...`);
+        const videoPath = path.join(VIDEOS_DIR, videoId);
+        // Also try with filename if videoId doesn't have extension
+        const videoPathWithExt = videoId.includes('.') ? videoPath : path.join(VIDEOS_DIR, `${videoId}.mp4`);
+        
+        // Try both paths
+        let actualVideoPath: string | null = null;
+        if (fs.existsSync(videoPath)) {
+          actualVideoPath = videoPath;
+        } else if (fs.existsSync(videoPathWithExt)) {
+          actualVideoPath = videoPathWithExt;
+        } else {
+          // Try to find by matching filename in directory
+          if (fs.existsSync(VIDEOS_DIR)) {
+            const videoFiles = fs.readdirSync(VIDEOS_DIR).filter(f => 
+              this.config.allowedVideoFormats.includes(path.extname(f).toLowerCase())
+            );
+            // Check if any filename matches (with or without extension)
+            const matchingFile = videoFiles.find(f => 
+              f === videoId || f === `${videoId}.mp4` || f.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '') === videoId
+            );
+            if (matchingFile) {
+              actualVideoPath = path.join(VIDEOS_DIR, matchingFile);
+            }
+          }
+        }
+        
+        if (actualVideoPath && fs.existsSync(actualVideoPath)) {
+          // Video exists in directory, create a minimal video object
+          const stat = fs.statSync(actualVideoPath);
+          const filename = path.basename(actualVideoPath);
+          video = {
+            id: videoId,
+            filename: filename,
+            file_path: `videos/${filename}`,
+            file_size: stat.size
+          };
+          console.log(`✅ [MediaServer] Found video in directory: ${filename}`);
+        } else {
+          console.error(`❌ [MediaServer] Video not found in Redis, library.json, or directory: ${videoId}`);
+          res.writeHead(404, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify({ 
+            error: 'Video not found',
+            videoId: videoId,
+            message: 'This video is not in the library. Please refresh the video listings.'
+          }));
+          return;
+        }
+      }
+      
+      console.log(`✅ [MediaServer] Found video: ${video.filename}`);
       
       // Determine the correct base directory (following Eden pattern)
       let mediaServerDir = projectRoot;
@@ -413,20 +472,36 @@ export class MediaServer {
    * Serve image file
    */
   serveImage(req: any, res: any, imageId: string): void {
-    const mediaFile = this.mediaRegistry.get(imageId);
+    console.log(`🖼️ [MediaServer] serveImage called with imageId: ${imageId}`);
+    
+    // First, try to find image in registry
+    let mediaFile = this.mediaRegistry.get(imageId);
+    
     if (!mediaFile || mediaFile.type !== 'image') {
-      res.status(404).json({ error: 'Image not found' });
+      console.log(`🖼️ [MediaServer] Image not in registry: ${imageId}`);
+      res.writeHead(404, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ error: 'Image not found', imageId: imageId }));
       return;
     }
 
     const imagePath = this.getMediaFilePath(mediaFile);
+    console.log(`🖼️ [MediaServer] Resolved image path: ${imagePath}`);
     
     if (!fs.existsSync(imagePath)) {
-      res.status(404).json({ error: 'Image file not found on disk' });
+      console.error(`❌ [MediaServer] Image file not found on disk: ${imagePath}`);
+      res.writeHead(404, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ error: 'Image file not found on disk', imageId: imageId }));
       return;
     }
 
     const stat = statSync(imagePath);
+    console.log(`🖼️ [MediaServer] Image file size: ${stat.size} bytes`);
     
     // Generate ETag for cache validation
     const etag = this.generateETag(stat);
@@ -919,8 +994,54 @@ export class MediaServer {
   }
 
   /**
+   * Scan videos directory and return all video files
+   * This is the primary source - scans actual files in data/videos
+   * Uses filename as ID (matches how videos are served)
+   */
+  scanVideosDirectory(): any[] {
+    const videos: any[] = [];
+    
+    if (!fs.existsSync(VIDEOS_DIR)) {
+      console.warn(`⚠️ [MediaServer] Videos directory not found: ${VIDEOS_DIR}`);
+      return videos;
+    }
+    
+    const videoFiles = fs.readdirSync(VIDEOS_DIR).filter(f => 
+      this.config.allowedVideoFormats.includes(path.extname(f).toLowerCase())
+    );
+    
+    console.log(`📹 [MediaServer] Scanning videos directory: found ${videoFiles.length} video files`);
+    
+    for (const filename of videoFiles) {
+      const filePath = path.join(VIDEOS_DIR, filename);
+      try {
+        const stat = fs.statSync(filePath);
+        // Use filename as ID (this is what's used in video URLs like /api/media/video/:id)
+        // The ID should match what's used when serving the video
+        const videoId = filename;
+        
+        videos.push({
+          id: videoId,
+          filename: filename,
+          file_path: `videos/${filename}`,
+          file_size: stat.size,
+          created_at: stat.birthtime.toISOString(),
+          updated_at: stat.mtime.toISOString(),
+          author: 'root GOD bill.draper.auto@gmail.com (bill draper)',
+          tags: []
+        });
+      } catch (error: any) {
+        console.error(`❌ [MediaServer] Failed to stat video file ${filename}:`, error.message);
+      }
+    }
+    
+    return videos;
+  }
+
+  /**
    * Get all videos from Redis (replaces library.json)
    * Falls back to library.json if Redis is not available (for migration period)
+   * NOTE: This is legacy - use scanVideosDirectory() instead
    */
   getVideosFromLibrary(): any[] {
     // Try Redis first

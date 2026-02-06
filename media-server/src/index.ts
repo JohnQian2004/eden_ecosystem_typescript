@@ -6,6 +6,7 @@
 import express from 'express';
 import cors from 'cors';
 import * as path from 'path';
+import * as os from 'os';
 import { MediaServer } from './mediaServer';
 import { mediaRoutes } from './routes/mediaRoutes';
 import { tiktokRoutes } from './routes/tiktokRoutes';
@@ -139,18 +140,52 @@ app.get('/health', (req, res) => {
 });
 
 // Start server on 0.0.0.0 to accept connections from all interfaces
-const HOST = '0.0.0.0';
+// This allows the server to be accessible from remote clients
+// Can be overridden via HOST environment variable
+const HOST = process.env.HOST || '0.0.0.0';
+
+// Get actual server IP address for display
+function getServerIp(): string {
+  const interfaces = os.networkInterfaces();
+  
+  if (!interfaces) {
+    return 'localhost';
+  }
+  
+  // Try to find a non-internal IPv4 address
+  for (const name of Object.keys(interfaces)) {
+    const ifaceList = interfaces[name];
+    if (!ifaceList) {
+      continue;
+    }
+    
+    for (const iface of ifaceList) {
+      // Skip internal (loopback) and non-IPv4 addresses
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  
+  // Fallback to localhost if no external IP found
+  return 'localhost';
+}
+
+const SERVER_IP = getServerIp();
+
 app.listen(PORT, HOST, () => {
   console.log('═══════════════════════════════════════════════════════════');
   console.log('🎬 Eden Media Server');
   console.log('═══════════════════════════════════════════════════════════');
   console.log(`📡 Server running on ${HOST}:${PORT}`);
-  console.log(`🌐 Health check: http://${HOST}:${PORT}/health`);
-  console.log(`📹 Video endpoint: http://${HOST}:${PORT}/api/media/video/:id`);
-  console.log(`🖼️  Image endpoint: http://${HOST}:${PORT}/api/media/image/:id`);
-  console.log(`🎲 Random image: http://${HOST}:${PORT}/image?random=999999`);
-  console.log(`🎨 AI image: http://${HOST}:${PORT}/image/ai?text=sky`);
-  console.log(`📋 List endpoint: http://${HOST}:${PORT}/api/media/list`);
+  console.log(`🌐 Health check: http://${SERVER_IP}:${PORT}/health`);
+  console.log(`📹 Video endpoint: http://${SERVER_IP}:${PORT}/api/media/video/:id`);
+  console.log(`🖼️  Image endpoint: http://${SERVER_IP}:${PORT}/api/media/image/:id`);
+  console.log(`📱 TikTok feed: http://${SERVER_IP}:${PORT}/api/media/tiktok/feed?limit=20&offset=0`);
+  console.log(`🎲 Random image: http://${SERVER_IP}:${PORT}/image?random=999999`);
+  console.log(`🎨 AI image: http://${SERVER_IP}:${PORT}/image/ai?text=sky`);
+  console.log(`📋 List endpoint: http://${SERVER_IP}:${PORT}/api/media/list`);
+  console.log(`\n💡 Note: Main server proxies requests from /api/media/* to http://${SERVER_IP}:${PORT}/api/media/*`);
   console.log('═══════════════════════════════════════════════════════════\n');
 });
 

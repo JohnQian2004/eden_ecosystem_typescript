@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
-import { getApiBaseUrl } from '../services/api-base';
+import { getApiBaseUrl, getMediaServerUrl } from '../services/api-base';
 
 // Avatar Movie Neural Link Simulation
 interface AvatarNeuralLink {
@@ -572,23 +572,35 @@ export class MovieTheaterComponent implements OnInit, OnDestroy, AfterViewInit, 
       return '';
     }
     
-    const apiBaseUrl = getApiBaseUrl();
     let finalUrl: string;
+    const videoUrl = this.selectedListing.videoUrl;
     
-    // Ensure the video URL is absolute
-    if (this.selectedListing.videoUrl.startsWith('/')) {
-      finalUrl = `${apiBaseUrl}${this.selectedListing.videoUrl}`;
-    } else if (this.selectedListing.videoUrl.startsWith('http://') || this.selectedListing.videoUrl.startsWith('https://')) {
+    // Check if this is a media server URL (video or image)
+    const isMediaServerUrl = videoUrl.startsWith('/api/media/video/') || videoUrl.startsWith('/api/media/image/');
+    
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
       // Already absolute URL
-      finalUrl = this.selectedListing.videoUrl;
+      finalUrl = videoUrl;
+    } else if (videoUrl.startsWith('/')) {
+      // Relative URL starting with /
+      if (isMediaServerUrl) {
+        // Use media server URL for media endpoints
+        const mediaServerUrl = getMediaServerUrl();
+        finalUrl = `${mediaServerUrl}${videoUrl}`;
+      } else {
+        // Use API base URL for other endpoints
+        const apiBaseUrl = getApiBaseUrl();
+        finalUrl = `${apiBaseUrl}${videoUrl}`;
+      }
     } else {
-      // Relative URL without leading slash - add it
-      finalUrl = `${apiBaseUrl}/${this.selectedListing.videoUrl}`;
+      // Relative URL without leading slash
+      const apiBaseUrl = getApiBaseUrl();
+      finalUrl = `${apiBaseUrl}/${videoUrl}`;
     }
     
     console.log('🎬 [Movie Theater] Video URL construction:');
-    console.log('   Original videoUrl:', this.selectedListing.videoUrl);
-    console.log('   API Base URL:', apiBaseUrl);
+    console.log('   Original videoUrl:', videoUrl);
+    console.log('   Is media server URL:', isMediaServerUrl);
     console.log('   Final URL:', finalUrl);
     
     return finalUrl;

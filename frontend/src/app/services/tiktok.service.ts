@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { getMediaServerUrl } from './api-base';
 
 export interface TikTokVideo {
   id: string;
@@ -34,10 +35,16 @@ export interface TikTokFeedResponse {
   providedIn: 'root',
 })
 export class TikTokService {
+  // Use relative URL to go through Eden backend proxy
+  // This avoids mixed content issues (HTTPS page loading HTTP resources)
+  // Eden backend proxies /api/media/* requests to the media server
   private baseUrl = '/api/media/tiktok';
   private userId = 'anonymous'; // TODO: Get from auth service
 
   constructor(private http: HttpClient) {
+    console.log(`📱 [TikTokService] Using Eden backend proxy: ${this.baseUrl}`);
+    console.log(`📱 [TikTokService] Eden backend will proxy to media server`);
+    
     // Get user ID from localStorage or use anonymous
     const storedUserId = localStorage.getItem('userId');
     if (storedUserId) {
