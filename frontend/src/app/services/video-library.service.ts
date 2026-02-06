@@ -8,6 +8,10 @@ export interface Video {
   id: string;
   filename: string;
   file_path: string;
+  title?: string;
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  snapshotUrl?: string; // Snapshot image URL (first frame as JPEG/PNG)
   duration?: number;
   resolution_width?: number;
   resolution_height?: number;

@@ -6,6 +6,8 @@ import { Router, Request, Response } from 'express';
 import { MediaServer } from '../mediaServer';
 import { imageGenerator } from '../services/imageGenerator';
 import { nameImageService } from '../services/nameImageService';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export function mediaRoutes(mediaServer: MediaServer): Router {
   const router = Router();
@@ -117,6 +119,27 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
     mediaServer.serveImage(req, res, id);
   });
 
+  // Snapshot endpoints: GET /api/media/snapshot/:filename (video thumbnails)
+  router.get('/snapshot/:filename', (req: Request, res: Response) => {
+    const { filename } = req.params;
+    const thumbnailGenerator = require('../services/thumbnailGenerator');
+    const snapshotPath = thumbnailGenerator.getSnapshotPath(filename.replace(/\.(jpeg|png)$/i, ''));
+    
+    if (!snapshotPath || !fs.existsSync(snapshotPath)) {
+      res.status(404).json({ success: false, error: 'Snapshot not found' });
+      return;
+    }
+
+    // Determine content type
+    const ext = path.extname(snapshotPath).toLowerCase();
+    const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(path.resolve(snapshotPath));
+  });
+
   // List all media: GET /api/media/list?type=video|image
   router.get('/list', (req: Request, res: Response) => {
     const type = req.query.type as 'video' | 'image' | undefined;
@@ -156,8 +179,10 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
           try {
             const cached = await redis.get(CACHE_KEY);
             if (cached) {
-              console.log(`⚡ [MediaServer] Returning cached video list (${JSON.parse(cached).count} videos)`);
-              res.json(JSON.parse(cached));
+              // Parse once and reuse
+              const cachedData = JSON.parse(cached);
+              console.log(`⚡ [MediaServer] Returning cached video list (${cachedData.count} videos)`);
+              res.json(cachedData);
               return;
             }
           } catch (error: any) {
@@ -175,17 +200,17 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
         // If Redis is empty, scan directory and populate Redis
         if (videos.length === 0) {
           console.log(`📹 [MediaServer] Redis is empty, scanning directory...`);
-          const scannedVideos = mediaServer.scanVideosDirectory();
+          const scannedVideos = await mediaServer.scanVideosDirectory();
           console.log(`📹 [MediaServer] Scanned ${scannedVideos.length} videos from directory`);
           
           if (scannedVideos.length > 0) {
-            // Populate Redis with scanned videos
-            console.log(`💾 [MediaServer] Populating Redis with ${scannedVideos.length} videos...`);
-            for (const video of scannedVideos) {
-              await videoLibraryRedis.saveVideo(video);
-            }
+            // Populate Redis with scanned videos (batch save for performance)
+            console.log(`💾 [MediaServer] Populating Redis with ${scannedVideos.length} videos (batch save)...`);
+            const startTime = Date.now();
+            const result = await videoLibraryRedis.saveVideosBatch(scannedVideos);
+            const duration = Date.now() - startTime;
             videos = scannedVideos;
-            console.log(`✅ [MediaServer] Redis populated with ${videos.length} videos`);
+            console.log(`✅ [MediaServer] Redis populated: ${result.saved} saved, ${result.errors} errors (${duration}ms)`);
           }
         }
       } catch (error: any) {
@@ -193,61 +218,116 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
         console.error(`❌ [MediaServer] Error stack:`, error.stack);
         // Fallback: scan directory if Redis fails
         console.log(`📹 [MediaServer] Falling back to directory scan...`);
-        videos = mediaServer.scanVideosDirectory();
+        videos = await mediaServer.scanVideosDirectory();
         console.log(`📹 [MediaServer] Scanned ${videos.length} videos from directory (fallback)`);
       }
       
       // Transform videos to include correct video URLs pointing to media server
-      const transformedVideos = videos
-        .filter((video: any) => video && (video.id || video.filename)) // Filter out invalid videos
-        .map((video: any) => {
-          try {
-            const videoId = video.id || video.filename;
-            const filename = video.filename || videoId || 'unknown';
-            const videoUrl = `/api/media/video/${videoId}`;
-            
-            // Convert filename to title (handle missing filename)
-            let title = filename;
-            if (filename && filename !== 'unknown') {
-              title = filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '');
-              title = title.replace(/^(vibes_media_|downloaded_video_)/i, '');
-              title = title.replace(/[_-]/g, ' ');
-              title = title.split(' ')
-                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
+      // Pre-compute default values to avoid repeated operations
+      const defaultAuthor = 'root GOD bill.draper.auto@gmail.com (bill draper)';
+      const defaultAnalysis = {
+        content_tags: [],
+        shot_type: undefined,
+        scene_type: undefined
+      };
+      const now = new Date().toISOString();
+      
+      // Load thumbnail generator
+      const thumbnailGenerator = require('../services/thumbnailGenerator');
+      
+      // Use for loop instead of map+filter for better performance with large arrays
+      const transformedVideos: any[] = [];
+      for (const video of videos) {
+        // Skip invalid videos early
+        if (!video || (!video.id && !video.filename)) {
+          continue;
+        }
+        
+        try {
+          const videoId = video.id || video.filename;
+          const filename = video.filename || videoId || 'unknown';
+          const videoUrl = `/api/media/video/${videoId}`;
+          
+          // Check if .jpeg snapshot exists (same filename, different extension)
+          let snapshotUrl = thumbnailGenerator.getSnapshotUrl(videoId);
+          let thumbnailUrl = videoUrl; // Default to video URL
+          
+          if (snapshotUrl) {
+            // Snapshot exists, use it for thumbnail
+            thumbnailUrl = snapshotUrl;
+            console.log(`📸 [MediaServer] Using existing snapshot for ${videoId}: ${snapshotUrl}`);
+          } else {
+            // No snapshot exists, generate it now (synchronously)
+            // Determine video file path
+            let videoPath: string;
+            if (video.file_path) {
+              if (path.isAbsolute(video.file_path)) {
+                videoPath = video.file_path;
+              } else {
+                const cleanPath = video.file_path.replace(/^videos[\\\/]/, '');
+                videoPath = path.join(path.dirname(path.dirname(__dirname)), 'data', 'videos', cleanPath);
+              }
+            } else {
+              videoPath = path.join(path.dirname(path.dirname(__dirname)), 'data', 'videos', filename);
             }
             
-            return {
-              id: video.id || `video-${filename}`,
-              filename: filename,
-              file_path: video.file_path || `videos/${filename}`,
-              title: title || filename,
-              videoUrl: videoUrl,
-              thumbnailUrl: videoUrl,
-              tags: video.tags || [],
-              author: video.author || 'root GOD bill.draper.auto@gmail.com (bill draper)',
-              duration: video.duration,
-              resolution_width: video.resolution_width,
-              resolution_height: video.resolution_height,
-              frame_rate: video.frame_rate,
-              file_size: video.file_size,
-              codec: video.codec,
-              created_at: video.created_at || new Date().toISOString(),
-              updated_at: video.updated_at || new Date().toISOString(),
-              analyzed_at: video.analyzed_at,
-              is_new: video.is_new,
-              analysis: video.analysis || {
-                content_tags: [],
-                shot_type: undefined,
-                scene_type: undefined
+            // Check if video file exists before generating
+            if (fs.existsSync(videoPath)) {
+              console.log(`📸 [MediaServer] Generating snapshot for ${videoId}...`);
+              // Generate snapshot synchronously
+              const generatedSnapshotUrl = await thumbnailGenerator.generateThumbnail(videoPath, videoId);
+              if (generatedSnapshotUrl) {
+                thumbnailUrl = generatedSnapshotUrl;
+                snapshotUrl = generatedSnapshotUrl;
+                console.log(`✅ [MediaServer] Generated snapshot for ${videoId}: ${snapshotUrl}`);
+              } else {
+                console.warn(`⚠️ [MediaServer] Failed to generate snapshot for ${videoId}, using video URL`);
               }
-            };
-          } catch (error: any) {
-            console.error(`❌ [MediaServer] Error transforming video:`, error.message, video);
-            return null;
+            } else {
+              console.warn(`⚠️ [MediaServer] Video file not found: ${videoPath}`);
+            }
           }
-        })
-        .filter((video: any) => video !== null); // Remove any failed transformations
+          
+          // Convert filename to title (optimized - single pass where possible)
+          let title = filename;
+          if (filename && filename !== 'unknown') {
+            // Chain replacements more efficiently
+            title = filename
+              .replace(/\.(mp4|mov|avi|mkv|webm)$/i, '')
+              .replace(/^(vibes_media_|downloaded_video_)/i, '')
+              .replace(/[_-]/g, ' ')
+              .split(' ')
+              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+          }
+          
+          transformedVideos.push({
+            id: video.id || `video-${filename}`,
+            filename: filename,
+            file_path: video.file_path || `videos/${filename}`,
+            title: title || filename,
+            videoUrl: videoUrl,
+            thumbnailUrl: thumbnailUrl, // This will be .jpeg if available, .mp4 otherwise
+            snapshotUrl: snapshotUrl || null, // Include snapshot URL separately
+            tags: video.tags || [],
+            author: video.author || defaultAuthor,
+            duration: video.duration,
+            resolution_width: video.resolution_width,
+            resolution_height: video.resolution_height,
+            frame_rate: video.frame_rate,
+            file_size: video.file_size,
+            codec: video.codec,
+            created_at: video.created_at || now,
+            updated_at: video.updated_at || now,
+            analyzed_at: video.analyzed_at,
+            is_new: video.is_new,
+            analysis: video.analysis || defaultAnalysis
+          });
+        } catch (error: any) {
+          console.error(`❌ [MediaServer] Error transforming video:`, error.message, video);
+          // Skip this video, continue with next
+        }
+      }
       
       // Return in the format Angular expects: { success: true, data: videos[], count: number }
       const response = {

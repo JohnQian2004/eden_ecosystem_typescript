@@ -16,6 +16,7 @@ export class VideoCardComponent implements OnInit, OnDestroy {
   showVideo = false;
   isPlaying = false;
   videoStreamUrl = '';
+  snapshotUrl: string | null = null; // Snapshot image URL (if available)
   hoverTimeout?: any;
 
   constructor(private videoLibraryService: VideoLibraryService) {}
@@ -23,12 +24,21 @@ export class VideoCardComponent implements OnInit, OnDestroy {
   videoLoadError = false;
 
   ngOnInit(): void {
-    // Backend /api/movie/video/ endpoint expects just the filename
-    // The backend will automatically look in data/videos/ directory
-    // So we use filename directly, not file_path
-    const videoPath = this.video.filename;
-    this.videoStreamUrl = this.videoLibraryService.getVideoStreamUrl(videoPath);
-    this.showVideo = true;
+    // Use thumbnailUrl for display (backend provides .jpeg if available, otherwise .mp4)
+    // If thumbnailUrl is a snapshot (.jpeg), use <img> tag
+    // If thumbnailUrl is video (.mp4), use <video> tag
+    const thumbnailUrl = this.video.thumbnailUrl || this.video.videoUrl;
+    
+    if (thumbnailUrl && (thumbnailUrl.endsWith('.jpeg') || thumbnailUrl.endsWith('.png') || thumbnailUrl.includes('/snapshot/'))) {
+      // It's a snapshot image, use <img> tag
+      this.snapshotUrl = this.videoLibraryService.getVideoStreamUrl('', '', thumbnailUrl);
+      this.showVideo = false;
+    } else {
+      // It's a video, use <video> tag for thumbnail
+      const videoPath = this.video.filename;
+      this.videoStreamUrl = this.videoLibraryService.getVideoStreamUrl(videoPath);
+      this.showVideo = true;
+    }
   }
 
   ngOnDestroy(): void {
@@ -123,6 +133,15 @@ export class VideoCardComponent implements OnInit, OnDestroy {
       // Ensure video is paused
       video.pause();
     }
+  }
+
+  onSnapshotError(event: any): void {
+    // If snapshot fails to load, fallback to video
+    console.warn('Snapshot failed to load, falling back to video:', this.video.filename);
+    this.snapshotUrl = null;
+    const videoPath = this.video.filename;
+    this.videoStreamUrl = this.videoLibraryService.getVideoStreamUrl(videoPath);
+    this.showVideo = true;
   }
 
   onVideoError(event: any): void {

@@ -1,5 +1,15 @@
 <div class="card h-100 video-card-icon">
   <div class="video-thumbnail-container position-relative" (click)="togglePlay()" style="cursor: pointer;">
+    <!-- Use snapshot image if available (much faster) -->
+    <img
+      *ngIf="snapshotUrl && !showVideo"
+      [src]="snapshotUrl"
+      class="w-100"
+      style="object-fit: cover; width: 100%; height: 100%; background: #000; display: block;"
+      alt="Video thumbnail"
+      (error)="onSnapshotError($event)"
+    />
+    <!-- Fallback to video element if no snapshot -->
     <video
       *ngIf="showVideo && !videoLoadError"
       #videoElement

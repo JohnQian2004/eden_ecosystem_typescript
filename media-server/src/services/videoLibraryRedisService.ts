@@ -130,6 +130,70 @@ export async function saveVideo(video: any): Promise<boolean> {
 }
 
 /**
+ * Batch save multiple videos to Redis (much faster than individual saves)
+ */
+export async function saveVideosBatch(videos: any[]): Promise<{ saved: number; errors: number }> {
+  const redis = getRedisClient();
+  if (!redis || !redisService.isRedisAvailable()) {
+    console.error('❌ [VideoLibraryRedis] Redis not available, cannot save videos');
+    return { saved: 0, errors: videos.length };
+  }
+
+  let saved = 0;
+  let errors = 0;
+  const now = new Date().toISOString();
+
+  // Prepare all videos for batch save
+  const videoPromises = videos.map(async (video) => {
+    try {
+      const videoId = video.id || video.filename;
+      if (!videoId) {
+        errors++;
+        return false;
+      }
+
+      // Ensure timestamps are set
+      if (!video.updated_at) {
+        video.updated_at = now;
+      }
+      if (!video.created_at) {
+        video.created_at = now;
+      }
+
+      // Save video data
+      const videoKey = `${VIDEO_PREFIX}${videoId}`;
+      await redis.set(videoKey, JSON.stringify(video));
+
+      // Add to index
+      await redis.sadd(VIDEO_INDEX_KEY, videoId);
+
+      // Add to author index
+      if (video.author) {
+        const authorKey = `${VIDEO_BY_AUTHOR_PREFIX}${video.author}`;
+        await redis.sadd(authorKey, videoId);
+      }
+
+      saved++;
+      return true;
+    } catch (error: any) {
+      console.error(`❌ [VideoLibraryRedis] Error saving video ${video.id || video.filename}:`, error.message);
+      errors++;
+      return false;
+    }
+  });
+
+  // Execute all saves in parallel
+  await Promise.all(videoPromises);
+
+  // Invalidate cache once after all saves
+  if (saved > 0) {
+    await redis.del(VIDEO_LIST_CACHE_KEY);
+  }
+
+  return { saved, errors };
+}
+
+/**
  * Delete video from Redis
  */
 export async function deleteVideo(videoId: string): Promise<boolean> {

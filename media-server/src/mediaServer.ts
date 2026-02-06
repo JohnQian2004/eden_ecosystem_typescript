@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createReadStream, statSync } from 'fs';
+import { promises as fsPromises } from 'fs';
 
 // Determine project root directory
 let projectRoot = __dirname;
@@ -970,8 +971,9 @@ export class MediaServer {
    * Scan videos directory and return all video files
    * This is the primary source - scans actual files in data/videos
    * Uses filename as ID (matches how videos are served)
+   * Uses async parallel stat operations for better performance
    */
-  scanVideosDirectory(): any[] {
+  async scanVideosDirectory(): Promise<any[]> {
     const videos: any[] = [];
     
     if (!fs.existsSync(VIDEOS_DIR)) {
@@ -985,15 +987,16 @@ export class MediaServer {
     
     console.log(`📹 [MediaServer] Scanning videos directory: found ${videoFiles.length} video files`);
     
-    for (const filename of videoFiles) {
+    // Use Promise.all for parallel stat operations (much faster than sequential)
+    const statPromises = videoFiles.map(async (filename) => {
       const filePath = path.join(VIDEOS_DIR, filename);
       try {
-        const stat = fs.statSync(filePath);
+        // Use fs.promises for async stat (non-blocking)
+        const stat = await fsPromises.stat(filePath);
         // Use filename as ID (this is what's used in video URLs like /api/media/video/:id)
-        // The ID should match what's used when serving the video
         const videoId = filename;
         
-        videos.push({
+        return {
           id: videoId,
           filename: filename,
           file_path: `videos/${filename}`,
@@ -1002,13 +1005,18 @@ export class MediaServer {
           updated_at: stat.mtime.toISOString(),
           author: 'root GOD bill.draper.auto@gmail.com (bill draper)',
           tags: []
-        });
+        };
       } catch (error: any) {
         console.error(`❌ [MediaServer] Failed to stat video file ${filename}:`, error.message);
+        return null;
       }
-    }
+    });
     
-    return videos;
+    const results = await Promise.all(statPromises);
+    // Filter out null results (failed stats)
+    const validVideos = results.filter((video): video is any => video !== null);
+    
+    return validVideos;
   }
 
   /**

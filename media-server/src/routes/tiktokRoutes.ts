@@ -22,7 +22,7 @@ export function tiktokRoutes(mediaServer: MediaServer): Router {
 
       // Scan videos directory directly - this is the source of truth
       // No longer using library.json (legacy) - just scan the actual files in data/videos
-      const allVideos = mediaServer.scanVideosDirectory();
+      const allVideos = await mediaServer.scanVideosDirectory();
       console.log(`📱 [TikTok] Scanned ${allVideos.length} videos from directory`);
       
       // Shuffle array for random order
