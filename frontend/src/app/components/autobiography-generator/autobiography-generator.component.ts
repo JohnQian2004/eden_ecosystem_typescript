@@ -1,11 +1,12 @@
 /**
  * Autobiography Generator Component
- * Manages autobiography and white paper content from Reddit
+ * Paste posts → save to Redis (no Reddit fetch or posting).
+ * Rich text editor for content (Paste and Edit).
  */
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { AutobiographyService, RedditPost, AutobiographyPost, AutobiographyData } from '../../services/autobiography.service';
-import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import { Editor } from 'ngx-editor';
 
 @Component({
   selector: 'app-autobiography-generator',
@@ -13,71 +14,82 @@ import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
   styleUrls: ['./autobiography-generator.component.scss']
 })
 export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
-  // Reddit posts
-  redditPosts: RedditPost[] = [];
-  loadingReddit = false;
-  
+  pasteEditor!: Editor;
+  editEditor!: Editor;
+  // Paste post (save to Redis)
+  pasteTitle = '';
+  pasteContent = '';
+  pasteCategory: 'autobiography' | 'white_paper' = 'autobiography';
+  pasting = false;
+  pasteMessage = '';
+  pasteSuccess = false;
+
   // Autobiography and White Paper data
   autobiographyData: AutobiographyData = { version: '2.6', lastUpdated: '', posts: [] };
   whitePaperData: AutobiographyData = { version: '2.6', lastUpdated: '', posts: [] };
   loadingAutobiography = false;
   loadingWhitePaper = false;
   saving = false;
-  
+
   // UI state
-  activeTab: 'reddit' | 'autobiography' | 'white_paper' = 'reddit';
+  activeTab: 'paste' | 'autobiography' | 'white_paper' = 'paste';
   selectedPost: RedditPost | AutobiographyPost | null = null;
   editingPost: AutobiographyPost | null = null;
   translating = false;
   translationResult: string | null = null;
-  
-  // New post creation
-  newPostTitle = '';
-  newPostContent = '';
-  newPostSubreddit = 'GardenOfEdenBillDrape';
-  creatingPost = false;
 
   constructor(private autobiographyService: AutobiographyService) {}
 
   ngOnInit(): void {
-    this.loadRedditPosts();
+    this.pasteEditor = new Editor();
+    this.editEditor = new Editor();
     this.loadAutobiography();
     this.loadWhitePaper();
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    this.pasteEditor.destroy();
+    this.editEditor.destroy();
   }
 
   /**
-   * Load posts from Reddit
+   * Check if content has actual text (handles HTML from rich editor).
    */
-  loadRedditPosts(): void {
-    this.loadingReddit = true;
-    this.autobiographyService.fetchRedditPosts(100).subscribe({
+  hasContent(content: string | undefined | null): boolean {
+    if (!content) return false;
+    const stripped = content.replace(/<[^>]*>/g, '').trim();
+    return stripped.length > 0;
+  }
+
+  /**
+   * Paste one post: save to Redis and file (no Reddit).
+   */
+  pastePost(): void {
+    const title = this.pasteTitle?.trim();
+    // Do not trim content - preserve rich text (HTML, <p>, spaces, paragraphs) when saving to Redis
+    const content = typeof this.pasteContent === 'string' ? this.pasteContent : '';
+    if (!title || !this.hasContent(content)) return;
+    this.pasting = true;
+    this.pasteMessage = '';
+    this.autobiographyService.pastePost(title, content, this.pasteCategory).subscribe({
       next: (response) => {
+        this.pasting = false;
         if (response.success) {
-          this.redditPosts = response.posts || [];
-          console.log(`✅ Loaded ${this.redditPosts.length} Reddit posts`);
-          if (this.redditPosts.length === 0) {
-            console.warn('⚠️ Reddit API returned success but no posts. The subreddit may be empty or private.');
-          }
+          this.pasteSuccess = true;
+          this.pasteMessage = 'Saved to Redis and file.';
+          this.pasteTitle = '';
+          this.pasteContent = '';
+          if (this.pasteCategory === 'autobiography') this.loadAutobiography();
+          else this.loadWhitePaper();
         } else {
-          console.error('❌ Reddit API returned success=false:', response);
-          this.redditPosts = [];
+          this.pasteSuccess = false;
+          this.pasteMessage = response.error || 'Save failed';
         }
-        this.loadingReddit = false;
       },
       error: (error) => {
-        console.error('❌ Error loading Reddit posts:', error);
-        console.error('❌ Error details:', {
-          status: error.status,
-          statusText: error.statusText,
-          message: error.message,
-          url: error.url
-        });
-        this.redditPosts = [];
-        this.loadingReddit = false;
+        this.pasting = false;
+        this.pasteSuccess = false;
+        this.pasteMessage = error?.error?.error || error?.message || 'Request failed';
       }
     });
   }
@@ -123,63 +135,62 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Move post from Reddit to Autobiography
+   * Move post up in autobiography list (by sorted chapter index).
    */
-  moveToAutobiography(post: RedditPost): void {
-    const autobiographyPost: AutobiographyPost = {
-      id: post.id,
-      title: post.title,
-      content: post.selftext || '',
-      author: post.author,
-      created_utc: post.created_utc,
-      category: 'autobiography',
-      order: this.autobiographyData.posts.length,
-      originalRedditId: post.id,
-      originalRedditUrl: post.permalink
-    };
-    
-    this.autobiographyData.posts.push(autobiographyPost);
+  moveUpAutobiography(sortedIndex: number): void {
+    if (sortedIndex <= 0) return;
+    const sorted = this.sortedAutobiographyPosts;
+    const post = sorted[sortedIndex];
+    const posts = this.autobiographyData.posts;
+    const idx = posts.findIndex(p => p.id === post.id);
+    if (idx <= 0) return;
+    [posts[idx - 1], posts[idx]] = [posts[idx], posts[idx - 1]];
+    posts.forEach((p, i) => (p.order = i));
     this.saveAutobiography();
   }
 
   /**
-   * Move post from Reddit to White Paper
+   * Move post down in autobiography list (by sorted chapter index).
    */
-  moveToWhitePaper(post: RedditPost): void {
-    const whitePaperPost: AutobiographyPost = {
-      id: post.id,
-      title: post.title,
-      content: post.selftext || '',
-      author: post.author,
-      created_utc: post.created_utc,
-      category: 'white_paper',
-      order: this.whitePaperData.posts.length,
-      originalRedditId: post.id,
-      originalRedditUrl: post.permalink
-    };
-    
-    this.whitePaperData.posts.push(whitePaperPost);
+  moveDownAutobiography(sortedIndex: number): void {
+    const sorted = this.sortedAutobiographyPosts;
+    if (sortedIndex >= sorted.length - 1) return;
+    const post = sorted[sortedIndex];
+    const posts = this.autobiographyData.posts;
+    const idx = posts.findIndex(p => p.id === post.id);
+    if (idx < 0 || idx >= posts.length - 1) return;
+    [posts[idx], posts[idx + 1]] = [posts[idx + 1], posts[idx]];
+    posts.forEach((p, i) => (p.order = i));
+    this.saveAutobiography();
+  }
+
+  /**
+   * Move post up in white paper list (by sorted chapter index).
+   */
+  moveUpWhitePaper(sortedIndex: number): void {
+    if (sortedIndex <= 0) return;
+    const sorted = this.sortedWhitePaperPosts;
+    const post = sorted[sortedIndex];
+    const posts = this.whitePaperData.posts;
+    const idx = posts.findIndex(p => p.id === post.id);
+    if (idx <= 0) return;
+    [posts[idx - 1], posts[idx]] = [posts[idx], posts[idx - 1]];
+    posts.forEach((p, i) => (p.order = i));
     this.saveWhitePaper();
   }
 
   /**
-   * Handle drag and drop reordering
+   * Move post down in white paper list (by sorted chapter index).
    */
-  dropAutobiography(event: CdkDragDrop<AutobiographyPost[]>): void {
-    moveItemInArray(this.autobiographyData.posts, event.previousIndex, event.currentIndex);
-    // Update order numbers
-    this.autobiographyData.posts.forEach((post, index) => {
-      post.order = index;
-    });
-    this.saveAutobiography();
-  }
-
-  dropWhitePaper(event: CdkDragDrop<AutobiographyPost[]>): void {
-    moveItemInArray(this.whitePaperData.posts, event.previousIndex, event.currentIndex);
-    // Update order numbers
-    this.whitePaperData.posts.forEach((post, index) => {
-      post.order = index;
-    });
+  moveDownWhitePaper(sortedIndex: number): void {
+    const sorted = this.sortedWhitePaperPosts;
+    if (sortedIndex >= sorted.length - 1) return;
+    const post = sorted[sortedIndex];
+    const posts = this.whitePaperData.posts;
+    const idx = posts.findIndex(p => p.id === post.id);
+    if (idx < 0 || idx >= posts.length - 1) return;
+    [posts[idx], posts[idx + 1]] = [posts[idx + 1], posts[idx]];
+    posts.forEach((p, i) => (p.order = i));
     this.saveWhitePaper();
   }
 
@@ -283,8 +294,7 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
       }
     }
     
-    this.editingPost = null;
-    this.selectedPost = null;
+    this.closeChapterDetail();
   }
 
   /**
@@ -296,40 +306,49 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Create new Reddit post
-   */
-  createRedditPost(): void {
-    if (!this.newPostTitle || !this.newPostContent) {
-      alert('Please provide both title and content');
-      return;
-    }
-    
-    this.creatingPost = true;
-    this.autobiographyService.createRedditPost(this.newPostTitle, this.newPostContent, this.newPostSubreddit).subscribe({
-      next: (response) => {
-        if (response.success) {
-          console.log('✅ Reddit post created:', response.postId);
-          this.newPostTitle = '';
-          this.newPostContent = '';
-          this.loadRedditPosts(); // Reload to see new post
-        } else {
-          alert(`Failed to create post: ${response.error}`);
-        }
-        this.creatingPost = false;
-      },
-      error: (error) => {
-        console.error('Error creating Reddit post:', error);
-        alert('Failed to create Reddit post');
-        this.creatingPost = false;
-      }
-    });
-  }
-
-  /**
    * Format date
    */
   formatDate(timestamp: number): string {
     return new Date(timestamp * 1000).toLocaleString();
+  }
+
+  /** Posts sorted by order (chapter number). */
+  get sortedAutobiographyPosts(): AutobiographyPost[] {
+    return [...this.autobiographyData.posts].sort((a, b) => a.order - b.order);
+  }
+
+  /** White paper posts sorted by order (chapter number). */
+  get sortedWhitePaperPosts(): AutobiographyPost[] {
+    return [...this.whitePaperData.posts].sort((a, b) => a.order - b.order);
+  }
+
+  /** Chapter number for display (1-based). */
+  chapterNumber(order: number): number {
+    return order + 1;
+  }
+
+  /** Index of post in autobiography list (by id). */
+  autobiographyIndex(post: AutobiographyPost): number {
+    return this.autobiographyData.posts.findIndex(p => p.id === post.id);
+  }
+
+  /** Index of post in white paper list (by id). */
+  whitePaperIndex(post: AutobiographyPost): number {
+    return this.whitePaperData.posts.findIndex(p => p.id === post.id);
+  }
+
+  /** Select chapter to view/edit (opens detail panel). */
+  selectChapter(post: AutobiographyPost): void {
+    this.editingPost = { ...post };
+    this.selectedPost = post;
+    this.translationResult = null;
+  }
+
+  /** Close chapter detail panel. */
+  closeChapterDetail(): void {
+    this.editingPost = null;
+    this.selectedPost = null;
+    this.translationResult = null;
   }
 }
 

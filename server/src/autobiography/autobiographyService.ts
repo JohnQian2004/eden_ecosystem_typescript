@@ -309,3 +309,19 @@ export async function saveWhitePaper(posts: AutobiographyPost[]): Promise<void> 
   console.log(`✅ [AutobiographyService] Saved ${enhancedPosts.length} white paper posts to ${whitePaperPath}`);
 }
 
+/**
+ * Write full autobiography data to file (no LLM). Keeps file in sync with Redis on paste.
+ */
+export function writeAutobiographyData(data: AutobiographyData): void {
+  fs.writeFileSync(autobiographyPath, JSON.stringify(data, null, 2), 'utf-8');
+  console.log(`✅ [AutobiographyService] Wrote ${data.posts.length} autobiography posts to file`);
+}
+
+/**
+ * Write full white paper data to file (no LLM). Keeps file in sync with Redis on paste.
+ */
+export function writeWhitePaperData(data: AutobiographyData): void {
+  fs.writeFileSync(whitePaperPath, JSON.stringify(data, null, 2), 'utf-8');
+  console.log(`✅ [AutobiographyService] Wrote ${data.posts.length} white paper posts to file`);
+}
+

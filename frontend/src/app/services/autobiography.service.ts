@@ -102,7 +102,18 @@ export class AutobiographyService {
   }
 
   /**
-   * Create new Reddit post
+   * Paste one post: save to Redis and file (no Reddit). Category is 'autobiography' or 'white_paper'.
+   */
+  pastePost(title: string, content: string, category: 'autobiography' | 'white_paper'): Observable<{ success: boolean; post?: AutobiographyPost; message?: string; error?: string }> {
+    return this.http.post<any>(`${this.apiBase}/api/autobiography/paste`, {
+      title,
+      content,
+      category
+    });
+  }
+
+  /**
+   * Create new Reddit post (disabled; use pastePost instead)
    */
   createRedditPost(title: string, content: string, subreddit?: string): Observable<{ success: boolean; postId?: string; error?: string }> {
     return this.http.post<any>(`${this.apiBase}/api/autobiography/reddit/create`, {

@@ -41,6 +41,7 @@ import { EdenHistoryComponent } from './components/eden-history/eden-history.com
 import { TikTokFeedComponent } from './components/tiktok-feed/tiktok-feed.component';
 import { AutobiographyGeneratorComponent } from './components/autobiography-generator/autobiography-generator.component';
 import { CacheInterceptor } from './services/cache.interceptor';
+import { NgxEditorModule } from 'ngx-editor';
 
 const routes: Routes = [
   { 
@@ -100,6 +101,7 @@ const routes: Routes = [
     FormsModule,
     ReactiveFormsModule,
     DragDropModule,
+    NgxEditorModule,
     RouterModule.forRoot(routes)
   ],
   providers: [

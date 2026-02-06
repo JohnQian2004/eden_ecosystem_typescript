@@ -796,11 +796,11 @@ httpServer.on("request", async (req, res) => {
     }
   }
 
-  // Handle autobiography API requests
+  // Handle autobiography API requests (paste → Redis; no Reddit fetch/post)
   if (pathname.startsWith('/api/autobiography/')) {
     try {
       const { handleAutobiographyRequest } = await import('./src/autobiography/autobiographyRoutes');
-      if (await handleAutobiographyRequest(req, res, pathname)) {
+      if (await handleAutobiographyRequest(req, res, pathname, redis)) {
         return; // Autobiography API handled the request
       }
     } catch (error: any) {
@@ -18064,15 +18064,15 @@ async function main() {
 
   // Start the server
   const PORT = process.env.PORT || 3000;
-  const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces (0.0.0.0) for remote access
+  // On Windows, listen(PORT, '0.0.0.0') causes getaddrinfo ENOTFOUND. Omit host to bind all interfaces.
   const protocol = ENABLE_HTTPS ? "https" : "http";
   const wsProtocol = ENABLE_HTTPS ? "wss" : "ws";
-  
-  httpServer.listen(PORT, HOST, () => {
-    console.log(`\n🚀 Eden Ecosystem Server running on ${protocol}://${HOST}:${PORT}`);
+
+  httpServer.listen(PORT, () => {
+    console.log(`\n🚀 Eden Ecosystem Server running on ${protocol}://0.0.0.0:${PORT}`);
     console.log(`   Accessible at: ${protocol}://localhost:${PORT} (local)`);
     console.log(`   Accessible at: ${protocol}://[your-ip]:${PORT} (network)`);
-    console.log(`📡 WebSocket server ready for connections (${wsProtocol}://${HOST}:${PORT}/ws)`);
+    console.log(`📡 WebSocket server ready for connections (${wsProtocol}://localhost:${PORT}/ws)`);
     if (DEPLOYED_AS_ROOT) {
       console.log(`🌳 ROOT mode: ${GARDENS.length} garden(s), ${TOKEN_GARDENS.length} token garden(s)`);
     } else {

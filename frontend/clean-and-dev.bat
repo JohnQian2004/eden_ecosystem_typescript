@@ -1,4 +1,10 @@
 @echo off
+echo Freeing port 3000 if in use...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do (
+  taskkill /PID %%a /F 2>nul
+)
+timeout /t 1 /nobreak >nul
+echo.
 echo Cleaning Angular cache and build artifacts...
 call npx ng cache clean
 if exist dist rmdir /s /q dist

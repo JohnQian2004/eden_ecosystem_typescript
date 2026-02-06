@@ -89,34 +89,62 @@ if errorlevel 1 (
 echo ✅ Angular frontend built successfully
 echo.
 
-REM Step 3: Kill processes on port 3000 (except node.js)
+REM Step 3: Kill processes on ports 3000 and 3001 (only those ports, NOT all node.js)
 echo ========================================
-echo 🔧 Step 3: Checking port 3000...
+echo 🔧 Step 3: Freeing ports 3000 and 3001...
 echo ========================================
-powershell -ExecutionPolicy Bypass -File "%SERVER_DIR%\kill-port-3000.ps1"
+echo    Killing only processes listening on port 3000...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
+    if not "%%a"=="0" taskkill /PID %%a /F 2>nul
+)
+echo    Killing only processes listening on port 3001...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do (
+    if not "%%a"=="0" taskkill /PID %%a /F 2>nul
+)
+timeout /t 2 /nobreak >nul
+echo    ✅ Ports freed (node.js processes elsewhere are untouched)
 echo.
 
-REM Step 4: Start the server
+REM Step 4: Start Main Eden Server (port 3000) in new window
 echo ========================================
-echo 🚀 Step 4: Starting Eden Ecosystem server...
+echo 🚀 Step 4: Starting Main Eden Server (port 3000)...
 echo ========================================
 cd /d "%SERVER_DIR%"
-echo 📍 Running from: %CD%
-echo 📍 Command: npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
-echo.
-echo ========================================
-echo ✅ Server starting on 0.0.0.0 (all interfaces)...
-echo ========================================
+start "Eden Main Server (Port 3000)" /D "%SERVER_DIR%" cmd /k "npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true"
+timeout /t 2 /nobreak >nul
+echo    ✅ Main Server starting in separate window
 echo.
 
-REM Set HOST environment variable to bind to all interfaces
-set HOST=0.0.0.0
-npx tsx eden-sim-redis.ts --enable-openai=true --mocked-llm=false --deployed-as-root=true --enable-https=true
-
-if errorlevel 1 (
-    echo.
-    echo ❌ Server failed to start!
-    pause
-    exit /b 1
+REM Step 5: Start Media Server (port 3001) in new window
+echo ========================================
+echo 🚀 Step 5: Starting Media Server (port 3001)...
+echo ========================================
+cd /d "%PROJECT_ROOT%\media-server"
+if exist "package.json" (
+    start "Eden Media Server (Port 3001)" /D "%PROJECT_ROOT%\media-server" cmd /k "npm run dev"
+    timeout /t 2 /nobreak >nul
+    echo    ✅ Media Server starting in separate window
+) else (
+    echo    ⚠️  Media server not found, skipping...
 )
+echo.
+
+REM Step 6: Start Angular dev server (port 4200) in new window
+echo ========================================
+echo 🚀 Step 6: Starting Angular dev server (port 4200)...
+echo ========================================
+cd /d "%FRONTEND_DIR%"
+start "Eden Angular (Port 4200)" /D "%FRONTEND_DIR%" cmd /k "ng serve --host 0.0.0.0 --port 4200 --ssl --configuration development"
+timeout /t 2 /nobreak >nul
+echo    ✅ Angular dev server starting in separate window
+echo.
+
+echo ========================================
+echo ✅ Main Server, Angular, and Media Server started:
+echo    - Main Server: https://0.0.0.0:3000 (API)
+echo    - Angular: https://0.0.0.0:4200 (frontend - proxies API to 3000)
+echo    - Media Server: http://0.0.0.0:3001
+echo ========================================
+echo.
+pause
 
