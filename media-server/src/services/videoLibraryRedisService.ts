@@ -9,6 +9,7 @@ import { getRedisClient } from './redisService';
 const VIDEO_PREFIX = 'video:';
 const VIDEO_INDEX_KEY = 'videos:index';
 const VIDEO_BY_AUTHOR_PREFIX = 'videos:author:';
+const VIDEO_LIST_CACHE_KEY = 'videos:list:transformed'; // Cache key for transformed video list
 
 /**
  * Get all videos from Redis
@@ -28,18 +29,29 @@ export async function getAllVideos(): Promise<any[]> {
       return [];
     }
 
-    // Get all video data
-    const videos: any[] = [];
-    for (const videoId of videoIds) {
-      const videoData = await redis.get(`${VIDEO_PREFIX}${videoId}`);
-      if (videoData) {
-        try {
-          videos.push(JSON.parse(videoData));
-        } catch (error: any) {
-          console.error(`❌ [VideoLibraryRedis] Failed to parse video ${videoId}:`, error.message);
+    // Fetch all videos in parallel using Promise.all (faster than sequential gets)
+    const videoPromises = videoIds.map(async (videoId) => {
+      try {
+        const videoData = await redis.get(`${VIDEO_PREFIX}${videoId}`);
+        if (videoData) {
+          try {
+            return JSON.parse(videoData);
+          } catch (parseError: any) {
+            console.error(`❌ [VideoLibraryRedis] Failed to parse video ${videoId}:`, parseError.message);
+            return null;
+          }
         }
+        return null;
+      } catch (error: any) {
+        console.error(`❌ [VideoLibraryRedis] Error fetching video ${videoId}:`, error.message);
+        return null;
       }
-    }
+    });
+    
+    const results = await Promise.all(videoPromises);
+    
+    // Filter out null results
+    const videos = results.filter((video): video is any => video !== null);
 
     return videos;
   } catch (error: any) {
@@ -107,6 +119,9 @@ export async function saveVideo(video: any): Promise<boolean> {
       await redis.sadd(authorKey, videoId);
     }
 
+    // Invalidate video list cache
+    await redis.del(VIDEO_LIST_CACHE_KEY);
+
     return true;
   } catch (error: any) {
     console.error(`❌ [VideoLibraryRedis] Error saving video:`, error.message);
@@ -138,6 +153,9 @@ export async function deleteVideo(videoId: string): Promise<boolean> {
 
     // Delete video data
     await redis.del(`${VIDEO_PREFIX}${videoId}`);
+
+    // Invalidate video list cache
+    await redis.del(VIDEO_LIST_CACHE_KEY);
 
     return true;
   } catch (error: any) {

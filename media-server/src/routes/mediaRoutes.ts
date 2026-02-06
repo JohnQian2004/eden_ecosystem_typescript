@@ -139,61 +139,142 @@ export function mediaRoutes(mediaServer: MediaServer): Router {
     }
   });
 
-  // Get all videos from library.json: GET /api/media/library/videos
-  router.get('/library/videos', (req: Request, res: Response) => {
-    console.log(`📹 [MediaServer] GET /api/media/library/videos - Getting videos from library.json`);
+  // Get all videos from Redis: GET /api/media/library/videos
+  router.get('/library/videos', async (req: Request, res: Response) => {
+    console.log(`📹 [MediaServer] GET /api/media/library/videos - Getting videos from Redis`);
     try {
-      const videos = mediaServer.getVideosFromLibrary();
-      console.log(`✅ [MediaServer] Returning ${videos.length} videos from library.json`);
+      const videoLibraryRedis = require('../services/videoLibraryRedisService');
+      const redisService = require('../services/redisService');
+      
+      // Check cache first (cache key: videos:list:transformed)
+      const CACHE_KEY = 'videos:list:transformed';
+      const CACHE_TTL = 300; // 5 minutes cache
+      
+      if (redisService.isRedisAvailable()) {
+        const redis = redisService.getRedisClient();
+        if (redis) {
+          try {
+            const cached = await redis.get(CACHE_KEY);
+            if (cached) {
+              console.log(`⚡ [MediaServer] Returning cached video list (${JSON.parse(cached).count} videos)`);
+              res.json(JSON.parse(cached));
+              return;
+            }
+          } catch (error: any) {
+            console.warn(`⚠️ [MediaServer] Cache read error: ${error.message}`);
+          }
+        }
+      }
+      
+      // Cache miss - get videos from Redis
+      let videos: any[] = [];
+      try {
+        videos = await videoLibraryRedis.getAllVideos();
+        console.log(`✅ [MediaServer] Loaded ${videos.length} videos from Redis`);
+        
+        // If Redis is empty, scan directory and populate Redis
+        if (videos.length === 0) {
+          console.log(`📹 [MediaServer] Redis is empty, scanning directory...`);
+          const scannedVideos = mediaServer.scanVideosDirectory();
+          console.log(`📹 [MediaServer] Scanned ${scannedVideos.length} videos from directory`);
+          
+          if (scannedVideos.length > 0) {
+            // Populate Redis with scanned videos
+            console.log(`💾 [MediaServer] Populating Redis with ${scannedVideos.length} videos...`);
+            for (const video of scannedVideos) {
+              await videoLibraryRedis.saveVideo(video);
+            }
+            videos = scannedVideos;
+            console.log(`✅ [MediaServer] Redis populated with ${videos.length} videos`);
+          }
+        }
+      } catch (error: any) {
+        console.error(`❌ [MediaServer] Error loading videos from Redis:`, error.message);
+        console.error(`❌ [MediaServer] Error stack:`, error.stack);
+        // Fallback: scan directory if Redis fails
+        console.log(`📹 [MediaServer] Falling back to directory scan...`);
+        videos = mediaServer.scanVideosDirectory();
+        console.log(`📹 [MediaServer] Scanned ${videos.length} videos from directory (fallback)`);
+      }
       
       // Transform videos to include correct video URLs pointing to media server
-      const transformedVideos = videos.map((video: any) => {
-        const videoId = video.id || video.filename;
-        const videoUrl = `/api/media/video/${videoId}`;
-        
-        // Convert filename to title
-        let title = video.filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '');
-        title = title.replace(/^(vibes_media_|downloaded_video_)/i, '');
-        title = title.replace(/[_-]/g, ' ');
-        title = title.split(' ')
-          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
-        
-        return {
-          id: video.id || `video-${video.filename}`,
-          filename: video.filename,
-          file_path: video.file_path || `media/videos/${video.filename}`,
-          title: title || video.filename,
-          videoUrl: videoUrl,
-          thumbnailUrl: videoUrl,
-          tags: video.tags || [],
-          author: video.author || 'root GOD bill.draper.auto@gmail.com (bill draper)',
-          duration: video.duration,
-          resolution_width: video.resolution_width,
-          resolution_height: video.resolution_height,
-          frame_rate: video.frame_rate,
-          file_size: video.file_size,
-          codec: video.codec,
-          created_at: video.created_at || new Date().toISOString(),
-          updated_at: video.updated_at || new Date().toISOString(),
-          analyzed_at: video.analyzed_at,
-          is_new: video.is_new,
-          analysis: video.analysis || {
-            content_tags: [],
-            shot_type: undefined,
-            scene_type: undefined
+      const transformedVideos = videos
+        .filter((video: any) => video && (video.id || video.filename)) // Filter out invalid videos
+        .map((video: any) => {
+          try {
+            const videoId = video.id || video.filename;
+            const filename = video.filename || videoId || 'unknown';
+            const videoUrl = `/api/media/video/${videoId}`;
+            
+            // Convert filename to title (handle missing filename)
+            let title = filename;
+            if (filename && filename !== 'unknown') {
+              title = filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '');
+              title = title.replace(/^(vibes_media_|downloaded_video_)/i, '');
+              title = title.replace(/[_-]/g, ' ');
+              title = title.split(' ')
+                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            }
+            
+            return {
+              id: video.id || `video-${filename}`,
+              filename: filename,
+              file_path: video.file_path || `videos/${filename}`,
+              title: title || filename,
+              videoUrl: videoUrl,
+              thumbnailUrl: videoUrl,
+              tags: video.tags || [],
+              author: video.author || 'root GOD bill.draper.auto@gmail.com (bill draper)',
+              duration: video.duration,
+              resolution_width: video.resolution_width,
+              resolution_height: video.resolution_height,
+              frame_rate: video.frame_rate,
+              file_size: video.file_size,
+              codec: video.codec,
+              created_at: video.created_at || new Date().toISOString(),
+              updated_at: video.updated_at || new Date().toISOString(),
+              analyzed_at: video.analyzed_at,
+              is_new: video.is_new,
+              analysis: video.analysis || {
+                content_tags: [],
+                shot_type: undefined,
+                scene_type: undefined
+              }
+            };
+          } catch (error: any) {
+            console.error(`❌ [MediaServer] Error transforming video:`, error.message, video);
+            return null;
           }
-        };
-      });
+        })
+        .filter((video: any) => video !== null); // Remove any failed transformations
       
       // Return in the format Angular expects: { success: true, data: videos[], count: number }
-      res.json({
+      const response = {
         success: true,
         data: transformedVideos,
         count: transformedVideos.length
-      });
+      };
+      
+      // Cache the transformed response (only if we have videos to avoid caching empty results)
+      if (transformedVideos.length > 0 && redisService.isRedisAvailable()) {
+        const redis = redisService.getRedisClient();
+        if (redis) {
+          try {
+            await redis.setex(CACHE_KEY, CACHE_TTL, JSON.stringify(response));
+            console.log(`💾 [MediaServer] Cached video list (${transformedVideos.length} videos) for ${CACHE_TTL} seconds`);
+          } catch (error: any) {
+            console.warn(`⚠️ [MediaServer] Cache write error: ${error.message}`);
+          }
+        }
+      } else if (transformedVideos.length === 0) {
+        console.log(`⚠️ [MediaServer] Not caching empty result - Redis may need to be populated`);
+      }
+      
+      res.json(response);
     } catch (error: any) {
       console.error(`❌ [MediaServer] Error getting videos:`, error.message);
+      console.error(`❌ [MediaServer] Error stack:`, error.stack);
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to get videos',

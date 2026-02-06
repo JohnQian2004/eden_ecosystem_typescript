@@ -13,6 +13,7 @@ import { EventEmitter } from "events";
 export class EmbeddedRedisServer extends EventEmitter {
   private data: Map<string, any> = new Map();
   private sets: Map<string, Set<string>> = new Map();
+  private expirations: Map<string, NodeJS.Timeout> = new Map();
   private isConnected = false;
 
   constructor() {
@@ -49,6 +50,25 @@ export class EmbeddedRedisServer extends EventEmitter {
 
   async set(key: string, value: string): Promise<void> {
     this.data.set(key, value);
+    // Clear any existing expiration
+    if (this.expirations.has(key)) {
+      clearTimeout(this.expirations.get(key)!);
+      this.expirations.delete(key);
+    }
+  }
+
+  async setex(key: string, seconds: number, value: string): Promise<void> {
+    this.data.set(key, value);
+    // Clear any existing expiration
+    if (this.expirations.has(key)) {
+      clearTimeout(this.expirations.get(key)!);
+    }
+    // Set new expiration
+    const timeout = setTimeout(() => {
+      this.data.delete(key);
+      this.expirations.delete(key);
+    }, seconds * 1000);
+    this.expirations.set(key, timeout);
   }
 
   async del(key: string): Promise<number> {
@@ -58,6 +78,11 @@ export class EmbeddedRedisServer extends EventEmitter {
     }
     if (this.sets.has(key)) {
       this.sets.delete(key);
+    }
+    // Clear expiration if exists
+    if (this.expirations.has(key)) {
+      clearTimeout(this.expirations.get(key)!);
+      this.expirations.delete(key);
     }
     return existed ? 1 : 0;
   }

@@ -723,9 +723,9 @@ export class MediaServer {
   }
 
   /**
-   * Sync library.json with videos directory
-   * Scans videos directory and compares with library.json, adding/updating/removing entries
-   * Uses media server's own directories: media-server/data/videos and media-server/data/library.json
+   * Sync Redis with videos directory
+   * Scans videos directory and compares with Redis, adding/updating/removing entries
+   * Uses Redis as the storage backend instead of library.json
    */
   async syncLibrary(): Promise<{
     added: number;
@@ -734,8 +734,6 @@ export class MediaServer {
     analyzed: number;
     errors: string[];
   }> {
-    // Use media server's own directory structure (media-server/data)
-    const libraryPath = path.join(MEDIA_BASE_DIR, 'library.json');
     const videosDir = VIDEOS_DIR; // Already defined at module level
     const metadataDir = METADATA_DIR; // Already defined at module level
     
@@ -747,41 +745,35 @@ export class MediaServer {
       errors: [] as string[]
     };
 
-    console.log(`🔄 [MediaServer] Starting library sync...`);
-    console.log(`   Library path: ${libraryPath}`);
+    console.log(`🔄 [MediaServer] Starting library sync to Redis...`);
     console.log(`   Videos directory: ${videosDir}`);
 
     try {
-      // Step 1: Load existing library.json
-      let library: any = {
-        videos: [],
-        tags: [],
-        metadata: {
-          version: "1.0",
-          last_updated: new Date().toISOString(),
-          total_videos: 0
-        }
-      };
-
-      if (fs.existsSync(libraryPath)) {
-        try {
-          const libraryContent = fs.readFileSync(libraryPath, 'utf-8');
-          library = JSON.parse(libraryContent);
-          console.log(`   ✅ Loaded existing library: ${library.videos?.length || 0} videos`);
-        } catch (err: any) {
-          console.error(`   ❌ Failed to parse library.json:`, err.message);
-          result.errors.push(`Failed to parse library.json: ${err.message}`);
-        }
-      } else {
-        console.log(`   ⚠️ Library.json not found, creating new one`);
+      // Step 1: Check if Redis is available
+      const videoLibraryRedis = require('./services/videoLibraryRedisService');
+      const redisService = require('./services/redisService');
+      
+      if (!redisService.isRedisAvailable()) {
+        const errorMsg = 'Redis is not available';
+        console.error(`   ❌ ${errorMsg}`);
+        result.errors.push(errorMsg);
+        return result;
       }
 
-      // Ensure structure
-      if (!library.videos) library.videos = [];
-      if (!library.tags) library.tags = [];
-      if (!library.metadata) library.metadata = {};
+      // Step 2: Get existing videos from Redis
+      const existingVideos = await videoLibraryRedis.getAllVideos();
+      console.log(`   ✅ Loaded ${existingVideos.length} existing videos from Redis`);
 
-      // Step 2: Scan videos directory to get all video files
+      // Create a map of existing videos by filename for quick lookup
+      const existingVideosMap = new Map<string, any>();
+      for (const video of existingVideos) {
+        const filename = video.filename || video.originalFilename;
+        if (filename) {
+          existingVideosMap.set(filename, video);
+        }
+      }
+
+      // Step 3: Scan videos directory to get all video files
       const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
       let videoFilesInDirectory: string[] = [];
 
@@ -798,16 +790,7 @@ export class MediaServer {
         return result;
       }
 
-      // Step 3: Create helper function to find video in library by filename or originalFilename
-      const findVideoInLibrary = (filename: string): any => {
-        return library.videos.find((v: any) => 
-          v.filename === filename || v.originalFilename === filename
-        );
-      };
-
-      console.log(`   📚 Library.json has ${library.videos.length} video entries`);
-
-      // Step 4: Compare directory files with library.json entries
+      // Step 4: Compare directory files with Redis entries
       const videosToAdd: string[] = [];
       const videosToUpdate: string[] = [];
 
@@ -815,11 +798,11 @@ export class MediaServer {
         const filePath = path.join(videosDir, filename);
         const stats = fs.statSync(filePath);
         
-        const existingVideo = findVideoInLibrary(filename);
+        const existingVideo = existingVideosMap.get(filename);
         
         if (!existingVideo) {
           videosToAdd.push(filename);
-          console.log(`   ➕ Will add: ${filename} (not in library.json)`);
+          console.log(`   ➕ Will add: ${filename} (not in Redis)`);
         } else {
           if (existingVideo.file_size !== stats.size) {
             videosToUpdate.push(filename);
@@ -828,7 +811,7 @@ export class MediaServer {
         }
       }
 
-      // Step 5: Add missing videos to library.json
+      // Step 5: Add missing videos to Redis
       for (const filename of videosToAdd) {
         try {
           const filePath = path.join(videosDir, filename);
@@ -846,12 +829,13 @@ export class MediaServer {
           }
 
           // Create new video entry
-          const videoId = mediaMetadata?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+          // Use filename as ID (matches how videos are served)
+          const videoId = filename;
           const newVideo: any = {
             id: videoId,
             filename: filename,
             originalFilename: filename,
-            file_path: `media/videos/${filename}`,
+            file_path: `videos/${filename}`,
             file_size: stats.size,
             created_at: mediaMetadata?.createdAt || stats.birthtime.toISOString() || new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -869,9 +853,16 @@ export class MediaServer {
             newVideo.frame_rate = mediaMetadata.metadata.frame_rate;
           }
 
-          library.videos.push(newVideo);
-          result.added++;
-          console.log(`   ✅ Added to library.json: ${filename}`);
+          // Save to Redis
+          const saved = await videoLibraryRedis.saveVideo(newVideo);
+          if (saved) {
+            result.added++;
+            console.log(`   ✅ Added to Redis: ${filename}`);
+          } else {
+            const errorMsg = `Failed to save ${filename} to Redis`;
+            result.errors.push(errorMsg);
+            console.error(`   ❌ ${errorMsg}`);
+          }
         } catch (error: any) {
           const errorMsg = `Error adding ${filename}: ${error.message}`;
           result.errors.push(errorMsg);
@@ -879,26 +870,33 @@ export class MediaServer {
         }
       }
 
-      // Step 6: Update existing videos in library.json
+      // Step 6: Update existing videos in Redis
       for (const filename of videosToUpdate) {
         try {
           const filePath = path.join(videosDir, filename);
           const stats = fs.statSync(filePath);
           
-          const videoIndex = library.videos.findIndex((v: any) => 
-            v.filename === filename || v.originalFilename === filename
-          );
+          const existingVideo = existingVideosMap.get(filename);
           
-          if (videoIndex !== -1) {
-            library.videos[videoIndex].file_size = stats.size;
-            library.videos[videoIndex].updated_at = new Date().toISOString();
+          if (existingVideo) {
+            // Update file size and timestamp
+            existingVideo.file_size = stats.size;
+            existingVideo.updated_at = new Date().toISOString();
             
-            if (!library.videos[videoIndex].author) {
-              library.videos[videoIndex].author = 'root GOD bill.draper.auto@gmail.com (bill draper)';
+            if (!existingVideo.author) {
+              existingVideo.author = 'root GOD bill.draper.auto@gmail.com (bill draper)';
             }
             
-            result.updated++;
-            console.log(`   ✅ Updated in library.json: ${filename}`);
+            // Save updated video to Redis
+            const saved = await videoLibraryRedis.saveVideo(existingVideo);
+            if (saved) {
+              result.updated++;
+              console.log(`   ✅ Updated in Redis: ${filename}`);
+            } else {
+              const errorMsg = `Failed to update ${filename} in Redis`;
+              result.errors.push(errorMsg);
+              console.error(`   ❌ ${errorMsg}`);
+            }
           }
         } catch (error: any) {
           const errorMsg = `Error updating ${filename}: ${error.message}`;
@@ -907,78 +905,53 @@ export class MediaServer {
         }
       }
 
-      // Step 7: Remove videos from library.json that no longer exist in directory
+      // Step 7: Remove videos from Redis that no longer exist in directory
       const videosInDirectorySet = new Set(videoFilesInDirectory);
       const videosToRemove: any[] = [];
       
-      for (const video of library.videos) {
-        const filename = video.filename;
-        const originalFilename = video.originalFilename || video.filename;
+      for (const video of existingVideos) {
+        const filename = video.filename || video.originalFilename;
         
-        if (!videosInDirectorySet.has(filename) && !videosInDirectorySet.has(originalFilename)) {
+        if (filename && !videosInDirectorySet.has(filename)) {
           videosToRemove.push(video);
-          console.log(`   ➖ Will remove: ${video.filename} (file not in directory)`);
+          console.log(`   ➖ Will remove: ${filename} (file not in directory)`);
         }
       }
 
       if (videosToRemove.length > 0) {
         for (const video of videosToRemove) {
-          library.videos = library.videos.filter((v: any) => v.id !== video.id);
-          result.removed++;
-          console.log(`   ✅ Removed from library.json: ${video.filename}`);
+          const videoId = video.id || video.filename;
+          if (videoId) {
+            const deleted = await videoLibraryRedis.deleteVideo(videoId);
+            if (deleted) {
+              result.removed++;
+              console.log(`   ✅ Removed from Redis: ${video.filename || videoId}`);
+            } else {
+              const errorMsg = `Failed to delete ${video.filename || videoId} from Redis`;
+              result.errors.push(errorMsg);
+              console.error(`   ❌ ${errorMsg}`);
+            }
+          }
         }
       }
 
-      // Step 8: Remove duplicate entries
-      const seenFilenames = new Set<string>();
-      const seenIds = new Set<string>();
-      const uniqueVideos: any[] = [];
-      let duplicateCount = 0;
-      
-      for (const video of library.videos) {
-        const filename = video.filename;
-        const originalFilename = video.originalFilename || video.filename;
-        
-        if (seenFilenames.has(filename) || seenFilenames.has(originalFilename) || seenIds.has(video.id)) {
-          duplicateCount++;
-          console.log(`   🗑️ Removing duplicate: ${video.filename} (ID: ${video.id})`);
-          continue;
-        }
-        
-        seenFilenames.add(filename);
-        if (originalFilename !== filename) {
-          seenFilenames.add(originalFilename);
-        }
-        seenIds.add(video.id);
-        uniqueVideos.push(video);
-      }
-      
-      if (duplicateCount > 0) {
-        library.videos = uniqueVideos;
-        console.log(`   🧹 Removed ${duplicateCount} duplicate entries from library.json`);
-      }
-
-      // Step 9: Set default author for all videos that don't have one
+      // Step 8: Set default author for all videos that don't have one
+      const allVideosAfterSync = await videoLibraryRedis.getAllVideos();
       let authorMigrationCount = 0;
-      for (const video of library.videos) {
+      for (const video of allVideosAfterSync) {
         if (!video.author) {
           video.author = 'root GOD bill.draper.auto@gmail.com (bill draper)';
           video.updated_at = new Date().toISOString();
+          await videoLibraryRedis.saveVideo(video);
           authorMigrationCount++;
         }
       }
       if (authorMigrationCount > 0) {
-        console.log(`   📝 Set default author for ${authorMigrationCount} existing video(s)`);
+        console.log(`   📝 Set default author for ${authorMigrationCount} existing video(s) in Redis`);
       }
 
-      // Step 10: Update library metadata
-      library.metadata.last_updated = new Date().toISOString();
-      library.metadata.total_videos = library.videos.length;
-      if (!library.metadata.version) library.metadata.version = "1.0";
-
-      // Step 11: Save library.json
-      fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
-      console.log(`   💾 Library.json saved with ${library.videos.length} videos`);
+      const totalInRedis = await videoLibraryRedis.getVideoCount();
+      console.log(`   💾 Redis now contains ${totalInRedis} videos`);
 
       console.log(`   ✅ Sync completed: ${result.added} added, ${result.updated} updated, ${result.removed} removed`);
       if (result.errors.length > 0) {

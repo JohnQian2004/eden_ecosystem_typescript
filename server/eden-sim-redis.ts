@@ -871,10 +871,12 @@ httpServer.on("request", async (req, res) => {
     }
     
     console.log(`🔄 [${requestId}] PROXYING to separate media video server: ${pathname}`);
+    console.log(`🔄 [${requestId}] Request method: ${req.method}`);
     console.log(`🔄 [${requestId}] Media server URL: ${MEDIA_SERVER_URL}`);
     const queryString = parsedUrl.search || '';
     const proxyPath = pathname + queryString;
     const proxyUrl = new URL(proxyPath, MEDIA_SERVER_URL);
+    console.log(`🔄 [${requestId}] Full proxy URL: ${proxyUrl.toString()}`);
     
     // Proxy to media server
     const proxyModule = require('http');

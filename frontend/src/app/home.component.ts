@@ -5028,6 +5028,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   /**
+   * Handle video library tab click - load videos if needed
+   */
+  onVideoLibraryTabClick(): void {
+    this.edenChatTab = 'video-library';
+    // Wait for the view to update, then load videos
+    setTimeout(() => {
+      if (this.videoLibraryComponent && this.videoLibraryComponent.loadVideosIfNeeded) {
+        this.videoLibraryComponent.loadVideosIfNeeded();
+      }
+    }, 100);
+  }
+
+  /**
    * Enable TikTok mode - switch to video library tab and enable TikTok feed
    */
   enableTikTokMode(): void {

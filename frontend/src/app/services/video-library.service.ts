@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { map, tap, catchError } from 'rxjs/operators';
 import { getApiBaseUrl } from './api-base';
 
 export interface Video {
@@ -59,10 +59,12 @@ export class VideoLibraryService {
   private videosApiUrl: string;
 
   constructor(private http: HttpClient) {
-    // Use relative URL - Eden backend will proxy to media server
+    // Use full URL with getApiBaseUrl() to ensure requests go through Eden backend proxy
     // This avoids mixed content errors (HTTPS page loading HTTP resources)
-    this.videosApiUrl = '/api/media/library/videos';
+    const apiBase = getApiBaseUrl();
+    this.videosApiUrl = `${apiBase}/api/media/library/videos`;
     console.log(`📹 [VideoLibraryService] Using Eden backend proxy: ${this.videosApiUrl}`);
+    console.log(`📹 [VideoLibraryService] API base URL: ${apiBase}`);
   }
 
   /**
@@ -91,12 +93,18 @@ export class VideoLibraryService {
       }
     }
 
+    // Log the request details
+    console.log(`📹 [VideoLibraryService] Making GET request to: ${this.videosApiUrl}`);
+    console.log(`📹 [VideoLibraryService] Query params:`, params.toString());
+    
     // Use the existing /api/videos endpoint which reads from library.json
     return this.http.get<any>(this.videosApiUrl, { params }).pipe(
       map((response) => {
+        console.log(`✅ [VideoLibraryService] Received response:`, response);
         // Backend returns: { success: true, data: videos[], count: number }
         // Handle both the new format (response.data) and legacy formats
         const videosArray = response.data || response.videos || (Array.isArray(response) ? response : []);
+        console.log(`✅ [VideoLibraryService] Extracted ${videosArray.length} videos from response`);
         
         // Transform the response to match our Video interface
         const videos: Video[] = videosArray.map((v: any) => ({
@@ -119,6 +127,14 @@ export class VideoLibraryService {
           videoUrl: v.videoUrl // Preserve videoUrl from API response (points to media server)
         }));
         return { status: 'success', data: videos };
+      }),
+      catchError((error: any) => {
+        console.error(`❌ [VideoLibraryService] Error fetching videos:`, error);
+        console.error(`❌ [VideoLibraryService] Error status:`, error.status);
+        console.error(`❌ [VideoLibraryService] Error message:`, error.message);
+        console.error(`❌ [VideoLibraryService] Error URL:`, error.url || this.videosApiUrl);
+        console.error(`❌ [VideoLibraryService] Full error:`, error);
+        return throwError(() => error);
       })
     );
   }
