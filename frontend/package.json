@@ -11,6 +11,7 @@
     "build:watch": "ng build --watch --configuration development",
     "clean": "npx ng cache clean && rmdir /s /q dist 2>nul || true",
     "dev": "npm run clean && npm run build && npm run start:http",
+    "dev:https": "npm run clean && npm run build && ng serve --host 0.0.0.0 --port 3000 --ssl --configuration development",
     "dev:watch": "npm run clean && ng build --watch --configuration development",
     "test": "ng test"
   },

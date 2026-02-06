@@ -89,9 +89,16 @@ if errorlevel 1 (
 echo ✅ Angular frontend built successfully
 echo.
 
-REM Step 3: Start the server
+REM Step 3: Kill processes on port 3000 (except node.js)
 echo ========================================
-echo 🚀 Step 3: Starting Eden Ecosystem server...
+echo 🔧 Step 3: Checking port 3000...
+echo ========================================
+powershell -ExecutionPolicy Bypass -File "%SERVER_DIR%\kill-port-3000.ps1"
+echo.
+
+REM Step 4: Start the server
+echo ========================================
+echo 🚀 Step 4: Starting Eden Ecosystem server...
 echo ========================================
 cd /d "%SERVER_DIR%"
 echo 📍 Running from: %CD%

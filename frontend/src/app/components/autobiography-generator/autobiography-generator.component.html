@@ -43,7 +43,12 @@
     </div>
 
     <div *ngIf="!loadingReddit && redditPosts.length === 0" class="text-center py-5">
-      <p class="text-muted">No Reddit posts found</p>
+      <div class="alert alert-info">
+        <h5>No Reddit posts found</h5>
+        <p class="mb-0">The subreddit r/GardenOfEdenBillDrape may be empty, private, or there was an error fetching posts.</p>
+        <p class="mb-0"><small>Check the browser console (F12) for error details.</small></p>
+        <button class="btn btn-sm btn-primary mt-2" (click)="loadRedditPosts()">Try Again</button>
+      </div>
     </div>
 
     <div *ngIf="!loadingReddit && redditPosts.length > 0" class="row g-3">

@@ -57,13 +57,26 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
     this.autobiographyService.fetchRedditPosts(100).subscribe({
       next: (response) => {
         if (response.success) {
-          this.redditPosts = response.posts;
+          this.redditPosts = response.posts || [];
           console.log(`✅ Loaded ${this.redditPosts.length} Reddit posts`);
+          if (this.redditPosts.length === 0) {
+            console.warn('⚠️ Reddit API returned success but no posts. The subreddit may be empty or private.');
+          }
+        } else {
+          console.error('❌ Reddit API returned success=false:', response);
+          this.redditPosts = [];
         }
         this.loadingReddit = false;
       },
       error: (error) => {
-        console.error('Error loading Reddit posts:', error);
+        console.error('❌ Error loading Reddit posts:', error);
+        console.error('❌ Error details:', {
+          status: error.status,
+          statusText: error.statusText,
+          message: error.message,
+          url: error.url
+        });
+        this.redditPosts = [];
         this.loadingReddit = false;
       }
     });

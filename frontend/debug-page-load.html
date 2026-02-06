@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Angular Debug Page</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .error { color: #f48771; }
+        .success { color: #89d185; }
+        .info { color: #569cd6; }
+        pre { background: #252526; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Angular Page Load Debugger</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        log('Starting diagnostics...', 'info');
+        
+        // Check if Angular is loaded
+        setTimeout(() => {
+            if (window.ng) {
+                log('✅ Angular framework detected', 'success');
+            } else {
+                log('❌ Angular framework NOT detected', 'error');
+            }
+            
+            // Check for app-home element
+            const appHome = document.querySelector('app-home');
+            if (appHome) {
+                log('✅ app-home element found', 'success');
+            } else {
+                log('❌ app-home element NOT found', 'error');
+            }
+            
+            // Check for errors
+            const errors = [];
+            window.addEventListener('error', (e) => {
+                errors.push({
+                    message: e.message,
+                    filename: e.filename,
+                    lineno: e.lineno,
+                    colno: e.colno
+                });
+                log(`❌ JavaScript Error: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`, 'error');
+            });
+            
+            // Check console errors
+            const originalError = console.error;
+            console.error = function(...args) {
+                log(`❌ Console Error: ${args.join(' ')}`, 'error');
+                originalError.apply(console, args);
+            };
+            
+            // Check for loaded scripts
+            const scripts = Array.from(document.querySelectorAll('script[src]'));
+            log(`Found ${scripts.length} script tags with src`, 'info');
+            scripts.forEach(script => {
+                log(`  - ${script.src}`, 'info');
+            });
+            
+            // Check network requests
+            if (window.performance && window.performance.getEntriesByType) {
+                const resources = window.performance.getEntriesByType('resource');
+                const failed = resources.filter(r => r.name.includes('.js') && (r.transferSize === 0 || r.duration === 0));
+                if (failed.length > 0) {
+                    log(`❌ Failed to load ${failed.length} resources:`, 'error');
+                    failed.forEach(r => log(`  - ${r.name}`, 'error'));
+                } else {
+                    log('✅ All resources loaded successfully', 'success');
+                }
+            }
+            
+            // Check Angular bootstrap
+            setTimeout(() => {
+                if (document.querySelector('app-home') && document.querySelector('app-home').children.length > 0) {
+                    log('✅ Angular app appears to be bootstrapped', 'success');
+                } else {
+                    log('❌ Angular app may not be bootstrapped (app-home is empty)', 'error');
+                }
+            }, 2000);
+        }, 1000);
+    </script>
+</body>
+</html>
+

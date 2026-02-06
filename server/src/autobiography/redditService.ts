@@ -55,14 +55,40 @@ export async function fetchRedditPosts(limit: number = 100): Promise<RedditPost[
       
       res.on('end', () => {
         try {
+          // Log response status
+          console.log(`📡 [RedditService] Response status: ${res.statusCode} ${res.statusMessage}`);
+          
+          // Check for HTTP errors
+          if (res.statusCode && res.statusCode >= 400) {
+            console.error(`❌ [RedditService] HTTP error ${res.statusCode}: ${data.substring(0, 200)}`);
+            reject(new Error(`Reddit API returned HTTP ${res.statusCode}: ${res.statusMessage}`));
+            return;
+          }
+          
           const json = JSON.parse(data);
           
+          // Check for Reddit API errors
           if (json.error) {
+            console.error(`❌ [RedditService] Reddit API error:`, json.error);
             reject(new Error(`Reddit API error: ${json.error}`));
             return;
           }
           
-          const posts: RedditPost[] = (json.data?.children || []).map((child: any) => {
+          // Check if subreddit exists or is accessible
+          if (!json.data) {
+            console.error(`❌ [RedditService] No data in response:`, json);
+            reject(new Error('Reddit API returned no data. Subreddit may not exist or be private.'));
+            return;
+          }
+          
+          // Handle empty subreddit
+          if (!json.data.children || json.data.children.length === 0) {
+            console.log(`⚠️ [RedditService] Subreddit r/${REDDIT_SUBREDDIT} exists but has no posts`);
+            resolve([]); // Return empty array instead of error
+            return;
+          }
+          
+          const posts: RedditPost[] = (json.data.children || []).map((child: any) => {
             const post = child.data;
             return {
               id: post.id,
@@ -83,6 +109,8 @@ export async function fetchRedditPosts(limit: number = 100): Promise<RedditPost[
           console.log(`✅ [RedditService] Fetched ${posts.length} posts from r/${REDDIT_SUBREDDIT}`);
           resolve(posts);
         } catch (error: any) {
+          console.error(`❌ [RedditService] Parse error:`, error.message);
+          console.error(`❌ [RedditService] Response data (first 500 chars):`, data.substring(0, 500));
           reject(new Error(`Failed to parse Reddit response: ${error.message}`));
         }
       });
