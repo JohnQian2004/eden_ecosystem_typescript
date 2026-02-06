@@ -796,6 +796,18 @@ httpServer.on("request", async (req, res) => {
     }
   }
 
+  // Handle autobiography API requests
+  if (pathname.startsWith('/api/autobiography/')) {
+    try {
+      const { handleAutobiographyRequest } = await import('./src/autobiography/autobiographyRoutes');
+      if (await handleAutobiographyRequest(req, res, pathname)) {
+        return; // Autobiography API handled the request
+      }
+    } catch (error: any) {
+      console.error(`❌ [${requestId}] Autobiography API error:`, error.message);
+    }
+  }
+
   // NOTE: All /api/media/ requests are handled directly by the media server on port 3001
   // Angular connects directly to the media server, not through Eden backend proxy
   // No proxy code here - requests go directly to http://localhost:3001/api/media/*

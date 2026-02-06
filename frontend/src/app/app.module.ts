@@ -1,8 +1,10 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
+import { CommonModule } from '@angular/common';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { AppComponent } from './app.component';
 import { HomeComponent } from './home.component';
 import { ChatBoxComponent } from './components/chat-box/chat-box.component';
@@ -37,6 +39,7 @@ import { EdenBibleComponent } from './components/eden-bible/eden-bible.component
 import { EdenAutopartsComponent } from './components/eden-autoparts/eden-autoparts.component';
 import { EdenHistoryComponent } from './components/eden-history/eden-history.component';
 import { TikTokFeedComponent } from './components/tiktok-feed/tiktok-feed.component';
+import { AutobiographyGeneratorComponent } from './components/autobiography-generator/autobiography-generator.component';
 import { CacheInterceptor } from './services/cache.interceptor';
 
 const routes: Routes = [
@@ -87,13 +90,16 @@ const routes: Routes = [
     EdenBibleComponent,
     EdenAutopartsComponent,
     EdenHistoryComponent,
-    TikTokFeedComponent
+    TikTokFeedComponent,
+    AutobiographyGeneratorComponent
   ],
   imports: [
     BrowserModule,
+    CommonModule,
     HttpClientModule,
     FormsModule,
     ReactiveFormsModule,
+    DragDropModule,
     RouterModule.forRoot(routes)
   ],
   providers: [

@@ -196,6 +196,14 @@
                   title="Eden Books">
                   📚 Books
                 </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm eden-chat-tab-btn" 
+                  [ngClass]="{'active': edenChatTab === 'autobiography'}"
+                  (click)="edenChatTab = 'autobiography'"
+                  title="Autobiography Generator">
+                  📖 Autobiography
+                </button>
               </div>
               <button class="btn btn-sm eden-chat-header-btn" (click)="loadChatHistory()" title="Refresh chat history" *ngIf="edenChatTab === 'chat'">
                 🔄
@@ -426,6 +434,9 @@
           <!-- Eden Books Tab Content -->
           <div *ngIf="edenChatTab === 'books'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
             <app-eden-books></app-eden-books>
+          </div>
+          <div *ngIf="edenChatTab === 'autobiography'" class="eden-chat-content" style="height: 100%; overflow-y: auto;">
+            <app-autobiography-generator></app-autobiography-generator>
           </div>
           <!-- End Eden Books Tab Content -->
         </div>

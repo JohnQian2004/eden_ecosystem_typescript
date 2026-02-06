@@ -1,0 +1,241 @@
+<div class="container-fluid p-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>📖 Autobiography Generator</h1>
+    <div class="btn-group" role="group">
+      <button 
+        type="button" 
+        class="btn btn-outline-primary"
+        [class.active]="activeTab === 'reddit'"
+        (click)="activeTab = 'reddit'">
+        Reddit Posts
+      </button>
+      <button 
+        type="button" 
+        class="btn btn-outline-primary"
+        [class.active]="activeTab === 'autobiography'"
+        (click)="activeTab = 'autobiography'">
+        Autobiography
+      </button>
+      <button 
+        type="button" 
+        class="btn btn-outline-primary"
+        [class.active]="activeTab === 'white_paper'"
+        (click)="activeTab = 'white_paper'">
+        White Paper
+      </button>
+    </div>
+  </div>
+
+  <!-- Reddit Posts Tab -->
+  <div *ngIf="activeTab === 'reddit'" class="tab-content">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3>Reddit Posts from r/GardenOfEdenBillDrape</h3>
+      <button class="btn btn-primary" (click)="loadRedditPosts()" [disabled]="loadingReddit">
+        <span *ngIf="loadingReddit" class="spinner-border spinner-border-sm me-2"></span>
+        Refresh
+      </button>
+    </div>
+
+    <div *ngIf="loadingReddit" class="text-center py-5">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <div *ngIf="!loadingReddit && redditPosts.length === 0" class="text-center py-5">
+      <p class="text-muted">No Reddit posts found</p>
+    </div>
+
+    <div *ngIf="!loadingReddit && redditPosts.length > 0" class="row g-3">
+      <div class="col-12 col-md-6 col-lg-4" *ngFor="let post of redditPosts">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">{{ post.title }}</h5>
+            <p class="card-text text-muted small" *ngIf="post.selftext">
+              {{ post.selftext.substring(0, 200) }}{{ post.selftext.length > 200 ? '...' : '' }}
+            </p>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <small class="text-muted">
+                by {{ post.author }} • {{ formatDate(post.created_utc) }}
+              </small>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-success" (click)="moveToAutobiography(post)" title="Move to Autobiography">
+                  📖
+                </button>
+                <button class="btn btn-outline-info" (click)="moveToWhitePaper(post)" title="Move to White Paper">
+                  📄
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create New Post -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <h5 class="mb-0">Create New Reddit Post</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Title</label>
+          <input type="text" class="form-control" [(ngModel)]="newPostTitle" placeholder="Post title">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Content</label>
+          <textarea class="form-control" rows="5" [(ngModel)]="newPostContent" placeholder="Post content"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Subreddit</label>
+          <input type="text" class="form-control" [(ngModel)]="newPostSubreddit" placeholder="GardenOfEdenBillDrape">
+        </div>
+        <button class="btn btn-primary" (click)="createRedditPost()" [disabled]="creatingPost || !newPostTitle || !newPostContent">
+          <span *ngIf="creatingPost" class="spinner-border spinner-border-sm me-2"></span>
+          Create Post
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Autobiography Tab -->
+  <div *ngIf="activeTab === 'autobiography'" class="tab-content">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3>Bill Draper Autobiography ({{ autobiographyData.posts.length }} posts)</h3>
+      <button class="btn btn-success" (click)="saveAutobiography()" [disabled]="saving">
+        <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
+        Save & Enhance
+      </button>
+    </div>
+
+    <div *ngIf="loadingAutobiography" class="text-center py-5">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <div *ngIf="!loadingAutobiography && autobiographyData.posts.length === 0" class="text-center py-5">
+      <p class="text-muted">No autobiography posts yet. Move posts from Reddit to get started.</p>
+    </div>
+
+    <div *ngIf="!loadingAutobiography && autobiographyData.posts.length > 0" 
+         cdkDropList 
+         (cdkDropListDropped)="dropAutobiography($event)"
+         class="post-list">
+      <div *ngFor="let post of autobiographyData.posts; let i = index" 
+           cdkDrag
+           class="card mb-3 post-item"
+           [class.editing]="editingPost?.id === post.id">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <h5 class="card-title">{{ post.title }}</h5>
+              <p class="card-text" *ngIf="!editingPost || editingPost.id !== post.id">{{ post.content }}</p>
+              <textarea 
+                *ngIf="editingPost && editingPost.id === post.id"
+                class="form-control"
+                rows="10"
+                [(ngModel)]="editingPost.content">
+              </textarea>
+              <small class="text-muted d-block mt-2">
+                Order: {{ post.order }} • {{ formatDate(post.created_utc) }}
+              </small>
+            </div>
+            <div class="btn-group-vertical ms-2">
+              <button class="btn btn-sm btn-outline-primary" (click)="editPost(post)" *ngIf="!editingPost || editingPost.id !== post.id">
+                ✏️ Edit
+              </button>
+              <button class="btn btn-sm btn-success" (click)="saveEditedPost()" *ngIf="editingPost && editingPost.id === post.id">
+                💾 Save
+              </button>
+              <button class="btn btn-sm btn-secondary" (click)="cancelEdit()" *ngIf="editingPost && editingPost.id === post.id">
+                ❌ Cancel
+              </button>
+              <button class="btn btn-sm btn-outline-info" (click)="translatePost(post, 'chinese')" [disabled]="translating">
+                🇨🇳 Translate to Chinese
+              </button>
+              <button class="btn btn-sm btn-outline-info" (click)="translatePost(post, 'english')" [disabled]="translating">
+                🇺🇸 Translate to English
+              </button>
+            </div>
+          </div>
+          <div *ngIf="translationResult && editingPost?.id === post.id" class="mt-3 p-3 bg-light rounded">
+            <h6>Translation:</h6>
+            <p>{{ translationResult }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- White Paper Tab -->
+  <div *ngIf="activeTab === 'white_paper'" class="tab-content">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3>Garden of Eden White Paper ({{ whitePaperData.posts.length }} posts)</h3>
+      <button class="btn btn-success" (click)="saveWhitePaper()" [disabled]="saving">
+        <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
+        Save & Enhance
+      </button>
+    </div>
+
+    <div *ngIf="loadingWhitePaper" class="text-center py-5">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <div *ngIf="!loadingWhitePaper && whitePaperData.posts.length === 0" class="text-center py-5">
+      <p class="text-muted">No white paper posts yet. Move posts from Reddit to get started.</p>
+    </div>
+
+    <div *ngIf="!loadingWhitePaper && whitePaperData.posts.length > 0" 
+         cdkDropList 
+         (cdkDropListDropped)="dropWhitePaper($event)"
+         class="post-list">
+      <div *ngFor="let post of whitePaperData.posts; let i = index" 
+           cdkDrag
+           class="card mb-3 post-item"
+           [class.editing]="editingPost?.id === post.id">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <h5 class="card-title">{{ post.title }}</h5>
+              <p class="card-text" *ngIf="!editingPost || editingPost.id !== post.id">{{ post.content }}</p>
+              <textarea 
+                *ngIf="editingPost && editingPost.id === post.id"
+                class="form-control"
+                rows="10"
+                [(ngModel)]="editingPost.content">
+              </textarea>
+              <small class="text-muted d-block mt-2">
+                Order: {{ post.order }} • {{ formatDate(post.created_utc) }}
+              </small>
+            </div>
+            <div class="btn-group-vertical ms-2">
+              <button class="btn btn-sm btn-outline-primary" (click)="editPost(post)" *ngIf="!editingPost || editingPost.id !== post.id">
+                ✏️ Edit
+              </button>
+              <button class="btn btn-sm btn-success" (click)="saveEditedPost()" *ngIf="editingPost && editingPost.id === post.id">
+                💾 Save
+              </button>
+              <button class="btn btn-sm btn-secondary" (click)="cancelEdit()" *ngIf="editingPost && editingPost.id === post.id">
+                ❌ Cancel
+              </button>
+              <button class="btn btn-sm btn-outline-info" (click)="translatePost(post, 'chinese')" [disabled]="translating">
+                🇨🇳 Translate to Chinese
+              </button>
+              <button class="btn btn-sm btn-outline-info" (click)="translatePost(post, 'english')" [disabled]="translating">
+                🇺🇸 Translate to English
+              </button>
+            </div>
+          </div>
+          <div *ngIf="translationResult && editingPost?.id === post.id" class="mt-3 p-3 bg-light rounded">
+            <h6>Translation:</h6>
+            <p>{{ translationResult }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
