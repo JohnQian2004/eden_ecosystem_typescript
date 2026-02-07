@@ -110,16 +110,33 @@
       <!-- Detail panel (click chapter to edit) -->
       <div class="col-md-8">
         <div *ngIf="editingPost && selectedPost?.category === 'autobiography'" class="card">
-          <div class="card-header d-flex justify-content-between align-items-center py-2">
-            <strong>Chapter {{ chapterNumber(editingPost.order) }} – {{ editingPost.title }}</strong>
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeChapterDetail()">✕ Close</button>
+          <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+            <strong class="me-2">Chapter {{ chapterNumber(editingPost.order) }} – {{ editingPost.title }}</strong>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <button type="button" class="btn btn-sm btn-primary" (click)="saveEditedPost()">💾 Save</button>
+              <button type="button" class="btn btn-sm btn-secondary" (click)="closeChapterDetail()">Cancel</button>
+              <button type="button" class="btn btn-sm btn-outline-info" (click)="translatePost(editingPost, 'chinese')" [disabled]="translating">🇨🇳 Chinese</button>
+              <button type="button" class="btn btn-sm btn-outline-info" (click)="translatePost(editingPost, 'english')" [disabled]="translating">🇺🇸 English</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeChapterDetail()">✕ Close</button>
+            </div>
           </div>
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label">Title</label>
               <input type="text" class="form-control" [(ngModel)]="editingPost.title" placeholder="Chapter title">
             </div>
-            <div class="mb-3">
+            <ul class="nav nav-tabs mb-3">
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'original'" (click)="detailContentTab = 'original'" role="button">Original</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'english'" (click)="detailContentTab = 'english'" role="button">English</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'chinese'" (click)="detailContentTab = 'chinese'" role="button">Chinese</a>
+              </li>
+            </ul>
+            <div *ngIf="detailContentTab === 'original'" class="mb-3">
               <label class="form-label">Content</label>
               <div class="NgxEditor__Wrapper border rounded p-2 bg-white">
                 <ngx-editor-menu [editor]="editEditor"></ngx-editor-menu>
@@ -131,16 +148,17 @@
                 </ngx-editor>
               </div>
             </div>
-            <small class="text-muted d-block mb-3">{{ formatDate(editingPost.created_utc) }}</small>
-            <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-primary" (click)="saveEditedPost()">💾 Save</button>
-              <button class="btn btn-secondary" (click)="closeChapterDetail()">Cancel</button>
-              <button class="btn btn-outline-info" (click)="translatePost(editingPost, 'chinese')" [disabled]="translating">🇨🇳 Translate to Chinese</button>
-              <button class="btn btn-outline-info" (click)="translatePost(editingPost, 'english')" [disabled]="translating">🇺🇸 Translate to English</button>
+            <div *ngIf="detailContentTab === 'english'" class="mb-3">
+              <label class="form-label">English version</label>
+              <div class="border rounded p-3 bg-light min-height-editor" [innerHTML]="editingPost.translatedContent?.english || '<em>Click &quot;🇺🇸 English&quot; to translate and save to Redis.</em>'"></div>
             </div>
-            <div *ngIf="translationResult" class="mt-3 p-3 bg-light rounded">
-              <h6>Translation:</h6>
-              <p>{{ translationResult }}</p>
+            <div *ngIf="detailContentTab === 'chinese'" class="mb-3">
+              <label class="form-label">Chinese version</label>
+              <div class="border rounded p-3 bg-light min-height-editor" [innerHTML]="editingPost.translatedContent?.chinese || '<em>Click &quot;🇨🇳 Chinese&quot; to translate and save to Redis.</em>'"></div>
+            </div>
+            <small class="text-muted d-block mb-2">{{ formatDate(editingPost.created_utc) }}</small>
+            <div *ngIf="translationResult && (detailContentTab === 'english' || detailContentTab === 'chinese')" class="mt-2 p-2 bg-white border rounded small">
+              <strong>Last translation:</strong> <span [innerHTML]="translationResult"></span>
             </div>
           </div>
         </div>
@@ -195,16 +213,33 @@
       <!-- Detail panel (click chapter to edit) -->
       <div class="col-md-8">
         <div *ngIf="editingPost && selectedPost?.category === 'white_paper'" class="card">
-          <div class="card-header d-flex justify-content-between align-items-center py-2">
-            <strong>Chapter {{ chapterNumber(editingPost.order) }} – {{ editingPost.title }}</strong>
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeChapterDetail()">✕ Close</button>
+          <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+            <strong class="me-2">Chapter {{ chapterNumber(editingPost.order) }} – {{ editingPost.title }}</strong>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <button type="button" class="btn btn-sm btn-primary" (click)="saveEditedPost()">💾 Save</button>
+              <button type="button" class="btn btn-sm btn-secondary" (click)="closeChapterDetail()">Cancel</button>
+              <button type="button" class="btn btn-sm btn-outline-info" (click)="translatePost(editingPost, 'chinese')" [disabled]="translating">🇨🇳 Chinese</button>
+              <button type="button" class="btn btn-sm btn-outline-info" (click)="translatePost(editingPost, 'english')" [disabled]="translating">🇺🇸 English</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeChapterDetail()">✕ Close</button>
+            </div>
           </div>
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label">Title</label>
               <input type="text" class="form-control" [(ngModel)]="editingPost.title" placeholder="Chapter title">
             </div>
-            <div class="mb-3">
+            <ul class="nav nav-tabs mb-3">
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'original'" (click)="detailContentTab = 'original'" role="button">Original</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'english'" (click)="detailContentTab = 'english'" role="button">English</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" [class.active]="detailContentTab === 'chinese'" (click)="detailContentTab = 'chinese'" role="button">Chinese</a>
+              </li>
+            </ul>
+            <div *ngIf="detailContentTab === 'original'" class="mb-3">
               <label class="form-label">Content</label>
               <div class="NgxEditor__Wrapper border rounded p-2 bg-white">
                 <ngx-editor-menu [editor]="editEditor"></ngx-editor-menu>
@@ -216,16 +251,17 @@
                 </ngx-editor>
               </div>
             </div>
-            <small class="text-muted d-block mb-3">{{ formatDate(editingPost.created_utc) }}</small>
-            <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-primary" (click)="saveEditedPost()">💾 Save</button>
-              <button class="btn btn-secondary" (click)="closeChapterDetail()">Cancel</button>
-              <button class="btn btn-outline-info" (click)="translatePost(editingPost, 'chinese')" [disabled]="translating">🇨🇳 Translate to Chinese</button>
-              <button class="btn btn-outline-info" (click)="translatePost(editingPost, 'english')" [disabled]="translating">🇺🇸 Translate to English</button>
+            <div *ngIf="detailContentTab === 'english'" class="mb-3">
+              <label class="form-label">English version</label>
+              <div class="border rounded p-3 bg-light min-height-editor" [innerHTML]="editingPost.translatedContent?.english || '<em>Click &quot;🇺🇸 English&quot; to translate and save to Redis.</em>'"></div>
             </div>
-            <div *ngIf="translationResult" class="mt-3 p-3 bg-light rounded">
-              <h6>Translation:</h6>
-              <p>{{ translationResult }}</p>
+            <div *ngIf="detailContentTab === 'chinese'" class="mb-3">
+              <label class="form-label">Chinese version</label>
+              <div class="border rounded p-3 bg-light min-height-editor" [innerHTML]="editingPost.translatedContent?.chinese || '<em>Click &quot;🇨🇳 Chinese&quot; to translate and save to Redis.</em>'"></div>
+            </div>
+            <small class="text-muted d-block mb-2">{{ formatDate(editingPost.created_utc) }}</small>
+            <div *ngIf="translationResult && (detailContentTab === 'english' || detailContentTab === 'chinese')" class="mt-2 p-2 bg-white border rounded small">
+              <strong>Last translation:</strong> <span [innerHTML]="translationResult"></span>
             </div>
           </div>
         </div>

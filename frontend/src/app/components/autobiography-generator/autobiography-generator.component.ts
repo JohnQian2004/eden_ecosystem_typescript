@@ -35,6 +35,8 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
   activeTab: 'paste' | 'autobiography' | 'white_paper' = 'paste';
   selectedPost: RedditPost | AutobiographyPost | null = null;
   editingPost: AutobiographyPost | null = null;
+  /** Which content tab is shown in the chapter detail: original, English, or Chinese. */
+  detailContentTab: 'original' | 'english' | 'chinese' = 'original';
   translating = false;
   translationResult: string | null = null;
 
@@ -235,27 +237,31 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Translate content
+   * Translate content and save the result to Redis (per-chapter Chinese/English versions).
    */
   translatePost(post: AutobiographyPost, targetLanguage: 'chinese' | 'english'): void {
+    if (!this.editingPost || this.editingPost.id !== post.id) return;
     this.translating = true;
     this.translationResult = null;
-    
+
     const contentToTranslate = post.content;
-    
+
     this.autobiographyService.translateContent(contentToTranslate, targetLanguage).subscribe({
       next: (response) => {
         if (response.success) {
           this.translationResult = response.translated;
-          // Store translation in post
-          if (!post.translatedContent) {
-            post.translatedContent = {};
+          if (!this.editingPost) return;
+          if (!this.editingPost.translatedContent) {
+            this.editingPost.translatedContent = {};
           }
           if (targetLanguage === 'chinese') {
-            post.translatedContent.chinese = response.translated;
+            this.editingPost.translatedContent.chinese = response.translated;
+            this.detailContentTab = 'chinese';
           } else {
-            post.translatedContent.english = response.translated;
+            this.editingPost.translatedContent.english = response.translated;
+            this.detailContentTab = 'english';
           }
+          this.persistEditingPostToRedis();
         }
         this.translating = false;
       },
@@ -264,6 +270,30 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
         this.translating = false;
       }
     });
+  }
+
+  /**
+   * Write current editingPost back into the list and save to Redis (no close).
+   */
+  persistEditingPostToRedis(): void {
+    if (!this.editingPost) return;
+    const index = this.editingPost.category === 'autobiography'
+      ? this.autobiographyData.posts.findIndex(p => p.id === this.editingPost!.id)
+      : this.whitePaperData.posts.findIndex(p => p.id === this.editingPost!.id);
+    if (index < 0) return;
+    const copy = {
+      ...this.editingPost,
+      translatedContent: this.editingPost.translatedContent
+        ? { ...this.editingPost.translatedContent }
+        : undefined
+    };
+    if (this.editingPost.category === 'autobiography') {
+      this.autobiographyData.posts[index] = copy;
+      this.saveAutobiography();
+    } else {
+      this.whitePaperData.posts[index] = copy;
+      this.saveWhitePaper();
+    }
   }
 
   /**
@@ -339,8 +369,12 @@ export class AutobiographyGeneratorComponent implements OnInit, OnDestroy {
 
   /** Select chapter to view/edit (opens detail panel). */
   selectChapter(post: AutobiographyPost): void {
-    this.editingPost = { ...post };
+    this.editingPost = {
+      ...post,
+      translatedContent: post.translatedContent ? { ...post.translatedContent } : undefined
+    };
     this.selectedPost = post;
+    this.detailContentTab = 'original';
     this.translationResult = null;
   }
 
